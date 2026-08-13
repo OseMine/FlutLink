@@ -15,6 +15,7 @@ concurrency:
   group: opencode-todo-issues
   cancel-in-progress: true
 
+# Minimalberechtigungen: nur Issues dürfen erstellt werden, kein Code-Schreibzugriff.
 permissions:
   contents: read
   issues: write
@@ -22,22 +23,26 @@ permissions:
 jobs:
   create-issues:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install opencode
+      - name: Install opencode (pinned)
         shell: bash
-        run: curl -fsSL https://opencode.ai/install | bash
+        run: npm install --global opencode-ai@1.18.18
 
       - name: Run opencode to create issues from todo.md
         shell: bash
         env:
+          # OpenCode Zen API-Key als Secret anlegen:
+          # GitHub → Settings → Secrets and variables → Actions → OPENCODE_API_KEY
+          # (Key unter https://opencode.ai/auth abrufen; Free-Modelle kosten nichts)
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Eingeschränktes Token (nur issues: write) für gh/API-Aufrufe.
+          GH_TOKEN: ${{ github.token }}
           PROMPT: |
             Aufgabe: Erzeuge GitHub-Issues aus den offenen Aufgaben in todo.md.
 
@@ -56,7 +61,7 @@ jobs:
                - Body mit: Kontext, betroffene Dateien/Funktionen (mit Zeilennummern
                  aus todo.md), Akzeptanzkriterien und den daraus übernommenen
                  todo.md-Text.
-            5. Nutze die GitHub API via $GITHUB_TOKEN (REST: POST /repos/{owner}/{repo}/issues)
+            5. Nutze die GitHub API via $GH_TOKEN (REST: POST /repos/{owner}/{repo}/issues)
                oder das installierte `gh`-CLI (GH_TOKEN ist gesetzt).
             6. Duplizierte/bereits existierende Issues nicht neu anlegen – vorher
                bestehende Issues per API auflisten und Titel vergleichen.
@@ -66,8 +71,9 @@ jobs:
             - Antworte am Ende mit einer Zusammenfassung der erstellten Issues
               (Nummer, Titel) und der übersprungenen Duplikate.
         run: |
-          export PATH="$HOME/.opencode/bin:$PATH"
-          opencode run \
+          # Zeitlimit (25 min) schützt vor hängenden Läufen; nur der
+          # issues:write-Token wird an opencode weitergereicht.
+          timeout 1500 opencode run \
             --model opencode/deepseek-v4-flash-free \
             --auto \
-            "$PROMPT"
+            "$PROMPT" || echo "opencode beendet mit Fehler/Timeout"
