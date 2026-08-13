@@ -1,10 +1,14 @@
-# FlutLink — Nextcloud Desktop Client
+# FlutLink — FlutCloud Desktop Client
 
-FlutLink ist ein Tauri v2 Desktop-Client für Nextcloud (Sync-, Freigabe- und
-Admin-Funktionen). Das Rust-Backend übernimmt alle HTTP-Requests (WebDAV +
-OCS), die XML/JSON-Verarbeitung und die Schlüsselbund-Ablage (keyring).
-Das Frontend ist Vue 3 + TypeScript + Tailwind v4 und läuft in einem Tauri
-WebView.
+FlutLink ist ein Tauri v2 Desktop-Client für den FlutCloud-Server (Sync-,
+Freigabe- und Admin-Funktionen). FlutLink ist **kein** generischer
+Nextcloud-Client: Er verbindet sich ausschließlich mit
+`$FLUTCLOUD_URL` (aus der lokalen `.env`, nicht hart kodiert) und nur mit
+Servern, die die FlutCloud-Nextcloud-App
+(`flutcloud-app/`) ausführen. Das Rust-Backend übernimmt alle HTTP-Requests
+(WebDAV + OCS), die XML/JSON-Verarbeitung und die Schlüsselbund-Ablage
+(keyring). Das Frontend ist Vue 3 + TypeScript + Tailwind v4 und läuft in
+einem Tauri WebView.
 
 ## Struktur
 
@@ -17,6 +21,8 @@ WebView.
     CLI-Handling (`tauri-plugin-cli`; Events `flutlink:cli-open`,
     `sync-folders-changed`)
   - `commands.rs` — alle `#[tauri::command]`-Handler
+  - `flutcloud.rs` — FlutCloud-only-Durchsetzung: fester Server-URL
+    (`FLUTCLOUD_URL`) + Capability-Probe (`verify_server`)
   - `accounts.rs` — Persistenz/Konfig-Datei & Keyring-Token-Ablage
   - `state.rs` — `AppState` (Account-Liste, HTTP-Client, `sync: Arc<SyncEngine>`)
     & Serde-Modelle (`SyncFolder`, `SyncFolderStatus`)
@@ -26,6 +32,10 @@ WebView.
   - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
     Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)
   - `nextcloud/ocs.rs` — OCS Provisioning API (User-Liste, Details, Quota, Shares)
+- `flutcloud-app/` — Nextcloud-Server-App (PHP) für die Nicht-Standard-Funktionen
+  des FlutCloud-Servers (Capability, `resources`/`parts`-Virtuelle-Links,
+  Projektordner). FlutLink verbindet sich nur mit Servern, die diese App
+  ausführen.
 - `.github/workflows/` — CI (build/lint/checks) + automatisierte Reviews
 - `.opencode/` — opencode-Konfiguration (Agent `reviewer`, Commands)
 - `docs/` — zweisprachige Architektur-Dokumentation (`docs/en/` + `docs/de/`,

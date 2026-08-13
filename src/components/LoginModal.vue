@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
-import { invokeError } from "../lib/ipc";
+import { api, invokeError } from "../lib/ipc";
 
 const props = defineProps<{
   open: boolean;
-  initialUrl?: string;
   initialMode?: "login" | "register";
 }>();
 const emit = defineEmits<{ close: []; done: [] }>();
@@ -17,12 +16,23 @@ const accounts = useAccountsStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
-const defaultUrl =
-  (import.meta.env.VITE_DEFAULT_NEXTCLOUD_URL as string | undefined) ?? "";
+// FlutLink is a dedicated FlutCloud client — the server is fixed and never
+// edited manually. The URL is read from the backend (which loads it from the
+// local `.env`), so it never appears in the client code.
+const serverUrl = ref("");
+const serverUrlError = ref<string | null>(null);
 
-// The server URL is set automatically and never edited manually.
-const serverUrl = computed(
-  () => props.initialUrl?.trim() || defaultUrl || "https://flutcloud.ddns.net"
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open || serverUrl.value) return;
+    try {
+      serverUrl.value = await api.getFlutcloudUrl();
+    } catch (e) {
+      serverUrlError.value = invokeError(e).message;
+    }
+  },
+  { immediate: true }
 );
 
 const mode = ref<"login" | "register">("login");
@@ -47,6 +57,10 @@ const formError = ref<string | null>(null);
 
 async function submit() {
   if (submitting.value) return;
+  if (!serverUrl.value) {
+    formError.value = serverUrlError.value ?? t("serverNotConfigured");
+    return;
+  }
   submitting.value = true;
   formError.value = null;
   try {
@@ -66,6 +80,10 @@ async function submit() {
 
 async function submitRegister() {
   if (submitting.value) return;
+  if (!serverUrl.value) {
+    formError.value = serverUrlError.value ?? t("serverNotConfigured");
+    return;
+  }
   if (!form.value.username.trim() || !form.value.token) {
     formError.value = t("requiredFields");
     return;
@@ -127,8 +145,10 @@ async function submitRegister() {
         </div>
 
         <div class="mt-3 rounded-md bg-zinc-800/60 px-3 py-2 text-xs text-zinc-400">
-          {{ t("serverAutoNote") }}: <span class="text-zinc-200">{{ serverUrl }}</span>
+          {{ t("serverAutoNote") }}:
+          <span class="text-zinc-200">{{ serverUrl || "…" }}</span>
         </div>
+        <p v-if="serverUrlError" class="mt-1 text-xs text-red-300">{{ serverUrlError }}</p>
 
         <form
           v-if="mode === 'login'"

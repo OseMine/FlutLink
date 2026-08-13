@@ -25,7 +25,7 @@
   },
   "plugins": {
     "cli": {
-      "description": "FlutLink — Nextcloud desktop client",
+      "description": "FlutLink — FlutCloud desktop client",
       "args": [
         {
           "name": "sync",
@@ -44,7 +44,7 @@
         {
           "name": "url",
           "short": "u",
-          "description": "Open the login dialog pre-filled with a Nextcloud instance URL",
+          "description": "Open the login dialog for the FlutCloud server",
           "takesValue": true,
           "multiple": false
         },

@@ -59,6 +59,11 @@ pub fn load_accounts(app: &AppHandle) -> AppResult<Vec<Account>> {
     let raw = std::fs::read_to_string(&path)?;
     let metas: Vec<AccountMeta> =
         serde_json::from_str(&raw).map_err(|e| AppError::Parse(e.to_string()))?;
+    // FlutLink is a dedicated client for the FlutCloud server only. Drop any
+    // account that was persisted against a different instance.
+    let metas = metas
+        .into_iter()
+        .filter(|m| crate::flutcloud::assert_flutcloud_url(&m.instance_url).is_ok());
     let mut accounts = Vec::new();
     for meta in metas {
         if let Ok(token) = load_token(&meta) {

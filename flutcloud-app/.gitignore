@@ -1,0 +1,17 @@
+# FlutCloud — Nextcloud app
+# Build artifacts
+/vendor/
+/node_modules/
+/dist/
+build/
+
+# IDE / OS
+/.idea/
+/.vscode/
+.DS_Store
+
+# PHP
+/composer.lock
+/phpunit.xml
+/clover.xml
+.phpunit.result.cache

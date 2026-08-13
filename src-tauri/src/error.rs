@@ -14,6 +14,8 @@ pub enum AppError {
     Io(std::io::Error),
     Keyring(String),
     Parse(String),
+    NotFlutCloud(String),
+    FlutCloudAppMissing,
 }
 
 impl AppError {
@@ -30,6 +32,8 @@ impl AppError {
             AppError::Io(_) => "io",
             AppError::Keyring(_) => "keyring",
             AppError::Parse(_) => "parse",
+            AppError::NotFlutCloud(_) => "not_flutcloud",
+            AppError::FlutCloudAppMissing => "flutcloud_app_missing",
         }
     }
 
@@ -54,6 +58,22 @@ impl AppError {
             AppError::Io(e) => format!("I/O error: {}", e),
             AppError::Keyring(e) => format!("Credential store error: {}", e),
             AppError::Parse(e) => format!("Parse error: {}", e),
+            AppError::NotFlutCloud(url) => {
+                let server = crate::flutcloud::flutcloud_url()
+                    .unwrap_or_else(|_| "the FlutCloud server".to_string());
+                format!(
+                    "FlutLink is a dedicated client for the FlutCloud server ({}). It does not connect to '{}'.",
+                    server, url
+                )
+            }
+            AppError::FlutCloudAppMissing => {
+                let server = crate::flutcloud::flutcloud_url()
+                    .unwrap_or_else(|_| "the FlutCloud server".to_string());
+                format!(
+                    "'{}' is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled. Install it from the 'flutcloud-app' folder of the FlutLink repository.",
+                    server
+                )
+            }
         }
     }
 }

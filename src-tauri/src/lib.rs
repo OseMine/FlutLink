@@ -1,9 +1,11 @@
 mod accounts;
 mod commands;
 mod error;
+mod flutcloud;
 mod nextcloud;
 mod state;
 mod sync;
+mod updater;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -34,7 +36,7 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
 
     let mut builder = TrayIconBuilder::with_id("flutlink-tray")
         .menu(&menu)
-        .tooltip("FlutLink — Nextcloud client");
+        .tooltip("FlutLink — FlutCloud client");
     if let Some(icon) = app.default_window_icon().cloned() {
         builder = builder.icon(icon);
     }
@@ -137,6 +139,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_flutcloud_url,
             commands::account_add,
             commands::account_list,
             commands::account_active,
@@ -158,6 +161,8 @@ pub fn run() {
             commands::sync_remove,
             commands::sync_set_paused,
             commands::sync_trigger,
+            updater::check_update,
+            updater::download_and_install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

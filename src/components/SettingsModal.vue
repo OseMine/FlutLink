@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore, type Theme } from "../stores/ui";
-import { api, invokeError } from "../lib/ipc";
+import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "../lib/ipc";
 import { translate, type Lang } from "../lib/i18n";
 
 const props = defineProps<{ open: boolean }>();
@@ -17,6 +18,27 @@ const tab = ref<"accounts" | "admin" | "about">("accounts");
 const users = ref<string[]>([]);
 const adminLoading = ref(false);
 const adminError = ref<string | null>(null);
+
+type UpdateState =
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "installing"
+  | "error";
+
+const updateState = ref<UpdateState>("idle");
+const updateInfo = ref<ReleaseInfo | null>(null);
+const updateError = ref<string | null>(null);
+const updateProgress = ref(0);
+const updateStatus = ref("");
+let unlistenProgress: (() => void) | null = null;
+let unlistenStatus: (() => void) | null = null;
+
+onUnmounted(() => {
+  unlistenProgress?.();
+  unlistenStatus?.();
+});
 
 const langOptions: { value: Lang; label: string }[] = [
   { value: "en", label: "English" },
@@ -67,6 +89,44 @@ async function remove(username: string) {
     ui.toast(t("accountRemoved"), "success");
   } catch {
     // error surfaced via accounts.error
+  }
+}
+
+async function checkForUpdate() {
+  updateState.value = "checking";
+  updateError.value = null;
+  try {
+    const info = await api.checkUpdate();
+    updateInfo.value = info;
+    updateState.value = info ? "available" : "idle";
+  } catch (e) {
+    updateError.value = invokeError(e).message;
+    updateState.value = "error";
+  }
+}
+
+async function downloadAndInstall() {
+  updateState.value = "downloading";
+  updateProgress.value = 0;
+  updateStatus.value = "";
+  updateError.value = null;
+  unlistenProgress?.();
+  unlistenStatus?.();
+  try {
+    unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
+      updateProgress.value = e.payload.percent;
+    });
+    unlistenStatus = await listen<string>("update://status", (e) => {
+      updateStatus.value = e.payload;
+    });
+  } catch {
+    // progress/status listeners are best-effort
+  }
+  try {
+    await api.downloadAndInstallUpdate();
+  } catch (e) {
+    updateError.value = invokeError(e).message;
+    updateState.value = "error";
   }
 }
 </script>
@@ -228,6 +288,76 @@ async function remove(username: string) {
                 </button>
               </div>
               <p class="mt-2 text-xs text-zinc-600">{{ t("systemThemeNote") }}</p>
+            </div>
+
+            <div class="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {{ t("updates") }}
+              </p>
+
+              <template v-if="updateState === 'checking'">
+                <p class="text-sm text-zinc-400">{{ t("checkingForUpdates") }}</p>
+              </template>
+
+              <template v-else-if="updateState === 'available' && updateInfo">
+                <p class="mb-1 text-sm font-medium text-white">
+                  {{ t("updateAvailable") }}
+                  <span class="text-indigo-300">v{{ updateInfo.version }}</span>
+                </p>
+                <p class="mb-2 truncate text-xs text-zinc-500">{{ updateInfo.name }}</p>
+                <button
+                  class="w-full rounded-md border border-indigo-600 bg-indigo-600/20 px-3 py-2 text-sm text-indigo-200 hover:bg-indigo-600/30"
+                  @click="downloadAndInstall"
+                >
+                  {{ t("updateDownloadAndInstall") }}
+                </button>
+              </template>
+
+              <template
+                v-else-if="updateState === 'downloading' || updateState === 'installing'"
+              >
+                <p class="mb-1 text-sm text-zinc-400">
+                  {{
+                    updateState === "downloading"
+                      ? t("updateDownloading")
+                      : t("updateInstalling")
+                  }}
+                </p>
+                <div
+                  v-if="updateState === 'downloading'"
+                  class="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"
+                >
+                  <div
+                    class="h-full rounded-full bg-indigo-500 transition-all"
+                    :style="{ width: Math.min(updateProgress, 100) + '%' }"
+                  ></div>
+                </div>
+                <p v-if="updateStatus" class="mt-1 truncate text-xs text-zinc-600">
+                  {{ updateStatus }}
+                </p>
+              </template>
+
+              <template v-else-if="updateState === 'error'">
+                <p class="mb-2 text-xs text-red-300">
+                  {{ updateError || t("updateCheckFailed") }}
+                </p>
+                <button
+                  class="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                  @click="checkForUpdate"
+                >
+                  {{ t("checkForUpdates") }}
+                </button>
+              </template>
+
+              <template v-else>
+                <p class="mb-2 text-xs text-zinc-600">{{ t("updateUpToDate") }}</p>
+                <button
+                  class="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                  @click="checkForUpdate"
+                >
+                  {{ t("checkForUpdates") }}
+                </button>
+              </template>
             </div>
 
             <p class="text-xs leading-relaxed text-zinc-600">{{ t("keychainSecured") }}</p>

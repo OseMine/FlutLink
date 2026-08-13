@@ -64,6 +64,22 @@ export interface AppError {
   message: string;
 }
 
+export interface ReleaseInfo {
+  version: string;
+  name: string;
+  notes: string | null;
+  releaseUrl: string;
+  assetName: string;
+  assetUrl: string;
+  assetSize: number;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number;
+  percent: number;
+}
+
 function describe(e: unknown): string {
   if (typeof e === "string") return e;
   const err = e as Partial<AppError>;
@@ -75,6 +91,8 @@ export function invokeError(e: unknown): Error {
 }
 
 export const api = {
+  getFlutcloudUrl: () => invoke<string>("get_flutcloud_url"),
+
   accountAdd: (instanceUrl: string, username: string, token: string) =>
     invoke<AccountMeta>("account_add", { instanceUrl, username, token }),
 
@@ -134,4 +152,9 @@ export const api = {
     invoke<void>("sync_set_paused", { folderId, paused }),
 
   syncTrigger: () => invoke<void>("sync_trigger"),
+
+  checkUpdate: () => invoke<ReleaseInfo | null>("check_update"),
+
+  downloadAndInstallUpdate: () =>
+    invoke<void>("download_and_install_update"),
 };

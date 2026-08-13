@@ -1,8 +1,15 @@
 # FlutLink
 
-A high-performance Nextcloud synchronization and management desktop client built with **Tauri v2** (Rust backend, Vue 3 + TypeScript + Tailwind frontend).
+A high-performance sync and management desktop client for the **FlutCloud**
+server built with **Tauri v2** (Rust backend, Vue 3 + TypeScript + Tailwind
+frontend).
 
-All HTTP traffic (WebDAV, OCS) is handled in Rust, which avoids CORS, enables custom HTTP methods like `PROPFIND`, and keeps credentials out of the renderer.
+> **FlutLink is a dedicated client for the FlutCloud server — not a generic
+> Nextcloud client.** Every connection is verified against the FlutCloud
+> Nextcloud app (`flutcloud-app/`); servers that do not run it are rejected.
+
+All HTTP traffic (WebDAV, OCS) is handled in Rust, which avoids CORS, enables
+custom HTTP methods like `PROPFIND`, and keeps credentials out of the renderer.
 
 ## Documentation
 
@@ -23,20 +30,40 @@ flutlink/
 │   ├── lib/ipc.ts              # Typed invoke() wrappers for every Rust command
 │   ├── stores/                 # Pinia: accounts + files + sync state
 │   └── App.vue                 # Shell: sidebar + Files/Sync/Admin tabs
-└── src-tauri/                  # Rust backend
-    ├── src/
-    │   ├── main.rs / lib.rs    # App bootstrap, state injection, tray, CLI, command registry
-    │   ├── state.rs            # AppState: shared reqwest client + account + sync engine
-    │   ├── error.rs            # Serializable AppError (code + message) for the frontend
-    │   ├── accounts.rs         # OS keychain (keyring) + accounts.json persistence
-    │   ├── commands.rs         # All #[tauri::command] IPC endpoints
-    │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
-    │   └── nextcloud/
-    │       ├── mod.rs          # Shared auth request helper + URL/encoding utils
-    │       ├── webdav.rs       # PROPFIND, multistatus XML parsing, transfer helpers
-    │       └── ocs.rs          # OCS: user info, admin probe, user provisioning, share links
-    └── tauri.conf.json         # Tauri config & branding
+├── src-tauri/                  # Rust backend
+│   ├── src/
+│   │   ├── main.rs / lib.rs    # App bootstrap, state injection, tray, CLI, command registry
+│   │   ├── state.rs            # AppState: shared reqwest client + account + sync engine
+│   │   ├── error.rs            # Serializable AppError (code + message) for the frontend
+│   │   ├── accounts.rs         # OS keychain (keyring) + accounts.json persistence
+│   │   ├── commands.rs         # All #[tauri::command] IPC endpoints
+│   │   ├── flutcloud.rs        # FlutCloud-only enforcement (URL check + capability probe)
+│   │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
+│   │   └── nextcloud/
+│   │       ├── mod.rs          # Shared auth request helper + URL/encoding utils
+│   │       ├── webdav.rs       # PROPFIND, multistatus XML parsing, transfer helpers
+│   │       └── ocs.rs          # OCS: user info, admin probe, user provisioning, share links
+│   └── tauri.conf.json         # Tauri config & branding
+├── android/                    # (planned) FlutLink mobile client
+└── flutcloud-app/              # FlutCloud Nextcloud server app (non-standard server features)
+    ├── appinfo/                # info.xml + OCS routes
+    ├── lib/                    # Capabilities, ApiController, LinkService (resources/parts)
+    └── composer.json           # OCA\FlutCloud autoloading
 ```
+
+### FlutCloud-only policy
+
+FlutLink connects exclusively to the server configured in the local `.env`
+file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
+
+- The server URL is never hard-coded in source; the backend reads
+  `FLUTCLOUD_URL` from `.env` (`src-tauri/src/flutcloud.rs`) and exposes it to
+  the frontend via the `get_flutcloud_url` command.
+- `account_add` / `register_user` reject other URLs
+  (`AppError::NotFlutCloud`).
+- Before connecting, the OCS capabilities endpoint is probed for the
+  `flutcloud` capability (`AppError::FlutCloudAppMissing` if absent).
+- Accounts persisted for other servers are dropped when the app starts.
 
 ### Security model
 
@@ -72,7 +99,7 @@ tray menu restores the window or quits the app.
 ```bash
 flutlink --sync          # run a sync pass after startup
 flutlink --path <dir>    # add a local folder to sync
-flutlink --url <server>  # open the login dialog pre-filled with the server URL
+flutlink --url           # open the login dialog (the FlutCloud server is fixed)
 flutlink --tray          # start minimized to the system tray
 ```
 

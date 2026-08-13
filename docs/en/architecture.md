@@ -36,6 +36,7 @@ src-tauri/                        # Rust backend
 │   ├── error.rs                  # AppError/AppResult (JSON-serialized)
 │   ├── accounts.rs               # accounts.json metadata + keyring tokens
 │   ├── commands.rs               # all #[tauri::command] handlers
+│   ├── flutcloud.rs              # FlutCloud-only enforcement (fixed server URL + capability probe)
 │   ├── sync.rs                   # two-way sync engine (journal/planner/worker)
 │   └── nextcloud/
 │       ├── mod.rs                # auth request helper, URL/encoding utils
@@ -43,7 +44,22 @@ src-tauri/                        # Rust backend
 │       └── ocs.rs                # OCS: user info, admin probe, provisioning, shares
 ├── capabilities/default.json     # window permissions (core, opener, dialog)
 └── tauri.conf.json               # app + CLI plugin config, bundling
+
+flutcloud-app/                    # FlutCloud Nextcloud server app (PHP)
+├── appinfo/                      # info.xml, OCS routes (api/v1/*)
+├── lib/                          # Capabilities, ApiController, LinkService
+└── composer.json                 # OCA\FlutCloud autoloading
 ```
+
+## FlutCloud-only
+
+FlutLink is **not** a generic Nextcloud client. It connects exclusively to the
+FlutCloud server (the URL is read from `FLUTCLOUD_URL` in the local `.env`,
+never hard-coded) and only when that server runs
+the FlutCloud Nextcloud app (`flutcloud-app/`). `flutcloud.rs` rejects foreign
+URLs (`AppError::NotFlutCloud`) and probes the OCS capabilities endpoint for
+the `flutcloud` capability (`AppError::FlutCloudAppMissing`) before any
+account is created.
 
 ## Frontend ↔ backend data flow
 

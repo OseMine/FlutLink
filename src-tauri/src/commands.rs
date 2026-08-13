@@ -20,6 +20,14 @@ fn current_account(state: &AppState) -> AppResult<Account> {
     state.current().ok_or(AppError::NoActiveAccount)
 }
 
+/// Returns the configured FlutCloud server URL (read from `FLUTCLOUD_URL` in
+/// the local `.env` file). The frontend uses this so the URL never has to be
+/// hard-coded in client code.
+#[tauri::command]
+pub fn get_flutcloud_url() -> AppResult<String> {
+    crate::flutcloud::flutcloud_url()
+}
+
 #[tauri::command]
 pub async fn account_add(
     app: AppHandle,
@@ -28,7 +36,7 @@ pub async fn account_add(
     username: String,
     token: String,
 ) -> AppResult<AccountMeta> {
-    let instance_url = instance_url.trim_end_matches('/').to_string();
+    let instance_url = crate::flutcloud::assert_flutcloud_url(&instance_url)?;
     let account = Account {
         meta: AccountMeta {
             username,
@@ -39,6 +47,10 @@ pub async fn account_add(
         },
         token,
     };
+
+    // Refuse to connect to anything that is not a FlutCloud server running the
+    // FlutCloud Nextcloud app.
+    crate::flutcloud::verify_server(&state.http_client, &account).await?;
 
     let user = ocs::get_current_user(&state.http_client, &account).await?;
     let is_admin = ocs::is_admin(&state.http_client, &account)
@@ -135,7 +147,7 @@ pub async fn register_user(
     state: State<'_, AppState>,
     input: RegisterUserInput,
 ) -> AppResult<AccountMeta> {
-    let instance_url = input.instance_url.trim_end_matches('/').to_string();
+    let instance_url = crate::flutcloud::assert_flutcloud_url(&input.instance_url)?;
 
     let admin = Account {
         meta: AccountMeta {
@@ -147,6 +159,10 @@ pub async fn register_user(
         },
         token: input.admin_password,
     };
+
+    // Refuse to register on anything that is not a FlutCloud server running the
+    // FlutCloud Nextcloud app.
+    crate::flutcloud::verify_server(&state.http_client, &admin).await?;
 
     // Create the real account. Fails with an OCS error if the admin
     // credentials are invalid or the username is already taken.

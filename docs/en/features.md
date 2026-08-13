@@ -6,8 +6,8 @@ administration and two-way sync.
 ## Files tab
 
 - WebDAV browser with `PROPFIND` (Depth 1) listings.
-- Entries are flagged as **resource** or **part** (see the AGENTS/`resources`
-  conventions used on the Nextcloud side) and shown as badges.
+- Entries are flagged as **resource** or **part** (see the `resources`/`parts`
+  conventions used on the FlutCloud server side) and shown as badges.
 - One-click **link sharing** via the OCS share API — the public link is copied
   to the clipboard.
 - Multi-account support: switch accounts from the sidebar or the avatar menu.
@@ -26,7 +26,7 @@ Only visible/enabled for accounts that are members of an admin group.
 ## Sync tab
 
 - Add any local folder; its content is mirrored to `/FlutLink/<folder>` on the
-  active Nextcloud account.
+  active FlutCloud account.
 - Per-folder status: `idle`, `syncing`, `paused`, `error` with pending upload /
   download / delete counters and failures.
 - Pause and resume individual folders; remove folders again.
@@ -41,6 +41,6 @@ See [Sync engine](sync.md) for the details.
 - Tray menu: *Show FlutLink* / *Quit FlutLink*; left-clicking the icon also
   restores the window.
 - Command-line flags cover headless-ish workflows:
-  `--sync`, `--path <dir>`, `--url <server>`, `--tray`.
+  `--sync`, `--path <dir>`, `--tray`.
 
 See [Tray & CLI](tray-and-cli.md).

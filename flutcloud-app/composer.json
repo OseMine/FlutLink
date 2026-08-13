@@ -1,0 +1,29 @@
+{
+    "name": "flut/flutcloud",
+    "description": "FlutCloud — Nextcloud app providing the non-standard server features used by the FlutLink client",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "keywords": ["nextcloud", "flutcloud", "flutlink"],
+    "autoload": {
+        "psr-4": {
+            "OCA\\FlutCloud\\": "lib/"
+        }
+    },
+    "require": {
+        "php": ">=8.1"
+    },
+    "config": {
+        "platform": {
+            "php": "8.1"
+        }
+    },
+    "scripts": {
+        "check": [
+            "@php -l lib/AppInfo/Application.php",
+            "@php -l lib/Capabilities.php",
+            "@php -l lib/Controller/ApiController.php",
+            "@php -l lib/Service/LinkService.php",
+            "@php -l appinfo/routes.php"
+        ]
+    }
+}

@@ -22,7 +22,6 @@ const ui = useUiStore();
 
 const tab = ref<"files" | "admin" | "sync">("files");
 const showLogin = ref(false);
-const loginInitialUrl = ref("");
 const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
 const accountMenu = ref(false);
@@ -50,8 +49,8 @@ onMounted(() => {
     .matchMedia("(prefers-color-scheme: light)")
     .addEventListener("change", resolveTheme);
 
-  void listen<string>("flutlink:cli-open", (event) => {
-    loginInitialUrl.value = event.payload;
+  // The server is fixed to FlutCloud, so the CLI --url flag only opens the login.
+  void listen<string>("flutlink:cli-open", () => {
     loginMode.value = "login";
     showLogin.value = true;
   });
@@ -232,7 +231,7 @@ watch(
       </main>
     </template>
 
-    <LoginModal :open="showLogin" :initial-url="loginInitialUrl" :initial-mode="loginMode" @close="showLogin = false" @done="showLogin = false" />
+    <LoginModal :open="showLogin" :initial-mode="loginMode" @close="showLogin = false" @done="showLogin = false" />
     <SettingsModal
       :open="showSettings"
       @close="showSettings = false"

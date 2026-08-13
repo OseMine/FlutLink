@@ -2,8 +2,10 @@
 
 [German docs](README-de.md)
 Welcome to the FlutLink documentation. FlutLink is a Tauri v2 desktop client
-for Nextcloud — file browsing, sharing, administration and two-way sync, with
-the entire HTTP stack (WebDAV + OCS) living in the Rust backend.
+for the FlutCloud server — file browsing, sharing, administration and two-way
+sync, with the entire HTTP stack (WebDAV + OCS) living in the Rust backend.
+FlutLink connects exclusively to the FlutCloud server and rejects servers
+without the FlutCloud Nextcloud app (`flutcloud-app/`).
 
 The documentation is maintained in **two languages** (English and German).
 Every page exists in both variants and must stay in sync.

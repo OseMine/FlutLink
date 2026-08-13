@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>flutcloud</id>
+    <name>FlutCloud</name>
+    <summary>Non-standard server features used by the FlutLink client</summary>
+    <description>
+        FlutCloud is the companion Nextcloud app of the FlutLink desktop client.
+        It provides the non-standard features the FlutLink client builds on and
+        identifies the server as a FlutCloud instance via the OCS capabilities.
+
+        Features:
+        - FlutCloud capability advertised over the OCS capabilities endpoint
+        - Ping endpoint (verified by the FlutLink client before connecting)
+        - Virtual links (read-only `resources` folders) and writable `parts`
+        - Shared project folder `/FlutLink/FlutCloud` for the OperationFlut team
+
+        FlutLink connects exclusively to servers that run this app.
+    </description>
+    <version>0.1.0</version>
+    <licence>agpl</licence>
+    <author mail="flutcloud@flut.de" homepage="https://github.com/OseMine/FlutLink">OperationFlut</author>
+    <namespace>FlutCloud</namespace>
+    <category>tools</category>
+    <website>https://github.com/OseMine/FlutLink</website>
+    <repository type="git">https://github.com/OseMine/FlutLink.git</repository>
+    <bugs>https://github.com/OseMine/FlutLink/issues</bugs>
+    <dependencies>
+        <nextcloud min-version="28" max-version="31"/>
+    </dependencies>
+    <screenshot
+        small="https://raw.githubusercontent.com/OseMine/FlutLink/main/FlutLink%20Logo.svg"
+        large="https://raw.githubusercontent.com/OseMine/FlutLink/main/FlutLink%20Logo.svg"/>
+</info>

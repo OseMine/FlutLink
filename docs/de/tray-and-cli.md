@@ -27,7 +27,7 @@ Konfiguriert in `tauri.conf.json` unter `plugins.cli` und geparst in
 | --- | --- | --- | --- |
 | `--sync` | `-s` | keins | Nach dem Start einen Sync-Durchlauf ausführen (`sync.notify_one()`) |
 | `--path` | `-p` | Verzeichnis | Lokalen Ordner zum Zwei-Wege-Sync hinzufügen |
-| `--url` | `-u` | URL | Login-Dialog mit der Server-URL vorausgefüllt öffnen |
+| `--url` | `-u` | URL (ignoriert) | Login-Dialog für den FlutCloud-Server öffnen |
 | `--tray` | `-t` | keins | Minimiert in den System-Tray starten |
 
 Beispiele:
@@ -35,12 +35,14 @@ Beispiele:
 ```bash
 flutlink --tray --sync                     # still starten und einmal synchronisieren
 flutlink --path "C:\Users\me\Dokumente"    # Sync-Ordner hinzufügen
-flutlink --url https://cloud.example.com   # Anmeldung für diesen Server öffnen
+flutlink --url             # Anmeldung öffnen (der FlutCloud-Server ist fest)
 ```
 
 Frontend-Interaktion:
 
-- `--url` emittiert `flutlink:cli-open`; `App.vue` hört zu, öffnet
-  `LoginModal` mit vorausgefüllter URL (`initialUrl`-Prop).
+- `--url` emittiert `flutlink:cli-open`; `App.vue` hört zu und öffnet
+  `LoginModal`. Die Server-URL ist immer der FlutCloud-Server
+  (`src/lib/config.ts`) — FlutLink ist ein dedizierter Client und verbindet
+  sich nie woanders hin.
 - `--path` führt `commands::sync_add` aus und emittiert
   `sync-folders-changed`, damit sich das Sync-Panel aktualisiert.

@@ -7,8 +7,8 @@ Freigaben, Administration und Zwei-Wege-Sync.
 
 - WebDAV-Browser mit `PROPFIND`-Listings (Depth 1).
 - Einträge werden als **resource** oder **part** markiert (siehe die
-  AGENTS/`resources`-Konventionen auf der Nextcloud-Seite) und als Badges
-  angezeigt.
+  `resources`/`parts`-Konventionen auf der FlutCloud-Server-Seite) und als
+  Badges angezeigt.
 - **Link-Freigabe** per Klick über die OCS-Share-API — der öffentliche Link
   wird in die Zwischenablage kopiert.
 - Mehrere Konten: Kontowechsel über die Seitenleiste oder das
@@ -28,7 +28,7 @@ Nur für Konten sichtbar/aktiv, die Mitglied einer Admin-Gruppe sind.
 ## Sync-Tab
 
 - Beliebigen lokalen Ordner hinzufügen; sein Inhalt wird nach
-  `/FlutLink/<Ordner>` auf dem aktiven Nextcloud-Konto gespiegelt.
+  `/FlutLink/<Ordner>` auf dem aktiven FlutCloud-Konto gespiegelt.
 - Status pro Ordner: `idle`, `syncing`, `paused`, `error` mit Zählern für
   anstehende Uploads/Downloads/Löschungen und Fehlern.
 - Ordner einzeln pausieren/fortsetzen oder wieder entfernen.
@@ -44,6 +44,6 @@ Details siehe [Sync-Engine](sync.md).
 - Tray-Menü: *FlutLink anzeigen* / *FlutLink beenden*; ein Linksklick auf das
   Symbol stellt das Fenster ebenfalls wieder her.
 - Kommandozeilen-Flags decken Headless-artige Workflows ab:
-  `--sync`, `--path <Ordner>`, `--url <Server>`, `--tray`.
+  `--sync`, `--path <Ordner>`, `--tray`.
 
 Siehe [Tray & CLI](tray-and-cli.md).

@@ -1,8 +1,10 @@
 # Getting Started
 
-FlutLink is a desktop client for Nextcloud built with **Tauri v2** — a Rust
-backend that speaks WebDAV and OCS directly, and a Vue 3 + TypeScript +
-Tailwind frontend.
+FlutLink is the desktop client for the **FlutCloud** server built with
+**Tauri v2** — a Rust backend that speaks WebDAV and OCS directly, and a Vue 3
++ TypeScript + Tailwind frontend. FlutLink only connects to the FlutCloud
+server (which must run the `flutcloud` Nextcloud app); it is not a generic
+Nextcloud client.
 
 ## Prerequisites
 
@@ -25,12 +27,13 @@ npm run tauri dev    # starts Vite (port 1420) + the Rust app
 The app opens a 1200×800 window. The first time you run it you can either sign
 in with an account or just explore the welcome screen.
 
-## Adding a Nextcloud account
+## Adding a FlutCloud account
 
-1. Create an **app password** in Nextcloud:
+1. Create an **app password** in FlutCloud:
    *Settings → Security → App passwords*.
 2. Open FlutLink → **Sign In**.
-3. Enter the server URL, your username and the app password.
+3. Enter your username and the app password. The server is fixed to the
+   `FLUTCLOUD_URL` configured in your local `.env`.
 4. The token is stored in your OS keychain (Windows Credential Manager, macOS
    Keychain, Linux Secret Service).
 
@@ -42,8 +45,8 @@ when the user belongs to an admin group.
 - Browse your cloud files in the **Files** tab.
 - Add a local folder in the **Sync** tab — it will be mirrored to
   `/FlutLink/<folder>`.
-- Use the command line: `flutlink --sync`, `flutlink --path <dir>`,
-  `flutlink --url <server>` (see [Tray & CLI](tray-and-cli.md)).
+- Use the command line: `flutlink --sync` or `flutlink --path <dir>`
+  (see [Tray & CLI](tray-and-cli.md)).
 - Connect an admin account and open the **Admin** tab.
 
 ## Production build
