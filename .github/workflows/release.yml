@@ -14,7 +14,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install opencode (pinned)
+        shell: bash
+        run: npm install --global opencode-ai@1.18.18
+
+      - name: Generate release notes
+        id: notes
+        shell: bash
+        env:
+          # OpenCode Zen API-Key als Secret anlegen (siehe opencode-review.yml).
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          PREV_TAG=$(git describe --abbrev=0 --tags "$GITHUB_SHA^" 2>/dev/null || true)
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log --oneline --no-merges "${PREV_TAG}..HEAD" 2>/dev/null)
+          else
+            LOG=$(git log --oneline --no-merges -20)
+          fi
+          echo "Generating release notes from:"
+          printf '%s\n' "$LOG"
+
+          opencode run --model opencode/deepseek-v4-flash-free --auto \
+            "Erstelle kompakte, deutschsprachige Release-Notes für FlutLink $GITHUB_REF_NAME.
+             Grundlage ist folgende Commit-Liste:
+             ---
+             $LOG
+             ---
+             Struktur: Abschnitte 'Neu', 'Behoben', 'Verbessert', 'Hinweise'.
+             Gib ausschließlich den Markdown-Body aus (keine zusätzliche Erklärung)." \
+            > release-notes.md || true
+
+          if [ -s release-notes.md ]; then
+            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            cat release-notes.md >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-release:
+    needs: release-notes
     strategy:
       fail-fast: false
       matrix:
@@ -72,7 +122,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
-          releaseBody: "See the assets below to download and install this version."
+          releaseBody: ${{ needs.release-notes.outputs.body || 'See the assets below to download and install this version.' }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

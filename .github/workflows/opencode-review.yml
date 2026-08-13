@@ -18,35 +18,30 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
-      id-token: write
       contents: write
       pull-requests: write
-      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Install opencode (pinned)
+        shell: bash
+        run: npm install --global opencode-ai@1.18.18
 
       - name: Run OpenCode review
-        uses: anomalyco/opencode/github@latest
+        shell: bash
+        id: review
+        continue-on-error: true
         env:
           # OpenCode Zen API-Key als Secret anlegen:
           # GitHub → Settings → Secrets and variables → Actions → OPENCODE_API_KEY
           # (Key unter https://opencode.ai/auth abrufen; Free-Modelle kosten nichts)
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: opencode/deepseek-v4-flash-free
-          agent: reviewer
-          use_github_token: true
-          prompt: |
+          PROMPT: |
             Automatisiertes Code-Review des FlutLink-Projekts (Tauri v2 Desktop-App:
             Nextcloud-Sync-Client mit Rust-Backend und Vue 3 + TypeScript + Tailwind-Frontend).
             Fokusbereich: ${{ github.event.inputs.focus || 'das gesamte Projekt' }}
@@ -67,16 +62,38 @@ jobs:
                Schreibe das Review nicht erst ganz am Ende.
             4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
                vorhanden), bestehende Einträge unangetastet lassen.
-            ZUSÄTZLICHE NICHT IM REVIEWER Agent ENTHALTENE AUFGABEN:
-            5. Prüfe welche Punkte aus todo.md erledigt wurden und markiere sie als erledigt (z. B. „[x]“), bzw prüfe ob sie korrekt mit [x] markiert wurden und verschiebe danach alle abgehakten todos nach archived-todo.md.
-            6. räume das repository auf ud lösche/reviewe und merge pull requests und issues. füge offene issues zu den todos hinzu und schließe erledigte issues. lösche unnütze/duplizierte branches
-            7. reviewe offene pull requests, fixe merge errors und merge diese
+            5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als
+               erledigt („[x]") und verschiebe abgehakte Todos nach archived-todo.md.
 
-            WICHTIG: Committe NICHT, pushe NICHT und öffne KEINEN Pull Request
-            selbst. Die GitHub-Action erkennt die geänderten Dateien automatisch,
-            committed und pusht sie auf einen Branch und erstellt den Pull Request.
-            Beende deine Antwort direkt nach Schritt 7.
+            WICHTIG:
+            - Nur Berichte (reports/) und todo.md verändern — KEINEN Anwendungscode,
+              KEINE Workflows/Actions. Keine Git-Operationen (committen, pushen,
+              PRs, Merges, Branch-Löschungen) — das übernimmt die Workflow-Step.
+            - Keine GitHub-API-/gh-Aufrufe. Keine destructive Aktionen.
+            - Beende deine Antwort direkt nach Schritt 5.
 
-            Regeln: Keinen Anwendungscode verändern, nur Berichte und todo.md.
-            Keine Findings ohne konkrete Datei-/Funktionsnamen. Wenn keine neuen
-            Befunde vorhanden sind, vermerke das ausdrücklich im Review-Bericht.
+            Regeln: Keine Findings ohne konkrete Datei-/Funktionsnamen. Wenn keine
+            neuen Befunde vorhanden sind, vermerke das ausdrücklich im Review-Bericht.
+        run: |
+          # Zeitlimit (25 min) schützt vor hängenden Läufen; der PR-Step läuft
+          # trotzdem und committet auch Teilergebnisse.
+          timeout 1500 opencode run \
+            --model opencode/deepseek-v4-flash-free \
+            --agent reviewer \
+            --auto \
+            --title "Weekly review $(date -u +%Y-%m-%d)" \
+            "$PROMPT" || echo "opencode beendet mit Fehler/Timeout"
+
+      - name: Create pull request with review results
+        if: always()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: review/opencode-${{ github.run_id }}
+          commit-message: "chore: opencode review report"
+          title: "chore: opencode review report"
+          body: |
+            Automatisierter Review-Bericht von opencode.
+
+            - Enthält nur Änderungen an `reports/` und `todo.md`.
+            - Bitte prüfen und mergen.
+          delete-branch: true
