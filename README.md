@@ -12,20 +12,22 @@ flutlink/
 │   ├── components/
 │   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
 │   │   ├── FileExplorer.vue    # WebDAV browser with resources/parts badges + link sharing
-│   │   └── AdminPanel.vue      # OCS user provisioning (list, details, quota)
+│   │   ├── AdminPanel.vue      # OCS user provisioning (list, details, quota)
+│   │   └── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
 │   ├── lib/ipc.ts              # Typed invoke() wrappers for every Rust command
-│   ├── stores/                 # Pinia: accounts + files state
-│   └── App.vue                 # Shell: sidebar + Files/Admin tabs
+│   ├── stores/                 # Pinia: accounts + files + sync state
+│   └── App.vue                 # Shell: sidebar + Files/Sync/Admin tabs
 └── src-tauri/                  # Rust backend
     ├── src/
-    │   ├── main.rs / lib.rs    # App bootstrap, state injection, command registry
-    │   ├── state.rs            # AppState: shared reqwest client + account registry (RwLock)
+    │   ├── main.rs / lib.rs    # App bootstrap, state injection, tray, CLI, command registry
+    │   ├── state.rs            # AppState: shared reqwest client + account + sync engine
     │   ├── error.rs            # Serializable AppError (code + message) for the frontend
     │   ├── accounts.rs         # OS keychain (keyring) + accounts.json persistence
     │   ├── commands.rs         # All #[tauri::command] IPC endpoints
+    │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
     │   └── nextcloud/
     │       ├── mod.rs          # Shared auth request helper + URL/encoding utils
-    │       ├── webdav.rs       # PROPFIND + multistatus XML parsing (quick-xml)
+    │       ├── webdav.rs       # PROPFIND, multistatus XML parsing, transfer helpers
     │       └── ocs.rs          # OCS: user info, admin probe, user provisioning, share links
     └── tauri.conf.json         # Tauri config & branding
 ```
@@ -45,6 +47,28 @@ flutlink/
 | `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart` |
 | `webdav_create_share` | OCS share API | Generate a public link, URL returned to frontend |
 | `admin_list_users` / `admin_get_user` / `admin_set_user_quota` | OCS Provisioning API | Admin panel (admin accounts only) |
+| `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
+| `sync_trigger` | `sync.rs` | Kick off a sync pass immediately |
+
+### Two-way sync
+
+Folders are mirrored to `/FlutLink/<folder>` on Nextcloud. A JSON journal
+(`sync-journal-<id>.json` in the app-data dir) records the last-synced
+local/remote `{size, mtime}` fingerprint per file; the background worker (10 s
+interval + change notifications) propagates local uploads, remote downloads and
+deletions. Conflicts upload the local copy as `name (conflict copy).ext`.
+
+### System tray & CLI
+
+Closing the window hides FlutLink to the system tray instead of quitting; the
+tray menu restores the window or quits the app.
+
+```bash
+flutlink --sync          # run a sync pass after startup
+flutlink --path <dir>    # add a local folder to sync
+flutlink --url <server>  # open the login dialog pre-filled with the server URL
+flutlink --tray          # start minimized to the system tray
+```
 
 ## Development
 
@@ -66,6 +90,6 @@ cargo test                 # Rust unit tests (incl. WebDAV XML parser)
 ## Roadmap
 
 - **Phase 1 (done):** Tauri v2 + Vite + Tailwind scaffold; Rust backend with keychain auth, multi-account state, WebDAV listing, OCS admin endpoints; account switcher UI.
-- **Phase 2:** Chunked uploads/downloads with progress events (`app.emit`), drag & drop, `resources`/`parts` dual-pane workflows, symlink/virtual-link resolution.
-- **Phase 3:** Full provisioning UI (create/delete users, groups, impersonation) and quota presets.
-- **Phase 4:** System tray, native notifications, background sync engine, offline cache.
+- **Phase 2 (done):** Two-way sync engine with journal, background worker, sync panel; system tray + close-to-tray; CLI flags; official FlutLink/OperationFlut branding.
+- **Phase 3:** Chunked uploads/downloads with progress events (`app.emit`), drag & drop, `resources`/`parts` dual-pane workflows, symlink/virtual-link resolution.
+- **Phase 4:** Full provisioning UI (create/delete users, groups, impersonation) and quota presets, native notifications, offline cache.

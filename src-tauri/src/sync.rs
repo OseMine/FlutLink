@@ -102,7 +102,7 @@ fn remote_rel(folder: &SyncFolder, rel: &str) -> String {
 
 fn conflict_name(rel: &str) -> String {
     match rel.rfind('.') {
-        Some(idx) if idx > 0 && rel[idx + 1..].contains('/') == false => {
+        Some(idx) if idx > 0 && !rel[idx + 1..].contains('/') => {
             let (stem, ext) = rel.split_at(idx);
             format!("{} (conflict copy){}", stem, ext)
         }
@@ -187,7 +187,7 @@ async fn list_remote(
     while let Some(dir) = pending.pop() {
         let entries = match webdav::list(client, account, &dir, None).await {
             Ok(entries) => entries,
-            Err(AppError::Status { status, .. }) if status == 404 => Vec::new(),
+            Err(AppError::Status { status: 404, .. }) => Vec::new(),
             Err(err) => return Err(err),
         };
         for entry in entries {
@@ -1015,7 +1015,7 @@ mod tests {
             Some("sub/a.txt")
         );
         assert_eq!(
-            rel_below("FlutLink/MyFolder", "/FlutLink/MyFolder"),
+            rel_below("FlutLink/MyFolder", "/FlutLink/MyFolder").as_deref(),
             Some("")
         );
         assert_eq!(
@@ -1047,6 +1047,7 @@ mod tests {
         assert!(
             ops.iter()
                 .position(|a| *a == Action::EnsureDir("docs".into()))
+                .unwrap()
                 < ops
                     .iter()
                     .position(|a| *a == Action::EnsureDir("docs/deep".into()))
@@ -1056,6 +1057,7 @@ mod tests {
         assert!(
             ops.iter()
                 .position(|a| *a == Action::EnsureDir("docs/deep".into()))
+                .unwrap()
                 < ops
                     .iter()
                     .position(|a| *a == Action::Upload("docs/deep/file.txt".into()))

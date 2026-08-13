@@ -12,15 +12,23 @@ WebView.
   Tauri-IPC-Wrapper in `src/lib/ipc.ts`, i18n in `src/lib/i18n.ts`,
   UI-Persistenz in `src/stores/ui.ts`)
 - `src-tauri/` — Rust-Backend:
-  - `lib.rs` — Command-Registry (`tauri::generate_handler!`) & Plugin-Setup
+  - `lib.rs` — Command-Registry (`tauri::generate_handler!`), Plugin-Setup,
+    System-Tray (`setup_tray`), Close-to-Tray (`on_window_event`) und
+    CLI-Handling (`tauri-plugin-cli`; Events `flutlink:cli-open`,
+    `sync-folders-changed`)
   - `commands.rs` — alle `#[tauri::command]`-Handler
   - `accounts.rs` — Persistenz/Konfig-Datei & Keyring-Token-Ablage
-  - `state.rs` — `AppState` (Account-Liste, HTTP-Client) & Serde-Modelle
+  - `state.rs` — `AppState` (Account-Liste, HTTP-Client, `sync: Arc<SyncEngine>`)
+    & Serde-Modelle (`SyncFolder`, `SyncFolderStatus`)
+  - `sync.rs` — Zwei-Wege-Sync-Engine (Journal, Planner, Executor, Worker,
+    Persistenz, Unit-Tests); Details in `docs/sync.md`
   - `error.rs` — `AppError`/`AppResult` (serialisiert nach JSON fürs Frontend)
-  - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support
+  - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
+    Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)
   - `nextcloud/ocs.rs` — OCS Provisioning API (User-Liste, Details, Quota, Shares)
 - `.github/workflows/` — CI (build/lint/checks) + automatisierte Reviews
 - `.opencode/` — opencode-Konfiguration (Agent `reviewer`, Commands)
+- `docs/` — Architektur-Dokumentation (z. B. `docs/sync.md`)
 
 ## Befehle
 

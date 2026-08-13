@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { invokeError } from "../lib/ipc";
 
-const props = defineProps<{ open: boolean }>();
+const props = defineProps<{ open: boolean; initialUrl?: string }>();
 const emit = defineEmits<{ close: []; done: [] }>();
 
 const accounts = useAccountsStore();
@@ -19,6 +19,13 @@ const form = ref({ instanceUrl: defaultUrl, username: "", token: "" });
 const showPassword = ref(false);
 const submitting = ref(false);
 const formError = ref<string | null>(null);
+
+watch(
+  () => props.initialUrl,
+  (url) => {
+    if (url) form.value.instanceUrl = url;
+  }
+);
 
 async function submit() {
   if (submitting.value) return;

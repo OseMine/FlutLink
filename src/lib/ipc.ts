@@ -40,6 +40,23 @@ export interface UserDetails {
   quota: UserQuota | null;
 }
 
+export type SyncState = "idle" | "syncing" | "paused" | "error";
+
+export interface SyncFolderStatus {
+  folderId: string;
+  accountKey: string;
+  localPath: string;
+  remotePath: string;
+  paused: boolean;
+  state: SyncState;
+  pendingUploads: number;
+  pendingDownloads: number;
+  pendingDeletes: number;
+  failures: number;
+  lastError: string | null;
+  lastSyncedAt: number | null;
+}
+
 export interface AppError {
   code: string;
   message: string;
@@ -88,4 +105,17 @@ export const api = {
 
   adminEditUser: (userId: string, key: string, value: string) =>
     invoke<string>("admin_edit_user", { userId, key, value }),
+
+  syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
+
+  syncAdd: (localPath: string) =>
+    invoke<SyncFolderStatus>("sync_add", { localPath }),
+
+  syncRemove: (folderId: string) =>
+    invoke<SyncFolderStatus[]>("sync_remove", { folderId }),
+
+  syncSetPaused: (folderId: string, paused: boolean) =>
+    invoke<SyncFolderStatus[]>("sync_set_paused", { folderId, paused }),
+
+  syncTrigger: () => invoke<void>("sync_trigger"),
 };

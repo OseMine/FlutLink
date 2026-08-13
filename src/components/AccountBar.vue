@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
@@ -56,7 +55,7 @@ const storageFreeLabel = computed(() => {
 <template>
   <aside class="flex h-full w-72 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
     <div class="flex items-center gap-2.5 border-b border-zinc-800 px-4 py-4">
-      <AppLogo class="h-8 w-8" />
+      <img src="/flutlink-mark.svg" alt="FlutLink" class="h-8 w-8 shrink-0" />
       <div class="min-w-0">
         <h1 class="truncate text-base font-semibold tracking-tight text-white">
           {{ t("appName") }}

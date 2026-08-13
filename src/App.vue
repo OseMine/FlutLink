@@ -1,22 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import AccountBar from "./components/AccountBar.vue";
 import FileExplorer from "./components/FileExplorer.vue";
 import AdminPanel from "./components/AdminPanel.vue";
+import SyncPanel from "./components/SyncPanel.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
 import LoginModal from "./components/LoginModal.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import ToastStack from "./components/ToastStack.vue";
-import AppLogo from "./components/AppLogo.vue";
 import { useAccountsStore } from "./stores/accounts";
+import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
 
 const accounts = useAccountsStore();
+const sync = useSyncStore();
 const ui = useUiStore();
 
-const tab = ref<"files" | "admin">("files");
+const tab = ref<"files" | "admin" | "sync">("files");
 const showLogin = ref(false);
+const loginInitialUrl = ref("");
 const showSettings = ref(false);
 const accountMenu = ref(false);
 const resolvedTheme = ref<"operationflut" | "midnight">("operationflut");
@@ -37,10 +41,16 @@ function toggleLang() {
 
 onMounted(() => {
   void accounts.load();
+  void sync.bind();
   resolveTheme();
   window
     .matchMedia("(prefers-color-scheme: light)")
     .addEventListener("change", resolveTheme);
+
+  void listen<string>("flutlink:cli-open", (event) => {
+    loginInitialUrl.value = event.payload;
+    showLogin.value = true;
+  });
 });
 
 watch(() => ui.theme, resolveTheme);
@@ -61,8 +71,7 @@ watch(
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center justify-between gap-3 border-b border-zinc-800 px-6 py-3">
           <div class="flex items-center gap-2.5">
-            <AppLogo />
-            <span class="text-sm font-semibold tracking-tight text-white">{{ t("appName") }}</span>
+            <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
           </div>
 
           <nav class="flex items-center gap-1">
@@ -72,6 +81,13 @@ watch(
               @click="tab = 'files'"
             >
               {{ t("files") }}
+            </button>
+            <button
+              class="rounded-md px-4 py-2 text-sm font-medium transition"
+              :class="tab === 'sync' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'"
+              @click="tab = 'sync'"
+            >
+              {{ t("sync") }}
             </button>
             <button
               class="rounded-md px-4 py-2 text-sm font-medium transition"
@@ -166,6 +182,7 @@ watch(
 
         <div class="min-h-0 flex-1">
           <FileExplorer v-if="tab === 'files'" />
+          <SyncPanel v-else-if="tab === 'sync'" />
           <AdminPanel v-else-if="tab === 'admin' && accounts.active?.isAdmin" />
           <div v-else class="m-auto w-full max-w-sm p-8 text-center text-zinc-500">
             <p class="text-lg">{{ t("adminLockedTitle") }}</p>
@@ -179,8 +196,7 @@ watch(
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
           <div class="flex items-center gap-2.5">
-            <AppLogo />
-            <span class="text-sm font-semibold tracking-tight text-white">{{ t("appName") }}</span>
+            <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
           </div>
           <div class="flex items-center gap-2">
             <button
@@ -202,7 +218,7 @@ watch(
       </main>
     </template>
 
-    <LoginModal :open="showLogin" @close="showLogin = false" @done="showLogin = false" />
+    <LoginModal :open="showLogin" :initial-url="loginInitialUrl" @close="showLogin = false" @done="showLogin = false" />
     <SettingsModal
       :open="showSettings"
       @close="showSettings = false"

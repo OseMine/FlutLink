@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import AppLogo from "./AppLogo.vue";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 
@@ -27,7 +26,7 @@ async function register() {
 <template>
   <div class="flex h-full flex-col items-center justify-center gap-6 bg-zinc-950 px-6 text-center">
     <div class="flex flex-col items-center gap-4">
-      <AppLogo class="h-14 w-14" />
+      <img src="/flutlink-logo.svg" alt="FlutLink" class="h-12" />
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-white">{{ t("welcomeTitle") }}</h1>
         <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400">
@@ -52,9 +51,15 @@ async function register() {
       </button>
     </div>
 
-    <div class="mt-2 max-w-sm space-y-1 text-xs leading-relaxed text-zinc-600">
-      <p>{{ t("initHint") }}</p>
-      <p>{{ t("keychainSecured") }}</p>
+    <div class="mt-2 flex flex-col items-center gap-3">
+      <div class="max-w-sm space-y-1 text-xs leading-relaxed text-zinc-600">
+        <p>{{ t("initHint") }}</p>
+        <p>{{ t("keychainSecured") }}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-zinc-500">{{ t("partOf") }}</span>
+        <img src="/operationflut-logo.svg" alt="OperationFlut" class="h-4" />
+      </div>
     </div>
   </div>
 </template>

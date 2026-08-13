@@ -179,6 +179,17 @@ async function remove(username: string) {
               </div>
             </div>
 
+            <div class="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2.5">
+              <span class="text-xs text-zinc-400">{{ t("partOf") }}</span>
+              <img src="/operationflut-logo.svg" alt="OperationFlut" class="h-4" />
+            </div>
+            <p class="text-xs leading-relaxed text-zinc-600">{{ t("aboutOperationflut") }}</p>
+
+            <div class="space-y-1 text-xs leading-relaxed text-zinc-600">
+              <p>{{ t("trayHint") }}</p>
+              <p>{{ t("cliHint") }}</p>
+            </div>
+
             <div>
               <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
                 {{ t("language") }}
