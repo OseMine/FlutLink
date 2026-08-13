@@ -81,11 +81,21 @@ jobs:
               core.setFailed(`Could not verify permissions for ${login}: ${err.message}`);
             }
 
+      - name: Configure git identity
+        shell: bash
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Run opencode
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: GitHub Actions
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: GitHub Actions
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
