@@ -38,6 +38,8 @@ export interface UserDetails {
   displayName: string | null;
   email: string | null;
   quota: UserQuota | null;
+  groups: string[];
+  enabled: boolean;
 }
 
 export type SyncState = "idle" | "syncing" | "paused" | "error";
@@ -100,22 +102,27 @@ export const api = {
   adminGetUser: (userId: string) =>
     invoke<UserDetails>("admin_get_user", { userId }),
 
-  adminSetUserQuota: (userId: string, quotaBytes: number) =>
-    invoke<string>("admin_set_user_quota", { userId, quotaBytes }),
+  adminSetUserQuota: (userId: string, quota: string) =>
+    invoke<string>("admin_set_user_quota", { userId, quota }),
 
   adminEditUser: (userId: string, key: string, value: string) =>
     invoke<string>("admin_edit_user", { userId, key, value }),
+
+  adminCreateUser: (userId: string, password: string, displayName?: string) =>
+    invoke<string>("admin_create_user", { userId, password, displayName }),
+
+  adminDeleteUser: (userId: string) =>
+    invoke<string>("admin_delete_user", { userId }),
 
   syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
 
   syncAdd: (localPath: string) =>
     invoke<SyncFolderStatus>("sync_add", { localPath }),
 
-  syncRemove: (folderId: string) =>
-    invoke<SyncFolderStatus[]>("sync_remove", { folderId }),
+  syncRemove: (folderId: string) => invoke<void>("sync_remove", { folderId }),
 
   syncSetPaused: (folderId: string, paused: boolean) =>
-    invoke<SyncFolderStatus[]>("sync_set_paused", { folderId, paused }),
+    invoke<void>("sync_set_paused", { folderId, paused }),
 
   syncTrigger: () => invoke<void>("sync_trigger"),
 };

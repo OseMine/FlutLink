@@ -149,6 +149,8 @@ pub fn run() {
             commands::admin_get_user,
             commands::admin_set_user_quota,
             commands::admin_edit_user,
+            commands::admin_create_user,
+            commands::admin_delete_user,
             commands::ocs_current_user,
             commands::sync_list,
             commands::sync_add,

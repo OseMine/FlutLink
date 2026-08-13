@@ -161,13 +161,43 @@ pub async fn admin_get_user(state: State<'_, AppState>, user_id: String) -> AppR
 pub async fn admin_set_user_quota(
     state: State<'_, AppState>,
     user_id: String,
-    quota_bytes: u64,
+    quota: String,
 ) -> AppResult<String> {
     let account = current_account(&state)?;
     if !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    ocs::set_user_quota(&state.http_client, &account, &user_id, quota_bytes).await
+    ocs::update_user(&state.http_client, &account, &user_id, "quota", &quota).await
+}
+
+#[tauri::command]
+pub async fn admin_create_user(
+    state: State<'_, AppState>,
+    user_id: String,
+    password: String,
+    display_name: Option<String>,
+) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::create_user(
+        &state.http_client,
+        &account,
+        &user_id,
+        &password,
+        display_name.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn admin_delete_user(state: State<'_, AppState>, user_id: String) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::delete_user(&state.http_client, &account, &user_id).await
 }
 
 #[tauri::command]

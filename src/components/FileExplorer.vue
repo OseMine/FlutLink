@@ -48,11 +48,15 @@ async function loadAdminUsers() {
   if (!accounts.active?.isAdmin) return;
   try {
     adminUsers.value = await api.adminListUsers("");
-    if (adminViewAll.value && !selectedUser.value && adminUsers.value.length) {
-      const me = accounts.active.username;
-      selectedUser.value =
-        adminUsers.value.find((u) => u === me) ?? adminUsers.value[0];
-      files.setTargetUser(selectedUser.value);
+    if (adminViewAll.value) {
+      if (files.targetUser) {
+        selectedUser.value = files.targetUser;
+      } else if (!selectedUser.value && adminUsers.value.length) {
+        const me = accounts.active.username;
+        selectedUser.value =
+          adminUsers.value.find((u) => u === me) ?? adminUsers.value[0];
+        files.setTargetUser(selectedUser.value);
+      }
     }
   } catch {
     // user list unavailable; impersonation still selectable via retry button

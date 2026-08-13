@@ -66,6 +66,8 @@ pub struct UserDetails {
     pub display_name: Option<String>,
     pub email: Option<String>,
     pub quota: Option<UserQuota>,
+    pub groups: Vec<String>,
+    pub enabled: bool,
 }
 
 /// A persisted bidirectional sync between a local folder and a cloud folder.

@@ -4,6 +4,12 @@ A high-performance Nextcloud synchronization and management desktop client built
 
 All HTTP traffic (WebDAV, OCS) is handled in Rust, which avoids CORS, enables custom HTTP methods like `PROPFIND`, and keeps credentials out of the renderer.
 
+## Documentation
+
+Full bilingual documentation (English + German) lives in
+[`docs/`](docs/README.md) — getting started, features, architecture, sync
+engine, tray & CLI, security and development guide.
+
 ## Architecture
 
 ```

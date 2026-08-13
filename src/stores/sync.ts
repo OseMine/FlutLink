@@ -45,7 +45,8 @@ export const useSyncStore = defineStore("sync", () => {
   async function remove(folderId: string) {
     error.value = null;
     try {
-      folders.value = await api.syncRemove(folderId);
+      await api.syncRemove(folderId);
+      await load();
     } catch (e) {
       error.value = invokeError(e).message;
       throw e;
@@ -55,7 +56,8 @@ export const useSyncStore = defineStore("sync", () => {
   async function setPaused(folderId: string, paused: boolean) {
     error.value = null;
     try {
-      folders.value = await api.syncSetPaused(folderId, paused);
+      await api.syncSetPaused(folderId, paused);
+      await load();
     } catch (e) {
       error.value = invokeError(e).message;
       throw e;

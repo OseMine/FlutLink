@@ -502,6 +502,11 @@ async fn run_pass(
         )));
     }
 
+    // Ensure the remote sync root exists. MKCOL is idempotent (405 = already
+    // exists); without it, MKCOL on any subfolder 404s because the parent
+    // collection is missing.
+    webdav::make_collection(client, account, &folder.remote_path).await?;
+
     let mut journal = load_journal(app, &folder.id)?;
     let local = walk_local(&local_root).await;
     let remote = list_remote(client, account, &folder.remote_path).await?;

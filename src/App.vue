@@ -10,11 +10,13 @@ import LoginModal from "./components/LoginModal.vue";
 import SettingsModal from "./components/SettingsModal.vue";
 import ToastStack from "./components/ToastStack.vue";
 import { useAccountsStore } from "./stores/accounts";
+import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
 
 const accounts = useAccountsStore();
+const files = useFilesStore();
 const sync = useSyncStore();
 const ui = useUiStore();
 
@@ -54,6 +56,11 @@ onMounted(() => {
 });
 
 watch(() => ui.theme, resolveTheme);
+
+function browseUserFiles(userId: string) {
+  files.setTargetUser(userId);
+  tab.value = "files";
+}
 
 watch(
   () => accounts.active,
@@ -183,7 +190,7 @@ watch(
         <div class="min-h-0 flex-1">
           <FileExplorer v-if="tab === 'files'" />
           <SyncPanel v-else-if="tab === 'sync'" />
-          <AdminPanel v-else-if="tab === 'admin' && accounts.active?.isAdmin" />
+          <AdminPanel v-else-if="tab === 'admin' && accounts.active?.isAdmin" @browse="browseUserFiles" />
           <div v-else class="m-auto w-full max-w-sm p-8 text-center text-zinc-500">
             <p class="text-lg">{{ t("adminLockedTitle") }}</p>
             <p class="text-sm">{{ t("adminLockedText") }}</p>

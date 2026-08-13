@@ -1,8 +1,7 @@
-# Sync Engine Architecture
+# Sync Engine
 
-The sync engine lives in `src-tauri/src/sync.rs` and is owned by `AppState` as
-`Arc<crate::sync::SyncEngine>` (built in `state.rs`, see `SyncFolder` /
-`SyncFolderStatus` models). All file transfer reuses the WebDAV helpers in
+The sync engine lives in `src-tauri/src/sync.rs` and is owned by `AppState`
+(`sync: Arc<SyncEngine>`). All file transfer reuses the WebDAV helpers in
 `nextcloud/webdav.rs` (`put_file`, `get_file`, `delete`, `make_collection`).
 
 ## Concepts
@@ -12,7 +11,7 @@ The sync engine lives in `src-tauri/src/sync.rs` and is owned by `AppState` as
   nanosecond timestamp; the account key is `"{username}@{instance_url}"`.
 - **Journal** — a JSON file `sync-journal-<id>.json` in the app-data dir. Per
   relative path it stores the last-synced `{ size, mtime }` fingerprint of the
-  local and the remote side. This is the source of truth for deciding what
+  local and the remote side. It is the source of truth for deciding what
   changed on either side.
 - **Pass** — one planner run that scans local (iterative directory walk) and
   remote (BFS `PROPFIND`) state, produces a bounded list of actions

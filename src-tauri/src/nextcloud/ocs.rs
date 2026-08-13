@@ -130,12 +130,73 @@ pub async fn get_user(client: &Client, account: &Account, user_id: &str) -> AppR
         free: parse_u64(q.get("free")),
         relative: q.get("relative").and_then(|v| v.as_f64()),
     });
+    let groups = data
+        .get("groups")
+        .and_then(|g| g.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let enabled = data
+        .get("enabled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
     Ok(UserDetails {
         id,
         display_name,
         email,
         quota,
+        groups,
+        enabled,
     })
+}
+
+/// Create a user via the OCS Provisioning API (POST /cloud/users).
+pub async fn create_user(
+    client: &Client,
+    account: &Account,
+    user_id: &str,
+    password: &str,
+    display_name: Option<&str>,
+) -> AppResult<String> {
+    let url = format!("{}/ocs/v1.php/cloud/users?format=json", account.base_url());
+    let mut form: Vec<(&str, &str)> = vec![("userid", user_id), ("password", password)];
+    if let Some(name) = display_name {
+        if !name.is_empty() {
+            form.push(("displayName", name));
+        }
+    }
+    let res = request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "User created".to_string()))
+}
+
+/// Delete a user via the OCS Provisioning API (DELETE /cloud/users/{id}).
+pub async fn delete_user(client: &Client, account: &Account, user_id: &str) -> AppResult<String> {
+    let url = format!(
+        "{}/ocs/v1.php/cloud/users/{}?format=json",
+        account.base_url(),
+        urlencoding::encode(user_id)
+    );
+    let res = request(client, account, Method::DELETE, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "User deleted".to_string()))
 }
 
 /// Update a single user attribute (displayname, email, password, quota, ...)
@@ -164,15 +225,6 @@ pub async fn update_user(
         .map(String::from)
         .unwrap_or_else(|| "User updated".to_string());
     Ok(message)
-}
-
-pub async fn set_user_quota(
-    client: &Client,
-    account: &Account,
-    user_id: &str,
-    quota_bytes: u64,
-) -> AppResult<String> {
-    update_user(client, account, user_id, "quota", &quota_bytes.to_string()).await
 }
 
 /// Create a public link share for a path relative to the user's files root.

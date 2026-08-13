@@ -21,14 +21,15 @@ WebView.
   - `state.rs` — `AppState` (Account-Liste, HTTP-Client, `sync: Arc<SyncEngine>`)
     & Serde-Modelle (`SyncFolder`, `SyncFolderStatus`)
   - `sync.rs` — Zwei-Wege-Sync-Engine (Journal, Planner, Executor, Worker,
-    Persistenz, Unit-Tests); Details in `docs/sync.md`
+    Persistenz, Unit-Tests); Details in `docs/de/sync.md` (EN: `docs/en/sync.md`)
   - `error.rs` — `AppError`/`AppResult` (serialisiert nach JSON fürs Frontend)
   - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
     Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)
   - `nextcloud/ocs.rs` — OCS Provisioning API (User-Liste, Details, Quota, Shares)
 - `.github/workflows/` — CI (build/lint/checks) + automatisierte Reviews
 - `.opencode/` — opencode-Konfiguration (Agent `reviewer`, Commands)
-- `docs/` — Architektur-Dokumentation (z. B. `docs/sync.md`)
+- `docs/` — zweisprachige Architektur-Dokumentation (`docs/en/` + `docs/de/`,
+  Index in `docs/README.md`)
 
 ## Befehle
 
