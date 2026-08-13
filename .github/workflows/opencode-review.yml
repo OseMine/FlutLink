@@ -1,0 +1,82 @@
+name: opencode-review
+
+on:
+  workflow_dispatch:
+    inputs:
+      focus:
+        description: "Optional: Fokusbereich des Reviews (z. B. 'WebDAV/OCS-Backend')"
+        required: false
+        type: string
+  schedule:
+    - cron: "0 6 * * 1" # Montag 06:00 UTC
+
+# Guard gegen parallele Läufe (Review-PRs kollidierten auf todo.md/reports).
+concurrency:
+  group: opencode-review
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run OpenCode review
+        uses: anomalyco/opencode/github@latest
+        env:
+          # OpenCode Zen API-Key als Secret anlegen:
+          # GitHub → Settings → Secrets and variables → Actions → OPENCODE_API_KEY
+          # (Key unter https://opencode.ai/auth abrufen; Free-Modelle kosten nichts)
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          agent: reviewer
+          use_github_token: true
+          prompt: |
+            Automatisiertes Code-Review des FlutLink-Projekts (Tauri v2 Desktop-App:
+            Nextcloud-Sync-Client mit Rust-Backend und Vue 3 + TypeScript + Tailwind-Frontend).
+            Fokusbereich: ${{ github.event.inputs.focus || 'das gesamte Projekt' }}
+
+            Gehe vor wie im Reviewer-Agent beschrieben:
+            1. Lies README.md, package.json, vite.config.ts, den Code unter src/
+               (Vue-Komponenten, Pinia-Stores, lib/ipc.ts), das Backend unter
+               src-tauri/ (lib.rs, commands.rs, accounts.rs, state.rs, error.rs,
+               nextcloud/webdav.rs, nextcloud/ocs.rs) sowie die Workflows/Actions
+               unter .github/. Falls eine todo.md existiert, lies sie ebenfalls.
+            2. Finde Bugs, fehlende Features und Verbesserungsvorschläge für die
+               IPC-Commands, die WebDAV/OCS-Anbindung, die Schlüsselbund-Verwaltung
+               (keyring), das Fehler-/State-Management und die CI. Verifiziere
+               Verdachtsfälle, indem du Tests ausführst (cargo test --manifest-path
+               src-tauri/Cargo.toml bzw. npm run build).
+            3. Lege reports/review-YYYY-MM-DD.md SOFRÜH WIE MÖGLICH an und fülle
+               es während des Reviews schrittweise (Ordner bei Bedarf anlegen).
+               Schreibe das Review nicht erst ganz am Ende.
+            4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
+               vorhanden), bestehende Einträge unangetastet lassen.
+            ZUSÄTZLICHE NICHT IM REVIEWER Agent ENTHALTENE AUFGABEN:
+            5. Prüfe welche Punkte aus todo.md erledigt wurden und markiere sie als erledigt (z. B. „[x]“), bzw prüfe ob sie korrekt mit [x] markiert wurden und verschiebe danach alle abgehakten todos nach archived-todo.md.
+            6. räume das repository auf ud lösche/reviewe und merge pull requests und issues. füge offene issues zu den todos hinzu und schließe erledigte issues. lösche unnütze/duplizierte branches
+            7. reviewe offene pull requests, fixe merge errors und merge diese
+
+            WICHTIG: Committe NICHT, pushe NICHT und öffne KEINEN Pull Request
+            selbst. Die GitHub-Action erkennt die geänderten Dateien automatisch,
+            committed und pusht sie auf einen Branch und erstellt den Pull Request.
+            Beende deine Antwort direkt nach Schritt 7.
+
+            Regeln: Keinen Anwendungscode verändern, nur Berichte und todo.md.
+            Keine Findings ohne konkrete Datei-/Funktionsnamen. Wenn keine neuen
+            Befunde vorhanden sind, vermerke das ausdrücklich im Review-Bericht.

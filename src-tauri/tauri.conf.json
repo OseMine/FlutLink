@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FlutLink",
+  "version": "0.1.0",
+  "identifier": "de.flut.flutlink",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "FlutLink",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "cli": {
+      "description": "FlutLink — Nextcloud desktop client",
+      "args": [
+        {
+          "name": "sync",
+          "short": "s",
+          "description": "Run a sync pass after startup",
+          "takesValue": false,
+          "multiple": false
+        },
+        {
+          "name": "path",
+          "short": "p",
+          "description": "Add a local folder to the two-way sync",
+          "takesValue": true,
+          "multiple": false
+        },
+        {
+          "name": "url",
+          "short": "u",
+          "description": "Open the login dialog pre-filled with a Nextcloud instance URL",
+          "takesValue": true,
+          "multiple": false
+        },
+        {
+          "name": "tray",
+          "short": "t",
+          "description": "Start minimized to the system tray",
+          "takesValue": false,
+          "multiple": false
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

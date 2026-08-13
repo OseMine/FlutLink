@@ -1,0 +1,37 @@
+name: Setup
+description: >-
+  Installs the Rust toolchain (stable) with rustfmt and clippy, the Tauri Linux
+  system dependencies and a shared cargo cache. Used by every Rust job.
+
+inputs:
+  components:
+    description: Additional toolchain components (comma separated).
+    required: false
+    default: "clippy,rustfmt"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Linux GUI dependencies (Tauri)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: >
+        sudo apt-get update &&
+        sudo apt-get install -y
+        libwebkit2gtk-4.1-dev
+        libgtk-3-dev
+        libayatana-appindicator3-dev
+        librsvg2-dev
+        libxdo-dev
+        libssl-dev
+        patchelf
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: ${{ inputs.components }}
+
+    - name: Cache cargo registry and build output
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri -> target

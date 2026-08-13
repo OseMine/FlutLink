@@ -1,0 +1,80 @@
+@import "@fontsource-variable/inter/index.css";
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   FlutLink themes
+   Tailwind v4 emits utilities as var(--color-*), so overriding the
+   palette CSS variables per [data-theme] re-themes the whole app.
+   OperationFlut (#090821) is the default (dark) brand theme.
+------------------------------------------------------------------- */
+:root {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-zinc-950: #090821;
+  --color-zinc-900: #0d0c2b;
+  --color-zinc-800: #161434;
+  --color-zinc-700: #232152;
+}
+
+/* Deep navy variant of the OperationFlut palette. */
+[data-theme="midnight"] {
+  --color-zinc-950: #05070f;
+  --color-zinc-900: #0a0f22;
+  --color-zinc-800: #111a3a;
+  --color-zinc-700: #1b2a57;
+  --color-zinc-600: #2c4079;
+  --color-zinc-500: #7c8db5;
+  --color-zinc-400: #a3b1d6;
+  --color-zinc-300: #d7def0;
+  --color-zinc-200: #eef1fa;
+  --color-indigo-950: #172554;
+  --color-indigo-600: #3b82f6;
+  --color-indigo-500: #60a5fa;
+  --color-indigo-400: #93c5fd;
+  --color-sky-900: #0c4a6e;
+  --color-sky-300: #7dd3fc;
+  --color-emerald-900: #064e3b;
+  --color-emerald-400: #34d399;
+  --color-red-950: #450a0a;
+  --color-red-800: #991b1b;
+  --color-red-300: #fca5a5;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Toast slide-in / slide-out */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.2s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
+/* Scrollbars that fit the OperationFlut palette */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-zinc-700);
+  border-radius: 6px;
+  border: 2px solid var(--color-zinc-950);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-zinc-600);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
