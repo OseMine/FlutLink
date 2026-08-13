@@ -23,6 +23,7 @@ const ui = useUiStore();
 const tab = ref<"files" | "admin" | "sync">("files");
 const showLogin = ref(false);
 const loginInitialUrl = ref("");
+const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
 const accountMenu = ref(false);
 const resolvedTheme = ref<"operationflut" | "midnight">("operationflut");
@@ -51,6 +52,7 @@ onMounted(() => {
 
   void listen<string>("flutlink:cli-open", (event) => {
     loginInitialUrl.value = event.payload;
+    loginMode.value = "login";
     showLogin.value = true;
   });
 });
@@ -60,6 +62,11 @@ watch(() => ui.theme, resolveTheme);
 function browseUserFiles(userId: string) {
   files.setTargetUser(userId);
   tab.value = "files";
+}
+
+function openLogin(mode: "login" | "register") {
+  loginMode.value = mode;
+  showLogin.value = true;
 }
 
 watch(
@@ -221,11 +228,11 @@ watch(
             </button>
           </div>
         </header>
-        <WelcomeScreen class="min-h-0 flex-1" @login="showLogin = true" />
+        <WelcomeScreen class="min-h-0 flex-1" @login="openLogin('login')" @register="openLogin('register')" />
       </main>
     </template>
 
-    <LoginModal :open="showLogin" :initial-url="loginInitialUrl" @close="showLogin = false" @done="showLogin = false" />
+    <LoginModal :open="showLogin" :initial-url="loginInitialUrl" :initial-mode="loginMode" @close="showLogin = false" @done="showLogin = false" />
     <SettingsModal
       :open="showSettings"
       @close="showSettings = false"

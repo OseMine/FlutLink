@@ -78,6 +78,15 @@ export const api = {
   accountAdd: (instanceUrl: string, username: string, token: string) =>
     invoke<AccountMeta>("account_add", { instanceUrl, username, token }),
 
+  registerUser: (input: {
+    instanceUrl: string;
+    username: string;
+    password: string;
+    displayName?: string;
+    adminUsername: string;
+    adminPassword: string;
+  }) => invoke<AccountMeta>("register_user", input),
+
   accountList: () => invoke<AccountMeta[]>("account_list"),
 
   accountActive: () => invoke<AccountMeta | null>("account_active"),

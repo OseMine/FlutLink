@@ -1,26 +1,11 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 
-const emit = defineEmits<{ login: [] }>();
+const emit = defineEmits<{ login: []; register: [] }>();
 
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
-
-const opening = ref(false);
-
-async function register() {
-  opening.value = true;
-  try {
-    await openUrl("https://nextcloud.com");
-  } catch {
-    // Fallback: the login form already shows the server URL field.
-  } finally {
-    opening.value = false;
-  }
-}
 </script>
 
 <template>
@@ -43,9 +28,8 @@ async function register() {
         {{ t("signIn") }}
       </button>
       <button
-        :disabled="opening"
-        class="w-48 rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-indigo-500 hover:text-indigo-300 disabled:opacity-50"
-        @click="register"
+        class="w-48 rounded-lg border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-indigo-500 hover:text-indigo-300"
+        @click="emit('register')"
       >
         {{ t("registerServer") }}
       </button>

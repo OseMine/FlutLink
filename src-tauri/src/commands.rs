@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::Deserialize;
 use tauri::{AppHandle, State};
 
 use crate::accounts;
@@ -65,6 +66,141 @@ pub async fn account_add(
 #[tauri::command]
 pub async fn account_list(state: State<'_, AppState>) -> AppResult<Vec<AccountMeta>> {
     Ok(to_meta_list(&state.accounts_snapshot()))
+}
+
+/// Project folder for the FlutCloud Nextcloud app, created during every
+/// registration. Lives in the admin's files under `/FlutLink` so feature
+/// requests and connection notes for the FlutLink desktop/mobile are
+/// collected in one shared place.
+const FLUTCLOUD_PROJECT_PATH: &str = "/FlutLink/FlutCloud";
+const FLUTCLOUD_README: &str = r#"# FlutCloud — Nextcloud App
+
+Shared project space of the **FlutCloud Nextcloud app**.
+
+## Purpose
+- Feature requests for the FlutCloud app and the FlutLink desktop client
+- Connection notes between FlutCloud, FlutLink (desktop) and the upcoming
+  FlutLink mobile app (not yet in development)
+
+## Feature requests
+Create one folder per request, e.g. `FR-001-share-links/`, containing a note
+describing: what it should do, why (use case) and the expected behaviour.
+
+## Connecting FlutLink
+- Desktop client: https://github.com/OseMine/FlutLink
+- Mobile app: not yet in development
+
+---
+
+# FlutCloud — Nextcloud App
+
+Gemeinsamer Projektbereich der **FlutCloud-Nextcloud-App**.
+
+## Zweck
+- Feature-Requests für die FlutCloud-App und den FlutLink-Desktop-Client
+- Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und der geplanten
+  FlutLink-Mobile-App (noch nicht in Entwicklung)
+
+## Feature-Requests
+Lege pro Request einen Ordner an, z. B. `FR-001-share-links/`, mit einer
+Notiz, die beschreibt: was passieren soll, warum (Anwendungsfall) und das
+erwartete Verhalten.
+
+## FlutLink verbinden
+- Desktop-Client: https://github.com/OseMine/FlutLink
+- Mobile-App: noch nicht in Entwicklung
+"#;
+
+/// Input for creating a real account via the register page.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterUserInput {
+    pub instance_url: String,
+    pub username: String,
+    pub password: String,
+    pub display_name: Option<String>,
+    pub admin_username: String,
+    pub admin_password: String,
+}
+
+/// Register a real new account on the Nextcloud server (no email required).
+///
+/// Account creation uses the OCS Provisioning API, so the flutcloud admin
+/// credentials are required once. After the account exists, the FlutCloud
+/// project folder `/FlutLink/FlutCloud` is ensured in the admin's files and
+/// the new account is signed in with its real password.
+#[tauri::command]
+pub async fn register_user(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: RegisterUserInput,
+) -> AppResult<AccountMeta> {
+    let instance_url = input.instance_url.trim_end_matches('/').to_string();
+
+    let admin = Account {
+        meta: AccountMeta {
+            username: input.admin_username,
+            instance_url: instance_url.clone(),
+            display_name: None,
+            is_admin: true,
+            is_active: false,
+        },
+        token: input.admin_password,
+    };
+
+    // Create the real account. Fails with an OCS error if the admin
+    // credentials are invalid or the username is already taken.
+    ocs::create_user(
+        &state.http_client,
+        &admin,
+        &input.username,
+        &input.password,
+        input.display_name.as_deref(),
+    )
+    .await?;
+
+    // Project folder for the FlutCloud app in the admin's files.
+    webdav::ensure_collection(&state.http_client, &admin, FLUTCLOUD_PROJECT_PATH).await?;
+    webdav::put_text(
+        &state.http_client,
+        &admin,
+        &format!("{}/README.md", FLUTCLOUD_PROJECT_PATH),
+        FLUTCLOUD_README,
+    )
+    .await?;
+
+    // Sign the new account in with its real password.
+    let account = Account {
+        meta: AccountMeta {
+            username: input.username,
+            instance_url,
+            display_name: input.display_name,
+            is_admin: false,
+            is_active: false,
+        },
+        token: input.password,
+    };
+    let user = ocs::get_current_user(&state.http_client, &account).await?;
+    let is_admin = ocs::is_admin(&state.http_client, &account)
+        .await
+        .unwrap_or(false);
+    let has_accounts = !state.accounts_snapshot().is_empty();
+
+    let meta = AccountMeta {
+        username: account.meta.username,
+        instance_url: account.meta.instance_url,
+        display_name: user.display_name,
+        is_admin,
+        is_active: !has_accounts,
+    };
+
+    accounts::save_token(&meta, &account.token)?;
+    let list = state.upsert(Account {
+        meta: meta.clone(),
+        token: account.token,
+    });
+    accounts::persist_accounts(&app, &list)?;
+    Ok(meta)
 }
 
 #[tauri::command]

@@ -100,6 +100,25 @@ pub async fn put_file(
     status_check(res).await
 }
 
+/// Upload a small UTF-8 string (e.g. a README) via PUT. The server sets the
+/// modification time itself.
+pub async fn put_text(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    content: &str,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel);
+    let res = client
+        .put(&url)
+        .basic_auth(&account.meta.username, Some(&account.token))
+        .header("Content-Type", "text/markdown; charset=utf-8")
+        .body(content.to_string())
+        .send()
+        .await?;
+    status_check(res).await
+}
+
 /// Download a remote file to `dest`, writing to a temp file first so the
 /// destination is only replaced once the transfer fully succeeded.
 pub async fn get_file(
@@ -164,6 +183,24 @@ pub async fn make_collection(
             body,
         })
     }
+}
+
+/// Create the whole collection chain for `remote_rel`, top-down. MKCOL only
+/// creates a single level, so the root of a sync folder (e.g.
+/// `/FlutLink/Name`) 409s with "Parent node does not exist" unless `/FlutLink`
+/// is created first. Idempotent: existing levels answer 405 and are ignored.
+pub async fn ensure_collection(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+) -> AppResult<()> {
+    let mut path = String::new();
+    for segment in remote_rel.split('/').filter(|s| !s.is_empty()) {
+        path.push('/');
+        path.push_str(segment);
+        make_collection(client, account, &path).await?;
+    }
+    Ok(())
 }
 
 /// Delete a remote resource (file or folder).

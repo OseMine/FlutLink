@@ -60,6 +60,29 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
+  async function register(input: {
+    instanceUrl: string;
+    username: string;
+    password: string;
+    displayName?: string;
+    adminUsername: string;
+    adminPassword: string;
+  }) {
+    error.value = null;
+    try {
+      const account = await api.registerUser(input);
+      if (!accounts.value.some((a) => a.username === account.username)) {
+        accounts.value.push(account);
+      }
+      if (account.isActive) active.value = account;
+      await loadStorage();
+      return account;
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
   async function switchTo(username: string) {
     error.value = null;
     try {
@@ -85,5 +108,5 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  return { accounts, active, loading, error, storage, load, loadStorage, add, switchTo, remove };
+  return { accounts, active, loading, error, storage, load, loadStorage, add, register, switchTo, remove };
 });

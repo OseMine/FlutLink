@@ -502,10 +502,10 @@ async fn run_pass(
         )));
     }
 
-    // Ensure the remote sync root exists. MKCOL is idempotent (405 = already
-    // exists); without it, MKCOL on any subfolder 404s because the parent
-    // collection is missing.
-    webdav::make_collection(client, account, &folder.remote_path).await?;
+    // Ensure the remote sync root exists, including its parent chain. MKCOL
+    // only creates one level; without the ancestors, MKCOL on the root (or any
+    // subfolder) fails with 409 "Parent node does not exist" (SabreDAV).
+    webdav::ensure_collection(client, account, &folder.remote_path).await?;
 
     let mut journal = load_journal(app, &folder.id)?;
     let local = walk_local(&local_root).await;
@@ -806,9 +806,10 @@ impl SyncEngine {
             };
 
             status.state = "syncing".into();
-            // Ensure the cloud root exists; harmless when it already does.
+            // Ensure the cloud root exists (including parent chain); harmless
+            // when it already does.
             let _ =
-                webdav::make_collection(&state.http_client, &account, &folder.remote_path).await;
+                webdav::ensure_collection(&state.http_client, &account, &folder.remote_path).await;
 
             match run_pass(app, &state.http_client, &account, &folder).await {
                 Ok(result) => {

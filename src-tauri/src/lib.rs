@@ -143,6 +143,7 @@ pub fn run() {
             commands::account_switch,
             commands::account_remove,
             commands::account_storage,
+            commands::register_user,
             commands::webdav_list,
             commands::webdav_create_share,
             commands::admin_list_users,
