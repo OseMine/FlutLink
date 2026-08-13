@@ -342,7 +342,7 @@ pub fn install_update(path: &Path) -> Result<(), String> {
         let app_bundle = std::fs::read_dir(&mount_point)
             .map_err(|e| e.to_string())?
             .filter_map(|e| e.ok())
-            .find(|e| e.path().extension().map_or(false, |x| x == "app"))
+            .find(|e| e.path().extension().is_some_and(|x| x == "app"))
             .map(|e| e.path())
             .ok_or_else(|| "No .app bundle found inside the DMG".to_string())?;
 

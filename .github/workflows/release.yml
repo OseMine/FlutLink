@@ -63,8 +63,23 @@ jobs:
             echo "EOF" >> "$GITHUB_OUTPUT"
           fi
 
+  checks:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    env:
+      # Used by the flutcloud URL tests; the value stays out of the repo.
+      FLUTCLOUD_URL: ${{ secrets.FLUTCLOUD_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: ./.github/actions/checks
+
   build-and-release:
-    needs: release-notes
+    needs: [release-notes, checks]
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +89,7 @@ jobs:
           - platform: macos-latest
             args: --target x86_64-apple-darwin
           - platform: ubuntu-latest
-            args: ""
+            args: --bundles deb,appimage
           - platform: windows-latest
             args: ""
 
@@ -88,26 +103,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ contains(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: ./.github/actions/setup
 
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libxdo-dev \
-            libssl-dev \
-            patchelf
+      - name: Add Rust targets (macOS)
+        if: contains(matrix.platform, 'macos')
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Install frontend dependencies
         run: npm ci

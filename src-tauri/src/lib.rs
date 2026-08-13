@@ -10,11 +10,12 @@ mod updater;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use error::{AppError, AppResult};
 use state::AppState;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{IsMenuItem, Menu, MenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WindowEvent,
+    AppHandle, Emitter, Manager, WindowEvent, Wry,
 };
 use tauri_plugin_cli::CliExt;
 
@@ -27,13 +28,73 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// System tray with "Show" and "Quit" actions. The window hides into the tray
-/// instead of quitting when closed (unless quitting via the tray menu).
-fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show FlutLink", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit FlutLink", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+/// Build the tray menu: "Show", a dynamic "Accounts" submenu and "Quit".
+///
+/// The Accounts submenu lists every configured account and marks the active
+/// one. Clicking an entry switches to that account (see `setup_tray`).
+fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let show = MenuItem::<Wry>::with_id(app, "show", "Show FlutLink", true, None::<&str>)?;
+    let quit = MenuItem::<Wry>::with_id(app, "quit", "Quit FlutLink", true, None::<&str>)?;
 
+    let state = app.state::<AppState>();
+    let accounts = state.accounts_snapshot();
+    let active_username = state.current().map(|a| a.meta.username);
+
+    let mut account_items: Vec<MenuItem<Wry>> = Vec::new();
+    if accounts.is_empty() {
+        account_items.push(MenuItem::<Wry>::with_id(
+            app,
+            "accounts-empty",
+            "No account connected",
+            false,
+            None::<&str>,
+        )?);
+    } else {
+        for account in &accounts {
+            let display = account
+                .meta
+                .display_name
+                .as_deref()
+                .unwrap_or(&account.meta.username);
+            let label = if active_username.as_deref() == Some(account.meta.username.as_str()) {
+                format!("✓ {display}")
+            } else {
+                display.to_string()
+            };
+            account_items.push(MenuItem::<Wry>::with_id(
+                app,
+                format!("switch:{}", account.meta.username),
+                label,
+                true,
+                None::<&str>,
+            )?);
+        }
+    }
+
+    let account_refs: Vec<&dyn IsMenuItem<Wry>> = account_items
+        .iter()
+        .map(|i| i as &dyn IsMenuItem<Wry>)
+        .collect();
+    let accounts_sub = Submenu::with_items(app, "Accounts", true, &account_refs)?;
+
+    Menu::with_items(app, &[&show, &accounts_sub, &quit])
+}
+
+/// Rebuild the tray menu from the current account list (used after accounts
+/// change) and apply it to the tray icon.
+pub fn refresh_tray_menu(app: &AppHandle) -> AppResult<()> {
+    let menu = build_tray_menu(app).map_err(|e| AppError::App(e.to_string()))?;
+    app.tray_by_id("flutlink-tray")
+        .ok_or_else(|| AppError::App("System tray is not available".to_string()))?
+        .set_menu(Some(menu))
+        .map_err(|e| AppError::App(e.to_string()))
+}
+
+/// System tray with "Show", a dynamic "Accounts" submenu and "Quit". The
+/// window hides into the tray instead of quitting when closed (unless quitting
+/// via the tray menu).
+fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()> {
+    let menu = build_tray_menu(app.handle())?;
     let mut builder = TrayIconBuilder::with_id("flutlink-tray")
         .menu(&menu)
         .tooltip("FlutLink — FlutCloud client");
@@ -46,6 +107,16 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
             "quit" => {
                 quit_flag.store(true, Ordering::SeqCst);
                 app.exit(0);
+            }
+            id if id.starts_with("switch:") => {
+                let username = id.trim_start_matches("switch:").to_string();
+                let state = app.state::<AppState>();
+                if state.set_active(&username).is_some() {
+                    let _ = accounts::persist_accounts(app, &state.accounts_snapshot());
+                    let _ = refresh_tray_menu(app);
+                    let _ = app.emit("accounts-changed", ());
+                    show_main_window(app);
+                }
             }
             _ => {}
         })

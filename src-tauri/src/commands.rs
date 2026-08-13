@@ -72,6 +72,7 @@ pub async fn account_add(
         token: account.token,
     });
     accounts::persist_accounts(&app, &list)?;
+    crate::refresh_tray_menu(&app)?;
     Ok(meta)
 }
 
@@ -216,6 +217,7 @@ pub async fn register_user(
         token: account.token,
     });
     accounts::persist_accounts(&app, &list)?;
+    crate::refresh_tray_menu(&app)?;
     Ok(meta)
 }
 
@@ -234,6 +236,7 @@ pub async fn account_switch(
         .set_active(&username)
         .ok_or_else(|| AppError::NotFound(username))?;
     accounts::persist_accounts(&app, &state.accounts_snapshot())?;
+    crate::refresh_tray_menu(&app)?;
     Ok(account.meta)
 }
 
@@ -251,6 +254,7 @@ pub async fn account_remove(
     let _ = accounts::delete_token(&target.meta);
     let list = state.remove(&target.meta.username);
     accounts::persist_accounts(&app, &list)?;
+    crate::refresh_tray_menu(&app)?;
     Ok(to_meta_list(&list))
 }
 

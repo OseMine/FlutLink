@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import { api, invokeError, type AccountMeta, type UserQuota } from "../lib/ipc";
 
 export const useAccountsStore = defineStore("accounts", () => {
@@ -8,6 +9,15 @@ export const useAccountsStore = defineStore("accounts", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const storage = ref<UserQuota | null>(null);
+  let bound = false;
+
+  async function bind() {
+    if (bound) return;
+    bound = true;
+    await listen("accounts-changed", () => {
+      void load();
+    });
+  }
 
   function sync(account: AccountMeta) {
     accounts.value = accounts.value.map((a) =>
@@ -108,5 +118,5 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  return { accounts, active, loading, error, storage, load, loadStorage, add, register, switchTo, remove };
+  return { accounts, active, loading, error, storage, bind, load, loadStorage, add, register, switchTo, remove };
 });

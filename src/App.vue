@@ -43,6 +43,7 @@ function toggleLang() {
 
 onMounted(() => {
   void accounts.load();
+  void accounts.bind();
   void sync.bind();
   resolveTheme();
   window
