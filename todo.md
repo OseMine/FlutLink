@@ -1,5 +1,16 @@
 # FlutLink Todo
 
+## Review Lauf 2 2026-08-13 (Fokus: Features bis v1)
+
+- [ ] **V1.1 — Bug:** `sync_add` (commands.rs:410–416) erlaubt kollidierende `remote_path` für gleichnamige lokale Ordner (`/home/a/Docs` + `/home/b/Docs` → beide `/FlutLink/Docs`); Duplikat-Check in `sync.rs::add_folder` (Z. 671–678) prüft nur `account_key`+`local_path`. Verifiziert per Logik-Replikation. Eindeutigen Remote-Namen ableiten oder `remote_path` in die Prüfung aufnehmen.
+- [ ] **V1.2 — Bug:** Typ-Konflikt Datei↔Ordner in `sync.rs` (`decide` Z. 236–289, `exec_download` Z. 427–441): lokaler Ordner vs. Remote-Datei (mit Journal) → `DeleteRemote` (Remote-Datei wird gelöscht!); lokale Datei vs. Remote-Ordner → `Skip` (still ignoriert); Erst-Sync Ordner vs. Datei → Download bricht mit `File::create`-Fehler ab. Alle 3 Fälle verifiziert. Als Konflikt behandeln statt löschen/ignorieren.
+- [ ] **V1.3 — Bug (Minor):** `sync.rs::set_paused` (Z. 716–732): Resume setzt `paused=false`, aber `state` bleibt „paused" bis zum nächsten Worker-Tick (bis 10 s). Bei Resume sofort auf „idle" setzen.
+- [ ] **V1.4 — Feature:** `account_remove` (commands.rs:241–255) räumt Sync-Ordner des Kontos nicht ab; `sync.rs::run_all` (Z. 800–806) zeigt dann ewig „Account is no longer connected." Sync-Ordner (+ Journals) mitentfernen oder im UI als verwaist markieren/löschbar machen.
+- [ ] **V1.5 — Feature:** Updater (`updater.rs::download_update` Z. 223–281) verifiziert den Download nicht (keine SHA-256-Checksumme); kein Auto-Update-Check beim Start (SettingsModal.vue `checkForUpdate` Z. 95–106). Checksumme prüfen, optional Auto-Check.
+- [ ] **V1.6 — Feature (v1-Blocker):** Keine Dateioperationen im Dateibrowser: `FileExplorer.vue` `open` (Z. 21–23) tut bei Dateien nichts; `webdav.rs`-Helper (`put_file`/`get_file`/`delete`/`make_collection`) sind nicht als Commands exponiert (`commands.rs`, `ipc.ts`). Upload/Download/Öffnen/Rename/Mkdir/Delete bis v1. (Überlappt mit bestehendem B9/U2.)
+- [ ] **V1.7 — Bug (Minor):** `flutcloud.rs::flutcloud_url` (Z. 17–28) cached den Fehlerfall in `OnceLock` — korrigierte `.env` wirkt erst nach Neustart. Nur Erfolgswert cachen.
+- [ ] **V1.8 — Feature/Infrastruktur (v1-Blocker):** `release.yml` (Z. 121) baut macOS nur mit Ad-hoc-Signing (`APPLE_SIGNING_IDENTITY: "-"`), Windows ohne Code-Signing, keine Notarisierung. Developer-ID + Notarisierung (macOS) und Code-Signing (Windows) für Distribution einplanen.
+
 ## Review 2026-08-13 (automatisiertes Code-Review, Fokus UI + Backend)
 
 - [ ] **F1/B1** Konto-Identifikation auf `username` + `instanceUrl` umstellen: `src/stores/accounts.ts` (Z. 51, 74), `src-tauri/src/state.rs` (`remove`/`set_active`), `src-tauri/src/commands.rs` (`account_switch`, `account_remove`). Bug: gleicher Username auf zwei Servern wird falsch behandelt.
