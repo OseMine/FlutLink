@@ -1,0 +1,22 @@
+## Review 2026-08-13 (automatisiert, Bericht: reports/review-2026-08-13.md)
+
+- [ ] Bug: Doppel-Encoding des `path`-Parameters in `create_share` (`src-tauri/src/nextcloud/ocs.rs`, Z. 231–251) — `encode_segments` + reqwest-Form-Encoding ergeben `%2520`; Pfade mit Sonderzeichen erzeugen falsche Shares.
+- [ ] Bug: Sync-Folder-Remote-Pfad-Kollision bei `sync_add` (`src-tauri/src/commands.rs`, Z. 394–400; `src-tauri/src/sync.rs`, `add_folder`, Z. 665–704) — Duplicate-Check prüft nicht `remote_path`; zwei lokale Ordner mit gleichem Basisnamen schreiben in denselben Remote-Ordner.
+- [ ] Bug: 60-s-Gesamt-Timeout des HTTP-Clients (`src-tauri/src/state.rs`, `AppState::new`, Z. 112–113) bricht große Sync-Transfers (`get_file`/`put_file`) ab — `connect_timeout`/`read_timeout` separat setzen.
+- [ ] Bug: `resolveTheme` in `src/App.vue` (Z. 37–39) wertet `prefers-color-scheme` nie aus — System-Theme zeigt immer „operationflut".
+- [ ] Bug: Duplicate-Check in `src/stores/accounts.ts` `add`/`register` (Z. 51, 74) ignoriert `instanceUrl` — gleiche Usernamen auf verschiedenen Instanzen fehlen in der Liste.
+- [ ] Bug: `flutlink:cli-open`-Event in `src-tauri/src/lib.rs` `handle_cli` (Z. 83–85) kann beim Kaltstart verloren gehen (emit vor Frontend-Listener) — Payload puffern oder nach `tauri://ready` emittieren.
+- [ ] Feature: Server-URL im Login-Modal editierbar machen (`src/components/LoginModal.vue`, `serverUrl`, Z. 24–26) — aktuell nur Hardcode/CLI/VITE_ENV.
+- [ ] Feature: Pagination für `admin_list_users` (`src-tauri/src/nextcloud/ocs.rs`, `list_users`, limit=200 fest) — >200 User werden nicht gelistet.
+- [ ] Feature: Verwaiste Sync-Folder beim Account-Remove aufräumen (`src-tauri/src/commands.rs`, `account_remove`, Z. 224–239) — bleiben dauerhaft im Fehlerstatus.
+- [ ] Feature: Datei-Download/Öffnen im FileExplorer + Chunked-Transfers mit Progress (`src/components/FileExplorer.vue`, `open`, Z. 21–23; `webdav::get_file`/`put_file`).
+- [ ] Feature: Share-Verwaltung (Liste/Löschen) neben `webdav_create_share` (`src-tauri/src/nextcloud/ocs.rs`).
+- [ ] Verbesserung: CSP setzen statt `null` (`src-tauri/tauri.conf.json`, Z. 23).
+- [ ] Verbesserung: Clipboard via `@tauri-apps/plugin-clipboard-manager` statt `navigator.clipboard` (`src/components/FileExplorer.vue`, Z. 36).
+- [ ] Verbesserung: `ci.yml` — clippy ohne `-D warnings` (Z. 60) inkonsistent zu `lint.yml`/`checks`; Workflow weitgehend redundant zu `build.yml`+`lint.yml`.
+- [ ] Verbesserung: `opencode.yml` nutzt `anomalyco/opencode/github@latest` unpinned (Z. 85); opencode-Install in Workflows vereinheitlichen/pinnen.
+- [ ] Verbesserung: Dependabot um Cargo-Ökosystem erweitern (`.github/dependabot.yml`, nur npm + github-actions).
+- [ ] Verbesserung: Doppelter `ensure_collection` pro Sync-Pass (`src-tauri/src/sync.rs`, `run_all` Z. 811–812 + `run_pass` Z. 508).
+- [ ] Verbesserung: Bestätigung beim Konto-Entfernen (`src/components/AccountBar.vue`, Z. 130–134; `src/App.vue`, Z. 185).
+- [ ] Verbesserung: Unit-Tests für `nextcloud/ocs.rs` und Sync-Executor (`exec_*` in `sync.rs`).
+- [ ] Verbesserung: Login-/Register-Formular nach Erfolg zurücksetzen (`src/components/LoginModal.vue`, `form`).
