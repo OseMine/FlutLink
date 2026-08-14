@@ -8,8 +8,8 @@
 #   - legacy tables whose primary 'id' is not AUTO_INCREMENT ->
 #     "Duplicate entry '0' for key 'PRIMARY'" (SQLSTATE 1062)
 #
-# Usage:
-#   curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/upgrade-nextcloud.sh | bash -s -- --nextcloud-root ~/nextcloud
+# Usage (the script re-executes itself with sudo when needed):
+#   curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/upgrade-nextcloud.sh | sudo bash -s -- --nextcloud-root ~/nextcloud
 #
 # Options (only when saved to a file and executed):
 #   -d, --nextcloud-root <path>   Nextcloud installation (folder containing occ).
@@ -23,6 +23,8 @@
 # override it with the FLUTLINK_WORK_DIR environment variable.
 #
 set -u
+
+ARGS=("$@")
 
 REPO_URL="https://download.nextcloud.com/server/releases"
 VERSIONS=(31.0.14 32.0.14 33.0.8 34.0.3)
@@ -42,7 +44,7 @@ warn() { echo "Warning: $*" >&2; }
 log() { printf '%s\n' "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
 
 usage() {
-    sed -n '2,21p' "$0"
+    sed -n '2,24p' "$0"
     exit 0
 }
 
@@ -57,6 +59,17 @@ while [ $# -gt 0 ]; do
         *) die "Unknown option: $1 (see --help)" ;;
     esac
 done
+
+if [ "$(id -u)" -ne 0 ] && [ -z "${FLUTLINK_UNDER_SUDO:-}" ]; then
+    if [ -f "$0" ]; then
+        echo "Not running as root - re-executing via sudo ..."
+        exec sudo -E bash "$0" "${ARGS[@]}"
+    fi
+    echo "Error: this script needs root privileges (Nextcloud is usually owned by the web user)." >&2
+    echo 'Re-run with: curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/upgrade-nextcloud.sh | sudo bash -s -- --nextcloud-root ~/nextcloud' >&2
+    exit 1
+fi
+
 
 resolve_root() {
     local c=""
@@ -146,11 +159,11 @@ fetch_code() {
     if command -v unzip >/dev/null 2>&1; then
         archive="$WORK/nextcloud-$VN.zip"
         log "Downloading $REPO_URL/nextcloud-$VN.zip ..."
-        curl -fSL --retry 3 -o "$archive" "$REPO_URL/nextcloud-$VN.zip" || die "Download of $VN failed."
+        curl -fSL -C - --retry 3 -o "$archive" "$REPO_URL/nextcloud-$VN.zip" || die "Download of $VN failed."
     else
         archive="$WORK/nextcloud-$VN.tar.bz2"
         log "Downloading $REPO_URL/nextcloud-$VN.tar.bz2 ..."
-        curl -fSL --retry 3 -o "$archive" "$REPO_URL/nextcloud-$VN.tar.bz2" || die "Download of $VN failed."
+        curl -fSL -C - --retry 3 -o "$archive" "$REPO_URL/nextcloud-$VN.tar.bz2" || die "Download of $VN failed."
     fi
 }
 
@@ -240,8 +253,11 @@ log "Work dir       : $WORK"
 log "Log file       : $LOG"
 log '==========================================================='
 
-cp "$ROOT/config/config.php" "$ROOT/config/config.php.bak.$(date +%Y%m%d%H%M%S)" || warn 'Could not back up config.php.'
-log 'Backed up config.php.'
+if cp "$ROOT/config/config.php" "$ROOT/config/config.php.bak.$(date +%Y%m%d%H%M%S)"; then
+    log 'Backed up config.php.'
+else
+    warn 'Could not back up config.php.'
+fi
 
 if ! disk_ok; then
     warn "Less than ~3 GB free on $WORK; the upgrade needs space for downloads and extraction."
