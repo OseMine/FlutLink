@@ -54,7 +54,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 1
-          persist-credentials: false
+          # Persist credentials so `opencode github run` can push the result
+          # branch (the action does a plain `git push`, which otherwise has no
+          # auth and fails with "could not read Username").
+          persist-credentials: true
 
       - name: Require write access
         uses: actions/github-script@v9
