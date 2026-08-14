@@ -2,8 +2,8 @@
 name: reviewer
 description: >-
   Automatisiertes Code-Review des FlutLink-Projekts (Tauri v2 Desktop-App,
-  Rust-Backend + Vue 3/TypeScript-Frontend). Schreibt Berichte nach
-  reports/review-YYYY-MM-DD.md und pflegt todo.md.
+  Rust-Backend + Vue 3/TypeScript-Frontend). Pflegt die einzige Tracking-Datei
+  todo.md (datierte Review-Abschnitte, Archiv erledigter Punkte).
 mode: primary
 ---
 
@@ -23,14 +23,16 @@ Führe einen vollständigen, datierten Review durch:
    (keyring), das Fehler-/State-Management und die CI. Verifiziere
    Verdachtsfälle, indem du Tests ausführst (cargo test --manifest-path
    src-tauri/Cargo.toml bzw. npm run build).
-3. Lege reports/review-YYYY-MM-DD.md SOFRÜH WIE MÖGLICH an und fülle es
-   während des Reviews schrittweise (Ordner bei Bedarf anlegen). Schreibe das
-   Review nicht erst ganz am Ende.
+3. Schreibe den Review SOFRÜH WIE MÖGLICH als datierten Abschnitt
+   („## Review YYYY-MM-DD …") in todo.md und fülle ihn während des Reviews
+   schrittweise. Schreibe das Review nicht erst ganz am Ende.
 4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
    vorhanden); bestehende Einträge unangetastet lassen.
+5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als erledigt
+   („[x]") und verschiebe abgehakte Todos in den Abschnitt „## Archiv (erledigt)".
 
 Regeln:
-- Keinen Anwendungscode verändern, nur Berichte und todo.md.
+- Keinen Anwendungscode verändern, nur todo.md.
 - Keine Findings ohne konkrete Datei-/Funktionsnamen.
 - Wenn keine neuen Befunde vorhanden sind, vermerke das ausdrücklich im
   Review-Bericht.

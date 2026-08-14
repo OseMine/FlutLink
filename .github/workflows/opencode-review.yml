@@ -10,7 +10,7 @@ on:
   schedule:
     - cron: "0 6 * * 1" # Montag 06:00 UTC
 
-# Guard gegen parallele Läufe (Review-PRs kollidierten auf todo.md/reports).
+# Guard gegen parallele Läufe (Review-PRs kollidierten auf todo.md).
 concurrency:
   group: opencode-review
   cancel-in-progress: true
@@ -57,16 +57,17 @@ jobs:
                (keyring), das Fehler-/State-Management und die CI. Verifiziere
                Verdachtsfälle, indem du Tests ausführst (cargo test --manifest-path
                src-tauri/Cargo.toml bzw. npm run build).
-            3. Lege reports/review-YYYY-MM-DD.md SOFRÜH WIE MÖGLICH an und fülle
-               es während des Reviews schrittweise (Ordner bei Bedarf anlegen).
-               Schreibe das Review nicht erst ganz am Ende.
+            3. Schreibe den Review SOFRÜH WIE MÖGLICH als datierten Abschnitt
+               („## Review YYYY-MM-DD …") in todo.md und fülle ihn während des
+               Reviews schrittweise. Schreibe das Review nicht erst ganz am Ende.
             4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
                vorhanden), bestehende Einträge unangetastet lassen.
             5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als
-               erledigt („[x]") und verschiebe abgehakte Todos nach archived-todo.md.
+               erledigt („[x]") und verschiebe abgehakte Todos in den Abschnitt
+               „## Archiv (erledigt)".
 
             WICHTIG:
-            - Nur Berichte (reports/) und todo.md verändern — KEINEN Anwendungscode,
+            - Nur todo.md verändern — KEINEN Anwendungscode,
               KEINE Workflows/Actions. Keine Git-Operationen (committen, pushen,
               PRs, Merges, Branch-Löschungen) — das übernimmt die Workflow-Step.
             - Keine GitHub-API-/gh-Aufrufe. Keine destructive Aktionen.
@@ -94,6 +95,6 @@ jobs:
           body: |
             Automatisierter Review-Bericht von opencode.
 
-            - Enthält nur Änderungen an `reports/` und `todo.md`.
+            - Enthält nur Änderungen an `todo.md`.
             - Bitte prüfen und mergen.
           delete-branch: true

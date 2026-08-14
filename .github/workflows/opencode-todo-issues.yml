@@ -49,8 +49,7 @@ jobs:
             Schritte:
             1. Prüfe zuerst, ob todo.md im Repo existiert. Falls nicht, beende
                sofort mit einer kurzen Meldung ("Keine todo.md vorhanden") und
-               erstelle KEINE Issues. Lies dann todo.md (und bei Bedarf reports/
-               für Kontext).
+               erstelle KEINE Issues. Lies dann todo.md vollständig.
             2. Sammle alle offenen Aufgaben – erkennbar an „- [ ]"-Checkboxen –
                sowie die als „Tracking offene GitHub-Issues" notierten Punkte.
                Fokusbereich (optional): ${{ github.event.inputs.focus || 'alle offenen Punkte' }}
