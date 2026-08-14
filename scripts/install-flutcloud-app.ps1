@@ -16,6 +16,8 @@
 .PARAMETER NextcloudRoot
   Path to the Nextcloud installation (the folder containing occ). Auto-detected
   otherwise: $env:NEXTCLOUD_ROOT, the current directory, then common locations.
+  When run interactively (not piped) the script asks you to confirm the
+  detected path or to enter the path where you installed Nextcloud.
 
 .PARAMETER Ref
   Git ref to fetch the app from (release tag such as "v0.1.0" or a branch
@@ -75,19 +77,40 @@ function Resolve-NextcloudRoot {
         }
         return (Get-Item $NextcloudRoot).FullName
     }
+    $detected = $null
     if ($env:NEXTCLOUD_ROOT) {
-        if (Test-Path (Join-Path $env:NEXTCLOUD_ROOT 'occ')) { return (Get-Item $env:NEXTCLOUD_ROOT).FullName }
-        Write-Warning "NEXTCLOUD_ROOT is set but has no occ; ignoring it."
+        if (Test-Path (Join-Path $env:NEXTCLOUD_ROOT 'occ')) {
+            $detected = (Get-Item $env:NEXTCLOUD_ROOT).FullName
+        } else {
+            Write-Warning "NEXTCLOUD_ROOT is set but has no occ; ignoring it."
+        }
     }
     $cwd = (Get-Location).Path
-    if (Test-Path (Join-Path $cwd 'occ')) { return $cwd }
+    if (-not $detected -and (Test-Path (Join-Path $cwd 'occ'))) { $detected = $cwd }
     $candidates = @(
         '/var/www/nextcloud', '/var/www/html', '/srv/nextcloud',
         '/usr/share/webapps/nextcloud', 'C:\nextcloud', 'C:\htdocs\nextcloud'
     )
     foreach ($c in $candidates) {
-        if (Test-Path (Join-Path $c 'occ')) { return $c }
+        if (-not $detected -and (Test-Path (Join-Path $c 'occ'))) { $detected = (Get-Item $c).FullName }
     }
+    if (-not [Console]::IsInputRedirected) {
+        if ($detected) {
+            while ($true) {
+                $ans = Read-Host "Nextcloud installation found at '$detected'. Press Enter to use it, or enter a different path"
+                if ([string]::IsNullOrWhiteSpace($ans)) { return $detected }
+                if (Test-Path (Join-Path $ans 'occ')) { return (Get-Item $ans).FullName }
+                Write-Warning "No occ script found in '$ans'."
+            }
+        }
+        while ($true) {
+            $ans = Read-Host 'Could not locate your Nextcloud installation. Enter the path to the folder containing occ (e.g. /var/www/nextcloud)'
+            if ([string]::IsNullOrWhiteSpace($ans)) { throw 'No path given; aborting.' }
+            if (Test-Path (Join-Path $ans 'occ')) { return (Get-Item $ans).FullName }
+            Write-Warning "No occ script found in '$ans'."
+        }
+    }
+    if ($detected) { return $detected }
     throw 'Could not locate the Nextcloud installation (no occ found). Pass -NextcloudRoot.'
 }
 

@@ -17,6 +17,10 @@
 #   -S, --skip-verify             Do not verify that the app is enabled afterwards.
 #   -h, --help                    Show this help.
 #
+# When run interactively and no --nextcloud-root is given, the script asks
+# you to confirm the auto-detected path or enter the one where you installed
+# Nextcloud. Non-interactive runs (piped) skip the prompt.
+#
 set -euo pipefail
 
 REPO="OseMine/FlutLink"
@@ -32,8 +36,20 @@ SKIP_VERIFY=0
 die() { echo "Error: $*" >&2; exit 1; }
 warn() { echo "Warning: $*" >&2; }
 
+has_tty() {
+    local tty="${FLUTCLOUD_TTY:-/dev/tty}"
+    [ -r "$tty" ] && [ -w "$tty" ] 2>/dev/null
+}
+
+prompt_user() {
+    local message="$1" tty="${FLUTCLOUD_TTY:-/dev/tty}" ans=""
+    printf '%s' "$message" > "$tty" 2>/dev/null || return 1
+    read -r ans < "$tty" 2>/dev/null || return 1
+    printf '%s' "$ans"
+}
+
 usage() {
-    sed -n '2,20p' "$0"
+    sed -n '2,23p' "$0"
     exit 0
 }
 
@@ -52,21 +68,54 @@ while [ $# -gt 0 ]; do
 done
 
 resolve_root() {
+    local detected="" ans=""
     if [ -n "$NEXTCLOUD_ROOT" ]; then
         [ -f "$NEXTCLOUD_ROOT/occ" ] || die "'$NEXTCLOUD_ROOT' does not contain the Nextcloud occ script."
         echo "$NEXTCLOUD_ROOT"
         return
     fi
     if [ -f "occ" ]; then
-        echo "$(pwd)"
+        detected="$(pwd)"
+    else
+        for c in /var/www/nextcloud /var/www/html /srv/nextcloud /usr/share/webapps/nextcloud; do
+            if [ -f "$c/occ" ]; then
+                detected="$c"
+                break
+            fi
+        done
+    fi
+    if has_tty; then
+        if [ -n "$detected" ]; then
+            while :; do
+                ans="$(prompt_user "Nextcloud installation found at '$detected'. Press Enter to use it, or enter a different path: ")"
+                if [ -z "$ans" ]; then
+                    echo "$detected"
+                    return
+                fi
+                if [ -f "$ans/occ" ]; then
+                    echo "$ans"
+                    return
+                fi
+                echo "No occ script found in '$ans'." >&2
+            done
+        else
+            while :; do
+                ans="$(prompt_user "Could not locate your Nextcloud installation. Enter the path to the folder containing occ (e.g. /var/www/nextcloud): ")"
+                if [ -z "$ans" ]; then
+                    die 'No path given; aborting.'
+                fi
+                if [ -f "$ans/occ" ]; then
+                    echo "$ans"
+                    return
+                fi
+                echo "No occ script found in '$ans'." >&2
+            done
+        fi
+    fi
+    if [ -n "$detected" ]; then
+        echo "$detected"
         return
     fi
-    for c in /var/www/nextcloud /var/www/html /srv/nextcloud /usr/share/webapps/nextcloud; do
-        if [ -f "$c/occ" ]; then
-            echo "$c"
-            return
-        fi
-    done
     die 'Could not locate the Nextcloud installation (no occ found). Pass --nextcloud-root.'
 }
 

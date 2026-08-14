@@ -71,7 +71,10 @@ GitHub release metadata (either one is usually present on modern systems).
    on Windows).
 2. `install-flutcloud-app.*` finds the Nextcloud installation, downloads the
    `flutcloud-app` sources, copies them into `apps/flutcloud`, enables the app
-   with `occ` and verifies it.
+   with `occ` and verifies it. When run interactively (in a terminal) it first
+   asks you to confirm the detected path or enter the path where you installed
+   Nextcloud; piped (`curl | bash`) runs skip the prompt and use the detected
+   path.
 
 ## Passing parameters
 
@@ -102,7 +105,7 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
 
 | PowerShell | bash | Meaning |
 | --- | --- | --- |
-| `-NextcloudRoot <path>` | `--nextcloud-root <path>` | Nextcloud folder (contains `occ`) |
+| `-NextcloudRoot <path>` | `--nextcloud-root <path>` | Nextcloud folder (contains `occ`); when not given it is auto-detected and confirmed interactively |
 | `-Ref <tag-or-branch>` | `--ref <tag-or-branch>` | Release tag or branch to install |
 | `-WebUser <user>` | `--web-user <user>` | Web-server user (default `www-data`) |
 | `-DockerContainer <id>` | `--docker-container <id>` | Run occ via `docker exec` |
