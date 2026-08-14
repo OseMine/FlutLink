@@ -148,6 +148,7 @@ WHERE c.table_schema='$DB_NAME'
   AND c.column_name='id'
   AND c.column_key='PRI'
   AND c.extra NOT LIKE '%auto_increment%'
+  AND c.data_type IN ('tinyint','smallint','mediumint','int','bigint')
   AND (SELECT COUNT(*) FROM information_schema.statistics s
        WHERE s.table_schema='$DB_NAME' AND s.table_name=c.table_name
          AND s.index_name='PRIMARY') = 1;")
@@ -181,7 +182,7 @@ extract_code() {
 
 apply_and_upgrade() {
     local VN="$1" want_major="$2"
-    local out="" attempt=0 code=0 now="" now_major=""
+    local attempt=0 code=0 now="" now_major="" logtmp="$WORK/occ-upgrade-$VN.log"
 
     log "Replacing the Nextcloud code with $VN ..."
     rsync -a "$WORK/x-$VN/nextcloud/" "$ROOT/" || die "rsync of $VN into $ROOT failed."
@@ -191,23 +192,27 @@ apply_and_upgrade() {
 
     while :; do
         log "Running occ upgrade (DB -> $VN) ..."
-        out="$(run_occ upgrade 2>&1)"
-        code=$?
-        printf '%s\n' "$out" | tail -n 30 | tee -a "$LOG"
+        : > "$logtmp"
+        run_occ upgrade 2>&1 | tee -a "$LOG" >> "$logtmp"
+        code=${PIPESTATUS[0]}
+        echo "occ upgrade (DB -> $VN) exited with code $code (full output: $logtmp)" | tee -a "$LOG"
         if [ "$code" -eq 0 ]; then
             break
         fi
-        if printf '%s\n' "$out" | grep -Eq "Field 'id' doesn't have a default value|Duplicate entry '0' for key 'PRIMARY'"; then
+        if grep -Eq "Field 'id' doesn't have a default value|Duplicate entry '0' for key 'PRIMARY'" "$logtmp"; then
             attempt=$((attempt + 1))
             if [ "$attempt" -gt 3 ]; then
+                tail -n 30 "$logtmp" | tee -a "$LOG"
                 die "occ upgrade to $VN keeps failing on the id/PRIMARY issue even after the AUTO_INCREMENT repair."
             fi
             log 'Upgrade hit a legacy-id issue; repairing AUTO_INCREMENT and retrying ...'
             fix_auto_increment
             continue
         fi
-        die "occ upgrade to $VN failed (see the output above and $LOG)."
+        tail -n 30 "$logtmp" | tee -a "$LOG"
+        die "occ upgrade to $VN failed (see the last 30 lines above and $LOG)."
     done
+    rm -f "$logtmp"
 
     now="$(db_version)"
     now_major="$(major "$now")"
