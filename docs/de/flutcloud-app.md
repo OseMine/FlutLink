@@ -1,0 +1,122 @@
+# FlutCloud-Nextcloud-App
+
+Die **FlutCloud**-Nextcloud-App (`flutcloud-app/` in diesem Repository) ist
+die serverseitige Ergänzung des FlutLink-Desktop-Clients. Sie liefert die
+**Nicht-Standard-Funktionen** des FlutCloud-Servers — die Teile, die Vanilla-
+Nextcloud nicht bietet — und sie sagt FlutLink: „Das ist ein FlutCloud-Server,
+nicht irgendein Nextcloud."
+
+FlutLink verbindet sich **ausschließlich** mit Servern, die diese App
+ausführen. Vor jedem Konto-Login fragt der Client den OCS-Capabilities-Endpoint
+(`/ocs/v2.php/cloud/capabilities?format=json`) ab und bricht ab, wenn die
+`flutcloud`-Capability nicht angekündigt wird (`AppError::FlutCloudAppMissing`).
+
+## Voraussetzungen
+
+| Voraussetzung | Version |
+| --- | --- |
+| Nextcloud-Server | 28 – 31 |
+| PHP | 8.1+ |
+| Composer | optional — nur für den OCA-Autoloader |
+
+Die App selbst hat keine Laufzeit-PHP-Abhängigkeiten; der Composer-Autoloader
+wird nur für den `OCA\FlutCloud\`-Namespace gebraucht (PSR-4 → `lib/`).
+
+## Funktionen
+
+| Feature | Was es tut |
+| --- | --- |
+| Capability | Kündigt `ocs.data.capabilities.flutcloud` an — der FlutCloud-Server-Marker |
+| Ping | `GET /ocs/v2.php/apps/flutcloud/api/v1/ping` — App-Info zur Client-Prüfung |
+| Virtuelle Links | Schreibgeschützte `resources/`-Ordner, verwaltet über die Links-API |
+| Schreibbare Parts | Beschreibbare `parts/`-Ordner, verwaltet über die Parts-API |
+| Projektordner | `/FlutLink/FlutCloud` im Admin-Home mit zweisprachiger README |
+
+## Installation
+
+1. **App kopieren** in das Nextcloud-Apps-Verzeichnis auf dem Server:
+
+   ```bash
+   cp -r flutcloud-app nextcloud/apps/flutcloud
+   ```
+
+   Das Verzeichnis muss `flutcloud` heißen (es muss der `<id>` in
+   `appinfo/info.xml` entsprechen).
+
+2. **Autoloader erzeugen** (optional, aber empfohlen):
+
+   ```bash
+   cd nextcloud/apps/flutcloud
+   php composer.phar install --no-dev
+   ```
+
+   Ist Composer nicht verfügbar, funktioniert die App trotzdem — Nextclouds
+   eigenes Autoloading übernimmt den `OCA\FlutCloud\`-Namespace über
+   `appinfo/info.xml` und den Code unter `lib/`.
+
+3. **App aktivieren**:
+
+   ```bash
+   cd /var/www/nextcloud
+   sudo -u www-data php occ app:enable flutcloud
+   ```
+
+   (`www-data` durch den Webserver-Benutzer ersetzen; beim offiziellen
+   `nextcloud`-Docker-Image `docker exec -u www-data nextcloud php occ
+   app:enable flutcloud` verwenden.)
+
+4. **Prüfen**, dass die Capability ausgeliefert wird:
+
+   ```bash
+   curl -u alice:apptoken "https://YOUR-SERVER/ocs/v2.php/cloud/capabilities?format=json"
+   ```
+
+   `ocs.data.capabilities.flutcloud` muss vorhanden sein. FlutLink akzeptiert
+   den Server damit als FlutCloud-Instanz.
+
+## API
+
+Alle Routen liegen unter `/ocs/v2.php/apps/flutcloud/api/v1` und benötigen
+einen angemeldeten Benutzer (außer dem Capabilities-Endpoint, der öffentlich
+ist):
+
+| Methode | Pfad | Beschreibung |
+| --- | --- | --- |
+| `GET` | `/ping` | App-Info: `{ app, name, version, features, user }` |
+| `GET` | `/links` | Virtuelle Links auflisten (Unterordner von `resources/`) |
+| `POST` | `/links` | Virtuellen Link erstellen (`name` als Form/Query-Parameter) |
+| `DELETE` | `/links/{name}` | Virtuellen Link löschen |
+| `GET` | `/parts` | Schreibbare Parts auflisten (Unterordner von `parts/`) |
+| `POST` | `/parts` | Schreibbaren Part erstellen (`name`-Parameter) |
+| `POST` | `/project-folder` | `/FlutLink/FlutCloud` sicherstellen (nur Admin) |
+
+Link-/Part-Einträge werden als `{ name, path, readOnly }` zurückgegeben.
+
+## Fehlerbehebung
+
+- **FlutLink lehnt den Server ab** (`FlutCloudAppMissing`) — die Capability
+  wird nicht angekündigt. Prüfen, dass die App aktiv ist
+  (`php occ app:list | grep flutcloud`), das Verzeichnis `flutcloud` heißt
+  und das `curl` oben `ocs.data.capabilities.flutcloud` liefert.
+- **`composer` nicht gefunden** — Composer installieren oder Schritt 2
+  überspringen; die App läuft ohne generierten Autoloader.
+- **App lässt sich nicht aktivieren** — Nextcloud-Version 28–31 und PHP 8.1+
+  prüfen (siehe `<dependencies>` in `appinfo/info.xml`).
+- **Permissions-Fehler** — sicherstellen, dass die App-Dateien dem
+  Webserver-Benutzer gehören und `nextcloud/apps/` beschreibbar ist.
+
+## Entwicklung
+
+```bash
+composer check   # php -l Lint aller Quelldateien
+```
+
+Bei Versionsanhebung `appinfo/info.xml`, `composer.json` und die von `/ping`
+gelieferte `version` synchron halten. Repository-weiten Verifikationsablauf
+siehe [Entwicklung](development.md).
+
+## Siehe auch
+
+- [Erste Schritte](getting-started.md) — der FlutLink-Client
+- [Funktionen](features.md) — was FlutLink bietet
+- [Sicherheit](security.md) — wie der Capability-Check den Client schützt

@@ -17,6 +17,10 @@ Full bilingual documentation (English + German) lives in
 [`docs/`](docs/README.md) — getting started, features, architecture, sync
 engine, tray & CLI, security and development guide.
 
+Installing the server-side FlutCloud Nextcloud app:
+[`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) /
+[`docs/de/flutcloud-app.md`](docs/de/flutcloud-app.md).
+
 ## Architecture
 
 ```

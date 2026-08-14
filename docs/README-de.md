@@ -23,6 +23,7 @@ docs/
 │   ├── sync.md             # Zwei-Wege-Sync-Engine (Journal, Planner, Worker)
 │   ├── tray-and-cli.md     # System-Tray, Schließen in den Tray, CLI-Flags
 │   ├── security.md         # Schlüsselbund, Tokens, Admin-Absicherung, Fehler
+│   ├── flutcloud-app.md    # die serverseitige Nextcloud-App (Installation, API)
 │   └── development.md      # Build, Test, Konventionen, IPC-Vertrag
 └── de/                     # Deutsch (gleicher Aufbau wie en/)
     ├── getting-started.md
@@ -31,6 +32,7 @@ docs/
     ├── sync.md
     ├── tray-and-cli.md
     ├── security.md
+    ├── flutcloud-app.md
     └── development.md
 ```
 
@@ -44,6 +46,7 @@ docs/
 | die Sync-Engine verstehen möchtest | [Sync-Engine](de/sync.md) |
 | Tray / Kommandozeile nutzen möchtest | [Tray & CLI](de/tray-and-cli.md) |
 | prüfen möchtest, wie Zugangsdaten behandelt werden | [Sicherheit](de/security.md) |
+| die FlutCloud-Server-App einrichten möchtest | [FlutCloud-App](de/flutcloud-app.md) |
 | Code oder Doku beitragen möchtest | [Entwicklung](de/development.md) |
 
 Für Englisch nutze die entsprechende Seite unter `docs/en/`.
