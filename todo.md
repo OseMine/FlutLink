@@ -2,13 +2,10 @@
 
 Offene Punkte. Erledigte Punkte sind nach `archived-todo.md` verschoben.
 
-## Review 2026-08-13 (Lauf 1, CI/Repo)
+## Offen
 
-- [ ] **C4 - CI/Repo:** Zusammengeführte Dependabot-Branches auf GitHub löschen (`gh api ... /branches --delete`, merge=true filter).
-
-## GitHub-Aufräumung (Abschluss)
-
-- [ ] Finale Verifikation laufen lassen (cargo fmt/clippy/test, npm run build).
-- [ ] Änderungen committen und nach `main` pushen (Remote-Stand des parallelen `/oc`-Laufs vorher abgleichen).
-- [ ] Betroffene Issues schließen (#6-#44, außer #33) mit Verweis auf die Commits.
-- [ ] GitHub-Wiki (#44) aktualisieren.
+- [ ] **#44 - Wiki:** GitHub-Wiki anlegen. Das Wiki-Git-Repo
+      (`https://github.com/OseMine/FlutLink.wiki.git`) wird von GitHub erst
+      beim Speichern der ersten Seite über die Weboberfläche angelegt
+      (kein CLI/API-Weg). Nach dem Anlegen einer ersten Seite (z. B. `Home`)
+      kann der Inhalt aus `docs/` per `git push` übernommen werden.
