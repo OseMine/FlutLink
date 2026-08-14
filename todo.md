@@ -6,6 +6,87 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-14 (Lauf 5, Fokus: Google-Drive-ähnliche Material-3-Expressive-UI / neue Features)
+
+**Verifikation:** Kein Code-Change an `src/` oder `src-tauri/src/` seit Lauf 4
+(letzte App-Komits: 48f4472 „fix: use keyring 4 error enum variants…",
+e696d4d; seitdem nur `scripts/`-Komits). Damit sind **U1–U7, F1–F10 und
+N1–N9 weiterhin offen** (alle Verdachtsfälle erneut gegen den aktuellen Stand
+geprüft: U1 `commands.rs:466`, N1 `webdav.rs:359` + `FileExplorer.vue:162-177`,
+N2 `ocs.rs:75-119`, N8 `sync.rs:714`+`1079-1080`, F1 `commands.rs:550-557`,
+F2 `state.rs:112-113`/`updater.rs:526-528`, F4 `ocs.rs:262-273`, F9
+`updater.rs:302-310`). Checks ausgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 42 passed / 0 failed; `cargo clippy --all-targets -- -D
+warnings` → grün; `npm run build` (vue-tsc + vite) → grün. Erledigte Todos:
+**keine** — nichts wurde seit Lauf 4 behoben, daher keine Verschiebungen ins
+Archiv.
+
+Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
+
+- [ ] **U8 (Feature/Design, mittel):** Kein Material-3-Expressive-Design
+      umgesetzt, obwohl der Fokus darauf liegt: Keine Design-Tokens (State-
+      Layer, Elevation, Shape, Motion), keine dynamische Farbpalette
+      (Material You), Icons sind Emojis (📁/📄/☰/▦/⚙) statt SVG-Icon-Set
+      (Material Symbols o. Ä.), kein Ripple/Hover-Feedback, keine
+      Fokus-Ringe (`:focus-visible`). `src/style.css` überschreibt nur
+      `--color-zinc-*`/`--color-indigo-*`; alle Komponenten nutzen
+      hartkodierte Klassen (`bg-indigo-600`, `text-indigo-300`,
+      `bg-indigo-950/40` in `FileExplorer.vue`, `App.vue:163`,
+      `SettingsModal.vue`). Fix: M3-Token-System in `style.css` unter
+      `[data-theme]` etablieren und Komponenten auf Tokens umstellen.
+- [ ] **U9 (Feature, mittel):** Dateibrowser ohne Google-Drive-Kernfunktionen:
+      Es gibt **keine Suche** (der in B9 archivierte `webdav_search`-Command
+      wurde nie implementiert — weder in `commands.rs` noch `src/lib/ipc.ts`),
+      keine Select-All-Checkbox, **keine Bulk-Aktionen** trotz
+      Mehrfachauswahl (Z. 389-394 zeigen nur Zähler + Clear), kein Drag &
+      Drop-Upload, keine Upload/Download-Fortschrittsanzeige (README
+      „Phase 3" verspricht chunked progress events per `app.emit`). Fix:
+      `webdav_search` (OCS `SEARCH`/PROPFIND) + Bulk-Download/Delete +
+      Progress-Events.
+- [ ] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
+      auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
+      Delete fehlen pro Kachel (nur Open/Rename), kein Hover-Preview.
+      Google-Drive-Verhalten: Klick = Auswahl, Aktionen im Hover-Overlay.
+- [ ] **U11 (Bug, minor):** `selected`-Set in `FileExplorer.vue` wird nach
+      Rename nie bereinigt (`doRename` Z. 162-177): `files.renameEntry`
+      refresht die Liste, der alte Pfad bleibt in `selected` → Zähler
+      (Z. 390) zeigt stale Einträge. Fix: Pfad nach Rename im Set ersetzen
+      (bzw. `removeEntry` Z. 183 analog bereits ok).
+- [ ] **N10 (Konsistenz, minor):** `webdav_create_share` (`commands.rs:326-337`)
+      ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
+      `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
+      oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzen.
+- [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
+      `/` im `new_name` → „Rename" wird still zu einem Move in einen
+      Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
+      nicht nur auf den zusammengesetzten Pfad).
+- [ ] **N12 (Bug, Datenverlust, mittel):** `unique_conflict_target`
+      (`sync.rs:149-163`) prüft für `MoveLocalConflict` (`sync.rs:425-427`)
+      Kollisionen gegen die **remote**-Map statt gegen die lokale Dateiliste:
+      Existiert lokal bereits „a (conflict copy).txt", wird es von
+      `exec_move_local_conflict` (`tokio::fs::rename`, Z. 666) **überschrieben**
+      — die frühere Konfliktkopie geht verloren. Fix: Kandidat gegen `local`
+      prüfen (Parameter erweitern).
+- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
+      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
+      `accounts`-Store nutzen.
+- [ ] **N14 (i18n, mittel):** Backend-Fehlermeldungen sind nicht lokalisiert:
+      `error.rs` (`message()`), `ocs.rs`, `webdav.rs` und `updater.rs` liefern
+      englische Strings, die direkt als Toast/Inline-Fehler erscheinen —
+      i18n (`src/lib/i18n.ts`) deckt nur Frontend-Texte ab. Fix: Fehler-Codes
+      im Frontend mappen (wie `AppError.code` es bereits erlaubt) oder
+      `message` aus dem i18n-Dict übersetzen.
+- [ ] **N15 (UX, minor):** Nach Admin-Login setzt `loadAdminUsers`
+      (`FileExplorer.vue:214-231`) `targetUser` auf den **eigenen** Namen →
+      Banner „Admin impersonation — … von <ich>" (Z. 377-383) erscheint beim
+      Betrachten der eigenen Dateien. `webdav_list` filtert den eigenen Namen
+      zwar heraus (`commands.rs:307`), das Banner bleibt aber irreführend.
+      Fix: Banner nur bei fremdem `targetUser` anzeigen.
+- [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
+      (F7 offen) und die About-Version ist hartkodiert (F5 offen,
+      `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
+      einplanen (Update-Banner + `getVersion()`).
+
 ### Review 2026-08-14 (Lauf 4, Fokus: Bugs & Errors)
 
 **Verifikation:** Kein Code-Change an `src/` oder `src-tauri/src/` seit Lauf 3
