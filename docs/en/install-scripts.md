@@ -132,6 +132,11 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
   `Set-ExecutionPolicy -Scope Process Bypass` for the current session.
 - **`jq`/`python3` missing** (Linux/macOS client script) → install one of
   them, e.g. `sudo apt install jq` on Ubuntu or `brew install jq` on macOS.
+- **Permission denied while installing the server app** — the script
+  elevates to `sudo` automatically when `nextcloud/apps` is not writable by
+  your user (typical for `/var/www/nextcloud`); run it from an account with
+  `sudo` rights, or pass `--no-sudo` when you are already running as
+  `www-data` or root.
 - **Proxy/offline server** → download the scripts and the assets manually and
   run them from files; the scripts have no additional network requirements
   beyond GitHub.

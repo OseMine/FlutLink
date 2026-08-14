@@ -137,6 +137,11 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
 - **`jq`/`python3` fehlt** (Linux/macOS-Client-Skript) → installiere eines
   davon, z. B. `sudo apt install jq` unter Ubuntu oder `brew install jq`
   unter macOS.
+- **Permission denied bei der Server-App-Installation** — das Skript erhöht
+  automatisch auf `sudo`, wenn `nextcloud/apps` für deinen Benutzer nicht
+  beschreibbar ist (typisch bei `/var/www/nextcloud`); führe es von einem
+  Konto mit `sudo`-Rechten aus oder übergib `--no-sudo`, wenn du bereits als
+  `www-data` oder root läufst.
 - **Proxy/Offline-Server** → lade die Skripte und die Assets manuell herunter
   und führe sie aus Dateien aus; die Skripte brauchen keine weiteren
   Netzwerkverbindungen außer GitHub.

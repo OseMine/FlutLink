@@ -76,7 +76,7 @@ resolve_ref() {
         return
     fi
     local tag=""
-    tag="$(curl -fsSL -A "$UA" "https://api.github.com/repos/$REPO/releases/latest" | grep -o '"tag_name":[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' | sed -n '1p' || true)"
+    tag="$(curl -fsSL -A "$UA" "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep -o '"tag_name":[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' | sed -n '1p' || true)"
     if [ -n "$tag" ]; then
         echo "$tag"
     else
@@ -124,13 +124,31 @@ APP_SOURCE="$(find "$TMP/src" -maxdepth 2 -type d -name flutcloud-app | sed -n '
 
 DEST="$ROOT/apps/flutcloud"
 echo "Installing app to $DEST ..."
-mkdir -p "$DEST"
-cp -a "$APP_SOURCE/." "$DEST/"
+
+NEED_SUDO=0
+if [ "$NO_SUDO" != 1 ] && [ "$(id -u)" != 0 ] && ! [ -w "$ROOT/apps" ]; then
+    NEED_SUDO=1
+    if ! command -v sudo >/dev/null 2>&1; then
+        die "'$ROOT/apps' is not writable and 'sudo' is not available; run the script with --no-sudo as a user with write access (e.g. root)."
+    fi
+fi
+
+if [ "$NEED_SUDO" = 1 ]; then
+    sudo mkdir -p "$DEST"
+    sudo cp -a "$APP_SOURCE/." "$DEST/"
+else
+    mkdir -p "$DEST"
+    cp -a "$APP_SOURCE/." "$DEST/"
+fi
 
 if [ "$COMPOSER" = 1 ]; then
     if command -v composer >/dev/null 2>&1; then
         echo 'Generating the Composer autoloader ...'
-        ( cd "$DEST" && composer install --no-dev )
+        if [ "$NEED_SUDO" = 1 ]; then
+            ( cd "$DEST" && sudo -E env COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev )
+        else
+            ( cd "$DEST" && composer install --no-dev )
+        fi
     else
         warn 'composer not found; skipping autoloader generation (not required).'
     fi
