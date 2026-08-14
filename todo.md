@@ -6,20 +6,109 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
-### Review 2026-08-14 (Lauf 5, Fokus: Google-Drive-ähnliche Material-3-Expressive-UI / neue Features)
+### Review 2026-08-14 (Lauf 5, Fokus: Browsing & Link-Sharing + Material-3-Expressive-UI / neue Features)
 
-**Verifikation:** Kein Code-Change an `src/` oder `src-tauri/src/` seit Lauf 4
-(letzte App-Komits: 48f4472 „fix: use keyring 4 error enum variants…",
-e696d4d; seitdem nur `scripts/`-Komits). Damit sind **U1–U7, F1–F10 und
-N1–N9 weiterhin offen** (alle Verdachtsfälle erneut gegen den aktuellen Stand
-geprüft: U1 `commands.rs:466`, N1 `webdav.rs:359` + `FileExplorer.vue:162-177`,
-N2 `ocs.rs:75-119`, N8 `sync.rs:714`+`1079-1080`, F1 `commands.rs:550-557`,
-F2 `state.rs:112-113`/`updater.rs:526-528`, F4 `ocs.rs:262-273`, F9
+**Verifikation:** Kein Anwendungscode-Change an `src/` oder `src-tauri/src/`
+seit Lauf 4 (letzte App-Komits: 48f4472 „fix: use keyring 4 error enum
+variants…", e696d4d, davor e31f4f6; seitdem nur `scripts/`-Komits). Damit
+sind **U1–U7, F1–F10 und N1–N9 weiterhin offen** (alle Verdachtsfälle erneut
+gegen den aktuellen Stand geprüft und bestätigt: U1 `commands.rs:466`, N1
+`webdav.rs:359` + `FileExplorer.vue:162-177`, N2 `ocs.rs:75-119`, N8
+`sync.rs:714`+`1079-1080`, F1 `commands.rs:550-557`, F2
+`state.rs:112-113`/`updater.rs:526-528`, F4 `ocs.rs:262-273`, F9
 `updater.rs:302-310`). Checks ausgeführt: `cargo test --manifest-path
 src-tauri/Cargo.toml` → 42 passed / 0 failed; `cargo clippy --all-targets -- -D
 warnings` → grün; `npm run build` (vue-tsc + vite) → grün. Erledigte Todos:
 **keine** — nichts wurde seit Lauf 4 behoben, daher keine Verschiebungen ins
 Archiv.
+
+Neue Befunde (Lauf 5, Fokus „real browsing like Nextcloud UI/Google Drive,
+public + private link sharing"):
+
+- [ ] **P1 (Feature, mittel/hoch — Kern-Fokus):** Nur öffentliche
+      Read-Only-Links, kein privates Sharing. `ocs::create_share`
+      (`src-tauri/src/nextcloud/ocs.rs:252-285`) sendet hartkodiert
+      `shareType=3` (öffentlicher Link) + `permissions=1`. Private Freigaben
+      (OCS `shareType=0` User / `shareType=1` Gruppe mit `shareWith`) fehlen
+      durchgängig: `webdav_create_share` (`src-tauri/src/commands.rs:326-337`)
+      hat keinen `share_with`/`share_type`-Parameter, `src/lib/ipc.ts`
+      (`webdavCreateShare`, Z. 124-125) und `FileExplorer.vue` (`createLink`,
+      Z. 198-208) bieten nur „Link". Fix: Parameter durchreichen + UI-Dialog
+      („Mit Benutzer teilen" / „Link mit Passwort").
+- [ ] **P2 (Feature, mittel):** Kein Share-Management: Es gibt weder
+      `list_shares` noch `delete_share` (OCS `GET /shares` bzw.
+      `DELETE /shares/{id}` unter `apps/files_sharing/api/v1/shares`). Ein
+      erstellter Link ist nach dem Kopieren weder erneut abrufbar noch
+      widerrufbar (`FileExplorer.vue` zeigt nur ein ✓-Icon) — für
+      Nextcloud-UI-Niveau unverzichtbar. Fix: `list_shares`/`delete_share` als
+      Commands (commands.rs + ipc.ts) + Share-Status pro Eintrag in der UI.
+- [ ] **P3 (Feature, mittel):** Link-Optionen fehlen: `create_share`
+      (ocs.rs:262-267) unterstützt kein `password`, `expireDate` oder
+      `publicUpload` (permissions 15). Öffentliches Link-Sharing ist damit auf
+      „read-only, ewig gültig, ohne Passwort" reduziert.
+- [ ] **P4 (Bug, bestätigt F4, hier gegen Stand verifiziert):** Doppel-Encoding
+      in `create_share`: `encode_segments(rel_path)` (ocs.rs:262) + `req.form()`
+      (`nextcloud/mod.rs:57-59`, url-encodiert erneut) → `%20` wird `%2520` →
+      Share-Erstellung für Pfade mit Leerzeichen/Umlauten schlägt fehl. Fix:
+      Raw-Pfad ins Formular + Roundtrip-Test.
+- [ ] **P5 (Bug, bestätigt U1):** `webdav_rename` (`commands.rs:466-467`):
+      `parent = path.rsplit('/').nth(1)` → `new_path` ohne führenden Slash →
+      `validate_dav_path` (commands.rs:342-359) lehnt ab. Umbenennen in
+      Unterordnern schlägt immer fehl, nur Root-Rename funktioniert. Fix:
+      `rsplit_once('/')` + Test.
+- [ ] **P6 (Bug, bestätigt U3/N7):** `createLink` (`FileExplorer.vue:198-208`)
+      verschluckt den Backend-Fehler (nur ✗-Icon) und verliert die Share-URL,
+      wenn `navigator.clipboard.writeText` fehlschlägt (häufig WebKitGTK/
+      Linux). Fix: URL auch bei Clipboard-Fehler anzeigen (Toast/
+      Klick-zum-Kopieren), Fehler via `invokeError` toasten.
+- [ ] **P7 (Bug, bestätigt U4):** `uploadFiles` (`FileExplorer.vue:123-142`)
+      setzt `busyPath = ""` (falsy) → Re-Entry-Guards in `open`/`download`
+      (Z. 94/109) greifen nicht; Mehrupload bricht beim ersten Fehler ab. Fix:
+      Token/Set statt String.
+- [ ] **P8 (Bug, bestätigt N5):** `open()` (`FileExplorer.vue:96-100`) legt
+      jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
+      einer Datei füllt das Temp-Verzeichnis. Fix: nach `openPath` löschen oder
+      eigenes Cache-Verzeichnis mit Cleanup.
+- [ ] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
+      Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
+      `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
+      Duplikat-Erkennung als Abbruchbedingung.
+- [ ] **P10 (Bug, bestätigt N6):** `should_skip_name` (`sync.rs:172-175`)
+      asymmetrisch: lokale versteckte Dateien (`.env`, `.gitignore`) werden
+      nie hochgeladen, remote vorhandene versteckte Dateien werden beim
+      Erst-Sync heruntergeladen. Beide Richtungen einheitlich skippen.
+- [ ] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
+      `run_all` (`sync.rs:1079-1080`) und `run_pass` (`sync.rs:714`) →
+      unnötige MKCOL-Requests pro Tick. Eine Stelle reicht.
+- [ ] **P12 (Security, bestätigt N3):** `release.yml` (Z. 41-57) interpoliert
+      Commit-Nachrichten (`$LOG`) ungefiltert in den opencode-Prompt →
+      Prompt-Injection über bösartige Commit-Titel (Gegenstück in
+      `opencode.yml` ist bereits entschärft). Fix: „UNTRUSTED INPUT"-
+      Markierung + Log auf `--oneline`-Titel kürzen.
+- [ ] **P13 (CI, bestätigt N4):** `build.yml` (Z. 6-9): `paths-ignore:
+      ['.github/**']` auf PRs → Workflow-/Action-Änderungen lösen keine CI
+      aus und werden nie getestet. `.github/**` aus paths-ignore nehmen.
+- [ ] **P14 (Feature, minor):** Keine Dateisuche: Es gibt keinen
+      WebDAV-SEARCH-Command (weder `commands.rs` noch `src/lib/ipc.ts`;
+      „search" aus B9 wurde nie umgesetzt — nur die OCS-Benutzersuche in
+      `ocs.rs:78-92` existiert). Für Google-Drive-ähnliches Browsing fehlt
+      die globale Dateisuche. Fix: SEARCH-Command + UI-Suchfeld.
+- [ ] **P15 (Bug/Robustheit, minor):** `is_admin` wird nur beim
+      Account-Add/Register einmal ermittelt (`commands.rs:56-58`, Z. 224-226)
+      und dauerhaft in `accounts.json` gespeichert. `ocs::is_admin`
+      (`ocs.rs:59-71`) schluckt alle Fehler (`Err(_) => Ok(false)`) →
+      transiente Netzwerkfehler beim Login markieren ein Admin-Konto dauerhaft
+      als Nicht-Admin. Fix: Admin-Status beim App-Start neu evaluieren.
+- [ ] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
+      Liefert der Server absolute hrefs (mit Scheme/Host), findet
+      `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
+      Namespace-Guard (`webdav.rs:56-61`) prüft nur das Präfix `/remote.php/`
+      und greift dann nicht. Guard auf beide Formen erweitern.
+- [ ] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
+      kein „Zurück"-Button, keine Tastatur-Navigation (Enter = öffnen,
+      Entf = löschen), Grid-Ansicht ohne Link-Button, keine Ordner-ZIP-
+      Downloads (Nextcloud bietet `downloadzip`), keine Thumbnails
+      (`/core/preview.png`). Für „real browsing"-Niveau sinnvoll.
 
 Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
 
