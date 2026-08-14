@@ -144,7 +144,14 @@ Link/part entries are returned as `{ name, path, readOnly }`.
 - **`composer` command not found** — install Composer or skip step 2; the app
   runs without the generated autoloader.
 - **App cannot be enabled** — verify the Nextcloud version is between 28 and
-  31 and PHP is 8.1+ (see `<dependencies>` in `appinfo/info.xml`).
+  37 and PHP is 8.1+ (see `<dependencies>` in `appinfo/info.xml`). If the
+  message says *"cannot be installed because it is not compatible with this
+  version of the server"*, the server is newer than the declared
+  `max-version`; bump it in `appinfo/info.xml`.
+- **`Nextcloud or one of the apps require upgrade`** — Nextcloud refuses most
+  `occ` commands until the database is upgraded. Run `sudo -u www-data php
+  occ upgrade` once (or use the web UI). The install script does this
+  automatically and then retries `app:enable`.
 - **Permission errors** — ensure the app files are owned by the web-server
   user and `nextcloud/apps/` is writable.
 

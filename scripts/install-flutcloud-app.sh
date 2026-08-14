@@ -134,16 +134,16 @@ resolve_ref() {
     fi
 }
 
-run_occ() {
+occ_output() {
     local dir
     dir="$(pwd)"
     cd "$ROOT"
     if [ -n "$DOCKER_CONTAINER" ]; then
-        docker exec -u "$WEB_USER" "$DOCKER_CONTAINER" php occ "$@"
+        docker exec -u "$WEB_USER" "$DOCKER_CONTAINER" php occ "$@" 2>&1
     elif [ "$NO_SUDO" = 1 ]; then
-        php occ "$@"
+        php occ "$@" 2>&1
     else
-        sudo -u "$WEB_USER" php occ "$@"
+        sudo -u "$WEB_USER" php occ "$@" 2>&1
     fi
     cd "$dir"
 }
@@ -212,12 +212,23 @@ if [ -z "$DOCKER_CONTAINER" ]; then
 fi
 
 echo 'Enabling the app: php occ app:enable flutcloud'
-run_occ app:enable flutcloud
+OUTPUT="$(occ_output app:enable flutcloud)"
+printf '%s\n' "$OUTPUT"
+if printf '%s\n' "$OUTPUT" | grep -qi 'require upgrade'; then
+    echo 'Nextcloud reports that an upgrade is required; running "occ upgrade" first ...'
+    printf '%s\n' "$(occ_output upgrade)"
+    echo 'Retrying app:enable ...'
+    OUTPUT="$(occ_output app:enable flutcloud)"
+    printf '%s\n' "$OUTPUT"
+fi
+if printf '%s\n' "$OUTPUT" | grep -qi 'not compatible with this version of the server'; then
+    die 'The flutcloud app is not compatible with this Nextcloud version. The version range declared in flutcloud-app/appinfo/info.xml must include it.'
+fi
 
 if [ "$SKIP_VERIFY" != 1 ]; then
     echo 'Verifying the app is enabled ...'
-    OUTPUT="$(run_occ app:list)"
-    if printf '%s\n' "$OUTPUT" | grep -q flutcloud; then
+    LISTING="$(occ_output app:list)"
+    if printf '%s\n' "$LISTING" | grep -q flutcloud; then
         echo 'OK: the flutcloud app is enabled.'
     else
         die 'The flutcloud app did not show up in "occ app:list".'

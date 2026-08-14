@@ -145,8 +145,16 @@ Link-/Part-Einträge werden als `{ name, path, readOnly }` zurückgegeben.
   und das `curl` oben `ocs.data.capabilities.flutcloud` liefert.
 - **`composer` nicht gefunden** — Composer installieren oder Schritt 2
   überspringen; die App läuft ohne generierten Autoloader.
-- **App lässt sich nicht aktivieren** — Nextcloud-Version 28–31 und PHP 8.1+
-  prüfen (siehe `<dependencies>` in `appinfo/info.xml`).
+- **App lässt sich nicht aktivieren** — Nextcloud-Version 28–37 und PHP 8.1+
+  prüfen (siehe `<dependencies>` in `appinfo/info.xml`). Bei der Meldung
+  *„cannot be installed because it is not compatible with this version of the
+  server"* ist der Server neuer als die deklarierte `max-version`; diese in
+  `appinfo/info.xml` anheben.
+- **`Nextcloud or one of the apps require upgrade`** — Nextcloud verweigert
+  die meisten `occ`-Befehle, bis die Datenbank aktualisiert ist. Einmal
+  `sudo -u www-data php occ upgrade` ausführen (oder über die Weboberfläche).
+  Das Installationsskript macht das automatisch und versucht `app:enable`
+  danach erneut.
 - **Permissions-Fehler** — sicherstellen, dass die App-Dateien dem
   Webserver-Benutzer gehören und `nextcloud/apps/` beschreibbar ist.
 

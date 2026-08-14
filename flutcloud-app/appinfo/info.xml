@@ -26,9 +26,9 @@
     <repository type="git">https://github.com/OseMine/FlutLink.git</repository>
     <bugs>https://github.com/OseMine/FlutLink/issues</bugs>
     <dependencies>
-        <nextcloud min-version="28" max-version="31"/>
+        <nextcloud min-version="28" max-version="37"/>
     </dependencies>
     <screenshot
-        small="https://raw.githubusercontent.com/OseMine/FlutLink/main/FlutLink%20Logo.svg"
-        large="https://raw.githubusercontent.com/OseMine/FlutLink/main/FlutLink%20Logo.svg"/>
+        small="https://raw.githubusercontent.com/OseMine/FlutLink/main/app-icon.png"
+        large="https://raw.githubusercontent.com/OseMine/FlutLink/main/app-icon.png"/>
 </info>
