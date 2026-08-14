@@ -41,8 +41,9 @@ flutlink --url             # Anmeldung öffnen (der FlutCloud-Server ist fest)
 Frontend-Interaktion:
 
 - `--url` emittiert `flutlink:cli-open`; `App.vue` hört zu und öffnet
-  `LoginModal`. Die Server-URL ist immer der FlutCloud-Server
-  (`src/lib/config.ts`) — FlutLink ist ein dedizierter Client und verbindet
-  sich nie woanders hin.
+  `LoginModal`. Die Server-URL ist immer der FlutCloud-Server (abgerufen über
+  den `get_flutcloud_url`-Command, der `FLUTCLOUD_URL` aus der `.env` in
+  `src-tauri/src/flutcloud.rs` liest) — FlutLink ist ein dedizierter Client und
+  verbindet sich nie woanders hin.
 - `--path` führt `commands::sync_add` aus und emittiert
   `sync-folders-changed`, damit sich das Sync-Panel aktualisiert.

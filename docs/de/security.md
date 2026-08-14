@@ -24,7 +24,8 @@ WebDAV- und OCS-Requests setzt das Backend ab, das bedeutet:
 - Das Admin-Flag wird bei der Anmeldung per OCS (`user_group_details`)
   erkannt.
 - Admin-Commands (`admin_list_users`, `admin_get_user`,
-  `admin_set_user_quota`, `admin_edit_user`) sind nur für Admin-Konten erlaubt.
+  `admin_set_user_quota`, `admin_edit_user`, `admin_create_user`,
+  `admin_delete_user`) sind nur für Admin-Konten erlaubt.
 - **Impersonation:** `webdav_list` akzeptiert optional `target_user`. Das
   Backend verweigert den Aufruf für Nicht-Admins mit `AppError::Forbidden` und
   setzt für Admins den `Impersonate-User`-Header auf den WebDAV-Request. Das
@@ -43,5 +44,5 @@ WebDAV- und OCS-Requests setzt das Backend ab, das bedeutet:
 - `capabilities/default.json` gewährt nur die Mindestberechtigungen
   (`core:default`, `opener:default`, `dialog:default`).
 - Origin: Es wird nur das gebündelte Frontend bzw. der Dev-Server geladen;
-  `csp` ist aktuell `null` — das solltest du im Hinterkopf behalten, bevor du
-  Remote-Inhalte einbindest.
+  eine CSP (`default-src 'self'`, siehe `src-tauri/tauri.conf.json`) begrenzt,
+  was der Webview laden darf — vor Remote-Inhalten ggf. verschärfen.

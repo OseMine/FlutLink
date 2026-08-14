@@ -25,7 +25,7 @@ flutlink/
 │   ├── components/
 │   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
 │   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, sort, multi-select, file ops, link sharing
-│   │   ├── AdminPanel.vue      # OCS user provisioning (list, details, quota)
+│   │   ├── AdminPanel.vue      # OCS user provisioning (list, create, edit, delete, quota)
 │   │   └── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
 │   ├── lib/ipc.ts              # Typed invoke() wrappers for every Rust command
 │   ├── stores/                 # Pinia: accounts + files + sync state
@@ -80,7 +80,7 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 | `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart` |
 | `webdav_create_share` | OCS share API | Generate a public link, URL returned to frontend |
 | `webdav_upload_file` / `webdav_download_file` / `webdav_delete` / `webdav_mkdir` / `webdav_rename` | WebDAV | File operations in the browser (admins may target another user) |
-| `admin_list_users` / `admin_get_user` / `admin_set_user_quota` | OCS Provisioning API | Admin panel (admin accounts only) |
+| `admin_list_users` / `admin_get_user` / `admin_set_user_quota` / `admin_edit_user` / `admin_create_user` / `admin_delete_user` | OCS Provisioning API | Admin panel (admin accounts only) |
 | `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
 | `sync_trigger` | `sync.rs` | Kick off a sync pass immediately |
 

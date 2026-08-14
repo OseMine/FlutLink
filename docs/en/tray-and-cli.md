@@ -39,7 +39,9 @@ flutlink --url             # open sign-in (the FlutCloud server is fixed)
 Frontend interaction:
 
 - `--url` emits `flutlink:cli-open`; `App.vue` listens and opens `LoginModal`.
-  The server URL is always the FlutCloud server (`src/lib/config.ts`) — FlutLink
-  is a dedicated client and never connects elsewhere.
+  The server URL is always the FlutCloud server (fetched via the
+  `get_flutcloud_url` command, which reads `FLUTCLOUD_URL` from `.env` in
+  `src-tauri/src/flutcloud.rs`) — FlutLink is a dedicated client and never
+  connects elsewhere.
 - `--path` runs `commands::sync_add` and emits `sync-folders-changed` so the
   sync panel refreshes.
