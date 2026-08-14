@@ -34,6 +34,39 @@ wird nur für den `OCA\FlutCloud\`-Namespace gebraucht (PSR-4 → `lib/`).
 
 ## Installation
 
+### Via Installationsskript
+
+Führe Folgendes auf dem Rechner aus, der den Nextcloud-Server hostet
+(PowerShell 7+). Das Skript findet die Nextcloud-Installation automatisch
+(oder akzeptiert `-NextcloudRoot`), lädt die App aus dem Repository nach
+`nextcloud/apps/flutcloud` herunter, aktiviert sie mit `occ` und prüft sie:
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
+```
+
+oder mit `curl`:
+
+```powershell
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 | iex
+```
+
+Speichere das Skript zuerst in eine Datei, um Parameter zu übergeben — zum
+Beispiel für das offizielle Nextcloud-Docker-Image oder um den
+Composer-Autoloader zu erzeugen:
+
+```powershell
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 -OutFile install-flutcloud-app.ps1
+./install-flutcloud-app.ps1 -DockerContainer nextcloud -Composer
+```
+
+Nützliche Parameter: `-NextcloudRoot <Pfad>` (sonst automatisch erkannt),
+`-Ref <Tag-oder-Branch>` (Standard: letztes Release), `-WebUser <Benutzer>`
+(Standard: `www-data`), `-NoSudo`, `-SkipVerify`. Die manuellen Schritte
+unten entsprechen dem, was das Skript tut.
+
+### Manuelle Installation
+
 1. **App kopieren** in das Nextcloud-Apps-Verzeichnis auf dem Server:
 
    ```bash

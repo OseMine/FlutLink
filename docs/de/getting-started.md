@@ -6,6 +6,36 @@ Vue-3 + TypeScript + Tailwind-Frontend. FlutLink verbindet sich nur mit dem
 FlutCloud-Server (der die `flutcloud`-Nextcloud-App ausführen muss); er ist
 kein generischer Nextcloud-Client.
 
+## FlutLink installieren
+
+Am einfachsten installierst du die neueste FlutLink-Version auf Windows,
+macOS oder Linux mit dem Installationsskript (PowerShell 7+):
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
+```
+
+oder mit `curl`:
+
+```powershell
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
+```
+
+Das Skript lädt den Installer für deine Plattform vom letzten GitHub-Release
+herunter, prüft die SHA-256-Checksumme und führt ihn aus. Um eine bestimmte
+Version zu wählen oder den Installer nur herunterzuladen, speichere das Skript
+und übergib Parameter:
+
+```powershell
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
+./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+```
+
+Der Server muss die `flutcloud`-Nextcloud-App ausführen — installiere sie mit
+[`install-flutcloud-app.ps1`](flutcloud-app.md) — und die FlutCloud-Server-URL
+muss über `FLUTCLOUD_URL` gesetzt sein (siehe
+[FlutCloud-Konto hinzufügen](#flutcloud-konto-hinzufügen)).
+
 ## Voraussetzungen
 
 | Werkzeug | Version | Hinweis |

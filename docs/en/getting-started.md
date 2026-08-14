@@ -6,6 +6,35 @@ FlutLink is the desktop client for the **FlutCloud** server built with
 server (which must run the `flutcloud` Nextcloud app); it is not a generic
 Nextcloud client.
 
+## Installing FlutLink
+
+The easiest way to install the latest FlutLink release on Windows, macOS or
+Linux is the install script (PowerShell 7+):
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
+```
+
+or with `curl`:
+
+```powershell
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
+```
+
+The script downloads the installer for your platform from the latest GitHub
+release, verifies its SHA-256 checksum and runs it. To pick a specific release
+or only download the installer, save the script and pass parameters:
+
+```powershell
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
+./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+```
+
+The server must run the `flutcloud` Nextcloud app — install it with
+[`install-flutcloud-app.ps1`](flutcloud-app.md) — and the FlutCloud server
+URL must be configured via `FLUTCLOUD_URL` (see
+[FlutCloud account](#adding-a-flutcloud-account)).
+
 ## Prerequisites
 
 | Tool | Version | Notes |

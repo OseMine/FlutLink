@@ -21,6 +21,47 @@ Installing the server-side FlutCloud Nextcloud app:
 [`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) /
 [`docs/de/flutcloud-app.md`](docs/de/flutcloud-app.md).
 
+## Installation
+
+### FlutLink desktop client
+
+Install the latest FlutLink release on your device (Windows, macOS or Linux —
+PowerShell 7+ required for the one-liner):
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
+```
+
+or with `curl`:
+
+```powershell
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
+```
+
+The script downloads the installer for your platform from the latest GitHub
+release, verifies its SHA-256 checksum and runs it. Save it to a file first to
+pass options (e.g. a specific version, or `-NoRun` to only download):
+
+```powershell
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
+./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+```
+
+### FlutCloud server app
+
+Install (or update) the `flutcloud` Nextcloud app on your server — run the
+one-liner on the server host (or use `-DockerContainer nextcloud` for the
+official Nextcloud image):
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
+```
+
+The script downloads the app from the repository, copies it to
+`nextcloud/apps/flutcloud`, enables it with `occ` and verifies it. See
+[`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) for manual
+installation, the API and troubleshooting.
+
 ## Architecture
 
 ```

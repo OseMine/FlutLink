@@ -35,6 +35,38 @@ only needed for the `OCA\FlutCloud\` namespace (PSR-4 → `lib/`).
 
 ## Installation
 
+### Via install script
+
+Run the following on the machine that hosts the Nextcloud server (PowerShell
+7+). The script detects the Nextcloud installation (or accepts
+`-NextcloudRoot`), downloads the app from the repository into
+`nextcloud/apps/flutcloud`, enables it with `occ` and verifies it:
+
+```powershell
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
+```
+
+or with `curl`:
+
+```powershell
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 | iex
+```
+
+Save the script to a file first to pass parameters — for example for the
+official Nextcloud Docker image, or to generate the Composer autoloader:
+
+```powershell
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 -OutFile install-flutcloud-app.ps1
+./install-flutcloud-app.ps1 -DockerContainer nextcloud -Composer
+```
+
+Useful parameters: `-NextcloudRoot <path>` (detected automatically otherwise),
+`-Ref <tag-or-branch>` (defaults to the latest release), `-WebUser <user>`
+(default `www-data`), `-NoSudo`, `-SkipVerify`. The manual steps below are
+equivalent to what the script does.
+
+### Manual installation
+
 1. **Copy the app** into the Nextcloud apps directory on the server:
 
    ```bash
