@@ -13,7 +13,7 @@ const t = (key: string) => translate(ui.lang, key);
     <div class="flex flex-col items-center gap-4">
       <img src="/flutlink-logo.svg" alt="FlutLink" class="h-12" />
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-white">{{ t("welcomeTitle") }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-zinc-50">{{ t("welcomeTitle") }}</h1>
         <p class="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400">
           {{ t("welcomeSubtitle") }}
         </p>

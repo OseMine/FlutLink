@@ -10,6 +10,10 @@ administration and two-way sync.
   conventions used on the FlutCloud server side) and shown as badges.
 - One-click **link sharing** via the OCS share API — the public link is copied
   to the clipboard.
+- **File operations**: upload, download / open (downloads to a temp file and
+  opens it with the default app), new folder, rename, delete — via the toolbar,
+  the context menu and multi-selection.
+- View toggle (grid / list), sortable columns and multi-select.
 - Multi-account support: switch accounts from the sidebar or the avatar menu.
 
 ## Admin tab

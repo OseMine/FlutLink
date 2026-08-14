@@ -9,9 +9,11 @@ export const useFilesStore = defineStore("files", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  let refreshSeq = 0;
+
   const crumbs = computed(() => {
     const parts = currentPath.value.split("/").filter(Boolean);
-    const result = [{ label: "Home", path: "/" }];
+    const result = [{ label: "home", path: "/" }];
     let acc = "";
     for (const part of parts) {
       acc += "/" + part;
@@ -26,17 +28,19 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function refresh() {
+    const seq = ++refreshSeq;
     loading.value = true;
     error.value = null;
     try {
-      entries.value = await api.webdavList(
+      const result = await api.webdavList(
         currentPath.value,
         targetUser.value ?? undefined
       );
+      if (seq === refreshSeq) entries.value = result;
     } catch (e) {
-      error.value = invokeError(e).message;
+      if (seq === refreshSeq) error.value = invokeError(e).message;
     } finally {
-      loading.value = false;
+      if (seq === refreshSeq) loading.value = false;
     }
   }
 
@@ -48,14 +52,66 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function reset() {
+    ++refreshSeq;
     targetUser.value = null;
     currentPath.value = "/";
+    entries.value = [];
     await refresh();
   }
 
   async function createShare(path: string): Promise<string> {
     try {
-      return await api.webdavCreateShare(path);
+      return await api.webdavCreateShare(path, targetUser.value ?? undefined);
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function uploadFile(localPath: string, remotePath: string) {
+    try {
+      await api.webdavUploadFile(remotePath, localPath, targetUser.value ?? undefined);
+      await refresh();
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function downloadFile(remotePath: string, localPath: string) {
+    try {
+      await api.webdavDownloadFile(remotePath, localPath, targetUser.value ?? undefined);
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function deleteEntry(path: string) {
+    try {
+      await api.webdavDelete(path, targetUser.value ?? undefined);
+      await refresh();
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function createFolder(name: string) {
+    try {
+      const path = (currentPath.value === "/" ? "" : currentPath.value) + "/" + name;
+      await api.webdavMkdir(path, targetUser.value ?? undefined);
+      await refresh();
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function renameEntry(path: string, newName: string) {
+    try {
+      await api.webdavRename(path, newName, targetUser.value ?? undefined);
+      await refresh();
     } catch (e) {
       error.value = invokeError(e).message;
       throw e;
@@ -74,5 +130,10 @@ export const useFilesStore = defineStore("files", () => {
     setTargetUser,
     reset,
     createShare,
+    uploadFile,
+    downloadFile,
+    deleteEntry,
+    createFolder,
+    renameEntry,
   };
 });

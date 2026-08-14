@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 
@@ -12,17 +15,181 @@ const files = useFilesStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
+const viewMode = ref<"list" | "grid">("list");
+const sortKey = ref<"name" | "size" | "mtime">("name");
+const sortAsc = ref(true);
+const selected = ref<Set<string>>(new Set());
+const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
+const busyPath = ref<string | null>(null);
+const showNewFolder = ref(false);
+const renameTarget = ref<WebDavEntry | null>(null);
+const nameInput = ref("");
+
 function formatMtime(mtime: string | null): string {
   if (!mtime) return "—";
   const date = new Date(mtime);
   return isNaN(date.getTime()) ? mtime : date.toLocaleString();
 }
 
-async function open(entry: WebDavEntry) {
-  if (entry.isDir) await files.navigate(entry.path);
+const sortedEntries = computed(() => {
+  const dirs = files.entries.filter((e) => e.isDir);
+  const others = files.entries.filter((e) => !e.isDir);
+  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
+    if (sortKey.value === "size") {
+      const av = a.size ?? 0;
+      const bv = b.size ?? 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    if (sortKey.value === "mtime") {
+      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
+      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    const av = a.name.toLowerCase();
+    const bv = b.name.toLowerCase();
+    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
+  };
+  dirs.sort(cmp);
+  others.sort(cmp);
+  return [...dirs, ...others];
+});
+
+function isSelected(path: string): boolean {
+  return selected.value.has(path);
 }
 
-const shareState = reactive(new Map<string, { status: "loading" | "done" | "error"; value?: string }>());
+function toggleSelect(path: string) {
+  const next = new Set(selected.value);
+  if (next.has(path)) next.delete(path);
+  else next.add(path);
+  selected.value = next;
+}
+
+function clearSelection() {
+  selected.value = new Set();
+}
+
+function toggleSort(key: "name" | "size" | "mtime") {
+  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
+  else {
+    sortKey.value = key;
+    sortAsc.value = true;
+  }
+}
+
+function openCtx(e: MouseEvent, entry: WebDavEntry) {
+  e.preventDefault();
+  ctxMenu.value = { x: e.clientX, y: e.clientY, entry };
+}
+
+function closeCtx() {
+  ctxMenu.value = null;
+}
+
+async function open(entry: WebDavEntry) {
+  if (entry.isDir) {
+    await files.navigate(entry.path);
+    return;
+  }
+  if (busyPath.value) return;
+  busyPath.value = entry.path;
+  try {
+    const dir = await tempDir();
+    const dest = await join(dir, entry.name);
+    await files.downloadFile(entry.path, dest);
+    await openPath(dest);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+async function download(entry: WebDavEntry) {
+  if (busyPath.value) return;
+  busyPath.value = entry.path;
+  try {
+    const dest = await save({ defaultPath: entry.name });
+    if (typeof dest !== "string") return;
+    await files.downloadFile(entry.path, dest);
+    ui.toast(t("fileDownloaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+async function uploadFiles() {
+  if (busyPath.value) return;
+  busyPath.value = "";
+  try {
+    const picked = await openDialog({ multiple: true });
+    if (!picked) return;
+    const list = typeof picked === "string" ? [picked] : picked;
+    for (const local of list) {
+      const name = local.split(/[\\/]/).pop() ?? "file";
+      const remote =
+        (files.currentPath === "/" ? "" : files.currentPath) + "/" + name;
+      await files.uploadFile(local, remote);
+    }
+    ui.toast(t("fileUploaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+async function createFolder() {
+  const name = nameInput.value.trim();
+  if (!name) return;
+  try {
+    await files.createFolder(name);
+    ui.toast(t("folderCreated"), "success");
+    showNewFolder.value = false;
+    nameInput.value = "";
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+function startRename(entry: WebDavEntry) {
+  renameTarget.value = entry;
+  nameInput.value = entry.name;
+}
+
+async function doRename() {
+  const target = renameTarget.value;
+  const name = nameInput.value.trim();
+  if (!target || !name || name === target.name) {
+    renameTarget.value = null;
+    return;
+  }
+  try {
+    await files.renameEntry(target.path, name);
+    ui.toast(t("fileRenamed"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    renameTarget.value = null;
+  }
+}
+
+async function removeEntry(entry: WebDavEntry) {
+  if (!window.confirm(t("deleteConfirm").replace("{name}", entry.name))) return;
+  try {
+    await files.deleteEntry(entry.path);
+    selected.value.delete(entry.path);
+    ui.toast(t("fileDeleted"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+const shareState = reactive(
+  new Map<string, { status: "loading" | "done" | "error"; value?: string }>()
+);
 
 function shareStatus(path: string) {
   return shareState.get(path);
@@ -81,6 +248,11 @@ function onUserSelect() {
   if (selectedUser.value) files.setTargetUser(selectedUser.value);
 }
 
+watch(
+  () => files.currentPath,
+  () => clearSelection()
+);
+
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
@@ -101,26 +273,60 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div class="flex h-full flex-col" @click="closeCtx">
     <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
-            class="rounded px-1.5 py-0.5 hover:bg-zinc-800 hover:text-white"
-            :class="i === files.crumbs.length - 1 ? 'font-semibold text-white' : 'text-zinc-400'"
+            class="rounded px-1.5 py-0.5 hover:bg-zinc-800 hover:text-zinc-50"
+            :class="i === files.crumbs.length - 1 ? 'font-semibold text-zinc-50' : 'text-zinc-400'"
             @click="files.navigate(crumb.path)"
           >
-            {{ crumb.label }}
+            {{ crumb.path === "/" ? t("home") : crumb.label }}
           </button>
           <span v-if="i < files.crumbs.length - 1" class="text-zinc-600">/</span>
         </template>
       </nav>
-      <button
-        class="shrink-0 rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
-        @click="files.refresh"
-      >
-        {{ t("refresh") }}
-      </button>
+
+      <div class="flex shrink-0 items-center gap-2">
+        <div class="flex overflow-hidden rounded-md border border-zinc-700">
+          <button
+            class="px-2.5 py-1 text-xs transition"
+            :class="viewMode === 'list' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50'"
+            :title="t('viewList')"
+            @click="viewMode = 'list'"
+          >
+            ☰
+          </button>
+          <button
+            class="px-2.5 py-1 text-xs transition"
+            :class="viewMode === 'grid' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50'"
+            :title="t('viewGrid')"
+            @click="viewMode = 'grid'"
+          >
+            ▦
+          </button>
+        </div>
+        <button
+          class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+          @click="files.refresh"
+        >
+          {{ t("refresh") }}
+        </button>
+        <button
+          class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+          @click="showNewFolder = true"
+        >
+          + {{ t("newFolder") }}
+        </button>
+        <button
+          class="rounded-md bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-500"
+          :disabled="busyPath !== null"
+          @click="uploadFiles"
+        >
+          {{ t("upload") }}
+        </button>
+      </div>
     </div>
 
     <div
@@ -149,7 +355,7 @@ watch(
           <span class="text-xs text-zinc-500">{{ t("filterUser") }}</span>
           <select
             v-model="selectedUser"
-            class="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+            class="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-50 focus:border-indigo-500 focus:outline-none"
             @change="onUserSelect"
           >
             <option v-if="!selectedUser" value="" disabled>{{ t("users") }}…</option>
@@ -180,6 +386,13 @@ watch(
       {{ files.error }}
     </div>
 
+    <div v-if="selected.size > 0" class="flex items-center gap-3 border-b border-zinc-800 bg-indigo-950/30 px-6 py-1.5 text-xs text-indigo-200">
+      <span>{{ selected.size }} {{ t("selected") }}</span>
+      <button class="underline-offset-2 hover:underline" @click="clearSelection">
+        {{ t("clear") }}
+      </button>
+    </div>
+
     <div v-if="files.loading && files.entries.length === 0" class="m-auto text-zinc-500">
       {{ t("connecting") }}
     </div>
@@ -188,25 +401,49 @@ watch(
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
-    <div v-else class="flex-1 overflow-y-auto px-4 py-2">
+    <!-- List view -->
+    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto px-4 py-2">
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wide text-zinc-500">
-            <th class="px-3 py-2 font-medium">{{ t("name") }}</th>
-            <th class="w-32 px-3 py-2 font-medium">{{ t("size") }}</th>
-            <th class="w-44 px-3 py-2 font-medium">{{ t("modified") }}</th>
+            <th class="w-8 px-3 py-2"></th>
+            <th class="px-3 py-2 font-medium">
+              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('name')">
+                {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
+              </button>
+            </th>
+            <th class="w-28 px-3 py-2 font-medium">
+              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('size')">
+                {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
+              </button>
+            </th>
+            <th class="w-44 px-3 py-2 font-medium">
+              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('mtime')">
+                {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
+              </button>
+            </th>
             <th class="w-24 px-3 py-2 font-medium">{{ t("kind") }}</th>
-            <th class="w-24 px-3 py-2 font-medium"></th>
+            <th class="w-32 px-3 py-2 font-medium"></th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="entry in files.entries"
+            v-for="entry in sortedEntries"
             :key="entry.path"
             class="border-t border-zinc-800/60 hover:bg-zinc-800/40"
+            :class="isSelected(entry.path) ? 'bg-indigo-950/40' : ''"
+            @contextmenu="openCtx($event, entry)"
           >
             <td class="px-3 py-2">
-              <button class="flex items-center gap-2 text-left text-zinc-200 hover:text-white" @click="open(entry)">
+              <input
+                type="checkbox"
+                class="accent-indigo-500"
+                :checked="isSelected(entry.path)"
+                @change="toggleSelect(entry.path)"
+              />
+            </td>
+            <td class="px-3 py-2">
+              <button class="flex items-center gap-2 text-left text-zinc-200 hover:text-zinc-50" @click="open(entry)">
                 <span class="w-5 text-center">
                   <template v-if="entry.isDir">📁</template>
                   <template v-else>📄</template>
@@ -244,7 +481,7 @@ watch(
               <button
                 v-else
                 class="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-800"
-                @click="createLink(entry)"
+                @click.stop="createLink(entry)"
               >
                 {{ t("link") }}
               </button>
@@ -252,6 +489,156 @@ watch(
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Grid view -->
+    <div v-else class="flex-1 overflow-y-auto p-4">
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <div
+          v-for="entry in sortedEntries"
+          :key="entry.path"
+          class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
+          :class="isSelected(entry.path) ? 'border-indigo-600 bg-indigo-950/40' : 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800/60'"
+          @contextmenu="openCtx($event, entry)"
+          @dblclick="open(entry)"
+        >
+          <input
+            type="checkbox"
+            class="accent-indigo-500"
+            :checked="isSelected(entry.path)"
+            @change="toggleSelect(entry.path)"
+          />
+          <span class="text-3xl">{{ entry.isDir ? "📁" : "📄" }}</span>
+          <p class="w-full truncate text-xs text-zinc-200" :title="entry.name">{{ entry.name }}</p>
+          <p class="w-full truncate text-[10px] text-zinc-500">
+            {{ entry.isDir ? "—" : formatBytes(entry.size) }}
+          </p>
+          <div class="flex gap-1">
+            <button
+              class="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+              @click.stop="open(entry)"
+            >
+              {{ t("open") }}
+            </button>
+            <button
+              class="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+              @click.stop="startRename(entry)"
+            >
+              {{ t("rename") }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context menu -->
+    <div
+      v-if="ctxMenu"
+      class="fixed z-50 w-44 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
+      :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+      @click.stop
+    >
+      <button
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        @click="open(ctxMenu.entry); ctxMenu = null"
+      >
+        {{ t("open") }}
+      </button>
+      <button
+        v-if="!ctxMenu.entry.isDir"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        @click="download(ctxMenu.entry); ctxMenu = null"
+      >
+        {{ t("download") }}
+      </button>
+      <button
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        @click="startRename(ctxMenu.entry); ctxMenu = null"
+      >
+        {{ t("rename") }}
+      </button>
+      <button
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        @click="createLink(ctxMenu.entry); ctxMenu = null"
+      >
+        {{ t("link") }}
+      </button>
+      <div class="my-1 border-t border-zinc-800"></div>
+      <button
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-300 hover:bg-red-950/40"
+        @click="removeEntry(ctxMenu.entry); ctxMenu = null"
+      >
+        {{ t("delete") }}
+      </button>
+    </div>
+
+    <!-- New folder dialog -->
+    <div
+      v-if="showNewFolder"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="showNewFolder = false"
+    >
+      <form
+        class="w-full max-w-xs rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+        @submit.prevent="createFolder"
+      >
+        <h3 class="mb-3 text-base font-semibold text-zinc-50">{{ t("newFolder") }}</h3>
+        <input
+          v-model="nameInput"
+          :placeholder="t('folderName')"
+          autofocus
+          class="mb-4 w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+        />
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+            @click="showNewFolder = false"
+          >
+            {{ t("cancel") }}
+          </button>
+          <button
+            type="submit"
+            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            {{ t("create") }}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Rename dialog -->
+    <div
+      v-if="renameTarget"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="renameTarget = null"
+    >
+      <form
+        class="w-full max-w-xs rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+        @submit.prevent="doRename"
+      >
+        <h3 class="mb-3 text-base font-semibold text-zinc-50">{{ t("rename") }}</h3>
+        <input
+          v-model="nameInput"
+          autofocus
+          class="mb-4 w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+        />
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+            @click="renameTarget = null"
+          >
+            {{ t("cancel") }}
+          </button>
+          <button
+            type="submit"
+            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+          >
+            {{ t("save") }}
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </template>

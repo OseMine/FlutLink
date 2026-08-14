@@ -14,6 +14,7 @@ import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
+import { invokeError } from "./lib/ipc";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -25,7 +26,7 @@ const showLogin = ref(false);
 const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
 const accountMenu = ref(false);
-const resolvedTheme = ref<"operationflut" | "midnight">("operationflut");
+const resolvedTheme = ref<"operationflut" | "midnight" | "light">("operationflut");
 
 const t = (key: string) => translate(ui.lang, key);
 const langLabel = computed(() => (ui.lang === "de" ? "Deutsch" : "English"));
@@ -34,11 +35,38 @@ const activeInitial = computed(() =>
 );
 
 function resolveTheme() {
-  resolvedTheme.value = ui.theme === "system" ? "operationflut" : ui.theme;
+  if (ui.theme === "system") {
+    resolvedTheme.value = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "midnight"
+      : "light";
+  } else {
+    resolvedTheme.value = ui.theme;
+  }
 }
 
 function toggleLang() {
   ui.setLang(ui.lang === "en" ? "de" : "en");
+}
+
+async function switchTo(account: { username: string; instanceUrl: string }) {
+  try {
+    await accounts.switchTo(account.username, account.instanceUrl);
+    ui.toast(t("accountSwitched"), "success");
+  } catch {
+    // error surfaced via accounts.error
+  }
+}
+
+async function removeActive() {
+  const active = accounts.active;
+  if (!active) return;
+  accountMenu.value = false;
+  try {
+    await accounts.remove(active.username, active.instanceUrl);
+    ui.toast(t("accountRemoved"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
 }
 
 onMounted(() => {
@@ -47,7 +75,7 @@ onMounted(() => {
   void sync.bind();
   resolveTheme();
   window
-    .matchMedia("(prefers-color-scheme: light)")
+    .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", resolveTheme);
 
   // The server is fixed to FlutCloud, so the CLI --url flag only opens the login.
@@ -78,7 +106,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full bg-zinc-950 text-zinc-100" :data-theme="resolvedTheme">
+  <div class="flex h-full bg-zinc-950 text-zinc-50" :data-theme="resolvedTheme">
     <template v-if="accounts.active">
       <AccountBar @login="showLogin = true" />
 
@@ -91,21 +119,21 @@ watch(
           <nav class="flex items-center gap-1">
             <button
               class="rounded-md px-4 py-2 text-sm font-medium transition"
-              :class="tab === 'files' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'"
+              :class="tab === 'files' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'"
               @click="tab = 'files'"
             >
               {{ t("files") }}
             </button>
             <button
               class="rounded-md px-4 py-2 text-sm font-medium transition"
-              :class="tab === 'sync' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'"
+              :class="tab === 'sync' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'"
               @click="tab = 'sync'"
             >
               {{ t("sync") }}
             </button>
             <button
               class="rounded-md px-4 py-2 text-sm font-medium transition"
-              :class="tab === 'admin' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'"
+              :class="tab === 'admin' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'"
               :disabled="!accounts.active?.isAdmin"
               :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
               @click="tab = 'admin'"
@@ -142,7 +170,7 @@ watch(
               <div v-if="accountMenu" class="absolute right-0 top-full z-40 mt-2 w-72 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
                 <div class="border-b border-zinc-800 px-4 py-3">
                   <p class="text-xs text-zinc-500">{{ t("signedInAs") }}</p>
-                  <p class="truncate text-sm font-medium text-white">
+                  <p class="truncate text-sm font-medium text-zinc-50">
                     {{ accounts.active?.displayName || accounts.active?.username }}
                   </p>
                   <p class="truncate text-xs text-zinc-500">{{ accounts.active?.instanceUrl }}</p>
@@ -157,9 +185,9 @@ watch(
                     :key="account.instanceUrl + '/' + account.username"
                     class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition"
                     :class="account.isActive
-                      ? 'bg-indigo-600/20 text-white'
+                      ? 'bg-indigo-600/20 text-zinc-50'
                       : 'text-zinc-300 hover:bg-zinc-800'"
-                    @click="accounts.switchTo(account.username)"
+                    @click="switchTo(account); accountMenu = false"
                   >
                     <span class="min-w-0 flex-1 truncate">
                       {{ account.displayName || account.username }}
@@ -182,7 +210,7 @@ watch(
                   </button>
                   <button
                     class="w-full rounded-md px-2 py-1.5 text-left text-sm text-red-300 hover:bg-red-950/40"
-                    @click="accounts.remove(accounts.active!.username); accountMenu = false"
+                    @click="removeActive"
                   >
                     {{ t("removeAccount") }}
                   </button>

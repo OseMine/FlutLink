@@ -70,34 +70,52 @@ pub async fn is_admin(client: &Client, account: &Account) -> AppResult<bool> {
     }
 }
 
+/// List all users, paging through the OCS `offset`/`limit` parameters so the
+/// result is not truncated at the server's hard limit of 200 per request.
 pub async fn list_users(
     client: &Client,
     account: &Account,
     search: &str,
 ) -> AppResult<Vec<String>> {
-    let mut url = format!(
-        "{}/ocs/v1.php/cloud/users?format=json&limit=200",
-        account.base_url()
-    );
-    if !search.is_empty() {
-        url.push_str("&search=");
-        url.push_str(&urlencoding::encode(search));
+    const LIMIT: usize = 200;
+    let mut all: Vec<String> = Vec::new();
+    let mut offset = 0usize;
+    loop {
+        let mut url = format!(
+            "{}/ocs/v1.php/cloud/users?format=json&limit={}&offset={}",
+            account.base_url(),
+            LIMIT,
+            offset
+        );
+        if !search.is_empty() {
+            url.push_str("&search=");
+            url.push_str(&urlencoding::encode(search));
+        }
+        let res = request(client, account, Method::GET, &url, None).await?;
+        let json: Value = res.json().await?;
+        if let Some(msg) = ocs_meta_error(&json) {
+            return Err(AppError::Ocs(msg));
+        }
+        let users: Vec<String> = json
+            .pointer("/ocs/data/users")
+            .and_then(|u| u.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if users.is_empty() {
+            break;
+        }
+        let count = users.len();
+        all.extend(users);
+        if count < LIMIT {
+            break;
+        }
+        offset += LIMIT;
     }
-    let res = request(client, account, Method::GET, &url, None).await?;
-    let json: Value = res.json().await?;
-    if let Some(msg) = ocs_meta_error(&json) {
-        return Err(AppError::Ocs(msg));
-    }
-    let users = json
-        .pointer("/ocs/data/users")
-        .and_then(|u| u.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_default();
-    Ok(users)
+    Ok(all)
 }
 
 pub async fn get_user(client: &Client, account: &Account, user_id: &str) -> AppResult<UserDetails> {
@@ -228,7 +246,15 @@ pub async fn update_user(
 }
 
 /// Create a public link share for a path relative to the user's files root.
-pub async fn create_share(client: &Client, account: &Account, rel_path: &str) -> AppResult<String> {
+///
+/// `target_user` switches the share to another user's files (admin
+/// impersonation); the share is then attributed to that user's namespace.
+pub async fn create_share(
+    client: &Client,
+    account: &Account,
+    rel_path: &str,
+    target_user: Option<&str>,
+) -> AppResult<String> {
     let url = format!(
         "{}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
         account.base_url()
@@ -239,7 +265,15 @@ pub async fn create_share(client: &Client, account: &Account, rel_path: &str) ->
         ("shareType", "3"),
         ("permissions", "1"),
     ];
-    let res = request(client, account, Method::POST, &url, Some(&form)).await?;
+    let res = request_as(
+        client,
+        account,
+        Method::POST,
+        &url,
+        Some(&form),
+        target_user,
+    )
+    .await?;
     let json: Value = res.json().await?;
     if let Some(msg) = ocs_meta_error(&json) {
         return Err(AppError::Ocs(msg));

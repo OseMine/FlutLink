@@ -24,7 +24,7 @@ flutlink/
 ├── src/                        # Vue 3 + TypeScript + Tailwind v4 frontend
 │   ├── components/
 │   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
-│   │   ├── FileExplorer.vue    # WebDAV browser with resources/parts badges + link sharing
+│   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, sort, multi-select, file ops, link sharing
 │   │   ├── AdminPanel.vue      # OCS user provisioning (list, details, quota)
 │   │   └── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
 │   ├── lib/ipc.ts              # Typed invoke() wrappers for every Rust command
@@ -79,6 +79,7 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 | `account_switch` / `account_remove` / `account_list` | state | Multi-account lifecycle |
 | `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart` |
 | `webdav_create_share` | OCS share API | Generate a public link, URL returned to frontend |
+| `webdav_upload_file` / `webdav_download_file` / `webdav_delete` / `webdav_mkdir` / `webdav_rename` | WebDAV | File operations in the browser (admins may target another user) |
 | `admin_list_users` / `admin_get_user` / `admin_set_user_quota` | OCS Provisioning API | Admin panel (admin accounts only) |
 | `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
 | `sync_trigger` | `sync.rs` | Kick off a sync pass immediately |
@@ -88,8 +89,8 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 Folders are mirrored to `/FlutLink/<folder>` on Nextcloud. A JSON journal
 (`sync-journal-<id>.json` in the app-data dir) records the last-synced
 local/remote `{size, mtime}` fingerprint per file; the background worker (10 s
-interval + change notifications) propagates local uploads, remote downloads and
-deletions. Conflicts upload the local copy as `name (conflict copy).ext`.
+interval) propagates local uploads, remote downloads and deletions. Conflicts
+upload the local copy as `name (conflict copy).ext`.
 
 ### System tray & CLI
 

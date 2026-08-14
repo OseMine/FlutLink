@@ -36,6 +36,40 @@ pub async fn request(
     }
 }
 
+/// Like [`request`], but optionally in another user's namespace via the
+/// `Impersonate-User` header (requires admin credentials).
+pub async fn request_as(
+    client: &Client,
+    account: &Account,
+    method: Method,
+    url: &str,
+    form: Option<&[(&str, &str)]>,
+    target_user: Option<&str>,
+) -> AppResult<Response> {
+    let mut req = client
+        .request(method, url)
+        .basic_auth(&account.meta.username, Some(&account.token))
+        .header("OCS-APIRequest", "true")
+        .header("Accept", "application/json");
+    if let Some(user) = target_user.filter(|u| *u != account.meta.username.as_str()) {
+        req = req.header("Impersonate-User", user);
+    }
+    if let Some(fields) = form {
+        req = req.form(fields);
+    }
+    let res = req.send().await?;
+    let status = res.status();
+    if status.is_success() {
+        Ok(res)
+    } else {
+        let body = res.text().await.unwrap_or_default();
+        Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        })
+    }
+}
+
 /// Inspect an OCS JSON payload. Returns an error message when the request
 /// did not succeed. Success is signalled by `meta.status == "ok"` (v1 uses
 /// `statuscode` 100, v2 uses `statuscode` 200).

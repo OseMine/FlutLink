@@ -72,6 +72,7 @@ export interface ReleaseInfo {
   assetName: string;
   assetUrl: string;
   assetSize: number;
+  assetSha256: string | null;
 }
 
 export interface UpdateProgress {
@@ -109,19 +110,34 @@ export const api = {
 
   accountActive: () => invoke<AccountMeta | null>("account_active"),
 
-  accountSwitch: (username: string) =>
-    invoke<AccountMeta>("account_switch", { username }),
+  accountSwitch: (username: string, instanceUrl: string) =>
+    invoke<AccountMeta>("account_switch", { username, instanceUrl }),
 
-  accountRemove: (username: string) =>
-    invoke<AccountMeta[]>("account_remove", { username }),
+  accountRemove: (username: string, instanceUrl: string) =>
+    invoke<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
   accountStorage: () => invoke<UserQuota | null>("account_storage"),
 
   webdavList: (path: string, targetUser?: string) =>
     invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),
 
-  webdavCreateShare: (path: string) =>
-    invoke<string>("webdav_create_share", { path }),
+  webdavCreateShare: (path: string, targetUser?: string) =>
+    invoke<string>("webdav_create_share", { path, targetUser }),
+
+  webdavUploadFile: (remotePath: string, localPath: string, targetUser?: string) =>
+    invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser }),
+
+  webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
+    invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
+
+  webdavDelete: (path: string, targetUser?: string) =>
+    invoke<void>("webdav_delete", { path, targetUser }),
+
+  webdavMkdir: (path: string, targetUser?: string) =>
+    invoke<void>("webdav_mkdir", { path, targetUser }),
+
+  webdavRename: (path: string, newName: string, targetUser?: string) =>
+    invoke<void>("webdav_rename", { path, newName, targetUser }),
 
   adminListUsers: (search: string) =>
     invoke<string[]>("admin_list_users", { search }),

@@ -8,7 +8,7 @@ use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, OcsUser, SyncFolder, SyncFolderStatus, UserDetails, UserQuota,
+    Account, AccountMeta, AppState, SyncFolder, SyncFolderStatus, UserDetails, UserQuota,
     WebDavEntry,
 };
 
@@ -56,14 +56,24 @@ pub async fn account_add(
     let is_admin = ocs::is_admin(&state.http_client, &account)
         .await
         .unwrap_or(false);
-    let has_accounts = !state.accounts_snapshot().is_empty();
+    let snapshot = state.accounts_snapshot();
+    // Re-adding an already-known account keeps its active state instead of
+    // silently deactivating it.
+    let existing = snapshot
+        .iter()
+        .find(|a| {
+            a.meta.username == account.meta.username
+                && a.meta.instance_url == account.meta.instance_url
+        })
+        .map(|a| a.meta.is_active)
+        .unwrap_or(false);
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: !has_accounts,
+        is_active: existing || snapshot.is_empty(),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -176,15 +186,28 @@ pub async fn register_user(
     )
     .await?;
 
-    // Project folder for the FlutCloud app in the admin's files.
-    webdav::ensure_collection(&state.http_client, &admin, FLUTCLOUD_PROJECT_PATH).await?;
-    webdav::put_text(
+    // Project folder for the FlutCloud app in the admin's files. Creating it is
+    // best-effort: account registration must not fail because the admin's
+    // storage is read-only, full, or otherwise refuses the write.
+    if let Err(err) =
+        webdav::ensure_collection(&state.http_client, &admin, FLUTCLOUD_PROJECT_PATH).await
+    {
+        eprintln!(
+            "warn: could not ensure {}: {}",
+            FLUTCLOUD_PROJECT_PATH,
+            err.message()
+        );
+    }
+    if let Err(err) = webdav::put_text(
         &state.http_client,
         &admin,
         &format!("{}/README.md", FLUTCLOUD_PROJECT_PATH),
         FLUTCLOUD_README,
     )
-    .await?;
+    .await
+    {
+        eprintln!("warn: could not write project README: {}", err.message());
+    }
 
     // Sign the new account in with its real password.
     let account = Account {
@@ -201,14 +224,22 @@ pub async fn register_user(
     let is_admin = ocs::is_admin(&state.http_client, &account)
         .await
         .unwrap_or(false);
-    let has_accounts = !state.accounts_snapshot().is_empty();
+    let snapshot = state.accounts_snapshot();
+    let existing = snapshot
+        .iter()
+        .find(|a| {
+            a.meta.username == account.meta.username
+                && a.meta.instance_url == account.meta.instance_url
+        })
+        .map(|a| a.meta.is_active)
+        .unwrap_or(false);
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: !has_accounts,
+        is_active: existing || snapshot.is_empty(),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -231,10 +262,11 @@ pub async fn account_switch(
     app: AppHandle,
     state: State<'_, AppState>,
     username: String,
+    instance_url: String,
 ) -> AppResult<AccountMeta> {
     let account = state
-        .set_active(&username)
-        .ok_or_else(|| AppError::NotFound(username))?;
+        .set_active(&username, &instance_url)
+        .ok_or_else(|| AppError::NotFound(format!("{}@{}", username, instance_url)))?;
     accounts::persist_accounts(&app, &state.accounts_snapshot())?;
     crate::refresh_tray_menu(&app)?;
     Ok(account.meta)
@@ -245,14 +277,20 @@ pub async fn account_remove(
     app: AppHandle,
     state: State<'_, AppState>,
     username: String,
+    instance_url: String,
 ) -> AppResult<Vec<AccountMeta>> {
     let snapshot = state.accounts_snapshot();
     let target = snapshot
         .iter()
-        .find(|a| a.meta.username == username)
-        .ok_or_else(|| AppError::NotFound(username))?;
-    let _ = accounts::delete_token(&target.meta);
-    let list = state.remove(&target.meta.username);
+        .find(|a| a.meta.username == username && a.meta.instance_url == instance_url)
+        .ok_or_else(|| AppError::NotFound(format!("{}@{}", username, instance_url)))?;
+    // The keyring token must be deleted; swallowing the error would leave a
+    // stale token behind that no account can ever use again.
+    accounts::delete_token(&target.meta)?;
+    // Also remove the sync folders of the removed account so a re-added
+    // account with the same name does not keep syncing stale folders.
+    state.sync.remove_folders_for_account(&app, &target.meta)?;
+    let list = state.remove(&target.meta.username, &target.meta.instance_url);
     accounts::persist_accounts(&app, &list)?;
     crate::refresh_tray_menu(&app)?;
     Ok(to_meta_list(&list))
@@ -281,10 +319,161 @@ pub async fn account_storage(state: State<'_, AppState>) -> AppResult<Option<Use
 }
 
 /// Create a public link share for the given file/folder and return the URL.
+///
+/// Admins may share files of another user by passing `target_user`; the
+/// `Impersonate-User` header is used so the share is attributed to the admin.
 #[tauri::command]
-pub async fn webdav_create_share(state: State<'_, AppState>, path: String) -> AppResult<String> {
+pub async fn webdav_create_share(
+    state: State<'_, AppState>,
+    path: String,
+    target_user: Option<String>,
+) -> AppResult<String> {
     let account = current_account(&state)?;
-    ocs::create_share(&state.http_client, &account, &path).await
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::create_share(&state.http_client, &account, &path, target.as_deref()).await
+}
+
+/// Reject paths that are not absolute, escape the user's home (`..`) or target
+/// the FlutCloud virtual namespaces (`resources`/`parts`), which are managed by
+/// the server app and must not be modified through the client.
+fn validate_dav_path(path: &str) -> AppResult<()> {
+    if !path.starts_with('/') {
+        return Err(AppError::App(
+            "Path must be absolute (start with '/').".into(),
+        ));
+    }
+    for segment in path.split('/') {
+        if segment == ".." {
+            return Err(AppError::App("Path must not contain '..'.".into()));
+        }
+        if segment.eq_ignore_ascii_case("resources") || segment.eq_ignore_ascii_case("parts") {
+            return Err(AppError::App(
+                "The virtual 'resources'/'parts' folders cannot be modified.".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Upload a local file to the cloud at `remote_path` (absolute, decoded path
+/// relative to the user's files root, e.g. `/Documents/report.pdf`).
+#[tauri::command]
+pub async fn webdav_upload_file(
+    state: State<'_, AppState>,
+    remote_path: String,
+    local_path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&remote_path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let mtime = std::fs::metadata(&local_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    webdav::put_file_as(
+        &state.http_client,
+        &account,
+        &remote_path,
+        std::path::Path::new(&local_path),
+        mtime,
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Download a cloud file at `remote_path` to `local_path`.
+#[tauri::command]
+pub async fn webdav_download_file(
+    state: State<'_, AppState>,
+    remote_path: String,
+    local_path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&remote_path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    if let Some(parent) = std::path::Path::new(&local_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    webdav::get_file_as(
+        &state.http_client,
+        &account,
+        &remote_path,
+        std::path::Path::new(&local_path),
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Delete a cloud file or folder.
+#[tauri::command]
+pub async fn webdav_delete(
+    state: State<'_, AppState>,
+    path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    webdav::delete_as(&state.http_client, &account, &path, target.as_deref()).await
+}
+
+/// Create a cloud folder (with all missing parents).
+#[tauri::command]
+pub async fn webdav_mkdir(
+    state: State<'_, AppState>,
+    path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    webdav::ensure_collection_as(&state.http_client, &account, &path, target.as_deref()).await
+}
+
+/// Rename/move a cloud file or folder.
+#[tauri::command]
+pub async fn webdav_rename(
+    state: State<'_, AppState>,
+    path: String,
+    new_name: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let parent = path.rsplit('/').nth(1).unwrap_or("");
+    let new_path = format!("{}/{}", parent, new_name);
+    validate_dav_path(&new_path)?;
+    webdav::rename_as(
+        &state.http_client,
+        &account,
+        &path,
+        &new_path,
+        target.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -356,6 +545,17 @@ pub async fn admin_delete_user(state: State<'_, AppState>, user_id: String) -> A
     ocs::delete_user(&state.http_client, &account, &user_id).await
 }
 
+/// Allowed attribute keys for `admin_edit_user`. Anything else is refused so
+/// the admin UI cannot accidentally corrupt server-side settings.
+const ADMIN_EDIT_KEYS: &[&str] = &[
+    "displayname",
+    "email",
+    "quota",
+    "password",
+    "language",
+    "locale",
+];
+
 #[tauri::command]
 pub async fn admin_edit_user(
     state: State<'_, AppState>,
@@ -367,13 +567,13 @@ pub async fn admin_edit_user(
     if !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
+    if !ADMIN_EDIT_KEYS.contains(&key.as_str()) {
+        return Err(AppError::App(format!(
+            "Editing key '{}' is not allowed.",
+            key
+        )));
+    }
     ocs::update_user(&state.http_client, &account, &user_id, &key, &value).await
-}
-
-#[tauri::command]
-pub async fn ocs_current_user(state: State<'_, AppState>) -> AppResult<OcsUser> {
-    let account = current_account(&state)?;
-    ocs::get_current_user(&state.http_client, &account).await
 }
 
 fn now_nanos() -> u64 {
@@ -418,6 +618,19 @@ pub async fn sync_add(
         remote_path: format!("/FlutLink/{}", name),
         paused: false,
     };
+    // Two folders with the same remote path for one account would overwrite
+    // each other's remote data; refuse duplicates before anything is written.
+    if state
+        .sync
+        .folders_snapshot()
+        .iter()
+        .any(|f| f.account_key == folder.account_key && f.remote_path == folder.remote_path)
+    {
+        return Err(AppError::App(format!(
+            "Another sync folder of this account already targets {}.",
+            folder.remote_path
+        )));
+    }
     let status = state.sync.add_folder(&app, folder)?;
     state.sync.notify_one();
     Ok(status)

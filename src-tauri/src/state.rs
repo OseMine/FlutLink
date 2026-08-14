@@ -155,10 +155,10 @@ impl AppState {
         guard.clone()
     }
 
-    /// Remove an account by username. Returns the updated list.
-    pub fn remove(&self, username: &str) -> Vec<Account> {
+    /// Remove an account by username + instance URL. Returns the updated list.
+    pub fn remove(&self, username: &str, instance_url: &str) -> Vec<Account> {
         let mut guard = self.accounts.write().expect("accounts lock poisoned");
-        guard.retain(|a| a.meta.username != username);
+        guard.retain(|a| !(a.meta.username == username && a.meta.instance_url == instance_url));
         if guard.iter().all(|a| !a.meta.is_active) {
             if let Some(first) = guard.first_mut() {
                 first.meta.is_active = true;
@@ -167,12 +167,17 @@ impl AppState {
         guard.clone()
     }
 
-    /// Mark one account active. Returns the updated account if it exists.
-    pub fn set_active(&self, username: &str) -> Option<Account> {
+    /// Mark one account active (identified by username + instance URL).
+    /// Returns the updated account if it exists.
+    pub fn set_active(&self, username: &str, instance_url: &str) -> Option<Account> {
         let mut guard = self.accounts.write().expect("accounts lock poisoned");
         for account in guard.iter_mut() {
-            account.meta.is_active = account.meta.username == username;
+            account.meta.is_active =
+                account.meta.username == username && account.meta.instance_url == instance_url;
         }
-        guard.iter().find(|a| a.meta.username == username).cloned()
+        guard
+            .iter()
+            .find(|a| a.meta.username == username && a.meta.instance_url == instance_url)
+            .cloned()
     }
 }

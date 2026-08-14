@@ -38,7 +38,7 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 
     let state = app.state::<AppState>();
     let accounts = state.accounts_snapshot();
-    let active_username = state.current().map(|a| a.meta.username);
+    let active_key = state.current().map(|a| crate::sync::account_key(&a));
 
     let mut account_items: Vec<MenuItem<Wry>> = Vec::new();
     if accounts.is_empty() {
@@ -56,14 +56,18 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 .display_name
                 .as_deref()
                 .unwrap_or(&account.meta.username);
-            let label = if active_username.as_deref() == Some(account.meta.username.as_str()) {
+            let label = if active_key.as_deref() == Some(crate::sync::account_key(account).as_str())
+            {
                 format!("✓ {display}")
             } else {
                 display.to_string()
             };
             account_items.push(MenuItem::<Wry>::with_id(
                 app,
-                format!("switch:{}", account.meta.username),
+                format!(
+                    "switch:{}@{}",
+                    account.meta.username, account.meta.instance_url
+                ),
                 label,
                 true,
                 None::<&str>,
@@ -109,9 +113,13 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
                 app.exit(0);
             }
             id if id.starts_with("switch:") => {
-                let username = id.trim_start_matches("switch:").to_string();
+                // Tray ids carry the composite identity: switch:user@instance
+                let identity = id.trim_start_matches("switch:").to_string();
+                let Some((username, instance_url)) = identity.rsplit_once('@') else {
+                    return;
+                };
                 let state = app.state::<AppState>();
-                if state.set_active(&username).is_some() {
+                if state.set_active(username, instance_url).is_some() {
                     let _ = accounts::persist_accounts(app, &state.accounts_snapshot());
                     let _ = refresh_tray_menu(app);
                     let _ = app.emit("accounts-changed", ());
@@ -220,13 +228,17 @@ pub fn run() {
             commands::register_user,
             commands::webdav_list,
             commands::webdav_create_share,
+            commands::webdav_upload_file,
+            commands::webdav_download_file,
+            commands::webdav_delete,
+            commands::webdav_mkdir,
+            commands::webdav_rename,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,
             commands::admin_edit_user,
             commands::admin_create_user,
             commands::admin_delete_user,
-            commands::ocs_current_user,
             commands::sync_list,
             commands::sync_add,
             commands::sync_remove,

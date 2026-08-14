@@ -15,16 +15,19 @@ use crate::state::Account;
 /// `.env` file (which is gitignored); it is intentionally not hard-coded
 /// anywhere in this repository.
 pub fn flutcloud_url() -> AppResult<String> {
-    static URL: OnceLock<Result<String, String>> = OnceLock::new();
-    URL.get_or_init(|| {
-        let _ = dotenvy::dotenv();
-        std::env::var("FLUTCLOUD_URL").map_err(|_| {
-            "FLUTCLOUD_URL is not set. Add it to the `.env` file in the repository root."
-                .to_string()
-        })
-    })
-    .clone()
-    .map_err(AppError::App)
+    // Only the *success* value is cached. When the variable is missing, the
+    // error is not stored so a corrected `.env` takes effect without a restart.
+    static URL: OnceLock<String> = OnceLock::new();
+    if let Some(url) = URL.get() {
+        return Ok(url.clone());
+    }
+    let _ = dotenvy::dotenv();
+    let url = std::env::var("FLUTCLOUD_URL").map_err(|_| {
+        AppError::App(
+            "FLUTCLOUD_URL is not set. Add it to the `.env` file in the repository root.".into(),
+        )
+    })?;
+    Ok(URL.get_or_init(|| url.clone()).clone())
 }
 
 /// Strip trailing slashes so `https://flutcloud.example/` matches

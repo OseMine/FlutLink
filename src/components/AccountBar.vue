@@ -11,17 +11,17 @@ const store = useAccountsStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
-async function switchTo(username: string) {
+async function switchTo(username: string, instanceUrl: string) {
   try {
-    await store.switchTo(username);
+    await store.switchTo(username, instanceUrl);
   } catch {
     // error surfaced via store.error
   }
 }
 
-async function remove(username: string) {
+async function remove(username: string, instanceUrl: string) {
   try {
-    await store.remove(username);
+    await store.remove(username, instanceUrl);
   } catch {
     // error surfaced via store.error
   }
@@ -48,7 +48,7 @@ const storageFreeLabel = computed(() => {
   if (s.used === null) return formatBytes(s.total);
   const free = s.total - s.used;
   if (free < 0) return `-${formatBytes(-free)}`;
-  return `${formatBytes(free)} ${t("free")}`;
+  return formatBytes(free);
 });
 </script>
 
@@ -57,7 +57,7 @@ const storageFreeLabel = computed(() => {
     <div class="flex items-center gap-2.5 border-b border-zinc-800 px-4 py-4">
       <img src="/flutlink-mark.svg" alt="FlutLink" class="h-8 w-8 shrink-0" />
       <div class="min-w-0">
-        <h1 class="truncate text-base font-semibold tracking-tight text-white">
+        <h1 class="truncate text-base font-semibold tracking-tight text-zinc-50">
           {{ t("appName") }}
         </h1>
         <p class="truncate text-xs text-zinc-500">{{ t("tagline") }}</p>
@@ -80,7 +80,7 @@ const storageFreeLabel = computed(() => {
         :class="account.isActive
           ? 'bg-indigo-600 text-white'
           : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'"
-        @click="switchTo(account.username)"
+        @click="switchTo(account.username, account.instanceUrl)"
       >
         <div class="min-w-0 flex-1">
           <p class="truncate font-medium">
@@ -123,12 +123,12 @@ const storageFreeLabel = computed(() => {
         </div>
 
         <p class="text-xs text-zinc-500">{{ t("signedInAs") }}</p>
-        <p class="truncate text-sm text-white">
+        <p class="truncate text-sm text-zinc-50">
           {{ store.active.displayName || store.active.username }}
         </p>
         <button
           class="mt-2 text-xs text-zinc-400 underline-offset-2 hover:text-red-400 hover:underline"
-          @click="remove(store.active.username)"
+          @click="remove(store.active.username, store.active.instanceUrl)"
         >
           {{ t("removeAccount") }}
         </button>

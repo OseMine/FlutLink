@@ -74,18 +74,18 @@ async function loadUsers() {
   }
 }
 
-async function switchTo(username: string) {
+async function switchTo(username: string, instanceUrl: string) {
   try {
-    await accounts.switchTo(username);
+    await accounts.switchTo(username, instanceUrl);
     ui.toast(t("accountSwitched"), "success");
   } catch {
     // error surfaced via accounts.error
   }
 }
 
-async function remove(username: string) {
+async function remove(username: string, instanceUrl: string) {
   try {
-    await accounts.remove(username);
+    await accounts.remove(username, instanceUrl);
     ui.toast(t("accountRemoved"), "success");
   } catch {
     // error surfaced via accounts.error
@@ -140,10 +140,10 @@ async function downloadAndInstall() {
     >
       <div class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
         <div class="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-          <h2 class="text-base font-semibold text-white">{{ t("settingsTitle") }}</h2>
+          <h2 class="text-base font-semibold text-zinc-50">{{ t("settingsTitle") }}</h2>
           <button
             class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-            aria-label="Close"
+            :aria-label="t('close')"
             @click="emit('close')"
           >
             ✕
@@ -155,7 +155,7 @@ async function downloadAndInstall() {
             v-for="key in (['accounts', 'admin', 'about'] as const)"
             :key="key"
             class="rounded-t-md px-3 py-1.5 text-sm font-medium transition"
-            :class="tab === key ? 'border-b-2 border-indigo-500 text-white' : 'text-zinc-500 hover:text-zinc-300'"
+            :class="tab === key ? 'border-b-2 border-indigo-500 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'"
             @click="tab = key"
           >
             {{ t(key === 'accounts' ? 'tabAccounts' : key === 'admin' ? 'tabAdmin' : 'tabAbout') }}
@@ -174,7 +174,7 @@ async function downloadAndInstall() {
               class="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-800/40 p-3"
             >
               <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-2 truncate text-sm font-medium text-white">
+                <p class="flex items-center gap-2 truncate text-sm font-medium text-zinc-50">
                   {{ account.displayName || account.username }}
                   <span
                     v-if="account.isActive"
@@ -188,13 +188,13 @@ async function downloadAndInstall() {
               <button
                 v-if="!account.isActive"
                 class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-                @click="switchTo(account.username)"
+                @click="switchTo(account.username, account.instanceUrl)"
               >
                 {{ t("switchAccount") }}
               </button>
               <button
                 class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-red-300 hover:bg-red-950/40"
-                @click="remove(account.username)"
+                @click="remove(account.username, account.instanceUrl)"
               >
                 {{ t("removeAccount") }}
               </button>
@@ -232,7 +232,7 @@ async function downloadAndInstall() {
             <div class="flex items-center gap-3">
               <AppLogo class="h-10 w-10" />
               <div>
-                <p class="text-base font-semibold text-white">{{ t("aboutApp") }}</p>
+                <p class="text-base font-semibold text-zinc-50">{{ t("aboutApp") }}</p>
                 <p class="text-xs text-zinc-500">
                   {{ t("version") }} 0.1.0 · {{ t("rustBackend") }} · Tauri v2
                 </p>
@@ -260,7 +260,7 @@ async function downloadAndInstall() {
                   :key="option.value"
                   class="rounded-md border px-3 py-1.5 text-sm transition"
                   :class="ui.lang === option.value
-                    ? 'border-indigo-500 bg-indigo-600/20 text-white'
+                    ? 'border-indigo-500 bg-indigo-600/20 text-zinc-50'
                     : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'"
                   @click="ui.setLang(option.value)"
                 >
@@ -279,7 +279,7 @@ async function downloadAndInstall() {
                   :key="option.value"
                   class="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition"
                   :class="ui.theme === option.value
-                    ? 'border-indigo-500 bg-indigo-600/20 text-white'
+                    ? 'border-indigo-500 bg-indigo-600/20 text-zinc-50'
                     : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'"
                   @click="ui.setTheme(option.value)"
                 >
@@ -300,7 +300,7 @@ async function downloadAndInstall() {
               </template>
 
               <template v-else-if="updateState === 'available' && updateInfo">
-                <p class="mb-1 text-sm font-medium text-white">
+                <p class="mb-1 text-sm font-medium text-zinc-50">
                   {{ t("updateAvailable") }}
                   <span class="text-indigo-300">v{{ updateInfo.version }}</span>
                 </p>

@@ -116,9 +116,23 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Ad-hoc signing identity so macOS builds downloaded from releases
-          # are not treated as damaged. Set proper certs/secrets for real signing.
-          APPLE_SIGNING_IDENTITY: "-"
+          # --- Distribution signing (plan, V1.8) ---
+          #
+          # macOS: Developer ID Application signing + notarization. Set the
+          # APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY
+          # secrets to import the cert and sign, and APPLE_API_KEY /
+          # APPLE_API_ISSUER for notarization. Without them the build falls back
+          # to ad-hoc signing ("-") so downloads are not treated as damaged.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY || '-' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          # Windows: Authenticode signing of the MSI/NSIS bundles. Set
+          # CSC_LINK (base64 .pfx) and CSC_KEY_PASSWORD to sign; otherwise the
+          # Windows installer is unsigned.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"

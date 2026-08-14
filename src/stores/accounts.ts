@@ -58,11 +58,9 @@ export const useAccountsStore = defineStore("accounts", () => {
     error.value = null;
     try {
       const account = await api.accountAdd(input.instanceUrl, input.username, input.token);
-      if (!accounts.value.some((a) => a.username === account.username)) {
-        accounts.value.push(account);
-      }
-      if (account.isActive) active.value = account;
-      await loadStorage();
+      // Reload from the backend so the store matches the server state exactly
+      // (e.g. whether this account ended up being the active one).
+      await load();
       return account;
     } catch (e) {
       error.value = invokeError(e).message;
@@ -81,11 +79,7 @@ export const useAccountsStore = defineStore("accounts", () => {
     error.value = null;
     try {
       const account = await api.registerUser(input);
-      if (!accounts.value.some((a) => a.username === account.username)) {
-        accounts.value.push(account);
-      }
-      if (account.isActive) active.value = account;
-      await loadStorage();
+      await load();
       return account;
     } catch (e) {
       error.value = invokeError(e).message;
@@ -93,10 +87,10 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  async function switchTo(username: string) {
+  async function switchTo(username: string, instanceUrl: string) {
     error.value = null;
     try {
-      const account = await api.accountSwitch(username);
+      const account = await api.accountSwitch(username, instanceUrl);
       sync(account);
       await loadStorage();
       return account;
@@ -106,10 +100,10 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  async function remove(username: string) {
+  async function remove(username: string, instanceUrl: string) {
     error.value = null;
     try {
-      accounts.value = await api.accountRemove(username);
+      accounts.value = await api.accountRemove(username, instanceUrl);
       active.value = accounts.value.find((a) => a.isActive) ?? null;
       await loadStorage();
     } catch (e) {

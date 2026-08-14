@@ -66,7 +66,7 @@ async function syncNow() {
   <div class="mx-auto w-full max-w-3xl p-6">
     <div class="mb-4 flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-semibold text-white">{{ t("syncFolders") }}</h2>
+        <h2 class="text-lg font-semibold text-zinc-50">{{ t("syncFolders") }}</h2>
         <p class="text-sm text-zinc-500">{{ t("noSyncFoldersHint") }}</p>
       </div>
       <div class="flex gap-2">
@@ -103,7 +103,7 @@ async function syncNow() {
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="truncate font-medium text-white">{{ folder.localPath }}</p>
+            <p class="truncate font-medium text-zinc-50">{{ folder.localPath }}</p>
             <p class="truncate text-xs text-zinc-500">
               {{ t("remoteFolder") }}: {{ folder.remotePath }}
             </p>

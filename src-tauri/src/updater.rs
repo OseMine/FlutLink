@@ -58,6 +58,8 @@ struct GithubAsset {
     name: String,
     browser_download_url: String,
     size: u64,
+    /// GitHub reports the asset digest as `"sha256:<hex>"`.
+    digest: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +80,9 @@ pub struct ReleaseInfo {
     pub asset_url: String,
     /// File size in bytes; useful for showing a download progress bar.
     pub asset_size: u64,
+    /// SHA-256 of the installer, hex-encoded (from the GitHub asset digest).
+    /// Verified before the installer is launched.
+    pub asset_sha256: Option<String>,
 }
 
 /// Emitted on the `"update://progress"` channel while downloading.
@@ -211,6 +216,10 @@ pub async fn check_for_update(
         asset_name: asset.name.clone(),
         asset_url: asset.browser_download_url.clone(),
         asset_size: asset.size,
+        asset_sha256: asset
+            .digest
+            .clone()
+            .and_then(|d| d.strip_prefix("sha256:").map(String::from)),
     }))
 }
 
@@ -277,7 +286,40 @@ pub async fn download_update(
         .await
         .map_err(|e| format!("Flush failed: {e}"))?;
 
+    // The size advertised by the API must match what we actually got.
+    if let Ok(meta) = fs::metadata(&dest).await {
+        if meta.len() != info.asset_size {
+            let _ = fs::remove_file(&dest).await;
+            return Err(format!(
+                "Downloaded file size mismatch (expected {}, got {})",
+                info.asset_size,
+                meta.len()
+            ));
+        }
+    }
+
+    // Verify the SHA-256 checksum before ever launching the installer.
+    if let Some(expected) = info.asset_sha256.as_deref() {
+        let actual = sha256_file(&dest)?;
+        if !actual.eq_ignore_ascii_case(expected) {
+            let _ = fs::remove_file(&dest).await;
+            return Err(format!(
+                "SHA-256 checksum mismatch: expected {expected}, got {actual}"
+            ));
+        }
+    }
+
     Ok(dest)
+}
+
+/// Hex-encoded SHA-256 of a file.
+fn sha256_file(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut file =
+        std::fs::File::open(path).map_err(|e| format!("Cannot read downloaded file: {e}"))?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("Checksum error: {e}"))?;
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 /// Launches the downloaded installer and exits the current process so that
@@ -562,11 +604,13 @@ mod tests {
                 name: "FlutLink_1.0.0_amd64.deb".into(),
                 browser_download_url: "https://example.com/a.deb".into(),
                 size: 1,
+                digest: None,
             },
             GithubAsset {
                 name: "FlutLink_1.0.0_x86_64.AppImage".into(),
                 browser_download_url: "https://example.com/a.AppImage".into(),
                 size: 2,
+                digest: None,
             },
         ];
         let picked = pick_asset(&assets).unwrap();
@@ -579,8 +623,24 @@ mod tests {
             name: "FlutLink.weird_format".into(),
             browser_download_url: "https://example.com/x".into(),
             size: 0,
+            digest: None,
         }];
         assert!(pick_asset(&assets).is_none());
+    }
+
+    #[test]
+    fn asset_sha256_extracted_from_digest() {
+        let info = ReleaseInfo {
+            version: "1.0.0".into(),
+            name: "x".into(),
+            notes: None,
+            release_url: "u".into(),
+            asset_name: "a".into(),
+            asset_url: "u".into(),
+            asset_size: 1,
+            asset_sha256: Some("sha256:abcd".trim_start_matches("sha256:").into()),
+        };
+        assert_eq!(info.asset_sha256.as_deref(), Some("abcd"));
     }
 }
 

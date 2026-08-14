@@ -1,6 +1,7 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use reqwest::{Client, Method};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::*;
 use crate::error::{AppError, AppResult};
@@ -47,7 +48,18 @@ pub async fn list(
             "/remote.php/dav/files/{}",
             urlencoding::encode(effective_user)
         );
-        parse_multistatus(&body, &base_path)
+        let entries = parse_multistatus(&body, &base_path)?;
+        // Namespace guard: if the server silently ignored `Impersonate-User`,
+        // the hrefs point at the *admin's* namespace and every rel would start
+        // with "/remote.php/...". Refuse the mismatched listing instead of
+        // feeding garbage paths to the caller.
+        if entries.iter().any(|e| e.path.starts_with("/remote.php/")) {
+            return Err(AppError::App(format!(
+                "Server did not honor the impersonated namespace for '{}'.",
+                effective_user
+            )));
+        }
+        Ok(entries)
     } else {
         let body = res.text().await.unwrap_or_default();
         Err(AppError::Status {
@@ -68,13 +80,30 @@ enum Field {
 
 /// Full WebDAV URL of a path relative to the user's files root,
 /// e.g. "/FlutLink/Photos/a.txt" → https://host/remote.php/dav/files/admin/...
-fn remote_url(account: &Account, remote_rel: &str) -> String {
+///
+/// `target_user` switches the namespace to another user's files root (requires
+/// admin credentials + the `Impersonate-User` header).
+fn remote_url(account: &Account, remote_rel: &str, target_user: Option<&str>) -> String {
+    let effective_user = target_user.unwrap_or(&account.meta.username);
     format!(
         "{}/remote.php/dav/files/{}/{}",
         account.base_url(),
-        urlencoding::encode(&account.meta.username),
+        urlencoding::encode(effective_user),
         encode_segments(remote_rel)
     )
+}
+
+fn impersonation_header(
+    req: reqwest::RequestBuilder,
+    account: &Account,
+    target_user: Option<&str>,
+) -> reqwest::RequestBuilder {
+    match target_user {
+        Some(user) if user != account.meta.username.as_str() => {
+            req.header("Impersonate-User", user)
+        }
+        _ => req,
+    }
 }
 
 /// Stream a local file to the cloud via PUT. Sends `X-OC-MTime` so the
@@ -86,17 +115,33 @@ pub async fn put_file(
     local_path: &std::path::Path,
     mtime_secs: i64,
 ) -> AppResult<()> {
-    let url = remote_url(account, remote_rel);
+    put_file_as(client, account, remote_rel, local_path, mtime_secs, None).await
+}
+
+/// Like [`put_file`], but in another user's namespace (admin impersonation).
+pub async fn put_file_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    local_path: &std::path::Path,
+    mtime_secs: i64,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
     let file = tokio::fs::File::open(local_path).await?;
     let body = reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file));
-    let res = client
-        .put(&url)
-        .basic_auth(&account.meta.username, Some(&account.token))
-        .header("X-OC-MTime", mtime_secs.to_string())
-        .header("Content-Type", "application/octet-stream")
-        .body(body)
-        .send()
-        .await?;
+    let res = impersonation_header(
+        client
+            .put(&url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("X-OC-MTime", mtime_secs.to_string())
+            .header("Content-Type", "application/octet-stream")
+            .body(body),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
     status_check(res).await
 }
 
@@ -108,7 +153,7 @@ pub async fn put_text(
     remote_rel: &str,
     content: &str,
 ) -> AppResult<()> {
-    let url = remote_url(account, remote_rel);
+    let url = remote_url(account, remote_rel, None);
     let res = client
         .put(&url)
         .basic_auth(&account.meta.username, Some(&account.token))
@@ -127,15 +172,30 @@ pub async fn get_file(
     remote_rel: &str,
     dest: &std::path::Path,
 ) -> AppResult<()> {
+    get_file_as(client, account, remote_rel, dest, None).await
+}
+
+/// Like [`get_file`], but in another user's namespace (admin impersonation).
+pub async fn get_file_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    dest: &std::path::Path,
+    target_user: Option<&str>,
+) -> AppResult<()> {
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
 
-    let url = remote_url(account, remote_rel);
-    let res = client
-        .get(&url)
-        .basic_auth(&account.meta.username, Some(&account.token))
-        .send()
-        .await?;
+    let url = remote_url(account, remote_rel, target_user);
+    let res = impersonation_header(
+        client
+            .get(&url)
+            .basic_auth(&account.meta.username, Some(&account.token)),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
     let status = res.status();
     if !status.is_success() {
         let body = res.text().await.unwrap_or_default();
@@ -145,16 +205,22 @@ pub async fn get_file(
         });
     }
     let tmp = tmp_path(dest);
-    let mut file = tokio::fs::File::create(&tmp).await?;
-    let mut stream = res.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        file.write_all(&chunk?).await?;
+    let result: Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
+        let mut file = tokio::fs::File::create(&tmp).await?;
+        let mut stream = res.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            file.write_all(&chunk?).await?;
+        }
+        file.sync_all().await?;
+        drop(file);
+        tokio::fs::rename(&tmp, dest).await?;
+        Ok(())
     }
-    file.sync_all().await?;
-    drop(file);
-    if let Err(e) = tokio::fs::rename(&tmp, dest).await {
+    .await;
+    if let Err(e) = result {
+        // B18: never leave a half-written .tmp file behind.
         let _ = tokio::fs::remove_file(&tmp).await;
-        return Err(e.into());
+        return Err(AppError::App(format!("download failed: {}", e)));
     }
     Ok(())
 }
@@ -165,13 +231,27 @@ pub async fn make_collection(
     account: &Account,
     remote_rel: &str,
 ) -> AppResult<()> {
-    let url = remote_url(account, remote_rel);
+    make_collection_as(client, account, remote_rel, None).await
+}
+
+/// Like [`make_collection`], but in another user's namespace.
+pub async fn make_collection_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
     let method = Method::from_bytes(b"MKCOL").expect("valid HTTP method");
-    let res = client
-        .request(method, &url)
-        .basic_auth(&account.meta.username, Some(&account.token))
-        .send()
-        .await?;
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token)),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
     let status = res.status();
     // 405 = already exists, which is fine for idempotent dir creation.
     if status.is_success() || status.as_u16() == 405 {
@@ -194,24 +274,48 @@ pub async fn ensure_collection(
     account: &Account,
     remote_rel: &str,
 ) -> AppResult<()> {
+    ensure_collection_as(client, account, remote_rel, None).await
+}
+
+/// Like [`ensure_collection`], but in another user's namespace.
+pub async fn ensure_collection_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
     let mut path = String::new();
     for segment in remote_rel.split('/').filter(|s| !s.is_empty()) {
         path.push('/');
         path.push_str(segment);
-        make_collection(client, account, &path).await?;
+        make_collection_as(client, account, &path, target_user).await?;
     }
     Ok(())
 }
 
 /// Delete a remote resource (file or folder).
 pub async fn delete(client: &Client, account: &Account, remote_rel: &str) -> AppResult<()> {
-    let url = remote_url(account, remote_rel);
+    delete_as(client, account, remote_rel, None).await
+}
+
+/// Like [`delete`], but in another user's namespace.
+pub async fn delete_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
     let method = Method::from_bytes(b"DELETE").expect("valid HTTP method");
-    let res = client
-        .request(method, &url)
-        .basic_auth(&account.meta.username, Some(&account.token))
-        .send()
-        .await?;
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token)),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
     let status = res.status();
     // 404 = already gone.
     if status.is_success() || status.as_u16() == 404 {
@@ -223,6 +327,42 @@ pub async fn delete(client: &Client, account: &Account, remote_rel: &str) -> App
             body,
         })
     }
+}
+
+/// Rename/move a remote resource via MOVE. Overwrites the destination if it
+/// already exists (WebDAV `Overwrite: T`).
+pub async fn rename(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    new_rel: &str,
+) -> AppResult<()> {
+    rename_as(client, account, remote_rel, new_rel, None).await
+}
+
+/// Like [`rename`], but in another user's namespace.
+pub async fn rename_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    new_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
+    let dest = remote_url(account, new_rel, target_user);
+    let method = Method::from_bytes(b"MOVE").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Destination", dest)
+            .header("Overwrite", "T"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    status_check(res).await
 }
 
 async fn status_check(res: reqwest::Response) -> AppResult<()> {
@@ -238,12 +378,17 @@ async fn status_check(res: reqwest::Response) -> AppResult<()> {
     }
 }
 
+/// Temp file next to the destination. The counter makes the name unique even
+/// for parallel downloads of the same destination (which the sync engine can
+/// trigger for conflict copies).
 fn tmp_path(dest: &std::path::Path) -> std::path::PathBuf {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let mut name = dest
         .file_name()
         .map(|n| n.to_os_string())
         .unwrap_or_default();
-    name.push(format!(".flutlink-{}.tmp", std::process::id()));
+    name.push(format!(".flutlink-{}-{}.tmp", std::process::id(), n));
     dest.with_file_name(name)
 }
 

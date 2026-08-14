@@ -26,6 +26,10 @@ pub struct JournalEntry {
     pub local_mtime: i64,
     pub remote_size: u64,
     pub remote_mtime: i64,
+    /// Directory marker: entries for synced folders carry no sizes/mtimes.
+    /// Defaulted so journals written before this field stay readable.
+    #[serde(default)]
+    pub is_dir: bool,
 }
 
 /// rel path (relative to the sync root, `/`-separated) → last synced state.
@@ -33,6 +37,7 @@ pub type Journal = BTreeMap<String, JournalEntry>;
 
 #[derive(Debug, Clone, Copy)]
 struct LocalEntry {
+    is_dir: bool,
     size: u64,
     mtime: i64,
 }
@@ -47,11 +52,25 @@ struct RemoteEntry {
 #[derive(Debug, Clone, PartialEq)]
 enum Action {
     Upload(String),
-    UploadConflict { rel: String, target: String },
+    UploadConflict {
+        rel: String,
+        target: String,
+    },
     Download(String),
     DeleteRemote(String),
     DeleteLocal(String),
+    DeleteRemoteDir(String),
     EnsureDir(String),
+    /// Local folder vs. remote file: move the remote file aside, keep the folder.
+    MoveRemoteConflict {
+        rel: String,
+        target: String,
+    },
+    /// Local file vs. remote folder: move the local file aside locally.
+    MoveLocalConflict {
+        rel: String,
+        target: String,
+    },
     Skip(String),
 }
 
@@ -110,6 +129,39 @@ fn conflict_name(rel: &str) -> String {
     }
 }
 
+/// `conflict_name` variant with a counter so the second and later conflicts on
+/// the same name never overwrite each other.
+fn conflict_name_n(rel: &str, n: u64) -> String {
+    if n <= 1 {
+        return conflict_name(rel);
+    }
+    match rel.rfind('.') {
+        Some(idx) if idx > 0 && !rel[idx + 1..].contains('/') => {
+            let (stem, ext) = rel.split_at(idx);
+            format!("{} (conflict copy {}){}", stem, n, ext)
+        }
+        _ => format!("{} (conflict copy {})", rel, n),
+    }
+}
+
+/// Pick a conflict-copy target that neither exists on the remote side nor is
+/// already claimed by another op in this pass.
+fn unique_conflict_target(
+    rel: &str,
+    remote: &BTreeMap<String, RemoteEntry>,
+    used: &mut BTreeSet<String>,
+) -> String {
+    let mut n = 0u64;
+    loop {
+        n += 1;
+        let candidate = conflict_name_n(rel, n);
+        if !remote.contains_key(&candidate) && !used.contains(&candidate) {
+            used.insert(candidate.clone());
+            return candidate;
+        }
+    }
+}
+
 fn parent_of(rel: &str) -> String {
     match rel.rfind('/') {
         Some(idx) => rel[..idx].to_string(),
@@ -144,10 +196,18 @@ async fn walk_local(root: &Path) -> BTreeMap<String, LocalEntry> {
                 continue;
             }
             let path = entry.path();
+            let rel = rel_from(root, &path);
             if meta.is_dir() {
                 stack.push(path);
+                map.insert(
+                    rel,
+                    LocalEntry {
+                        is_dir: true,
+                        size: 0,
+                        mtime: 0,
+                    },
+                );
             } else if meta.is_file() {
-                let rel = rel_from(root, &path);
                 let mtime = meta
                     .modified()
                     .ok()
@@ -157,6 +217,7 @@ async fn walk_local(root: &Path) -> BTreeMap<String, LocalEntry> {
                 map.insert(
                     rel,
                     LocalEntry {
+                        is_dir: false,
                         size: meta.len(),
                         mtime,
                     },
@@ -235,8 +296,24 @@ fn decide(
     match (local, remote) {
         (Some(local), Some(remote)) => {
             // Directories never contain content themselves; the files decide.
-            if remote.is_dir {
+            if local.is_dir && remote.is_dir {
                 return Action::Skip(rel.to_string());
+            }
+            // Type conflict: local folder vs. remote file. Preserve the remote
+            // file as a conflict copy, the folder wins the path.
+            if local.is_dir {
+                return Action::MoveRemoteConflict {
+                    rel: rel.to_string(),
+                    target: conflict_name(rel),
+                };
+            }
+            // Type conflict: local file vs. remote folder. Preserve the local
+            // file as a conflict copy locally, the folder wins the path.
+            if remote.is_dir {
+                return Action::MoveLocalConflict {
+                    rel: rel.to_string(),
+                    target: conflict_name(rel),
+                };
             }
             if let Some(j) = rec {
                 let local_same = j.local_size == local.size && j.local_mtime == local.mtime;
@@ -265,6 +342,11 @@ fn decide(
             Action::Skip(rel.to_string())
         }
         (Some(local), None) => {
+            if local.is_dir {
+                // Empty or new local folder → create it remotely. A folder that
+                // lost its remote side is resurrected rather than deleted.
+                return Action::EnsureDir(rel.to_string());
+            }
             if let Some(j) = rec {
                 if j.local_size == local.size && j.local_mtime == local.mtime {
                     // Remote was deleted, local is untouched → propagate the deletion.
@@ -277,6 +359,13 @@ fn decide(
         }
         (None, Some(remote)) => {
             if remote.is_dir {
+                // Only delete a remote folder that we synced before (journal
+                // record). First-sync folders are never deleted.
+                if let Some(j) = rec {
+                    if j.is_dir {
+                        return Action::DeleteRemoteDir(rel.to_string());
+                    }
+                }
                 return Action::Skip(rel.to_string());
             }
             if let Some(j) = rec {
@@ -309,19 +398,42 @@ fn plan_ops(
         rels.insert(rel.clone());
     }
 
+    let mut used_targets: BTreeSet<String> = BTreeSet::new();
     let mut file_ops: Vec<Action> = Vec::new();
     let mut uploads: Vec<String> = Vec::new();
+    let mut moved_dirs: Vec<String> = Vec::new();
     for rel in rels {
         let action = decide(&rel, local.get(&rel), remote.get(&rel), journal);
         match action {
             Action::Skip(_) => {}
             Action::Upload(p) => {
+                used_targets.insert(p.clone());
                 uploads.push(p.clone());
                 file_ops.push(Action::Upload(p));
             }
-            Action::UploadConflict { rel, target } => {
+            Action::UploadConflict { rel, target: _ } => {
+                let target = unique_conflict_target(&rel, remote, &mut used_targets);
                 uploads.push(target.clone());
                 file_ops.push(Action::UploadConflict { rel, target });
+            }
+            Action::MoveRemoteConflict { rel, target: _ } => {
+                let target = unique_conflict_target(&rel, remote, &mut used_targets);
+                // The folder that won the path must be created remotely too.
+                moved_dirs.push(rel.clone());
+                file_ops.push(Action::MoveRemoteConflict { rel, target });
+            }
+            Action::MoveLocalConflict { rel, target: _ } => {
+                let target = unique_conflict_target(&rel, remote, &mut used_targets);
+                file_ops.push(Action::MoveLocalConflict { rel, target });
+            }
+            Action::DeleteRemoteDir(dir) => {
+                // Never delete a folder that still has remote children in this
+                // snapshot; the files are removed first, the (now empty) folder
+                // follows on a later pass.
+                if remote.keys().any(|k| k.starts_with(&format!("{}/", dir))) {
+                    continue;
+                }
+                file_ops.push(Action::DeleteRemoteDir(dir));
             }
             other => file_ops.push(other),
         }
@@ -337,6 +449,17 @@ fn plan_ops(
             }
             parent = parent_of(&parent);
         }
+    }
+    // Folders that took over a path previously occupied by a remote file.
+    for dir in &moved_dirs {
+        let mut parent = parent_of(dir);
+        while !parent.is_empty() {
+            if !remote.contains_key(&parent) {
+                dirs.insert(parent.clone());
+            }
+            parent = parent_of(&parent);
+        }
+        dirs.insert(dir.clone());
     }
     let mut dir_ops: Vec<Action> = dirs.into_iter().map(Action::EnsureDir).collect();
     dir_ops.sort_by_key(|a| match a {
@@ -387,6 +510,7 @@ async fn exec_upload(ctx: &mut PassCtx<'_>, rel: &str) -> AppResult<()> {
             local_mtime: local.mtime,
             remote_size: local.size,
             remote_mtime: local.mtime,
+            is_dir: false,
         },
     );
     Ok(())
@@ -419,6 +543,7 @@ async fn exec_upload_conflict(ctx: &mut PassCtx<'_>, rel: &str, target: &str) ->
             local_mtime: local.mtime,
             remote_size: remote.size,
             remote_mtime: remote.mtime,
+            is_dir: false,
         },
     );
     Ok(())
@@ -454,6 +579,7 @@ async fn exec_download(ctx: &mut PassCtx<'_>, rel: &str) -> AppResult<()> {
             local_mtime,
             remote_size: remote.size,
             remote_mtime: remote.mtime,
+            is_dir: false,
         },
     );
     Ok(())
@@ -475,7 +601,87 @@ async fn exec_delete_local(ctx: &mut PassCtx<'_>, rel: &str) -> AppResult<()> {
 }
 
 async fn exec_mkdir(ctx: &mut PassCtx<'_>, rel: &str) -> AppResult<()> {
-    webdav::make_collection(ctx.client, ctx.account, &remote_rel(ctx.folder, rel)).await
+    webdav::make_collection(ctx.client, ctx.account, &remote_rel(ctx.folder, rel)).await?;
+    // Remember that this folder was synced so a later local deletion can
+    // propagate to the remote side (DeleteRemoteDir).
+    ctx.journal.insert(
+        rel.to_string(),
+        JournalEntry {
+            local_size: 0,
+            local_mtime: 0,
+            remote_size: 0,
+            remote_mtime: 0,
+            is_dir: true,
+        },
+    );
+    Ok(())
+}
+
+/// Delete a remote folder (only scheduled for empty folders without remote
+/// children). The journal entry is dropped together with the folder.
+async fn exec_delete_remote_dir(ctx: &mut PassCtx<'_>, rel: &str) -> AppResult<()> {
+    webdav::delete(ctx.client, ctx.account, &remote_rel(ctx.folder, rel)).await?;
+    ctx.journal.remove(rel);
+    Ok(())
+}
+
+/// Type conflict "local folder vs. remote file": move the remote file to a
+/// conflict-copy name so the folder can be created at the original path.
+async fn exec_move_remote_conflict(
+    ctx: &mut PassCtx<'_>,
+    rel: &str,
+    target: &str,
+) -> AppResult<()> {
+    webdav::rename(
+        ctx.client,
+        ctx.account,
+        &remote_rel(ctx.folder, rel),
+        &remote_rel(ctx.folder, target),
+    )
+    .await?;
+    // The conflict copy has no journal entry → it is downloaded next pass.
+    // The folder wins the original path (EnsureDir is planned for it).
+    ctx.journal.insert(
+        rel.to_string(),
+        JournalEntry {
+            local_size: 0,
+            local_mtime: 0,
+            remote_size: 0,
+            remote_mtime: 0,
+            is_dir: true,
+        },
+    );
+    Ok(())
+}
+
+/// Type conflict "local file vs. remote folder": move the local file to a
+/// conflict-copy name locally so the remote folder can be downloaded into the
+/// original path.
+async fn exec_move_local_conflict(ctx: &mut PassCtx<'_>, rel: &str, target: &str) -> AppResult<()> {
+    let from = ctx.local_root.join(rel);
+    let to = ctx.local_root.join(target);
+    if let Some(parent) = to.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::rename(&from, &to).await?;
+    // Record the remote state for the original path so it does not count as a
+    // local deletion; the moved file is uploaded as a new file next pass.
+    let remote = ctx.remote.get(rel).copied().unwrap_or(RemoteEntry {
+        is_dir: false,
+        size: 0,
+        mtime: 0,
+    });
+    ctx.journal.insert(
+        rel.to_string(),
+        JournalEntry {
+            local_size: 0,
+            local_mtime: 0,
+            remote_size: remote.size,
+            remote_mtime: remote.mtime,
+            is_dir: false,
+        },
+    );
+    Ok(())
 }
 
 struct PassResult {
@@ -522,7 +728,12 @@ async fn run_pass(
         .count() as u64;
     let planned_deletes = ops
         .iter()
-        .filter(|a| matches!(a, Action::DeleteRemote(_) | Action::DeleteLocal(_)))
+        .filter(|a| {
+            matches!(
+                a,
+                Action::DeleteRemote(_) | Action::DeleteLocal(_) | Action::DeleteRemoteDir(_)
+            )
+        })
         .count() as u64;
 
     let mut done = 0usize;
@@ -547,7 +758,14 @@ async fn run_pass(
                 Action::Download(rel) => exec_download(&mut ctx, rel).await,
                 Action::DeleteRemote(rel) => exec_delete_remote(&mut ctx, rel).await,
                 Action::DeleteLocal(rel) => exec_delete_local(&mut ctx, rel).await,
+                Action::DeleteRemoteDir(rel) => exec_delete_remote_dir(&mut ctx, rel).await,
                 Action::EnsureDir(rel) => exec_mkdir(&mut ctx, rel).await,
+                Action::MoveRemoteConflict { rel, target } => {
+                    exec_move_remote_conflict(&mut ctx, rel, target).await
+                }
+                Action::MoveLocalConflict { rel, target } => {
+                    exec_move_local_conflict(&mut ctx, rel, target).await
+                }
                 Action::Skip(_) => continue,
             };
             match result {
@@ -624,6 +842,27 @@ fn persist_journal(app: &AppHandle, folder_id: &str, journal: &Journal) -> AppRe
     Ok(())
 }
 
+fn initial_status(folder: &SyncFolder) -> SyncFolderStatus {
+    SyncFolderStatus {
+        folder_id: folder.id.clone(),
+        account_key: folder.account_key.clone(),
+        local_path: folder.local_path.clone(),
+        remote_path: folder.remote_path.clone(),
+        paused: folder.paused,
+        state: if folder.paused {
+            "paused".into()
+        } else {
+            "idle".into()
+        },
+        pending_uploads: 0,
+        pending_downloads: 0,
+        pending_deletes: 0,
+        failures: 0,
+        last_error: None,
+        last_synced_at: None,
+    }
+}
+
 impl SyncEngine {
     /// Wake up the worker to run a pass immediately.
     pub fn notify_one(&self) {
@@ -637,7 +876,9 @@ impl SyncEngine {
             .unwrap_or_default()
     }
 
-    /// Load persisted folders from disk (called once at startup).
+    /// Load persisted folders from disk (called once at startup). Also seeds
+    /// the status map so `statuses()` returns the folders immediately, even
+    /// before the first worker pass.
     pub fn load(&self, app: &AppHandle) {
         let path = match folders_file(app) {
             Ok(path) => path,
@@ -649,7 +890,14 @@ impl SyncEngine {
         if let Ok(raw) = std::fs::read_to_string(&path) {
             if let Ok(folders) = serde_json::from_str::<Vec<SyncFolder>>(&raw) {
                 if let Ok(mut guard) = self.folders.write() {
-                    *guard = folders;
+                    *guard = folders.clone();
+                }
+                if let Ok(mut status_guard) = self.statuses.write() {
+                    for folder in folders {
+                        status_guard
+                            .entry(folder.id.clone())
+                            .or_insert_with(|| initial_status(&folder));
+                    }
                 }
             }
         }
@@ -679,24 +927,7 @@ impl SyncEngine {
             guard.push(folder.clone());
         }
         self.persist(app)?;
-        let status = SyncFolderStatus {
-            folder_id: folder.id.clone(),
-            account_key: folder.account_key.clone(),
-            local_path: folder.local_path.clone(),
-            remote_path: folder.remote_path.clone(),
-            paused: folder.paused,
-            state: if folder.paused {
-                "paused".into()
-            } else {
-                "idle".into()
-            },
-            pending_uploads: 0,
-            pending_downloads: 0,
-            pending_deletes: 0,
-            failures: 0,
-            last_error: None,
-            last_synced_at: None,
-        };
+        let status = initial_status(&folder);
         if let Ok(mut guard) = self.statuses.write() {
             guard.insert(folder.id.clone(), status.clone());
         }
@@ -709,6 +940,43 @@ impl SyncEngine {
         }
         if let Ok(mut guard) = self.statuses.write() {
             guard.remove(folder_id);
+        }
+        if let Ok(path) = journal_file(app, folder_id) {
+            let _ = std::fs::remove_file(path);
+        }
+        self.persist(app)
+    }
+
+    /// Remove every sync folder belonging to one account (used when the
+    /// account is deleted so re-adding it does not resurrect stale folders).
+    pub fn remove_folders_for_account(
+        &self,
+        app: &AppHandle,
+        meta: &crate::state::AccountMeta,
+    ) -> AppResult<()> {
+        let key = format!("{}@{}", meta.username, meta.instance_url);
+        let removed: Vec<String> = {
+            let mut guard = self
+                .folders
+                .write()
+                .map_err(|_| AppError::App("sync lock poisoned".into()))?;
+            let removed: Vec<String> = guard
+                .iter()
+                .filter(|f| f.account_key == key)
+                .map(|f| f.id.clone())
+                .collect();
+            guard.retain(|f| f.account_key != key);
+            removed
+        };
+        if let Ok(mut guard) = self.statuses.write() {
+            for id in &removed {
+                guard.remove(id);
+            }
+        }
+        for id in &removed {
+            if let Ok(path) = journal_file(app, id) {
+                let _ = std::fs::remove_file(path);
+            }
         }
         self.persist(app)
     }
@@ -723,9 +991,9 @@ impl SyncEngine {
         if let Ok(mut guard) = self.statuses.write() {
             if let Some(status) = guard.get_mut(folder_id) {
                 status.paused = paused;
-                if paused {
-                    status.state = "paused".into();
-                }
+                // Pausing freezes the folder; resuming returns it to idle so
+                // the UI does not show a stale "syncing" state.
+                status.state = if paused { "paused" } else { "idle" }.into();
             }
         }
         Ok(())
@@ -870,7 +1138,19 @@ mod tests {
     use super::*;
 
     fn local(size: u64, mtime: i64) -> LocalEntry {
-        LocalEntry { size, mtime }
+        LocalEntry {
+            is_dir: false,
+            size,
+            mtime,
+        }
+    }
+
+    fn local_dir() -> LocalEntry {
+        LocalEntry {
+            is_dir: true,
+            size: 0,
+            mtime: 0,
+        }
     }
 
     fn remote_file(size: u64, mtime: i64) -> RemoteEntry {
@@ -881,12 +1161,31 @@ mod tests {
         }
     }
 
+    fn remote_dir() -> RemoteEntry {
+        RemoteEntry {
+            is_dir: true,
+            size: 0,
+            mtime: 0,
+        }
+    }
+
     fn rec(local_size: u64, local_mtime: i64, remote_size: u64, remote_mtime: i64) -> JournalEntry {
         JournalEntry {
             local_size,
             local_mtime,
             remote_size,
             remote_mtime,
+            is_dir: false,
+        }
+    }
+
+    fn dir_rec() -> JournalEntry {
+        JournalEntry {
+            local_size: 0,
+            local_mtime: 0,
+            remote_size: 0,
+            remote_mtime: 0,
+            is_dir: true,
         }
     }
 
@@ -1070,5 +1369,93 @@ mod tests {
                     .unwrap(),
             "dirs must be created before uploads"
         );
+    }
+
+    #[test]
+    fn empty_local_dir_is_created_remotely() {
+        let mut local_map = BTreeMap::new();
+        local_map.insert("empty".into(), local_dir());
+        let ops = plan_ops(&local_map, &BTreeMap::new(), &BTreeMap::new());
+        assert!(ops.iter().any(|a| *a == Action::EnsureDir("empty".into())));
+    }
+
+    #[test]
+    fn remote_empty_dir_is_deleted_only_when_synced() {
+        // First sync: never delete folders the client never synced.
+        let mut remote_map = BTreeMap::new();
+        remote_map.insert("docs".into(), remote_dir());
+        let ops = plan_ops(&BTreeMap::new(), &remote_map, &BTreeMap::new());
+        assert!(!ops.iter().any(|a| matches!(a, Action::DeleteRemoteDir(_))));
+
+        // Synced folder deleted locally → the (empty) remote folder is removed.
+        let ops = plan_ops(
+            &BTreeMap::new(),
+            &remote_map,
+            &journal(vec![("docs", dir_rec())]),
+        );
+        assert!(ops
+            .iter()
+            .any(|a| *a == Action::DeleteRemoteDir("docs".into())));
+    }
+
+    #[test]
+    fn folder_vs_remote_file_moves_remote_file() {
+        let mut local_map = BTreeMap::new();
+        local_map.insert("Photos".into(), local_dir());
+        let mut remote_map = BTreeMap::new();
+        remote_map.insert("Photos".into(), remote_file(10, 100));
+        let ops = plan_ops(&local_map, &remote_map, &BTreeMap::new());
+        assert!(ops.iter().any(|a| matches!(
+            a,
+            Action::MoveRemoteConflict { rel, target } if rel == "Photos" && target == "Photos (conflict copy)"
+        )));
+        assert!(
+            ops.iter().any(|a| *a == Action::EnsureDir("Photos".into())),
+            "the folder must be created at the original path"
+        );
+    }
+
+    #[test]
+    fn file_vs_remote_folder_moves_local_file() {
+        let mut local_map = BTreeMap::new();
+        local_map.insert("Report".into(), local(10, 100));
+        let mut remote_map = BTreeMap::new();
+        remote_map.insert("Report".into(), remote_dir());
+        let ops = plan_ops(&local_map, &remote_map, &BTreeMap::new());
+        assert!(ops.iter().any(|a| matches!(
+            a,
+            Action::MoveLocalConflict { rel, target } if rel == "Report" && target == "Report (conflict copy)"
+        )));
+    }
+
+    #[test]
+    fn conflict_targets_are_unique_within_a_pass() {
+        let mut local_map = BTreeMap::new();
+        local_map.insert("a.txt".into(), local(12, 200));
+        local_map.insert("b.txt".into(), local(13, 300));
+        let mut remote_map = BTreeMap::new();
+        remote_map.insert("a.txt".into(), remote_file(14, 400));
+        remote_map.insert("b.txt".into(), remote_file(15, 500));
+        remote_map.insert("a (conflict copy).txt".into(), remote_file(1, 1));
+        let mut journal_map = journal(vec![
+            ("a.txt", rec(10, 100, 10, 100)),
+            ("b.txt", rec(10, 100, 10, 100)),
+        ]);
+        journal_map.insert("a (conflict copy).txt".into(), rec(1, 1, 1, 1));
+        let ops = plan_ops(&local_map, &remote_map, &journal_map);
+        let targets: Vec<&String> = ops
+            .iter()
+            .filter_map(|a| match a {
+                Action::UploadConflict { target, .. } => Some(target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(targets.len(), 2);
+        assert!(
+            targets.contains(&&"a (conflict copy 2).txt".to_string()),
+            "the taken conflict-copy name must be skipped: {:?}",
+            targets
+        );
+        assert!(targets.contains(&&"b (conflict copy).txt".to_string()));
     }
 }

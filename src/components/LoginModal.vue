@@ -119,7 +119,7 @@ async function submitRegister() {
       <div class="w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
         <div class="flex flex-col items-center gap-2 text-center">
           <AppLogo class="h-10 w-10" />
-          <h2 class="text-lg font-semibold text-white">
+          <h2 class="text-lg font-semibold text-zinc-50">
             {{ mode === "login" ? t("signInTitle") : t("registerTitle") }}
           </h2>
           <p class="text-xs text-zinc-500">
@@ -130,14 +130,14 @@ async function submitRegister() {
         <div class="mt-4 grid grid-cols-2 rounded-md bg-zinc-800 p-1">
           <button
             class="rounded px-3 py-1.5 text-sm font-medium transition"
-            :class="mode === 'login' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'"
+            :class="mode === 'login' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-50'"
             @click="mode = 'login'"
           >
             {{ t("signInTab") }}
           </button>
           <button
             class="rounded px-3 py-1.5 text-sm font-medium transition"
-            :class="mode === 'register' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'"
+            :class="mode === 'register' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-50'"
             @click="mode = 'register'"
           >
             {{ t("registerTab") }}
@@ -163,7 +163,7 @@ async function submitRegister() {
               v-model="form.username"
               required
               autocomplete="off"
-              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
             />
           </div>
 
@@ -178,14 +178,14 @@ async function submitRegister() {
                 :type="showPassword ? 'text' : 'password'"
                 :placeholder="t('tokenPlaceholder')"
                 autocomplete="off"
-                class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
               />
               <button
                 type="button"
                 class="rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
                 @click="showPassword = !showPassword"
               >
-                {{ showPassword ? "Hide" : "Show" }}
+                {{ showPassword ? t("hide") : t("show") }}
               </button>
             </div>
           </div>
@@ -227,7 +227,7 @@ async function submitRegister() {
               v-model="form.username"
               required
               autocomplete="off"
-              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
             />
           </div>
 
@@ -241,14 +241,14 @@ async function submitRegister() {
                 required
                 :type="showPassword ? 'text' : 'password'"
                 autocomplete="off"
-                class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
               />
               <button
                 type="button"
                 class="rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
                 @click="showPassword = !showPassword"
               >
-                {{ showPassword ? "Hide" : "Show" }}
+                {{ showPassword ? t("hide") : t("show") }}
               </button>
             </div>
           </div>
@@ -260,7 +260,7 @@ async function submitRegister() {
             <input
               v-model="form.displayName"
               autocomplete="off"
-              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
             />
           </div>
 
@@ -274,7 +274,7 @@ async function submitRegister() {
                 required
                 :placeholder="t('adminUsername')"
                 autocomplete="off"
-                class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                class="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
               />
               <div class="flex gap-2">
                 <input
@@ -283,14 +283,14 @@ async function submitRegister() {
                   :type="showAdminPassword ? 'text' : 'password'"
                   :placeholder="t('adminPassword')"
                   autocomplete="off"
-                  class="flex-1 min-w-0 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                  class="flex-1 min-w-0 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
                 />
                 <button
                   type="button"
                   class="shrink-0 rounded-md bg-zinc-800 px-2.5 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
                   @click="showAdminPassword = !showAdminPassword"
                 >
-                  {{ showAdminPassword ? "Hide" : "Show" }}
+                  {{ showAdminPassword ? t("hide") : t("show") }}
                 </button>
               </div>
             </div>

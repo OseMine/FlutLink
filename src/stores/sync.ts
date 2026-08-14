@@ -28,6 +28,11 @@ export const useSyncStore = defineStore("sync", () => {
     await listen<SyncFolderStatus[]>("sync-status", (event) => {
       folders.value = event.payload;
     });
+    // New folders added outside this view (e.g. via the CLI `--path` flag or
+    // a second window) must appear immediately, without an app reload.
+    await listen("sync-folders-changed", () => {
+      void load();
+    });
   }
 
   async function add(localPath: string) {

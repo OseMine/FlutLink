@@ -11,6 +11,10 @@ Freigaben, Administration und Zwei-Wege-Sync.
   Badges angezeigt.
 - **Link-Freigabe** per Klick über die OCS-Share-API — der öffentliche Link
   wird in die Zwischenablage kopiert.
+- **Dateioperationen**: Hochladen, Herunterladen / Öffnen (lädt in eine
+  Tempdatei und öffnet sie mit der Standard-App), Neuer Ordner, Umbenennen,
+  Löschen — über die Symbolleiste, das Kontextmenü und Mehrfachauswahl.
+- Umschalter Raster/Liste, sortierbare Spalten und Mehrfachauswahl.
 - Mehrere Konten: Kontowechsel über die Seitenleiste oder das
   Avatar-Menü.
 
