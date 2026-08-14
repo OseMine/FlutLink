@@ -23,6 +23,17 @@ Installing the server-side FlutCloud Nextcloud app:
 
 ## Installation
 
+The single entry point at the repository root picks the right installer:
+it installs the FlutCloud Nextcloud app when a Nextcloud installation is
+found nearby, otherwise the FlutLink desktop client:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash
+```
+
+To force the server app install: `... | bash -s -- --path ~/nextcloud`.
+See [Install scripts](docs/en/install-scripts.md) for all one-liners.
+
 ### FlutLink desktop client
 
 Install the latest FlutLink release on your device (Windows, macOS or Linux —

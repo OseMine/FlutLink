@@ -5,6 +5,7 @@ from the GitHub repository without cloning it:
 
 | Script | Target | Shell |
 | --- | --- | --- |
+| `install.sh` | auto-select: FlutCloud server app or FlutLink client | bash |
 | `install-flutlink.ps1` | FlutLink desktop client (Windows, macOS, Linux) | PowerShell 7+ |
 | `install-flutlink.sh` | FlutLink desktop client (macOS, Linux) | bash |
 | `install-flutcloud-app.ps1` | FlutCloud Nextcloud app on the server | PowerShell 7+ |
@@ -13,6 +14,28 @@ from the GitHub repository without cloning it:
 All of them are invoked the same way: the script text is streamed straight
 from the raw GitHub URL into the shell and executed in memory — nothing is
 saved to disk unless you do it yourself.
+
+## Root `install.sh` wrapper
+
+There is a single entry point at the repository root that picks the right
+installer for you: it installs the FlutCloud Nextcloud app when it finds a
+Nextcloud installation (a folder containing `occ` in the current directory,
+an ancestor, or a common location like `~/nextcloud` or
+`/var/www/nextcloud`), otherwise it installs the FlutLink desktop client:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash
+```
+
+To force the server install (or point it at your Nextcloud), pass the path —
+`--path` and `--nextcloud-root` are equivalent:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash -s -- --path ~/nextcloud
+```
+
+Client options (e.g. `--tag`, `--no-run`) are passed through to
+`install-flutlink.sh`.
 
 ## PowerShell: `iex (irm <url>)`
 

@@ -5,6 +5,7 @@ aus dem GitHub-Repository ausgeführt werden können, ohne es zu klonen:
 
 | Skript | Ziel | Shell |
 | --- | --- | --- |
+| `install.sh` | automatische Auswahl: FlutCloud-Server-App oder FlutLink-Client | bash |
 | `install-flutlink.ps1` | FlutLink-Desktop-Client (Windows, macOS, Linux) | PowerShell 7+ |
 | `install-flutlink.sh` | FlutLink-Desktop-Client (macOS, Linux) | bash |
 | `install-flutcloud-app.ps1` | FlutCloud-Nextcloud-App auf dem Server | PowerShell 7+ |
@@ -13,6 +14,29 @@ aus dem GitHub-Repository ausgeführt werden können, ohne es zu klonen:
 Alle werden auf die gleiche Weise aufgerufen: Der Skripttext wird direkt von
 der rohen GitHub-URL in die Shell gestreamt und im Speicher ausgeführt — es
 wird nichts auf die Festplatte geschrieben, außer du machst es selbst.
+
+## Root-`install.sh`-Wrapper
+
+Es gibt einen einzelnen Einstiegspunkt im Repository-Root, der das passende
+Installationsskript für dich wählt: Er installiert die
+FlutCloud-Nextcloud-App, wenn er eine Nextcloud-Installation findet (einen
+Ordner mit `occ` im aktuellen Verzeichnis, in einem Elternverzeichnis oder an
+einem üblichen Ort wie `~/nextcloud` oder `/var/www/nextcloud`), sonst
+installiert er den FlutLink-Desktop-Client:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash
+```
+
+Um die Server-Installation zu erzwingen (oder auf dein Nextcloud zu zeigen),
+übergib den Pfad — `--path` und `--nextcloud-root` sind gleichwertig:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash -s -- --path ~/nextcloud
+```
+
+Client-Optionen (z. B. `--tag`, `--no-run`) werden an `install-flutlink.sh`
+durchgereicht.
 
 ## PowerShell: `iex (irm <url>)`
 
