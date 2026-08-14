@@ -70,7 +70,9 @@ Useful parameters: `-NextcloudRoot <path>` (detected automatically otherwise),
 `-Ref <tag-or-branch>` (defaults to the latest release), `-WebUser <user>`
 (default `www-data`), `-NoSudo`, `-SkipVerify` (bash equivalents:
 `--nextcloud-root`, `--ref`, `--web-user`, `--no-sudo`, `--skip-verify`, plus
-`--docker-container` and `--composer`). The manual steps below are equivalent
+`--docker-container` and `--composer`). For how the `curl | iex` /
+`curl | bash` patterns work, options and troubleshooting, see
+[Install scripts](install-scripts.md). The manual steps below are equivalent
 to what the scripts do.
 
 ### Manual installation

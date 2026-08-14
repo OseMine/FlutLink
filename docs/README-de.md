@@ -18,6 +18,7 @@ docs/
 ├── README-de.md            # deutscher Index
 ├── en/                     # English
 │   ├── getting-started.md  # Voraussetzungen, Dev-Setup, erster Start
+│   ├── install-scripts.md  # curl/iex-Installationsskripte nutzen
 │   ├── features.md         # Dateien-, Admin- und Sync-Tab — Tray & CLI
 │   ├── architecture.md     # Frontend/Backend-Schichten, Module, Datenfluss
 │   ├── sync.md             # Zwei-Wege-Sync-Engine (Journal, Planner, Worker)
@@ -27,6 +28,7 @@ docs/
 │   └── development.md      # Build, Test, Konventionen, IPC-Vertrag
 └── de/                     # Deutsch (gleicher Aufbau wie en/)
     ├── getting-started.md
+    ├── install-scripts.md
     ├── features.md
     ├── architecture.md
     ├── sync.md
@@ -41,6 +43,7 @@ docs/
 | Wenn du … | Lese |
 | --- | --- |
 | FlutLink installieren und ausführen möchtest | [Erste Schritte](de/getting-started.md) |
+| die curl/iex-Einzeiler nutzen möchtest | [Installationsskripte](de/install-scripts.md) |
 | wissen möchtest, was die App kann | [Funktionen](de/features.md) |
 | verstehen möchtest, wie der Code organisiert ist | [Architektur](de/architecture.md) |
 | die Sync-Engine verstehen möchtest | [Sync-Engine](de/sync.md) |

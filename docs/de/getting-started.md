@@ -43,6 +43,10 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
 ./install-flutlink.sh --tag v0.1.0 --no-run
 ```
 
+Wie die `curl | iex`- / `curl | bash`-Einzeiler funktionieren, welche Optionen
+es gibt und wie du Probleme behebst, findest du unter
+[Installationsskripte](install-scripts.md).
+
 Der Server muss die `flutcloud`-Nextcloud-App ausführen — installiere sie mit
 [`install-flutcloud-app.ps1`](flutcloud-app.md) (PowerShell) oder
 [`install-flutcloud-app.sh`](flutcloud-app.md) (Bash, Ubuntu/Debian) — und die
