@@ -26,7 +26,7 @@ Installing the server-side FlutCloud Nextcloud app:
 ### FlutLink desktop client
 
 Install the latest FlutLink release on your device (Windows, macOS or Linux —
-PowerShell 7+ required for the one-liner):
+PowerShell 7+ required for the PowerShell one-liner):
 
 ```powershell
 iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
@@ -38,13 +38,24 @@ or with `curl`:
 curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
 ```
 
-The script downloads the installer for your platform from the latest GitHub
-release, verifies its SHA-256 checksum and runs it. Save it to a file first to
-pass options (e.g. a specific version, or `-NoRun` to only download):
+On macOS and Linux the native bash installer works without PowerShell:
+
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
+```
+
+The scripts download the installer for your platform from the latest GitHub
+release, verify its SHA-256 checksum and run it. Save them to a file first to
+pass options (e.g. a specific version, or only download):
 
 ```powershell
 irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
 ./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+```
+
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
+./install-flutlink.sh --tag v0.1.0 --no-run
 ```
 
 ### FlutCloud server app
@@ -57,8 +68,14 @@ official Nextcloud image):
 iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
 ```
 
-The script downloads the app from the repository, copies it to
-`nextcloud/apps/flutcloud`, enables it with `occ` and verifies it. See
+On Ubuntu/Debian servers the native bash installer works without PowerShell:
+
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
+```
+
+The scripts download the app from the repository, copy it to
+`nextcloud/apps/flutcloud`, enable it with `occ` and verify it. See
 [`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) for manual
 installation, the API and troubleshooting.
 

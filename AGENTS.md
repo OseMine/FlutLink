@@ -36,9 +36,11 @@ einem Tauri WebView.
   des FlutCloud-Servers (Capability, `resources`/`parts`-Virtuelle-Links,
   Projektordner). FlutLink verbindet sich nur mit Servern, die diese App
   ausführen.
-- `scripts/` — PowerShell-Installationsskripte, via `curl ... | iex` nutzbar:
-  `install-flutlink.ps1` (Desktop-Client vom GitHub-Release),
-  `install-flutcloud-app.ps1` (Nextcloud-App auf dem Server)
+- `scripts/` — Installationsskripte, via `curl ... | iex` (PowerShell) bzw.
+  `curl ... | bash` (Linux/macOS) nutzbar:
+  `install-flutlink.ps1` / `install-flutlink.sh` (Desktop-Client vom
+  GitHub-Release), `install-flutcloud-app.ps1` / `install-flutcloud-app.sh`
+  (Nextcloud-App auf dem Server)
 - `.github/workflows/` — CI (build/lint/checks) + automatisierte Reviews
 - `.opencode/` — opencode-Konfiguration (Agent `reviewer`, Commands)
 - `docs/` — zweisprachige Architektur-Dokumentation (`docs/en/` + `docs/de/`,

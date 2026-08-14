@@ -52,6 +52,12 @@ or with `curl`:
 curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 | iex
 ```
 
+On Ubuntu/Debian servers the native bash installer works without PowerShell:
+
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
+```
+
 Save the script to a file first to pass parameters — for example for the
 official Nextcloud Docker image, or to generate the Composer autoloader:
 
@@ -62,8 +68,10 @@ irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flut
 
 Useful parameters: `-NextcloudRoot <path>` (detected automatically otherwise),
 `-Ref <tag-or-branch>` (defaults to the latest release), `-WebUser <user>`
-(default `www-data`), `-NoSudo`, `-SkipVerify`. The manual steps below are
-equivalent to what the script does.
+(default `www-data`), `-NoSudo`, `-SkipVerify` (bash equivalents:
+`--nextcloud-root`, `--ref`, `--web-user`, `--no-sudo`, `--skip-verify`, plus
+`--docker-container` and `--composer`). The manual steps below are equivalent
+to what the scripts do.
 
 ### Manual installation
 

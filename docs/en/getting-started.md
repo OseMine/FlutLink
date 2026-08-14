@@ -21,18 +21,30 @@ or with `curl`:
 curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
 ```
 
-The script downloads the installer for your platform from the latest GitHub
-release, verifies its SHA-256 checksum and runs it. To pick a specific release
-or only download the installer, save the script and pass parameters:
+On macOS and Linux the native bash installer works without PowerShell:
+
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
+```
+
+The scripts download the installer for your platform from the latest GitHub
+release, verify its SHA-256 checksum and run it. To pick a specific release or
+only download the installer, save the script and pass parameters:
 
 ```powershell
 irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
 ./install-flutlink.ps1 -Tag v0.1.0 -NoRun
 ```
 
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
+./install-flutlink.sh --tag v0.1.0 --no-run
+```
+
 The server must run the `flutcloud` Nextcloud app — install it with
-[`install-flutcloud-app.ps1`](flutcloud-app.md) — and the FlutCloud server
-URL must be configured via `FLUTCLOUD_URL` (see
+[`install-flutcloud-app.ps1`](flutcloud-app.md) (PowerShell) or
+[`install-flutcloud-app.sh`](flutcloud-app.md) (bash, Ubuntu/Debian) — and the
+FlutCloud server URL must be configured via `FLUTCLOUD_URL` (see
 [FlutCloud account](#adding-a-flutcloud-account)).
 
 ## Prerequisites
