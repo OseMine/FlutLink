@@ -22,10 +22,9 @@ fn keyring_user(meta: &AccountMeta) -> String {
 fn map_keyring_error(e: keyring::Error, action: &str) -> AppError {
     #[cfg(target_os = "linux")]
     let hint = {
-        use keyring::ErrorKind;
         if matches!(
-            e.kind(),
-            ErrorKind::NoStorageAccess | ErrorKind::PlatformFailure(_)
+            &e,
+            keyring::Error::NoStorageAccess(_) | keyring::Error::PlatformFailure(_)
         ) {
             " On Linux this usually means the Secret Service is unavailable \
              (is gnome-keyring or KWallet running and unlocked?)."
