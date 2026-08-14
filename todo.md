@@ -6,6 +6,72 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-14 (Lauf 4, Fokus: Bugs & Errors)
+
+**Verifikation:** Kein Code-Change an `src/` oder `src-tauri/src/` seit Lauf 3
+(letzte Anwendungskomits: e31f4f6 „consolidate tracking", davor e696d4d;
+seitdem nur `scripts/`-Komits). Damit sind **U1–U7 und F1–F10 weiterhin offen** —
+alle Verdachtsfälle erneut gegen den aktuellen Stand geprüft und bestätigt.
+Checks ausgeführt: `cargo test --manifest-path src-tauri/Cargo.toml`
+→ 42 passed / 0 failed; `cargo clippy --all-targets -- -D warnings` → grün;
+`npm run build` (vue-tsc + vite) → grün. Hinweis: `cargo test` braucht auf
+Linux `libsecret-1-dev`/`libwebkit2gtk-4.1-dev` (keyring-Systemlib), sonst
+bricht der Build vor den Tests ab (kein Codefehler).
+
+Neue Befunde (Lauf 4):
+
+- [ ] **N1 (Bug, Datenverlust, mittel/hoch):** `webdav_rename`
+      (`src-tauri/src/commands.rs:453-477`) delegiert an `webdav::rename_as`,
+      das den MOVE mit `Overwrite: T` sendet (`nextcloud/webdav.rs:359`). Die
+      UI (`FileExplorer.vue` `doRename`, Z. 162-177) prüft nicht, ob der
+      Zielname bereits existiert → „a.txt" → „b.txt" überschreibt b.txt
+      stillschweigend (SabreDAV/Nextcloud führt Overwrite aus). Fix:
+      Existenz-Check des Ziels im Backend (PROPFIND oder `Overwrite: F` +
+      sauberer AppError „Ziel existiert bereits") + UI-Hinweis.
+- [ ] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
+      Die Offset-Pagination hat keinen Fortschritts-Guard. Wenn der Server den
+      `offset`-Parameter ignoriert (gleiche Seite erneut), läuft die Schleife
+      endlos (Duplikate werden nicht erkannt, `count == LIMIT` → `offset += 200`).
+      Fix: Sammel-Menge oder Duplikat-Erkennung als Abbruchbedingung.
+- [ ] **N3 (Security, mittel):** `release.yml` `release-notes`-Job (Z. 41-57):
+      Die Commit-Nachrichten (`$LOG`) werden ungefiltert in den opencode-Prompt
+      interpoliert — Prompt-Injection über bösartige Commit-Titel möglich. Das
+      Gegenstück in `opencode.yml` ist bereits mit „UNTRUSTED INPUT"-Markierung
+      entschärft (B13), `release.yml` nicht. Fix: Prompt um Warnhinweis
+      ergänzen und Log auf `--oneline`-Titel kürzen/escapen.
+- [ ] **N4 (CI, minor):** `build.yml` (Z. 6-9): `paths-ignore: ['*.md',
+      '.github/**']` auf Pull Requests → Änderungen an Workflows/Actions lösen
+      keine CI aus und werden nie getestet. `.github/**` aus paths-ignore
+      nehmen (oder nur `*.md` ignorieren).
+- [ ] **N5 (Bug, minor):** `FileExplorer.vue` `open()` (Z. 97-99): Jeder
+      Datei-Download in `tempDir()` bleibt dauerhaft liegen (kein Cleanup) —
+      jedes Öffnen einer Datei füllt das Temp-Verzeichnis. Fix: Datei nach
+      `openPath` löschen oder eigenes Cache-Verzeichnis mit Cleanup.
+- [ ] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
+      ist asymmetrisch: Lokale versteckte Dateien (`.env`, `.gitignore`) werden
+      nie hochgeladen, aber remote vorhandene versteckte Dateien werden beim
+      Erst-Sync heruntergeladen. Entweder beide Richtungen einheitlich skippen
+      oder in der Doku dokumentieren.
+- [ ] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
+      `catch`-Block verschluckt die Backend-Fehlermeldung (nur ✗-Icon, kein
+      Toast/kein Grund) — Fehlermeldung per `invokeError` anzeigen (ergänzt U3).
+- [ ] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
+      Pass aus: `run_all` (Z. 1079-1080) und nochmals `run_pass` (Z. 714) →
+      unnötige MKCOL-Requests auf jedem Tick. Eine Stelle reicht.
+- [ ] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
+      das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
+      der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
+      ungültig; in `docs/` + i18n (`initHint`) klarstellen, dass das
+      Registrierungs-Passwort dauerhaft das App-Passwort ist.
+
+Bestätigt weiter offen (kein Fix seit Lauf 3, Code unverändert): U1 (Rename
+`commands.rs:466-467` ohne führenden Slash), U2 (`account_switch` emittiert
+kein `accounts-changed`, `commands.rs:260-273`; Store `sync()` statt `load()`),
+U3, U4 (`busyPath = ""`), U5, U6, U7, F1 (`ADMIN_EDIT_KEYS` ohne `enabled`,
+`commands.rs:550-557`), F2 (60 s-Total-Timeout `state.rs:112-113`, 30 s
+`updater.rs:526-528`), F3 (partieller Download bleibt in `updater.rs:260-283`),
+F4 (Doppel-Encoding `ocs.rs:262-273`), F5, F6, F8, F9, F10.
+
 ### Review 2026-08-14 (Lauf 3, Fokus UI)
 
 Alle Punkte aus Lauf 2 (F1–F10) sind weiterhin offen (kein Code-Change seit
