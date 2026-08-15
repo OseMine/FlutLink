@@ -359,6 +359,7 @@ pub async fn webdav_create_share(
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
+    validate_dav_path(&path)?;
     ocs::create_share(&state.http_client, &account, &path, target.as_deref()).await
 }
 
