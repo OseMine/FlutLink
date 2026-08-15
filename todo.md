@@ -142,13 +142,6 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       `/` im `new_name` → „Rename" wird still zu einem Move in einen
       Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
       nicht nur auf den zusammengesetzten Pfad).
-- [ ] **N12 (Bug, Datenverlust, mittel):** `unique_conflict_target`
-      (`sync.rs:149-163`) prüft für `MoveLocalConflict` (`sync.rs:425-427`)
-      Kollisionen gegen die **remote**-Map statt gegen die lokale Dateiliste:
-      Existiert lokal bereits „a (conflict copy).txt", wird es von
-      `exec_move_local_conflict` (`tokio::fs::rename`, Z. 666) **überschrieben**
-      — die frühere Konfliktkopie geht verloren. Fix: Kandidat gegen `local`
-      prüfen (Parameter erweitern).
 - [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
       keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
       `accounts`-Store nutzen.
@@ -312,6 +305,17 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-14 (Lauf 5, N12)
+
+- [x] **N12 (Bug, Datenverlust, mittel):** `unique_conflict_target`
+      (`sync.rs:149-163`) prüfte für `MoveLocalConflict` (`sync.rs:425-427`)
+      Kollisionen gegen die **remote**-Map statt gegen die lokale Dateiliste:
+      Existierte lokal bereits „a (conflict copy).txt", wurde es von
+      `exec_move_local_conflict` (`tokio::fs::rename`) **überschrieben** — die
+      frühere Konfliktkopie ging verloren. Fix: `unique_conflict_target`
+      prüft den Kandidaten jetzt gegen `local` **und** `remote` (Parameter
+      erweitert), Unit-Test ergänzt.
 
 ### Review Lauf 2 2026-08-13 (Fokus: Features bis v1)
 
