@@ -86,6 +86,21 @@ export interface UpdateProgress {
   percent: number;
 }
 
+export interface TransferProgress {
+  direction: "upload" | "download" | "delete";
+  path: string;
+  index: number;
+  totalFiles: number;
+  transferred: number;
+  total: number;
+  percent: number;
+}
+
+export interface BulkTarget {
+  path: string;
+  isDir: boolean;
+}
+
 function describe(e: unknown): string {
   if (typeof e === "string") return e;
   const err = e as Partial<AppError>;
@@ -146,6 +161,19 @@ export const api = {
 
   webdavDelete: (path: string, targetUser?: string) =>
     invoke<void>("webdav_delete", { path, targetUser }),
+
+  webdavBulkDelete: (paths: string[], targetUser?: string) =>
+    invoke<void>("webdav_bulk_delete", { paths, targetUser }),
+
+  webdavBulkDownload: (targets: BulkTarget[], destDir: string, targetUser?: string) =>
+    invoke<void>("webdav_bulk_download", { targets, destDir, targetUser }),
+
+  webdavUploadLocalPaths: (localPaths: string[], remoteDir: string, targetUser?: string) =>
+    invoke<void>("webdav_upload_local_paths", {
+      localPaths,
+      remoteDir,
+      targetUser,
+    }),
 
   webdavMkdir: (path: string, targetUser?: string) =>
     invoke<void>("webdav_mkdir", { path, targetUser }),

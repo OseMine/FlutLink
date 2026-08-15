@@ -144,10 +144,13 @@ fn conflict_name_n(rel: &str, n: u64) -> String {
     }
 }
 
-/// Pick a conflict-copy target that neither exists on the remote side nor is
-/// already claimed by another op in this pass.
+/// Pick a conflict-copy target that neither exists on the local or remote side
+/// nor is already claimed by another op in this pass. Local conflict copies are
+/// created with a local rename, so they must not collide with existing local
+/// files (e.g. an earlier conflict copy) or they would be overwritten.
 fn unique_conflict_target(
     rel: &str,
+    local: &BTreeMap<String, LocalEntry>,
     remote: &BTreeMap<String, RemoteEntry>,
     used: &mut BTreeSet<String>,
 ) -> String {
@@ -155,7 +158,10 @@ fn unique_conflict_target(
     loop {
         n += 1;
         let candidate = conflict_name_n(rel, n);
-        if !remote.contains_key(&candidate) && !used.contains(&candidate) {
+        if !local.contains_key(&candidate)
+            && !remote.contains_key(&candidate)
+            && !used.contains(&candidate)
+        {
             used.insert(candidate.clone());
             return candidate;
         }
@@ -412,18 +418,18 @@ fn plan_ops(
                 file_ops.push(Action::Upload(p));
             }
             Action::UploadConflict { rel, target: _ } => {
-                let target = unique_conflict_target(&rel, remote, &mut used_targets);
+                let target = unique_conflict_target(&rel, local, remote, &mut used_targets);
                 uploads.push(target.clone());
                 file_ops.push(Action::UploadConflict { rel, target });
             }
             Action::MoveRemoteConflict { rel, target: _ } => {
-                let target = unique_conflict_target(&rel, remote, &mut used_targets);
+                let target = unique_conflict_target(&rel, local, remote, &mut used_targets);
                 // The folder that won the path must be created remotely too.
                 moved_dirs.push(rel.clone());
                 file_ops.push(Action::MoveRemoteConflict { rel, target });
             }
             Action::MoveLocalConflict { rel, target: _ } => {
-                let target = unique_conflict_target(&rel, remote, &mut used_targets);
+                let target = unique_conflict_target(&rel, local, remote, &mut used_targets);
                 file_ops.push(Action::MoveLocalConflict { rel, target });
             }
             Action::DeleteRemoteDir(dir) => {
@@ -1425,6 +1431,21 @@ mod tests {
         assert!(ops.iter().any(|a| matches!(
             a,
             Action::MoveLocalConflict { rel, target } if rel == "Report" && target == "Report (conflict copy)"
+        )));
+    }
+
+    #[test]
+    fn move_local_conflict_skips_existing_local_conflict_copy() {
+        let mut local_map = BTreeMap::new();
+        local_map.insert("Report".into(), local(10, 100));
+        local_map.insert("Report (conflict copy)".into(), local(20, 200));
+        let mut remote_map = BTreeMap::new();
+        remote_map.insert("Report".into(), remote_dir());
+        let ops = plan_ops(&local_map, &remote_map, &BTreeMap::new());
+        assert!(ops.iter().any(|a| matches!(
+            a,
+            Action::MoveLocalConflict { rel, target }
+                if rel == "Report" && target == "Report (conflict copy 2)"
         )));
     }
 

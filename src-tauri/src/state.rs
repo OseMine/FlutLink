@@ -81,6 +81,27 @@ pub struct SyncFolder {
     pub paused: bool,
 }
 
+/// Progress of a file transfer (upload/download) or a bulk operation (delete),
+/// emitted to the frontend via the `file://progress` event channel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferProgress {
+    /// "upload" | "download" | "delete"
+    pub direction: String,
+    /// Remote path currently being transferred.
+    pub path: String,
+    /// Zero-based index of the current file within the operation.
+    pub index: u64,
+    /// Total number of files in the operation.
+    pub total_files: u64,
+    /// Bytes (or files, for delete) done for the current unit.
+    pub transferred: u64,
+    /// Total bytes (or files) of the current unit.
+    pub total: u64,
+    /// 0.0 .. 100.0
+    pub percent: f64,
+}
+
 /// Combined folder + live status payload sent to the frontend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
