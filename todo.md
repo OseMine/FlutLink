@@ -129,7 +129,7 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
       Delete fehlen pro Kachel (nur Open/Rename), kein Hover-Preview.
       Google-Drive-Verhalten: Klick = Auswahl, Aktionen im Hover-Overlay.
-- [ ] **U11 (Bug, minor):** `selected`-Set in `FileExplorer.vue` wird nach
+- [x] **U11 (Bug, minor):** `selected`-Set in `FileExplorer.vue` wird nach
       Rename nie bereinigt (`doRename` Z. 162-177): `files.renameEntry`
       refresht die Liste, der alte Pfad bleibt in `selected` → Zähler
       (Z. 390) zeigt stale Einträge. Fix: Pfad nach Rename im Set ersetzen
@@ -305,6 +305,14 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (U11)
+
+- [x] **U11 (Bug, minor):** `selected`-Set in `FileExplorer.vue` wurde nach
+      einem Rename nie bereinigt — `files.renameEntry` refresht die Liste, der
+      alte Pfad blieb in `selected` und der Zähler zeigte stale Einträge. Fix:
+      `doRename` (Z. 162-177) ersetzt nach erfolgreichem Rename den alten Pfad
+      im `selected`-Set durch den neuen (analog zu `removeEntry`).
 
 ### Review 2026-08-14 (Lauf 5, N12)
 
