@@ -690,13 +690,31 @@ async fn exec_move_local_conflict(ctx: &mut PassCtx<'_>, rel: &str, target: &str
     Ok(())
 }
 
+/// A sync error decomposed into code + detail so the frontend can render a
+/// localized message instead of the raw English backend text.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PassError {
+    pub code: String,
+    pub detail: Option<String>,
+}
+
+impl PassError {
+    pub fn from_app_error(err: &AppError) -> Self {
+        Self {
+            code: err.code().to_string(),
+            detail: err.detail(),
+        }
+    }
+}
+
 struct PassResult {
     planned_uploads: u64,
     planned_downloads: u64,
     planned_deletes: u64,
     done: usize,
     failures: u64,
-    error: Option<String>,
+    error: Option<PassError>,
 }
 
 /// Execute one sync pass for a single folder. Returns stats for status updates.
@@ -779,7 +797,7 @@ async fn run_pass(
                 Err(err) => {
                     failures += 1;
                     if error.is_none() {
-                        error = Some(err.message());
+                        error = Some(PassError::from_app_error(&err));
                     }
                 }
             }
@@ -1073,7 +1091,10 @@ impl SyncEngine {
                 .cloned()
             else {
                 status.state = "error".into();
-                status.last_error = Some("Account is no longer connected.".into());
+                status.last_error = Some(PassError {
+                    code: "account_missing".into(),
+                    detail: None,
+                });
                 status.failures = 1;
                 statuses.push(status);
                 continue;
@@ -1110,7 +1131,7 @@ impl SyncEngine {
                 Err(err) => {
                     status.state = "error".into();
                     status.failures = 1;
-                    status.last_error = Some(err.message());
+                    status.last_error = Some(PassError::from_app_error(&err));
                 }
             }
             statuses.push(status);

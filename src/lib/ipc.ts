@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { currentLang, translateError } from "./i18n";
 
 export interface AccountMeta {
   username: string;
@@ -60,13 +61,14 @@ export interface SyncFolderStatus {
   pendingDownloads: number;
   pendingDeletes: number;
   failures: number;
-  lastError: string | null;
+  lastError: { code: string; detail?: string | null } | null;
   lastSyncedAt: number | null;
 }
 
 export interface AppError {
   code: string;
   message: string;
+  detail?: string | null;
 }
 
 export interface ReleaseInfo {
@@ -84,6 +86,11 @@ export interface UpdateProgress {
   downloaded: number;
   total: number;
   percent: number;
+}
+
+export interface UpdateStatus {
+  code: string;
+  asset_name?: string | null;
 }
 
 export interface TransferProgress {
@@ -104,6 +111,9 @@ export interface BulkTarget {
 function describe(e: unknown): string {
   if (typeof e === "string") return e;
   const err = e as Partial<AppError>;
+  if (err?.code) {
+    return translateError(currentLang(), err.code, err.detail ?? err.message);
+  }
   return err?.message ?? "Unknown error";
 }
 

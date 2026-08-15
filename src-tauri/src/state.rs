@@ -117,7 +117,7 @@ pub struct SyncFolderStatus {
     pub pending_downloads: u64,
     pub pending_deletes: u64,
     pub failures: u64,
-    pub last_error: Option<String>,
+    pub last_error: Option<crate::sync::PassError>,
     /// Unix seconds of the last completed sync pass.
     pub last_synced_at: Option<i64>,
 }

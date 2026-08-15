@@ -1,5 +1,18 @@
 export type Lang = "en" | "de";
 
+export const LANG_KEY = "flutlink.lang";
+
+export function currentLang(): Lang {
+  try {
+    const raw = localStorage.getItem(LANG_KEY);
+    if (!raw) return "en";
+    const parsed = JSON.parse(raw) as Lang;
+    return parsed === "de" ? "de" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 const dict: Record<Lang, Record<string, string>> = {
   en: {
     appName: "FlutLink",
@@ -169,6 +182,7 @@ const dict: Record<Lang, Record<string, string>> = {
     updateUpToDate: "You're on the latest version.",
     updateDownloadAndInstall: "Download & install",
     updateDownloading: "Downloading…",
+    updateDownloadingName: "Downloading {name}…",
     updateInstalling: "Installing…",
     updateCheckFailed: "Update check failed.",
     home: "Home",
@@ -202,6 +216,22 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "Delete {name}? This cannot be undone.",
     quotaInvalid: "Quota must be greater than 0.",
     userFieldsRequired: "User ID and password are required.",
+    errNoActiveAccount: "No active account. Please add an account first.",
+    errAccountMissing: "The account for this sync folder is no longer connected.",
+    errForbidden: "This operation requires an admin account.",
+    errNotFound: "Account '{detail}' not found.",
+    errHttp: "Network error: {detail}",
+    errStatus: "Server returned HTTP {detail}",
+    errOcs: "Nextcloud API error: {detail}",
+    errApp: "Application error: {detail}",
+    errJson: "Invalid server response: {detail}",
+    errIo: "I/O error: {detail}",
+    errKeyring: "Credential store error: {detail}",
+    errParse: "Parse error: {detail}",
+    errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
+    errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
+    errUpdate: "Update failed: {detail}",
+    errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
     filteredAccountsHintServer:
@@ -387,6 +417,7 @@ const dict: Record<Lang, Record<string, string>> = {
     updateUpToDate: "Du bist auf dem neuesten Stand.",
     updateDownloadAndInstall: "Herunterladen & installieren",
     updateDownloading: "Lade herunter…",
+    updateDownloadingName: "Lade {name} herunter…",
     updateInstalling: "Installiere…",
     updateCheckFailed: "Update-Check fehlgeschlagen.",
     home: "Start",
@@ -420,6 +451,22 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "{name} löschen? Dies kann nicht rückgängig gemacht werden.",
     quotaInvalid: "Das Kontingent muss größer als 0 sein.",
     userFieldsRequired: "Benutzer-ID und Passwort sind erforderlich.",
+    errNoActiveAccount: "Kein aktives Konto. Bitte füge zuerst ein Konto hinzu.",
+    errAccountMissing: "Das Konto für diesen Sync-Ordner ist nicht mehr verbunden.",
+    errForbidden: "Dieser Vorgang erfordert ein Admin-Konto.",
+    errNotFound: "Konto '{detail}' nicht gefunden.",
+    errHttp: "Netzwerkfehler: {detail}",
+    errStatus: "Der Server antwortete mit HTTP {detail}",
+    errOcs: "Nextcloud-API-Fehler: {detail}",
+    errApp: "Anwendungsfehler: {detail}",
+    errJson: "Ungültige Serverantwort: {detail}",
+    errIo: "E/A-Fehler: {detail}",
+    errKeyring: "Fehler im Schlüsselbund: {detail}",
+    errParse: "Parse-Fehler: {detail}",
+    errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
+    errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
+    errUpdate: "Update fehlgeschlagen: {detail}",
+    errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
     filteredAccountsHintServer:
@@ -441,4 +488,31 @@ const dict: Record<Lang, Record<string, string>> = {
 
 export function translate(lang: Lang, key: string): string {
   return dict[lang]?.[key] ?? dict.en[key] ?? key;
+}
+
+/// Map backend `AppError.code` values to i18n dictionary keys so the frontend
+/// can render localized error messages instead of the raw English backend text.
+const ERROR_CODE_KEYS: Record<string, string> = {
+  no_active_account: "errNoActiveAccount",
+  account_missing: "errAccountMissing",
+  forbidden: "errForbidden",
+  not_found: "errNotFound",
+  http: "errHttp",
+  status: "errStatus",
+  ocs: "errOcs",
+  app: "errApp",
+  json: "errJson",
+  io: "errIo",
+  keyring: "errKeyring",
+  parse: "errParse",
+  not_flutcloud: "errNotFlutCloud",
+  flutcloud_app_missing: "errFlutcloudAppMissing",
+  update: "errUpdate",
+};
+
+export function translateError(lang: Lang, code: string, detail?: string | null): string {
+  const key = ERROR_CODE_KEYS[code] ?? "errUnknown";
+  let text = translate(lang, key);
+  if (detail) text = text.split("{detail}").join(detail);
+  return text;
 }

@@ -38,6 +38,8 @@ use tauri::{AppHandle, Emitter};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
+use crate::error::{AppError, AppResult};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GitHub API types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,6 +95,16 @@ pub struct DownloadProgress {
     pub total: u64,
     /// 0.0 – 100.0
     pub percent: f64,
+}
+
+/// Emitted on the `"update://status"` channel with a machine-readable status
+/// code so the frontend can render a localized label.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStatus {
+    /// `"checking"` | `"downloading"` | `"installing"`
+    pub code: String,
+    pub asset_name: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -482,10 +494,12 @@ pub fn install_update(path: &Path) -> Result<(), String> {
 /// const info = await invoke<ReleaseInfo | null>('check_update');
 /// ```
 #[tauri::command]
-pub async fn check_update(app: AppHandle) -> Result<Option<ReleaseInfo>, String> {
+pub async fn check_update(app: AppHandle) -> AppResult<Option<ReleaseInfo>> {
     let current = app.package_info().version.to_string();
-    let client = build_client()?;
-    check_for_update(&client, &current).await
+    let client = build_client().map_err(AppError::Update)?;
+    check_for_update(&client, &current)
+        .await
+        .map_err(AppError::Update)
 }
 
 /// **Tauri command** — Download the latest release and install it.
@@ -507,28 +521,46 @@ pub async fn check_update(app: AppHandle) -> Result<Option<ReleaseInfo>, String>
 /// await invoke('download_and_install_update');
 /// ```
 #[tauri::command]
-pub async fn download_and_install_update(app: AppHandle) -> Result<(), String> {
+pub async fn download_and_install_update(app: AppHandle) -> AppResult<()> {
     let current = app.package_info().version.to_string();
-    let client = build_client()?;
-
-    let _ = app.emit("update://status", "Checking for update…");
-
-    let info = check_for_update(&client, &current)
-        .await?
-        .ok_or_else(|| "Already up to date".to_string())?;
+    let client = build_client().map_err(AppError::Update)?;
 
     let _ = app.emit(
         "update://status",
-        format!("Downloading {}…", info.asset_name),
+        UpdateStatus {
+            code: "checking".into(),
+            asset_name: None,
+        },
     );
 
-    let installer_path = download_update(&app, &client, &info).await?;
+    let info = check_for_update(&client, &current)
+        .await
+        .map_err(AppError::Update)?
+        .ok_or_else(|| AppError::Update("Already up to date".into()))?;
 
-    let _ = app.emit("update://status", "Installing…");
+    let _ = app.emit(
+        "update://status",
+        UpdateStatus {
+            code: "downloading".into(),
+            asset_name: Some(info.asset_name.clone()),
+        },
+    );
+
+    let installer_path = download_update(&app, &client, &info)
+        .await
+        .map_err(AppError::Update)?;
+
+    let _ = app.emit(
+        "update://status",
+        UpdateStatus {
+            code: "installing".into(),
+            asset_name: None,
+        },
+    );
 
     // `install_update` is synchronous and calls `std::process::exit(0)` on
     // success, so the Ok(()) below is only reached when installation fails.
-    install_update(&installer_path)?;
+    install_update(&installer_path).map_err(AppError::Update)?;
 
     Ok(())
 }

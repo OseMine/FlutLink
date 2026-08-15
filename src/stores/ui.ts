@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { Lang } from "../lib/i18n";
+import { currentLang, LANG_KEY, type Lang } from "../lib/i18n";
 
 export type Theme = "operationflut" | "midnight" | "system";
 
@@ -10,7 +10,6 @@ export interface Toast {
   type: "info" | "success" | "error";
 }
 
-const LANG_KEY = "flutlink.lang";
 const THEME_KEY = "flutlink.theme";
 
 function read<T>(key: string): T | null {
@@ -24,7 +23,7 @@ function read<T>(key: string): T | null {
 }
 
 export const useUiStore = defineStore("ui", () => {
-  const lang = ref<Lang>(read<Lang>(LANG_KEY) ?? "en");
+  const lang = ref<Lang>(currentLang());
   const theme = ref<Theme>(read<Theme>(THEME_KEY) ?? "operationflut");
   const toasts = ref<Toast[]>([]);
   let nextId = 1;

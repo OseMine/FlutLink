@@ -5,7 +5,13 @@ import { getVersion } from "@tauri-apps/api/app";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore, type Theme } from "../stores/ui";
-import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "../lib/ipc";
+import {
+  api,
+  invokeError,
+  type ReleaseInfo,
+  type UpdateProgress,
+  type UpdateStatus,
+} from "../lib/ipc";
 import { translate, type Lang } from "../lib/i18n";
 
 const props = defineProps<{ open: boolean }>();
@@ -43,7 +49,8 @@ const updateState = ref<UpdateState>("idle");
 const updateInfo = ref<ReleaseInfo | null>(null);
 const updateError = ref<string | null>(null);
 const updateProgress = ref(0);
-const updateStatus = ref("");
+const updateStatusKey = ref<string | null>(null);
+const updateAssetName = ref<string | null>(null);
 let unlistenProgress: (() => void) | null = null;
 let unlistenStatus: (() => void) | null = null;
 
@@ -120,7 +127,8 @@ async function checkForUpdate() {
 async function downloadAndInstall() {
   updateState.value = "downloading";
   updateProgress.value = 0;
-  updateStatus.value = "";
+  updateStatusKey.value = null;
+  updateAssetName.value = null;
   updateError.value = null;
   unlistenProgress?.();
   unlistenStatus?.();
@@ -128,8 +136,9 @@ async function downloadAndInstall() {
     unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
       updateProgress.value = e.payload.percent;
     });
-    unlistenStatus = await listen<string>("update://status", (e) => {
-      updateStatus.value = e.payload;
+    unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
+      updateStatusKey.value = e.payload.code;
+      updateAssetName.value = e.payload.asset_name ?? null;
     });
   } catch {
     // progress/status listeners are best-effort
@@ -141,6 +150,22 @@ async function downloadAndInstall() {
     updateState.value = "error";
   }
 }
+
+const updateStatusText = computed(() => {
+  if (!updateStatusKey.value) return "";
+  switch (updateStatusKey.value) {
+    case "checking":
+      return t("checkingForUpdates");
+    case "downloading":
+      return updateAssetName.value
+        ? t("updateDownloadingName").replace("{name}", updateAssetName.value)
+        : t("updateDownloading");
+    case "installing":
+      return t("updateInstalling");
+    default:
+      return "";
+  }
+});
 </script>
 
 <template>
@@ -344,8 +369,8 @@ async function downloadAndInstall() {
                     :style="{ width: Math.min(updateProgress, 100) + '%' }"
                   ></div>
                 </div>
-                <p v-if="updateStatus" class="mt-1 truncate text-xs text-zinc-600">
-                  {{ updateStatus }}
+                <p v-if="updateStatusText" class="mt-1 truncate text-xs text-zinc-600">
+                  {{ updateStatusText }}
                 </p>
               </template>
 
