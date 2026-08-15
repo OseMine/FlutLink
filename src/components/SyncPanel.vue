@@ -82,18 +82,18 @@ async function syncNow() {
   <div class="mx-auto w-full max-w-3xl p-6">
     <div class="mb-4 flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-semibold text-zinc-50">{{ t("syncFolders") }}</h2>
-        <p class="text-sm text-zinc-500">{{ t("noSyncFoldersHint") }}</p>
+        <h2 class="text-lg font-semibold text-on-surface">{{ t("syncFolders") }}</h2>
+        <p class="text-sm text-on-surface-variant">{{ t("noSyncFoldersHint") }}</p>
       </div>
       <div class="flex gap-2">
         <button
-          class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+          class="rounded-md border border-outline px-3 py-1.5 text-sm text-on-surface-variant hover:bg-surface-container-high"
           @click="syncNow"
         >
           {{ t("syncNow") }}
         </button>
         <button
-          class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500"
+          class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary-hover"
           @click="pickFolder"
         >
           + {{ t("addFolder") }}
@@ -101,13 +101,13 @@ async function syncNow() {
       </div>
     </div>
 
-    <div v-if="sync.error" class="mb-4 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300">
+    <div v-if="sync.error" class="mb-4 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
       {{ sync.error }}
     </div>
 
-    <p v-if="sync.loading" class="text-sm text-zinc-500">…</p>
+    <p v-if="sync.loading" class="text-sm text-on-surface-variant">…</p>
 
-    <div v-else-if="!sync.folders.length" class="rounded-lg border border-dashed border-zinc-700 p-8 text-center text-sm text-zinc-500">
+    <div v-else-if="!sync.folders.length" class="rounded-lg border border-dashed border-outline p-8 text-center text-sm text-on-surface-variant">
       {{ t("noSyncFolders") }}
     </div>
 
@@ -115,50 +115,50 @@ async function syncNow() {
       <div
         v-for="folder in sync.folders"
         :key="folder.folderId"
-        class="rounded-lg border border-zinc-800 bg-zinc-900 p-4"
+        class="rounded-lg border border-outline-variant bg-surface-container p-4"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="truncate font-medium text-zinc-50">{{ folder.localPath }}</p>
-            <p class="truncate text-xs text-zinc-500">
+            <p class="truncate font-medium text-on-surface">{{ folder.localPath }}</p>
+            <p class="truncate text-xs text-on-surface-variant">
               {{ t("remoteFolder") }}: {{ folder.remotePath }}
             </p>
           </div>
           <span
             class="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold"
             :class="{
-              'bg-emerald-500/15 text-emerald-300': folder.state === 'idle',
-              'bg-indigo-500/15 text-indigo-300': folder.state === 'syncing',
-              'bg-zinc-700 text-zinc-300': folder.state === 'paused',
-              'bg-red-500/15 text-red-300': folder.state === 'error',
+              'bg-success/15 text-success': folder.state === 'idle',
+              'bg-primary/15 text-primary-emphasis': folder.state === 'syncing',
+              'bg-surface-container-highest text-on-surface-variant': folder.state === 'paused',
+              'bg-error/15 text-error': folder.state === 'error',
             }"
           >
             {{ stateLabel(folder.state) }}
           </span>
         </div>
 
-        <p class="mt-2 text-xs text-zinc-500">
+        <p class="mt-2 text-xs text-on-surface-variant">
           {{ t("lastSynced") }}: {{ lastSyncedLabel(folder.lastSyncedAt) }}
         </p>
 
-        <div v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
+        <div v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant">
           <span v-if="folder.pendingUploads">{{ folder.pendingUploads }} {{ t("pendingUploads") }}</span>
           <span v-if="folder.pendingDownloads">{{ folder.pendingDownloads }} {{ t("pendingDownloads") }}</span>
           <span v-if="folder.pendingDeletes">{{ folder.pendingDeletes }} {{ t("pendingDeletes") }}</span>
-          <span v-if="folder.failures" class="text-red-300">{{ folder.failures }} {{ t("failures") }}</span>
+          <span v-if="folder.failures" class="text-error">{{ folder.failures }} {{ t("failures") }}</span>
         </div>
 
-        <p v-if="folder.lastError" class="mt-1 text-xs text-red-300">{{ errorLabel(folder.lastError) }}</p>
+        <p v-if="folder.lastError" class="mt-1 text-xs text-error">{{ errorLabel(folder.lastError) }}</p>
 
         <div class="mt-3 flex gap-2">
           <button
-            class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
             @click="togglePaused(folder)"
           >
             {{ folder.paused ? t("resume") : t("pause") }}
           </button>
           <button
-            class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-red-300 hover:bg-red-950/40"
+            class="rounded-md border border-outline px-2.5 py-1 text-xs text-error hover:bg-error-container"
             @click="remove(folder.folderId)"
           >
             {{ t("remove") }}

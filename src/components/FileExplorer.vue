@@ -10,6 +10,7 @@ import { useUiStore } from "../stores/ui";
 import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
+import Icon from "./Icon.vue";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -400,60 +401,63 @@ watch(
   >
     <div
       v-if="draggingOver"
-      class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-indigo-500 bg-indigo-950/40"
+      class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-primary bg-primary-container/40"
     >
-      <p class="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-indigo-200">{{ t("dropToUpload") }}</p>
+      <p class="rounded-lg bg-surface-container-high px-4 py-2 text-sm text-on-primary-container">{{ t("dropToUpload") }}</p>
     </div>
-    <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-6 py-3">
+    <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
-            class="rounded px-1.5 py-0.5 hover:bg-zinc-800 hover:text-zinc-50"
-            :class="i === files.crumbs.length - 1 ? 'font-semibold text-zinc-50' : 'text-zinc-400'"
+            class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
+            :class="i === files.crumbs.length - 1 ? 'font-semibold text-on-surface' : 'text-on-surface-variant'"
             @click="files.navigate(crumb.path)"
           >
             {{ crumb.path === "/" ? t("home") : crumb.label }}
           </button>
-          <span v-if="i < files.crumbs.length - 1" class="text-zinc-600">/</span>
+          <span v-if="i < files.crumbs.length - 1" class="text-outline">/</span>
         </template>
       </nav>
 
       <div class="flex shrink-0 items-center gap-2">
-        <div class="flex overflow-hidden rounded-md border border-zinc-700">
+        <div class="flex overflow-hidden rounded-md border border-outline">
           <button
-            class="px-2.5 py-1 text-xs transition"
-            :class="viewMode === 'list' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50'"
+            class="flex items-center px-2.5 py-1 transition"
+            :class="viewMode === 'list' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant'"
             :title="t('viewList')"
             @click="viewMode = 'list'"
           >
-            ☰
+            <Icon name="menu" :size="16" />
           </button>
           <button
-            class="px-2.5 py-1 text-xs transition"
-            :class="viewMode === 'grid' ? 'bg-zinc-800 text-zinc-50' : 'text-zinc-400 hover:text-zinc-50'"
+            class="flex items-center px-2.5 py-1 transition"
+            :class="viewMode === 'grid' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant'"
             :title="t('viewGrid')"
             @click="viewMode = 'grid'"
           >
-            ▦
+            <Icon name="grid" :size="16" />
           </button>
         </div>
         <button
-          class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
           @click="files.refresh"
         >
+          <Icon name="refresh" :size="15" />
           {{ t("refresh") }}
         </button>
         <button
-          class="rounded-md border border-zinc-700 px-3 py-1 text-sm text-zinc-300 hover:bg-zinc-800"
+          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
           @click="showNewFolder = true"
         >
-          + {{ t("newFolder") }}
+          <Icon name="add" :size="15" />
+          {{ t("newFolder") }}
         </button>
         <button
-          class="rounded-md bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          class="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
           :disabled="uploading"
           @click="uploadFiles"
         >
+          <Icon name="upload" :size="15" />
           {{ t("upload") }}
         </button>
       </div>
@@ -461,19 +465,19 @@ watch(
 
     <div
       v-if="accounts.active?.isAdmin"
-      class="flex flex-wrap items-center gap-3 border-b border-zinc-800 bg-zinc-900/40 px-6 py-2"
+      class="flex flex-wrap items-center gap-3 border-b border-outline-variant bg-surface-container/40 px-6 py-2"
     >
-      <div class="flex overflow-hidden rounded-md border border-zinc-700">
+      <div class="flex overflow-hidden rounded-md border border-outline">
         <button
           class="px-3 py-1.5 text-xs font-medium transition"
-          :class="adminViewAll ? 'bg-indigo-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'"
+          :class="adminViewAll ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
           @click="setAdminView(true)"
         >
           {{ t("allUsersFolders") }}
         </button>
         <button
           class="px-3 py-1.5 text-xs font-medium transition"
-          :class="!adminViewAll ? 'bg-indigo-600 text-white' : 'text-zinc-300 hover:bg-zinc-800'"
+          :class="!adminViewAll ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
           @click="setAdminView(false)"
         >
           {{ t("myFilesOnly") }}
@@ -482,10 +486,10 @@ watch(
 
       <template v-if="adminViewAll">
         <div class="flex items-center gap-2">
-          <span class="text-xs text-zinc-500">{{ t("filterUser") }}</span>
+          <span class="text-xs text-on-surface-variant">{{ t("filterUser") }}</span>
           <select
             v-model="selectedUser"
-            class="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-50 focus:border-indigo-500 focus:outline-none"
+            class="rounded-md border border-outline bg-surface-container-high px-2 py-1.5 text-xs text-on-surface focus:border-primary"
             @change="onUserSelect"
           >
             <option v-if="!selectedUser" value="" disabled>{{ t("users") }}…</option>
@@ -496,7 +500,7 @@ watch(
         </div>
         <button
           v-if="!adminUsers.length"
-          class="text-xs text-indigo-300 underline-offset-2 hover:underline"
+          class="text-xs text-primary-emphasis underline-offset-2 hover:underline"
           @click="loadAdminUsers"
         >
           {{ t("refresh") }}
@@ -506,21 +510,21 @@ watch(
 
     <div
       v-if="files.targetUser && files.targetUser !== accounts.active?.username"
-      class="flex items-center gap-2 border-b border-sky-900 bg-sky-950/40 px-6 py-1.5 text-xs text-sky-300"
+      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
     >
       <span class="shrink-0 opacity-80">{{ t("impersonationNotice") }}</span>
       <span class="truncate font-semibold">{{ files.targetUser }}</span>
     </div>
 
-    <div v-if="files.error" class="m-4 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+    <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
       {{ files.error }}
     </div>
 
-    <div v-if="selected.size > 0 || files.entries.length > 0" class="flex items-center gap-3 border-b border-zinc-800 bg-indigo-950/30 px-6 py-1.5 text-xs text-indigo-200">
+    <div v-if="selected.size > 0 || files.entries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
       <label class="flex cursor-pointer items-center gap-1.5 select-none">
         <input
           type="checkbox"
-          class="accent-indigo-500"
+          class="accent-primary"
           :checked="allSelected"
           @change="toggleSelectAll"
         />
@@ -529,14 +533,14 @@ watch(
       <template v-if="selected.size > 0">
         <span>{{ selected.size }} {{ t("selected") }}</span>
         <button
-          class="rounded-md border border-indigo-700 px-2 py-0.5 text-indigo-200 hover:bg-indigo-900/40"
+          class="rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
           :disabled="busyPath !== null"
           @click="bulkDownload"
         >
           {{ t("download") }}
         </button>
         <button
-          class="rounded-md border border-red-800 px-2 py-0.5 text-red-300 hover:bg-red-950/40"
+          class="rounded-md border border-error px-2 py-0.5 text-error hover:bg-error-container/40"
           :disabled="busyPath !== null"
           @click="bulkDelete"
         >
@@ -546,12 +550,12 @@ watch(
           {{ t("clear") }}
         </button>
       </template>
-      <span v-if="busyPath !== null" class="ml-auto text-zinc-400">{{ t("working") }}</span>
+      <span v-if="busyPath !== null" class="ml-auto text-on-surface-variant">{{ t("working") }}</span>
     </div>
 
     <div
       v-if="files.transfer"
-      class="flex items-center gap-3 border-b border-zinc-800 bg-zinc-900/60 px-6 py-2 text-xs text-zinc-400"
+      class="flex items-center gap-3 border-b border-outline-variant bg-surface-container/60 px-6 py-2 text-xs text-on-surface-variant"
     >
       <span class="max-w-48 truncate">
         {{ t(files.transfer.direction === "upload" ? "uploading" : files.transfer.direction === "download" ? "downloading" : "deleting") }}
@@ -560,20 +564,20 @@ watch(
       <span v-if="files.transfer.totalFiles > 1" class="shrink-0">
         {{ files.transfer.index + 1 }} / {{ files.transfer.totalFiles }}
       </span>
-      <div class="h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-zinc-800">
+      <div class="h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-surface-container-high">
         <div
-          class="h-full bg-indigo-500 transition-[width]"
+          class="h-full bg-primary transition-[width]"
           :style="{ width: files.transfer.percent + '%' }"
         ></div>
       </div>
       <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
-    <div v-if="files.loading && files.entries.length === 0" class="m-auto text-zinc-500">
+    <div v-if="files.loading && files.entries.length === 0" class="m-auto text-on-surface-variant">
       {{ t("connecting") }}
     </div>
 
-    <div v-else-if="files.entries.length === 0" class="m-auto text-center text-zinc-500">
+    <div v-else-if="files.entries.length === 0" class="m-auto text-center text-on-surface-variant">
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
@@ -581,20 +585,20 @@ watch(
     <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto px-4 py-2">
       <table class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-zinc-500">
+          <tr class="text-left text-xs uppercase tracking-wide text-on-surface-variant">
             <th class="w-8 px-3 py-2"></th>
             <th class="px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('name')">
+              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('name')">
                 {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
               </button>
             </th>
             <th class="w-28 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('size')">
+              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('size')">
                 {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
               </button>
             </th>
             <th class="w-44 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-zinc-50" @click="toggleSort('mtime')">
+              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('mtime')">
                 {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
               </button>
             </th>
@@ -606,57 +610,59 @@ watch(
           <tr
             v-for="entry in sortedEntries"
             :key="entry.path"
-            class="border-t border-zinc-800/60 hover:bg-zinc-800/40"
-            :class="isSelected(entry.path) ? 'bg-indigo-950/40' : ''"
+            class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
+            :class="isSelected(entry.path) ? 'bg-primary-container/40' : ''"
             @contextmenu="openCtx($event, entry)"
           >
             <td class="px-3 py-2">
               <input
                 type="checkbox"
-                class="accent-indigo-500"
+                class="accent-primary"
                 :checked="isSelected(entry.path)"
                 @change="toggleSelect(entry.path)"
               />
             </td>
             <td class="px-3 py-2">
-              <button class="flex items-center gap-2 text-left text-zinc-200 hover:text-zinc-50" @click="open(entry)">
-                <span class="w-5 text-center">
-                  <template v-if="entry.isDir">📁</template>
-                  <template v-else>📄</template>
+              <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="open(entry)">
+                <span class="flex w-5 justify-center">
+                  <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
+                  <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
                 </span>
                 <span class="truncate">{{ entry.name }}</span>
               </button>
             </td>
-            <td class="px-3 py-2 text-zinc-400">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
-            <td class="px-3 py-2 text-zinc-400">{{ formatMtime(entry.mtime) }}</td>
+            <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
+            <td class="px-3 py-2 text-on-surface-variant">{{ formatMtime(entry.mtime) }}</td>
             <td class="px-3 py-2">
               <span
                 v-if="entry.isResource"
-                class="rounded bg-sky-900/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sky-300"
+                class="rounded bg-info-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-info-container"
               >
                 {{ t("resource") }}
               </span>
               <span
                 v-else-if="entry.isPart"
-                class="rounded bg-emerald-900/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-300"
+                class="rounded bg-success-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-success-container"
               >
                 {{ t("part") }}
               </span>
-              <span v-else class="text-xs text-zinc-600">{{ t("sync") }}</span>
+              <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
             </td>
             <td class="px-3 py-2 text-right">
-              <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-zinc-500">…</span>
+              <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
               <span
                 v-else-if="shareStatus(entry.path)?.status === 'done'"
-                class="text-xs text-emerald-400"
-                :title="shareStatus(entry.path)?.value ?? ''"
+                class="flex justify-end text-success"
+                :title="t('linkCopied')"
               >
-                ✓
+                <Icon name="check" :size="16" />
               </span>
-              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="text-xs text-red-400">✗</span>
+              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
+                <Icon name="close" :size="16" />
+              </span>
               <button
                 v-if="shareStatus(entry.path)?.status === 'done'"
-                class="ml-1 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+                class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
                 :title="shareStatus(entry.path)?.value ?? ''"
                 @click.stop="copyLink(entry.path)"
               >
@@ -664,7 +670,7 @@ watch(
               </button>
               <button
                 v-else-if="!shareStatus(entry.path)"
-                class="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-800"
+                class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click.stop="createLink(entry)"
               >
                 {{ t("link") }}
@@ -682,30 +688,30 @@ watch(
           v-for="entry in sortedEntries"
           :key="entry.path"
           class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-          :class="isSelected(entry.path) ? 'border-indigo-600 bg-indigo-950/40' : 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800/60'"
+          :class="isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
           @contextmenu="openCtx($event, entry)"
           @dblclick="open(entry)"
         >
           <input
             type="checkbox"
-            class="accent-indigo-500"
+            class="accent-primary"
             :checked="isSelected(entry.path)"
             @change="toggleSelect(entry.path)"
           />
-          <span class="text-3xl">{{ entry.isDir ? "📁" : "📄" }}</span>
-          <p class="w-full truncate text-xs text-zinc-200" :title="entry.name">{{ entry.name }}</p>
-          <p class="w-full truncate text-[10px] text-zinc-500">
+          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
+          <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
+          <p class="w-full truncate text-[10px] text-on-surface-variant">
             {{ entry.isDir ? "—" : formatBytes(entry.size) }}
           </p>
           <div class="flex gap-1">
             <button
-              class="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
               @click.stop="open(entry)"
             >
               {{ t("open") }}
             </button>
             <button
-              class="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
               @click.stop="startRename(entry)"
             >
               {{ t("rename") }}
@@ -718,38 +724,38 @@ watch(
     <!-- Context menu -->
     <div
       v-if="ctxMenu"
-      class="fixed z-50 w-44 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
+      class="fixed z-50 w-44 overflow-hidden rounded-lg border border-outline bg-surface-container py-1 shadow-m3-3"
       :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
       @click.stop
     >
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
         @click="open(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("open") }}
       </button>
       <button
         v-if="!ctxMenu.entry.isDir"
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
         @click="download(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("download") }}
       </button>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
         @click="startRename(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("rename") }}
       </button>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
         @click="createLink(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("link") }}
       </button>
-      <div class="my-1 border-t border-zinc-800"></div>
+      <div class="my-1 border-t border-outline-variant"></div>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-red-300 hover:bg-red-950/40"
+        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-error hover:bg-error-container"
         @click="removeEntry(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("delete") }}
@@ -763,27 +769,27 @@ watch(
       @click.self="showNewFolder = false"
     >
       <form
-        class="w-full max-w-xs rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+        class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"
         @submit.prevent="createFolder"
       >
-        <h3 class="mb-3 text-base font-semibold text-zinc-50">{{ t("newFolder") }}</h3>
+        <h3 class="mb-3 text-base font-semibold text-on-surface">{{ t("newFolder") }}</h3>
         <input
           v-model="nameInput"
           :placeholder="t('folderName')"
           autofocus
-          class="mb-4 w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+          class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
           <button
             type="button"
-            class="flex-1 rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+            class="flex-1 rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
             @click="showNewFolder = false"
           >
             {{ t("cancel") }}
           </button>
           <button
             type="submit"
-            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
           >
             {{ t("create") }}
           </button>
@@ -798,26 +804,26 @@ watch(
       @click.self="renameTarget = null"
     >
       <form
-        class="w-full max-w-xs rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl"
+        class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"
         @submit.prevent="doRename"
       >
-        <h3 class="mb-3 text-base font-semibold text-zinc-50">{{ t("rename") }}</h3>
+        <h3 class="mb-3 text-base font-semibold text-on-surface">{{ t("rename") }}</h3>
         <input
           v-model="nameInput"
           autofocus
-          class="mb-4 w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+          class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
           <button
             type="button"
-            class="flex-1 rounded-md bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+            class="flex-1 rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
             @click="renameTarget = null"
           >
             {{ t("cancel") }}
           </button>
           <button
             type="submit"
-            class="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
           >
             {{ t("save") }}
           </button>
