@@ -6,21 +6,14 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
-### Review 2026-08-14 (Lauf 5, Fokus: Browsing & Link-Sharing + Material-3-Expressive-UI / neue Features)
+### Review 2026-08-14 (Lauf 5, Fokus: Browsing & Link-Sharing)
 
 **Verifikation:** Kein Anwendungscode-Change an `src/` oder `src-tauri/src/`
-seit Lauf 4 (letzte App-Komits: 48f4472 „fix: use keyring 4 error enum
-variants…", e696d4d, davor e31f4f6; seitdem nur `scripts/`-Komits). Damit
-sind **U1–U7, F1–F10 und N1–N9 weiterhin offen** (alle Verdachtsfälle erneut
-gegen den aktuellen Stand geprüft und bestätigt: U1 `commands.rs:466`, N1
-`webdav.rs:359` + `FileExplorer.vue:162-177`, N2 `ocs.rs:75-119`, N8
-`sync.rs:714`+`1079-1080`, F1 `commands.rs:550-557`, F2
-`state.rs:112-113`/`updater.rs:526-528`, F4 `ocs.rs:262-273`, F9
-`updater.rs:302-310`). Checks ausgeführt: `cargo test --manifest-path
-src-tauri/Cargo.toml` → 42 passed / 0 failed; `cargo clippy --all-targets -- -D
-warnings` → grün; `npm run build` (vue-tsc + vite) → grün. Erledigte Todos:
-**keine** — nichts wurde seit Lauf 4 behoben, daher keine Verschiebungen ins
-Archiv.
+seit Lauf 4 (letzte App-Komits e31f4f6/davor; seitdem nur `scripts/`-Komits).
+Damit sind **U1–U7, F1–F10 und N1–N9 weiterhin offen** (alle Verdachtsfälle
+erneut gegen den aktuellen Stand geprüft und bestätigt). Checks ausgeführt:
+`cargo test --manifest-path src-tauri/Cargo.toml` → 42 passed / 0 failed;
+`npm run build` (vue-tsc + vite) → grün.
 
 Neue Befunde (Lauf 5, Fokus „real browsing like Nextcloud UI/Google Drive,
 public + private link sharing"):
