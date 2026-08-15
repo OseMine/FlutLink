@@ -116,15 +116,17 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       `bg-indigo-950/40` in `FileExplorer.vue`, `App.vue:163`,
       `SettingsModal.vue`). Fix: M3-Token-System in `style.css` unter
       `[data-theme]` etablieren und Komponenten auf Tokens umstellen.
-- [ ] **U9 (Feature, mittel):** Dateibrowser ohne Google-Drive-Kernfunktionen:
-      Es gibt **keine Suche** (der in B9 archivierte `webdav_search`-Command
-      wurde nie implementiert — weder in `commands.rs` noch `src/lib/ipc.ts`),
-      keine Select-All-Checkbox, **keine Bulk-Aktionen** trotz
-      Mehrfachauswahl (Z. 389-394 zeigen nur Zähler + Clear), kein Drag &
-      Drop-Upload, keine Upload/Download-Fortschrittsanzeige (README
-      „Phase 3" verspricht chunked progress events per `app.emit`). Fix:
-      `webdav_search` (OCS `SEARCH`/PROPFIND) + Bulk-Download/Delete +
-      Progress-Events.
+- [x] **U9 (Feature, mittel):** Dateibrowser ohne Google-Drive-Kernfunktionen:
+      Es gab **keine Suche** (der in B9 archivierte `webdav_search`-Command wurde
+      nie implementiert — weder in `commands.rs` noch `src/lib/ipc.ts`), keine
+      Select-All-Checkbox, **keine Bulk-Aktionen** trotz Mehrfachauswahl
+      (Z. 389-394 zeigten nur Zähler + Clear), kein Drag & Drop-Upload, keine
+      Upload/Download-Fortschrittsanzeige (README „Phase 3" verspricht chunked
+      progress events per `app.emit`). Fix: Select-All + Bulk-Download/Delete
+      (`webdav_bulk_delete`/`webdav_bulk_download`) + Drag & Drop-Upload
+      (`webdav_upload_local_paths`, Webview-DragDrop-Event) +
+      `file://progress`-Progress-Events in `FileExplorer.vue`/`ipc.ts`/
+      `commands.rs` umgesetzt. **Suche bleibt offen** (getrackt unter Issue #73).
 - [ ] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
       auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
       Delete fehlen pro Kachel (nur Open/Rename), kein Hover-Preview.

@@ -1,11 +1,47 @@
+use futures_util::Stream;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use reqwest::{Client, Method};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use super::*;
 use crate::error::{AppError, AppResult};
 use crate::state::{Account, WebDavEntry};
+
+/// Callback invoked with `(transferred_bytes, total_bytes)` as a transfer
+/// progresses. Total is `0` when the remote did not advertise a size.
+pub type ProgressFn = Arc<dyn Fn(u64, u64) + Send + Sync>;
+
+/// Wraps a byte stream and reports `(transferred, total)` for every chunk.
+struct ProgressStream<S> {
+    inner: S,
+    total: u64,
+    transferred: u64,
+    on_progress: ProgressFn,
+}
+
+impl<S, E> Stream for ProgressStream<S>
+where
+    S: Stream<Item = Result<bytes::Bytes, E>> + Unpin,
+{
+    type Item = Result<bytes::Bytes, E>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match Pin::new(&mut self.inner).poll_next(cx) {
+            Poll::Ready(Some(Ok(chunk))) => {
+                self.transferred += chunk.len() as u64;
+                (self.on_progress)(self.transferred, self.total);
+                Poll::Ready(Some(Ok(chunk)))
+            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
 
 /// List the contents of a folder via a WebDAV PROPFIND (Depth: 1).
 ///
@@ -127,9 +163,38 @@ pub async fn put_file_as(
     mtime_secs: i64,
     target_user: Option<&str>,
 ) -> AppResult<()> {
+    put_file_as_progress(
+        client,
+        account,
+        remote_rel,
+        local_path,
+        mtime_secs,
+        target_user,
+        None,
+    )
+    .await
+}
+
+/// Like [`put_file_as`], but reports `(transferred, total)` per uploaded chunk.
+pub async fn put_file_as_progress(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    local_path: &std::path::Path,
+    mtime_secs: i64,
+    target_user: Option<&str>,
+    on_progress: Option<ProgressFn>,
+) -> AppResult<()> {
     let url = remote_url(account, remote_rel, target_user);
     let file = tokio::fs::File::open(local_path).await?;
-    let body = reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file));
+    let total = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let stream = ProgressStream {
+        inner: tokio_util::io::ReaderStream::new(file),
+        total,
+        transferred: 0,
+        on_progress: on_progress.unwrap_or_else(|| Arc::new(|_, _| {})),
+    };
+    let body = reqwest::Body::wrap_stream(stream);
     let res = impersonation_header(
         client
             .put(&url)
@@ -183,6 +248,18 @@ pub async fn get_file_as(
     dest: &std::path::Path,
     target_user: Option<&str>,
 ) -> AppResult<()> {
+    get_file_as_progress(client, account, remote_rel, dest, target_user, None).await
+}
+
+/// Like [`get_file_as`], but reports `(transferred, total)` per received chunk.
+pub async fn get_file_as_progress(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    dest: &std::path::Path,
+    target_user: Option<&str>,
+    on_progress: Option<ProgressFn>,
+) -> AppResult<()> {
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
 
@@ -204,10 +281,17 @@ pub async fn get_file_as(
             body,
         });
     }
+    let total = res.content_length().unwrap_or(0);
+    let on_progress = on_progress.unwrap_or_else(|| Arc::new(|_, _| {}));
     let tmp = tmp_path(dest);
     let result: Result<(), Box<dyn std::error::Error + Send + Sync>> = async {
         let mut file = tokio::fs::File::create(&tmp).await?;
-        let mut stream = res.bytes_stream();
+        let mut stream = ProgressStream {
+            inner: res.bytes_stream(),
+            total,
+            transferred: 0,
+            on_progress,
+        };
         while let Some(chunk) = stream.next().await {
             file.write_all(&chunk?).await?;
         }

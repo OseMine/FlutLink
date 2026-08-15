@@ -1,15 +1,16 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, SyncFolder, SyncFolderStatus, UserDetails, UserQuota,
-    WebDavEntry,
+    Account, AccountMeta, AppState, SyncFolder, SyncFolderStatus, TransferProgress, UserDetails,
+    UserQuota, WebDavEntry,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -362,6 +363,7 @@ fn validate_dav_path(path: &str) -> AppResult<()> {
 /// relative to the user's files root, e.g. `/Documents/report.pdf`).
 #[tauri::command]
 pub async fn webdav_upload_file(
+    app: AppHandle,
     state: State<'_, AppState>,
     remote_path: String,
     local_path: String,
@@ -379,13 +381,15 @@ pub async fn webdav_upload_file(
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    webdav::put_file_as(
+    let progress = transfer_progress(app, "upload", &remote_path, 0, 1);
+    webdav::put_file_as_progress(
         &state.http_client,
         &account,
         &remote_path,
         std::path::Path::new(&local_path),
         mtime,
         target.as_deref(),
+        Some(progress),
     )
     .await
 }
@@ -393,6 +397,7 @@ pub async fn webdav_upload_file(
 /// Download a cloud file at `remote_path` to `local_path`.
 #[tauri::command]
 pub async fn webdav_download_file(
+    app: AppHandle,
     state: State<'_, AppState>,
     remote_path: String,
     local_path: String,
@@ -407,12 +412,14 @@ pub async fn webdav_download_file(
     if let Some(parent) = std::path::Path::new(&local_path).parent() {
         std::fs::create_dir_all(parent)?;
     }
-    webdav::get_file_as(
+    let progress = transfer_progress(app, "download", &remote_path, 0, 1);
+    webdav::get_file_as_progress(
         &state.http_client,
         &account,
         &remote_path,
         std::path::Path::new(&local_path),
         target.as_deref(),
+        Some(progress),
     )
     .await
 }
@@ -431,6 +438,310 @@ pub async fn webdav_delete(
         return Err(AppError::Forbidden);
     }
     webdav::delete_as(&state.http_client, &account, &path, target.as_deref()).await
+}
+
+/// Build a progress callback that emits `file://progress` events for the given
+/// file. `index`/`total_files` describe the position of the file within the
+/// whole bulk operation.
+fn transfer_progress(
+    app: AppHandle,
+    direction: &str,
+    path: &str,
+    index: u64,
+    total_files: u64,
+) -> webdav::ProgressFn {
+    let app = app.clone();
+    let direction = direction.to_string();
+    let path = path.to_string();
+    Arc::new(move |transferred, total| {
+        let percent = if total > 0 {
+            transferred as f64 / total as f64 * 100.0
+        } else {
+            0.0
+        };
+        let _ = app.emit(
+            "file://progress",
+            TransferProgress {
+                direction: direction.clone(),
+                path: path.clone(),
+                index,
+                total_files,
+                transferred,
+                total,
+                percent,
+            },
+        );
+    })
+}
+
+/// A selected entry for bulk operations.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkTarget {
+    pub path: String,
+    pub is_dir: bool,
+}
+
+/// Delete multiple cloud files/folders. Emits `file://progress` events with
+/// `direction = "delete"` and a per-file count.
+#[tauri::command]
+pub async fn webdav_bulk_delete(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let total = paths.len() as u64;
+    for (i, path) in paths.iter().enumerate() {
+        validate_dav_path(path)?;
+        webdav::delete_as(&state.http_client, &account, path, target.as_deref()).await?;
+        let progress = transfer_progress(app.clone(), "delete", path, i as u64, total);
+        progress(i as u64 + 1, total);
+    }
+    Ok(())
+}
+
+/// Shared context for recursive tree transfers (bulk download/upload).
+#[derive(Clone)]
+struct TransferCtx<'a> {
+    app: AppHandle,
+    state: &'a AppState,
+    account: &'a Account,
+    target: Option<&'a str>,
+    index: u64,
+    total_files: u64,
+}
+
+impl TransferCtx<'_> {
+    fn next(self) -> Self {
+        Self {
+            index: self.index + 1,
+            ..self
+        }
+    }
+}
+
+/// Recursively download a remote tree into `dest` (relative remote path
+/// preserving its structure under `dest`). Returns the number of files written.
+async fn download_tree(ctx: TransferCtx<'_>, remote_rel: &str, dest: &Path) -> AppResult<u64> {
+    std::fs::create_dir_all(dest)?;
+    let entries = webdav::list(&ctx.state.http_client, ctx.account, remote_rel, ctx.target).await?;
+    let mut files_written = 0u64;
+    for entry in &entries {
+        let local = dest.join(&entry.name);
+        if entry.is_dir {
+            files_written += Box::pin(download_tree(ctx.clone(), &entry.path, &local)).await?;
+        } else {
+            let progress = transfer_progress(
+                ctx.app.clone(),
+                "download",
+                &entry.path,
+                ctx.index,
+                ctx.total_files,
+            );
+            webdav::get_file_as_progress(
+                &ctx.state.http_client,
+                ctx.account,
+                &entry.path,
+                &local,
+                ctx.target,
+                Some(progress),
+            )
+            .await?;
+            files_written += 1;
+        }
+    }
+    Ok(files_written)
+}
+
+/// Download multiple cloud files/folders into `dest_dir`, preserving the
+/// folder structure. Emits `file://progress` events per file.
+#[tauri::command]
+pub async fn webdav_bulk_download(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    targets: Vec<BulkTarget>,
+    dest_dir: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let dest = PathBuf::from(&dest_dir);
+    let total_files = targets.len() as u64;
+    for t in &targets {
+        validate_dav_path(&t.path)?;
+    }
+    let mut ctx = TransferCtx {
+        app: app.clone(),
+        state: &state,
+        account: &account,
+        target: target.as_deref(),
+        index: 0,
+        total_files,
+    };
+    for t in &targets {
+        let local = dest.join(
+            t.path
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+                .trim_matches('/'),
+        );
+        if t.is_dir {
+            download_tree(ctx.clone(), &t.path, &local).await?;
+        } else {
+            std::fs::create_dir_all(&dest)?;
+            let progress =
+                transfer_progress(app.clone(), "download", &t.path, ctx.index, total_files);
+            webdav::get_file_as_progress(
+                &state.http_client,
+                &account,
+                &t.path,
+                &local,
+                target.as_deref(),
+                Some(progress),
+            )
+            .await?;
+        }
+        ctx = ctx.next();
+    }
+    Ok(())
+}
+
+/// Recursively upload a local tree into a remote folder, returning the number
+/// of files uploaded.
+async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> AppResult<u64> {
+    let mut files_written = 0u64;
+    let mut entries = tokio::fs::read_dir(local).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let remote = format!("{}/{}", remote_rel.trim_end_matches('/'), name);
+        if path.is_dir() {
+            webdav::ensure_collection_as(&ctx.state.http_client, ctx.account, &remote, ctx.target)
+                .await?;
+            files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote)).await?;
+        } else {
+            let mtime = std::fs::metadata(&path)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let progress = transfer_progress(
+                ctx.app.clone(),
+                "upload",
+                &remote,
+                ctx.index,
+                ctx.total_files,
+            );
+            webdav::put_file_as_progress(
+                &ctx.state.http_client,
+                ctx.account,
+                &remote,
+                &path,
+                mtime,
+                ctx.target,
+                Some(progress),
+            )
+            .await?;
+            files_written += 1;
+        }
+    }
+    Ok(files_written)
+}
+
+/// Upload multiple local files/folders (e.g. from drag & drop) into the given
+/// remote directory, recursively for local subfolders. Emits
+/// `file://progress` events per file.
+#[tauri::command]
+pub async fn webdav_upload_local_paths(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    local_paths: Vec<String>,
+    remote_dir: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&remote_dir)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let mut total_files = 0u64;
+    for p in &local_paths {
+        let path = PathBuf::from(p);
+        if path.is_dir() {
+            total_files += count_files(&path);
+        } else if path.is_file() {
+            total_files += 1;
+        }
+    }
+    let mut ctx = TransferCtx {
+        app: app.clone(),
+        state: &state,
+        account: &account,
+        target: target.as_deref(),
+        index: 0,
+        total_files,
+    };
+    for p in &local_paths {
+        let path = PathBuf::from(p);
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let remote = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
+        if path.is_dir() {
+            webdav::ensure_collection_as(&state.http_client, &account, &remote, target.as_deref())
+                .await?;
+            upload_tree(ctx.clone(), &path, &remote).await?;
+        } else if path.is_file() {
+            let mtime = std::fs::metadata(&path)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let progress =
+                transfer_progress(app.clone(), "upload", &remote, ctx.index, total_files);
+            webdav::put_file_as_progress(
+                &state.http_client,
+                &account,
+                &remote,
+                &path,
+                mtime,
+                target.as_deref(),
+                Some(progress),
+            )
+            .await?;
+        }
+        ctx = ctx.next();
+    }
+    Ok(())
+}
+
+fn count_files(path: &Path) -> u64 {
+    let mut count = 0u64;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                count += count_files(&p);
+            } else {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 
 /// Create a cloud folder (with all missing parents).
