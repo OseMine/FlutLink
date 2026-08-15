@@ -168,6 +168,14 @@ async function doRename() {
   }
   try {
     await files.renameEntry(target.path, name);
+    const parent = target.path.slice(0, target.path.lastIndexOf("/"));
+    const newPath = parent + "/" + name;
+    if (selected.value.has(target.path)) {
+      const next = new Set(selected.value);
+      next.delete(target.path);
+      next.add(newPath);
+      selected.value = next;
+    }
     ui.toast(t("fileRenamed"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
