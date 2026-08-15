@@ -7,7 +7,10 @@ pub enum AppError {
     Forbidden,
     NotFound(String),
     Http(reqwest::Error),
-    Status { status: u16, body: String },
+    Status {
+        status: u16,
+        body: String,
+    },
     Ocs(String),
     App(String),
     Json(serde_json::Error),
@@ -16,6 +19,13 @@ pub enum AppError {
     Parse(String),
     NotFlutCloud(String),
     FlutCloudAppMissing,
+    Update(String),
+    /// Two sync folders of one account target the same remote folder, which
+    /// would overwrite each other's data.
+    SyncFolderConflict {
+        local_path: String,
+        remote_path: String,
+    },
 }
 
 impl AppError {
@@ -34,6 +44,40 @@ impl AppError {
             AppError::Parse(_) => "parse",
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
+            AppError::Update(_) => "update",
+            AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
+        }
+    }
+
+    /// Raw technical detail for the frontend i18n mapping. The English
+    /// `message()` stays available for logs/CLI output; the frontend maps
+    /// `code` + `detail` to a localized string instead of displaying the raw
+    /// English backend text.
+    pub fn detail(&self) -> Option<String> {
+        match self {
+            AppError::NoActiveAccount | AppError::Forbidden => None,
+            AppError::NotFound(name) => Some(name.clone()),
+            AppError::Http(e) => Some(e.to_string()),
+            AppError::Status { status, body } => {
+                if body.is_empty() {
+                    Some(status.to_string())
+                } else {
+                    Some(format!("{status}: {body}"))
+                }
+            }
+            AppError::Ocs(msg) => Some(msg.clone()),
+            AppError::App(msg) => Some(msg.clone()),
+            AppError::Json(e) => Some(e.to_string()),
+            AppError::Io(e) => Some(e.to_string()),
+            AppError::Keyring(e) => Some(e.clone()),
+            AppError::Parse(e) => Some(e.clone()),
+            AppError::NotFlutCloud(url) => Some(url.clone()),
+            AppError::FlutCloudAppMissing => crate::flutcloud::flutcloud_url().ok(),
+            AppError::Update(msg) => Some(msg.clone()),
+            AppError::SyncFolderConflict {
+                local_path,
+                remote_path,
+            } => Some(format!("{local_path} ↔ {remote_path}")),
         }
     }
 
@@ -74,15 +118,24 @@ impl AppError {
                     server
                 )
             }
+            AppError::Update(msg) => format!("Update error: {}", msg),
+            AppError::SyncFolderConflict {
+                local_path,
+                remote_path,
+            } => format!(
+                "The local folder '{}' is already connected to '{}'. Remove that sync folder first or choose a different local folder.",
+                local_path, remote_path
+            ),
         }
     }
 }
 
 impl Serialize for AppError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_struct("AppError", 2)?;
+        let mut state = serializer.serialize_struct("AppError", 3)?;
         state.serialize_field("code", &self.code())?;
         state.serialize_field("message", &self.message())?;
+        state.serialize_field("detail", &self.detail())?;
         state.end()
     }
 }

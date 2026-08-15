@@ -1,5 +1,18 @@
 export type Lang = "en" | "de";
 
+export const LANG_KEY = "flutlink.lang";
+
+export function currentLang(): Lang {
+  try {
+    const raw = localStorage.getItem(LANG_KEY);
+    if (!raw) return "en";
+    const parsed = JSON.parse(raw) as Lang;
+    return parsed === "de" ? "de" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 const dict: Record<Lang, Record<string, string>> = {
   en: {
     appName: "FlutLink",
@@ -173,6 +186,7 @@ const dict: Record<Lang, Record<string, string>> = {
     updateUpToDate: "You're on the latest version.",
     updateDownloadAndInstall: "Download & install",
     updateDownloading: "Downloading…",
+    updateDownloadingName: "Downloading {name}…",
     updateInstalling: "Installing…",
     updateCheckFailed: "Update check failed.",
     home: "Home",
@@ -189,6 +203,13 @@ const dict: Record<Lang, Record<string, string>> = {
     open: "Open",
     selected: "selected",
     clear: "Clear",
+    selectAll: "Select all",
+    uploading: "Uploading",
+    downloading: "Downloading",
+    deleting: "Deleting",
+    working: "Working…",
+    dropToUpload: "Drop files to upload",
+    deleteSelectedConfirm: "Delete {count} selected items? This cannot be undone.",
     viewList: "List view",
     viewGrid: "Grid view",
     fileUploaded: "Uploaded.",
@@ -199,6 +220,37 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "Delete {name}? This cannot be undone.",
     quotaInvalid: "Quota must be greater than 0.",
     userFieldsRequired: "User ID and password are required.",
+    errNoActiveAccount: "No active account. Please add an account first.",
+    errAccountMissing: "The account for this sync folder is no longer connected.",
+    errForbidden: "This operation requires an admin account.",
+    errNotFound: "Account '{detail}' not found.",
+    errHttp: "Network error: {detail}",
+    errStatus: "Server returned HTTP {detail}",
+    errOcs: "Nextcloud API error: {detail}",
+    errApp: "Application error: {detail}",
+    errJson: "Invalid server response: {detail}",
+    errIo: "I/O error: {detail}",
+    errKeyring: "Credential store error: {detail}",
+    errParse: "Parse error: {detail}",
+    errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
+    errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
+    errUpdate: "Update failed: {detail}",
+    errUnknown: "Unknown error.",
+    deleteAccountConfirm:
+      "Remove account {name}? The account will be removed from this device.",
+    filteredAccountsHintServer:
+      "{count} saved account(s) were hidden because they belong to a different server than your configured FlutCloud server ({server}).",
+    filteredAccountsHintNoServer:
+      "FLUTCLOUD_URL is not configured — {count} saved account(s) could not be verified and were hidden.",
+    linkCopyFailed:
+      "Could not copy the link to the clipboard. Please copy it manually.",
+    syncTriggerFailed: "Sync could not be started.",
+    syncConflictTitle: "Folder already synced",
+    syncConflictMessage:
+      "This local folder is already connected to a FlutCloud folder.",
+    dismiss: "Dismiss",
+    updateNewVersion: "FlutLink {version} is available.",
+    updateAutoCheckFailed: "Automatic update check failed. You can retry in Settings.",
   },
   de: {
     appName: "FlutLink",
@@ -373,6 +425,7 @@ const dict: Record<Lang, Record<string, string>> = {
     updateUpToDate: "Du bist auf dem neuesten Stand.",
     updateDownloadAndInstall: "Herunterladen & installieren",
     updateDownloading: "Lade herunter…",
+    updateDownloadingName: "Lade {name} herunter…",
     updateInstalling: "Installiere…",
     updateCheckFailed: "Update-Check fehlgeschlagen.",
     home: "Start",
@@ -389,6 +442,13 @@ const dict: Record<Lang, Record<string, string>> = {
     open: "Öffnen",
     selected: "ausgewählt",
     clear: "Leeren",
+    selectAll: "Alle auswählen",
+    uploading: "Lade hoch",
+    downloading: "Lade herunter",
+    deleting: "Lösche",
+    working: "Arbeite…",
+    dropToUpload: "Dateien zum Hochladen ablegen",
+    deleteSelectedConfirm: "{count} ausgewählte Elemente löschen? Dies kann nicht rückgängig gemacht werden.",
     viewList: "Listenansicht",
     viewGrid: "Rasteransicht",
     fileUploaded: "Hochgeladen.",
@@ -399,9 +459,68 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "{name} löschen? Dies kann nicht rückgängig gemacht werden.",
     quotaInvalid: "Das Kontingent muss größer als 0 sein.",
     userFieldsRequired: "Benutzer-ID und Passwort sind erforderlich.",
+    errNoActiveAccount: "Kein aktives Konto. Bitte füge zuerst ein Konto hinzu.",
+    errAccountMissing: "Das Konto für diesen Sync-Ordner ist nicht mehr verbunden.",
+    errForbidden: "Dieser Vorgang erfordert ein Admin-Konto.",
+    errNotFound: "Konto '{detail}' nicht gefunden.",
+    errHttp: "Netzwerkfehler: {detail}",
+    errStatus: "Der Server antwortete mit HTTP {detail}",
+    errOcs: "Nextcloud-API-Fehler: {detail}",
+    errApp: "Anwendungsfehler: {detail}",
+    errJson: "Ungültige Serverantwort: {detail}",
+    errIo: "E/A-Fehler: {detail}",
+    errKeyring: "Fehler im Schlüsselbund: {detail}",
+    errParse: "Parse-Fehler: {detail}",
+    errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
+    errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
+    errUpdate: "Update fehlgeschlagen: {detail}",
+    errUnknown: "Unbekannter Fehler.",
+    deleteAccountConfirm:
+      "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
+    filteredAccountsHintServer:
+      "{count} gespeicherte(s) Konto/Konten wurde(n) ausgeblendet, weil sie zu einem anderen Server gehören als deinem konfigurierten FlutCloud-Server ({server}).",
+    filteredAccountsHintNoServer:
+      "FLUTCLOUD_URL ist nicht konfiguriert — {count} gespeicherte(s) Konto/Konten konnte(n) nicht verifiziert werden und wurde(n) ausgeblendet.",
+    linkCopyFailed:
+      "Der Link konnte nicht in die Zwischenablage kopiert werden. Bitte kopiere ihn manuell.",
+    syncTriggerFailed: "Die Synchronisierung konnte nicht gestartet werden.",
+    syncConflictTitle: "Ordner wird bereits synchronisiert",
+    syncConflictMessage:
+      "Dieser lokale Ordner ist bereits mit einem FlutCloud-Ordner verbunden.",
+    dismiss: "Ausblenden",
+    updateNewVersion: "FlutLink {version} ist verfügbar.",
+    updateAutoCheckFailed:
+      "Automatische Update-Prüfung fehlgeschlagen. In den Einstellungen kannst du es erneut versuchen.",
   },
 };
 
 export function translate(lang: Lang, key: string): string {
   return dict[lang]?.[key] ?? dict.en[key] ?? key;
+}
+
+/// Map backend `AppError.code` values to i18n dictionary keys so the frontend
+/// can render localized error messages instead of the raw English backend text.
+const ERROR_CODE_KEYS: Record<string, string> = {
+  no_active_account: "errNoActiveAccount",
+  account_missing: "errAccountMissing",
+  forbidden: "errForbidden",
+  not_found: "errNotFound",
+  http: "errHttp",
+  status: "errStatus",
+  ocs: "errOcs",
+  app: "errApp",
+  json: "errJson",
+  io: "errIo",
+  keyring: "errKeyring",
+  parse: "errParse",
+  not_flutcloud: "errNotFlutCloud",
+  flutcloud_app_missing: "errFlutcloudAppMissing",
+  update: "errUpdate",
+};
+
+export function translateError(lang: Lang, code: string, detail?: string | null): string {
+  const key = ERROR_CODE_KEYS[code] ?? "errUnknown";
+  let text = translate(lang, key);
+  if (detail) text = text.split("{detail}").join(detail);
+  return text;
 }

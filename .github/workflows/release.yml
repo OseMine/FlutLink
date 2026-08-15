@@ -58,6 +58,12 @@ jobs:
             > release-notes.md || true
 
           if [ -s release-notes.md ]; then
+            cat >> release-notes.md <<'EOF'
+
+## Hinweise zur Installation
+
+Die CI-Installer sind derzeit nicht mit Apple Developer ID bzw. Windows Authenticode signiert (keine Signing-Secrets hinterlegt). Daher kann macOS einen Gatekeeper-Hinweis und Windows eine SmartScreen-Warnung anzeigen. Workaround: Rechtsklick → "Öffnen" (macOS) bzw. "Weitere Informationen → Trotzdem ausführen" (Windows).
+EOF
             echo "body<<EOF" >> "$GITHUB_OUTPUT"
             cat release-notes.md >> "$GITHUB_OUTPUT"
             echo "EOF" >> "$GITHUB_OUTPUT"
@@ -136,7 +142,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
-          releaseBody: ${{ needs.release-notes.outputs.body || 'See the assets below to download and install this version.' }}
+          releaseBody: ${{ needs.release-notes.outputs.body || 'Download the assets below to install this version. The installers are not signed yet, so macOS Gatekeeper and Windows SmartScreen may warn about them.' }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

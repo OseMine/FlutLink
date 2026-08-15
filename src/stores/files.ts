@@ -1,6 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
-import { api, invokeError, type WebDavEntry } from "../lib/ipc";
+import { listen } from "@tauri-apps/api/event";
+import {
+  api,
+  invokeError,
+  type BulkTarget,
+  type TransferProgress,
+  type WebDavEntry,
+} from "../lib/ipc";
 
 export const useFilesStore = defineStore("files", () => {
   const currentPath = ref("/");
@@ -8,6 +15,8 @@ export const useFilesStore = defineStore("files", () => {
   const entries = ref<WebDavEntry[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const transfer = ref<TransferProgress | null>(null);
+  let progressBound = false;
 
   let refreshSeq = 0;
 
@@ -97,6 +106,51 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
+  async function bulkDelete(paths: string[]) {
+    try {
+      await api.webdavBulkDelete(paths, targetUser.value ?? undefined);
+      await refresh();
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function bulkDownload(targets: BulkTarget[], destDir: string) {
+    try {
+      await api.webdavBulkDownload(targets, destDir, targetUser.value ?? undefined);
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function uploadLocalPaths(localPaths: string[]) {
+    try {
+      await api.webdavUploadLocalPaths(
+        localPaths,
+        currentPath.value,
+        targetUser.value ?? undefined
+      );
+      await refresh();
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function bindProgress() {
+    if (progressBound) return;
+    progressBound = true;
+    await listen<TransferProgress>("file://progress", (e) => {
+      transfer.value = e.payload;
+    });
+  }
+
+  function clearTransfer() {
+    transfer.value = null;
+  }
+
   async function createFolder(name: string) {
     try {
       const path = (currentPath.value === "/" ? "" : currentPath.value) + "/" + name;
@@ -124,6 +178,7 @@ export const useFilesStore = defineStore("files", () => {
     entries,
     loading,
     error,
+    transfer,
     crumbs,
     navigate,
     refresh,
@@ -133,6 +188,11 @@ export const useFilesStore = defineStore("files", () => {
     uploadFile,
     downloadFile,
     deleteEntry,
+    bulkDelete,
+    bulkDownload,
+    uploadLocalPaths,
+    bindProgress,
+    clearTransfer,
     createFolder,
     renameEntry,
   };

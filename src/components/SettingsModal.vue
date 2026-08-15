@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import AppLogo from "./AppLogo.vue";
 import Icon from "./Icon.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore, type Theme } from "../stores/ui";
-import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "../lib/ipc";
+import {
+  api,
+  invokeError,
+  type ReleaseInfo,
+  type UpdateProgress,
+  type UpdateStatus,
+} from "../lib/ipc";
 import { translate, type Lang } from "../lib/i18n";
 
 const props = defineProps<{ open: boolean }>();
@@ -14,6 +21,17 @@ const emit = defineEmits<{ close: []; login: [] }>();
 const accounts = useAccountsStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
+
+// F9: read the real app version from the Tauri runtime instead of hardcoding
+// it (the displayed value drifted from the packaged version).
+const appVersion = ref("…");
+void getVersion()
+  .then((v) => {
+    appVersion.value = v;
+  })
+  .catch(() => {
+    appVersion.value = "";
+  });
 
 const tab = ref<"accounts" | "admin" | "about">("accounts");
 const users = ref<string[]>([]);
@@ -32,7 +50,8 @@ const updateState = ref<UpdateState>("idle");
 const updateInfo = ref<ReleaseInfo | null>(null);
 const updateError = ref<string | null>(null);
 const updateProgress = ref(0);
-const updateStatus = ref("");
+const updateStatusKey = ref<string | null>(null);
+const updateAssetName = ref<string | null>(null);
 let unlistenProgress: (() => void) | null = null;
 let unlistenStatus: (() => void) | null = null;
 
@@ -132,7 +151,8 @@ async function checkForUpdate() {
 async function downloadAndInstall() {
   updateState.value = "downloading";
   updateProgress.value = 0;
-  updateStatus.value = "";
+  updateStatusKey.value = null;
+  updateAssetName.value = null;
   updateError.value = null;
   unlistenProgress?.();
   unlistenStatus?.();
@@ -140,8 +160,9 @@ async function downloadAndInstall() {
     unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
       updateProgress.value = e.payload.percent;
     });
-    unlistenStatus = await listen<string>("update://status", (e) => {
-      updateStatus.value = e.payload;
+    unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
+      updateStatusKey.value = e.payload.code;
+      updateAssetName.value = e.payload.asset_name ?? null;
     });
   } catch {
     // progress/status listeners are best-effort
@@ -153,6 +174,22 @@ async function downloadAndInstall() {
     updateState.value = "error";
   }
 }
+
+const updateStatusText = computed(() => {
+  if (!updateStatusKey.value) return "";
+  switch (updateStatusKey.value) {
+    case "checking":
+      return t("checkingForUpdates");
+    case "downloading":
+      return updateAssetName.value
+        ? t("updateDownloadingName").replace("{name}", updateAssetName.value)
+        : t("updateDownloading");
+    case "installing":
+      return t("updateInstalling");
+    default:
+      return "";
+  }
+});
 </script>
 
 <template>
@@ -259,7 +296,7 @@ async function downloadAndInstall() {
               <div>
                 <p class="text-base font-semibold text-on-surface">{{ t("aboutApp") }}</p>
                 <p class="text-xs text-on-surface-variant">
-                  {{ t("version") }} 0.1.0 · {{ t("rustBackend") }} · Tauri v2
+                  {{ t("version") }} {{ appVersion }} · {{ t("rustBackend") }} · Tauri v2
                 </p>
               </div>
             </div>
@@ -382,8 +419,8 @@ async function downloadAndInstall() {
                       :style="{ width: Math.min(updateProgress, 100) + '%' }"
                     ></div>
                   </div>
-                  <p v-if="updateStatus" class="mt-1 truncate text-xs text-outline">
-                    {{ updateStatus }}
+                  <p v-if="updateStatusText" class="mt-1 truncate text-xs text-outline">
+                    {{ updateStatusText }}
                   </p>
                 </template>
 

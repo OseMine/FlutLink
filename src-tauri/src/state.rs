@@ -81,6 +81,27 @@ pub struct SyncFolder {
     pub paused: bool,
 }
 
+/// Progress of a file transfer (upload/download) or a bulk operation (delete),
+/// emitted to the frontend via the `file://progress` event channel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferProgress {
+    /// "upload" | "download" | "delete"
+    pub direction: String,
+    /// Remote path currently being transferred.
+    pub path: String,
+    /// Zero-based index of the current file within the operation.
+    pub index: u64,
+    /// Total number of files in the operation.
+    pub total_files: u64,
+    /// Bytes (or files, for delete) done for the current unit.
+    pub transferred: u64,
+    /// Total bytes (or files) of the current unit.
+    pub total: u64,
+    /// 0.0 .. 100.0
+    pub percent: f64,
+}
+
 /// Combined folder + live status payload sent to the frontend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,7 +117,7 @@ pub struct SyncFolderStatus {
     pub pending_downloads: u64,
     pub pending_deletes: u64,
     pub failures: u64,
-    pub last_error: Option<String>,
+    pub last_error: Option<crate::sync::PassError>,
     /// Unix seconds of the last completed sync pass.
     pub last_synced_at: Option<i64>,
 }
@@ -105,12 +126,20 @@ pub struct AppState {
     pub http_client: Client,
     pub accounts: RwLock<Vec<Account>>,
     pub sync: Arc<crate::sync::SyncEngine>,
+    /// Instance URLs of persisted accounts hidden by `load_accounts` because
+    /// they point to a different server than the configured FlutCloud server.
+    pub filtered_accounts: RwLock<Vec<String>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         let http_client = Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
+            // No total timeout: large WebDAV transfers (uploads/downloads, sync)
+            // legitimately take longer than 60 s. Only the connect phase and each
+            // single read are bounded, so a slow-but-progressing transfer never
+            // aborts while a stalled connection is still detected.
+            .connect_timeout(std::time::Duration::from_secs(30))
+            .read_timeout(std::time::Duration::from_secs(60))
             .user_agent(concat!("FlutLink/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("failed to build HTTP client");
@@ -118,6 +147,7 @@ impl AppState {
             http_client,
             accounts: RwLock::new(Vec::new()),
             sync: Arc::new(crate::sync::SyncEngine::default()),
+            filtered_accounts: RwLock::new(Vec::new()),
         }
     }
 
@@ -125,6 +155,19 @@ impl AppState {
         if let Ok(mut guard) = self.accounts.write() {
             *guard = accounts;
         }
+    }
+
+    pub fn set_filtered_accounts(&self, urls: Vec<String>) {
+        if let Ok(mut guard) = self.filtered_accounts.write() {
+            *guard = urls;
+        }
+    }
+
+    pub fn filtered_accounts(&self) -> Vec<String> {
+        self.filtered_accounts
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
     }
 
     pub fn accounts_snapshot(&self) -> Vec<Account> {

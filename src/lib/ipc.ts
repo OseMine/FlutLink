@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { currentLang, translateError } from "./i18n";
 
 export interface AccountMeta {
   username: string;
@@ -42,6 +43,11 @@ export interface UserDetails {
   enabled: boolean;
 }
 
+export interface AccountFilterInfo {
+  droppedCount: number;
+  serverUrl: string | null;
+}
+
 export type SyncState = "idle" | "syncing" | "paused" | "error";
 
 export interface SyncFolderStatus {
@@ -55,13 +61,14 @@ export interface SyncFolderStatus {
   pendingDownloads: number;
   pendingDeletes: number;
   failures: number;
-  lastError: string | null;
+  lastError: { code: string; detail?: string | null } | null;
   lastSyncedAt: number | null;
 }
 
 export interface AppError {
   code: string;
   message: string;
+  detail?: string | null;
 }
 
 export interface ReleaseInfo {
@@ -81,14 +88,43 @@ export interface UpdateProgress {
   percent: number;
 }
 
+export interface UpdateStatus {
+  code: string;
+  asset_name?: string | null;
+}
+
+export interface TransferProgress {
+  direction: "upload" | "download" | "delete";
+  path: string;
+  index: number;
+  totalFiles: number;
+  transferred: number;
+  total: number;
+  percent: number;
+}
+
+export interface BulkTarget {
+  path: string;
+  isDir: boolean;
+}
+
 function describe(e: unknown): string {
   if (typeof e === "string") return e;
   const err = e as Partial<AppError>;
+  if (err?.code) {
+    return translateError(currentLang(), err.code, err.detail ?? err.message);
+  }
   return err?.message ?? "Unknown error";
 }
 
-export function invokeError(e: unknown): Error {
-  return new Error(describe(e));
+export type AppErrorLike = Error & { code?: string };
+
+export function invokeError(e: unknown): AppErrorLike {
+  const err = new Error(describe(e)) as AppErrorLike;
+  if (typeof e === "object" && e !== null && "code" in e) {
+    err.code = (e as Partial<AppError>).code;
+  }
+  return err;
 }
 
 export const api = {
@@ -118,6 +154,9 @@ export const api = {
 
   accountStorage: () => invoke<UserQuota | null>("account_storage"),
 
+  accountFilterInfo: () =>
+    invoke<AccountFilterInfo | null>("account_filter_info"),
+
   webdavList: (path: string, targetUser?: string) =>
     invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),
 
@@ -132,6 +171,19 @@ export const api = {
 
   webdavDelete: (path: string, targetUser?: string) =>
     invoke<void>("webdav_delete", { path, targetUser }),
+
+  webdavBulkDelete: (paths: string[], targetUser?: string) =>
+    invoke<void>("webdav_bulk_delete", { paths, targetUser }),
+
+  webdavBulkDownload: (targets: BulkTarget[], destDir: string, targetUser?: string) =>
+    invoke<void>("webdav_bulk_download", { targets, destDir, targetUser }),
+
+  webdavUploadLocalPaths: (localPaths: string[], remoteDir: string, targetUser?: string) =>
+    invoke<void>("webdav_upload_local_paths", {
+      localPaths,
+      remoteDir,
+      targetUser,
+    }),
 
   webdavMkdir: (path: string, targetUser?: string) =>
     invoke<void>("webdav_mkdir", { path, targetUser }),

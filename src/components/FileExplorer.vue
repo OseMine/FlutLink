@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, invokeError, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 import Icon from "./Icon.vue";
@@ -22,9 +23,12 @@ const sortAsc = ref(true);
 const selected = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
 const busyPath = ref<string | null>(null);
+const uploading = ref(false);
 const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
+const draggingOver = ref(false);
+let unlistenDragDrop: (() => void) | null = null;
 
 function formatMtime(mtime: string | null): string {
   if (!mtime) return "—";
@@ -66,8 +70,72 @@ function toggleSelect(path: string) {
   selected.value = next;
 }
 
+const allSelected = computed(
+  () =>
+    files.entries.length > 0 &&
+    files.entries.every((e) => selected.value.has(e.path))
+);
+
+function toggleSelectAll() {
+  if (allSelected.value) clearSelection();
+  else selected.value = new Set(files.entries.map((e) => e.path));
+}
+
 function clearSelection() {
   selected.value = new Set();
+}
+
+const selectedTargets = computed<BulkTarget[]>(() =>
+  files.entries
+    .filter((e) => selected.value.has(e.path))
+    .map((e) => ({ path: e.path, isDir: e.isDir }))
+);
+
+async function bulkDownload() {
+  if (busyPath.value) return;
+  busyPath.value = "bulk-download";
+  try {
+    const dest = await openDialog({ directory: true });
+    if (typeof dest !== "string") return;
+    await files.bulkDownload(selectedTargets.value, dest);
+    files.clearTransfer();
+    ui.toast(t("fileDownloaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+async function bulkDelete() {
+  if (busyPath.value) return;
+  busyPath.value = "bulk-delete";
+  const count = selected.value.size;
+  if (!window.confirm(t("deleteSelectedConfirm").replace("{count}", String(count)))) return;
+  try {
+    await files.bulkDelete([...selected.value]);
+    files.clearTransfer();
+    clearSelection();
+    ui.toast(t("fileDeleted"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+async function dropUpload(paths: string[]) {
+  if (busyPath.value || paths.length === 0) return;
+  busyPath.value = "drop";
+  try {
+    await files.uploadLocalPaths(paths);
+    files.clearTransfer();
+    ui.toast(t("fileUploaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
 }
 
 function toggleSort(key: "name" | "size" | "mtime") {
@@ -122,23 +190,31 @@ async function download(entry: WebDavEntry) {
 }
 
 async function uploadFiles() {
-  if (busyPath.value) return;
-  busyPath.value = "";
+  if (uploading.value) return;
+  uploading.value = true;
   try {
     const picked = await openDialog({ multiple: true });
     if (!picked) return;
     const list = typeof picked === "string" ? [picked] : picked;
+    // F2: a failed file must not abort the remaining uploads. Collect the
+    // per-file errors and report the total afterwards.
+    let failed = 0;
     for (const local of list) {
       const name = local.split(/[\\/]/).pop() ?? "file";
       const remote =
         (files.currentPath === "/" ? "" : files.currentPath) + "/" + name;
-      await files.uploadFile(local, remote);
+      try {
+        await files.uploadFile(local, remote);
+      } catch (e) {
+        failed += 1;
+        ui.toast(`${name}: ${invokeError(e).message}`, "error");
+      }
     }
-    ui.toast(t("fileUploaded"), "success");
+    if (failed === 0) ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
-    busyPath.value = null;
+    uploading.value = false;
   }
 }
 
@@ -209,10 +285,27 @@ async function createLink(entry: WebDavEntry) {
   try {
     const url = await files.createShare(entry.path);
     shareState.set(entry.path, { status: "done", value: url });
-    await navigator.clipboard.writeText(url);
-    ui.toast(t("linkCopied"), "success");
+    try {
+      await navigator.clipboard.writeText(url);
+      ui.toast(t("linkCopied"), "success");
+    } catch {
+      // F1: a clipboard failure must not destroy the freshly created link.
+      // The URL stays visible in the entry state and can be copied again.
+      ui.toast(t("linkCopyFailed"), "error");
+    }
   } catch {
     shareState.set(entry.path, { status: "error" });
+  }
+}
+
+async function copyLink(path: string) {
+  const state = shareState.get(path);
+  if (!state?.value) return;
+  try {
+    await navigator.clipboard.writeText(state.value);
+    ui.toast(t("linkCopied"), "success");
+  } catch {
+    ui.toast(t("linkCopyFailed"), "error");
   }
 }
 
@@ -267,6 +360,24 @@ onMounted(async () => {
     await files.refresh();
     void loadAdminUsers();
   }
+  void files.bindProgress();
+  unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
+    const payload = event.payload;
+    if (payload.type === "enter") {
+      draggingOver.value = payload.paths.length > 0;
+    } else if (payload.type === "over") {
+      draggingOver.value = true;
+    } else if (payload.type === "leave") {
+      draggingOver.value = false;
+    } else if (payload.type === "drop") {
+      draggingOver.value = false;
+      void dropUpload(payload.paths);
+    }
+  });
+});
+
+onUnmounted(() => {
+  unlistenDragDrop?.();
 });
 
 watch(
@@ -282,7 +393,18 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full flex-col" @click="closeCtx">
+  <div
+    class="relative flex h-full flex-col"
+    @click="closeCtx"
+    @dragover.prevent
+    @drop.prevent
+  >
+    <div
+      v-if="draggingOver"
+      class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-primary bg-primary-container/40"
+    >
+      <p class="rounded-lg bg-surface-container-high px-4 py-2 text-sm text-on-primary-container">{{ t("dropToUpload") }}</p>
+    </div>
     <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
@@ -331,8 +453,8 @@ watch(
           {{ t("newFolder") }}
         </button>
         <button
-          class="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-on-primary hover:bg-primary-hover"
-          :disabled="busyPath !== null"
+          class="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+          :disabled="uploading"
           @click="uploadFiles"
         >
           <Icon name="upload" :size="15" />
@@ -387,7 +509,7 @@ watch(
     </div>
 
     <div
-      v-if="files.targetUser"
+      v-if="files.targetUser && files.targetUser !== accounts.active?.username"
       class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
     >
       <span class="shrink-0 opacity-80">{{ t("impersonationNotice") }}</span>
@@ -398,11 +520,57 @@ watch(
       {{ files.error }}
     </div>
 
-    <div v-if="selected.size > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
-      <span>{{ selected.size }} {{ t("selected") }}</span>
-      <button class="underline-offset-2 hover:underline" @click="clearSelection">
-        {{ t("clear") }}
-      </button>
+    <div v-if="selected.size > 0 || files.entries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
+      <label class="flex cursor-pointer items-center gap-1.5 select-none">
+        <input
+          type="checkbox"
+          class="accent-primary"
+          :checked="allSelected"
+          @change="toggleSelectAll"
+        />
+        <span>{{ t("selectAll") }}</span>
+      </label>
+      <template v-if="selected.size > 0">
+        <span>{{ selected.size }} {{ t("selected") }}</span>
+        <button
+          class="rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
+          :disabled="busyPath !== null"
+          @click="bulkDownload"
+        >
+          {{ t("download") }}
+        </button>
+        <button
+          class="rounded-md border border-error px-2 py-0.5 text-error hover:bg-error-container/40"
+          :disabled="busyPath !== null"
+          @click="bulkDelete"
+        >
+          {{ t("delete") }}
+        </button>
+        <button class="underline-offset-2 hover:underline" @click="clearSelection">
+          {{ t("clear") }}
+        </button>
+      </template>
+      <span v-if="busyPath !== null" class="ml-auto text-on-surface-variant">{{ t("working") }}</span>
+    </div>
+
+    <div
+      v-if="files.transfer"
+      class="flex items-center gap-3 border-b border-outline-variant bg-surface-container/60 px-6 py-2 text-xs text-on-surface-variant"
+    >
+      <span class="max-w-48 truncate">
+        {{ t(files.transfer.direction === "upload" ? "uploading" : files.transfer.direction === "download" ? "downloading" : "deleting") }}
+        {{ files.transfer.path }}
+      </span>
+      <span v-if="files.transfer.totalFiles > 1" class="shrink-0">
+        {{ files.transfer.index + 1 }} / {{ files.transfer.totalFiles }}
+      </span>
+      <div class="h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-surface-container-high">
+        <div
+          class="h-full bg-primary transition-[width]"
+          :style="{ width: files.transfer.percent + '%' }"
+        ></div>
+      </div>
+      <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
     <div v-if="files.loading && files.entries.length === 0" class="m-auto text-on-surface-variant">
@@ -493,7 +661,15 @@ watch(
                 <Icon name="close" :size="16" />
               </span>
               <button
-                v-else
+                v-if="shareStatus(entry.path)?.status === 'done'"
+                class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+                :title="shareStatus(entry.path)?.value ?? ''"
+                @click.stop="copyLink(entry.path)"
+              >
+                ⧉
+              </button>
+              <button
+                v-else-if="!shareStatus(entry.path)"
                 class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click.stop="createLink(entry)"
               >

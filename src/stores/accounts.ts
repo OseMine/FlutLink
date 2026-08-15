@@ -1,7 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
-import { api, invokeError, type AccountMeta, type UserQuota } from "../lib/ipc";
+import {
+  api,
+  invokeError,
+  type AccountFilterInfo,
+  type AccountMeta,
+  type UserQuota,
+} from "../lib/ipc";
 
 export const useAccountsStore = defineStore("accounts", () => {
   const accounts = ref<AccountMeta[]>([]);
@@ -9,6 +15,7 @@ export const useAccountsStore = defineStore("accounts", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const storage = ref<UserQuota | null>(null);
+  const filterInfo = ref<AccountFilterInfo | null>(null);
   let bound = false;
 
   async function bind() {
@@ -19,21 +26,13 @@ export const useAccountsStore = defineStore("accounts", () => {
     });
   }
 
-  function sync(account: AccountMeta) {
-    accounts.value = accounts.value.map((a) =>
-      a.username === account.username && a.instanceUrl === account.instanceUrl
-        ? account
-        : a
-    );
-    active.value = account.isActive ? account : active.value;
-  }
-
   async function load() {
     loading.value = true;
     error.value = null;
     try {
       accounts.value = await api.accountList();
       active.value = accounts.value.find((a) => a.isActive) ?? accounts.value[0] ?? null;
+      filterInfo.value = await api.accountFilterInfo();
     } catch (e) {
       error.value = invokeError(e).message;
     } finally {
@@ -91,8 +90,9 @@ export const useAccountsStore = defineStore("accounts", () => {
     error.value = null;
     try {
       const account = await api.accountSwitch(username, instanceUrl);
-      sync(account);
-      await loadStorage();
+      // Reload the whole list so the is_active flags of every account match the
+      // backend state exactly (a partial `sync()` leaves stale flags behind).
+      await load();
       return account;
     } catch (e) {
       error.value = invokeError(e).message;
@@ -112,5 +112,5 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  return { accounts, active, loading, error, storage, bind, load, loadStorage, add, register, switchTo, remove };
+  return { accounts, active, loading, error, storage, filterInfo, bind, load, loadStorage, add, register, switchTo, remove };
 });
