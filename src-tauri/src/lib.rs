@@ -208,8 +208,12 @@ pub fn run() {
         })
         .setup(move |app| {
             let handle = app.handle().clone();
-            let accounts = accounts::load_accounts(&handle).unwrap_or_default();
-            app.state::<AppState>().set_accounts(accounts);
+            let loaded = accounts::load_accounts(&handle).unwrap_or_default();
+            app.state::<AppState>().set_accounts(loaded.accounts);
+            // F8: surface dropped accounts so the frontend can explain why some
+            // saved accounts do not show up (server mismatch / missing FLUTCLOUD_URL).
+            app.state::<AppState>()
+                .set_filtered_accounts(loaded.dropped);
             app.state::<AppState>().sync.load(&handle);
 
             setup_tray(app, quit_flag.clone())?;
@@ -244,6 +248,7 @@ pub fn run() {
             commands::sync_remove,
             commands::sync_set_paused,
             commands::sync_trigger,
+            commands::account_filter_info,
             updater::check_update,
             updater::download_and_install_update,
         ])

@@ -14,7 +14,7 @@ import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
-import { invokeError } from "./lib/ipc";
+import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "./lib/ipc";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -27,6 +27,13 @@ const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
 const accountMenu = ref(false);
 const resolvedTheme = ref<"operationflut" | "midnight" | "light">("operationflut");
+
+// F11: non-blocking update banner (auto-checked at startup). Dismissing just
+// hides the banner; the manual check in Settings stays available.
+const updateBanner = ref<ReleaseInfo | null>(null);
+const updateBannerBusy = ref(false);
+const updateBannerProgress = ref(0);
+const updateBannerStatus = ref("");
 
 const t = (key: string) => translate(ui.lang, key);
 const langLabel = computed(() => (ui.lang === "de" ? "Deutsch" : "English"));
@@ -60,6 +67,9 @@ async function switchTo(account: { username: string; instanceUrl: string }) {
 async function removeActive() {
   const active = accounts.active;
   if (!active) return;
+  // F7: never delete an account without explicit confirmation.
+  const name = active.displayName || active.username;
+  if (!window.confirm(t("deleteAccountConfirm").replace("{name}", name))) return;
   accountMenu.value = false;
   try {
     await accounts.remove(active.username, active.instanceUrl);
@@ -77,6 +87,17 @@ onMounted(() => {
   window
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", resolveTheme);
+
+  // F11: check for updates once at startup. Errors must not interrupt the
+  // startup flow — the Settings tab still offers a manual check.
+  void (async () => {
+    try {
+      const info = await api.checkUpdate();
+      if (info) updateBanner.value = info;
+    } catch {
+      // silently ignored; manual check remains in Settings
+    }
+  })();
 
   // The server is fixed to FlutCloud, so the CLI --url flag only opens the login.
   void listen<string>("flutlink:cli-open", () => {
@@ -97,6 +118,34 @@ function openLogin(mode: "login" | "register") {
   showLogin.value = true;
 }
 
+async function startUpdateDownload() {
+  if (updateBannerBusy.value) return;
+  updateBannerBusy.value = true;
+  updateBannerProgress.value = 0;
+  updateBannerStatus.value = "";
+  let unlistenProgress: (() => void) | null = null;
+  let unlistenStatus: (() => void) | null = null;
+  try {
+    unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
+      updateBannerProgress.value = e.payload.percent;
+    });
+    unlistenStatus = await listen<string>("update://status", (e) => {
+      updateBannerStatus.value = e.payload;
+    });
+  } catch {
+    // progress/status listeners are best-effort
+  }
+  try {
+    await api.downloadAndInstallUpdate();
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    unlistenProgress?.();
+    unlistenStatus?.();
+    updateBannerBusy.value = false;
+  }
+}
+
 watch(
   () => accounts.active,
   () => {
@@ -107,8 +156,40 @@ watch(
 
 <template>
   <div class="flex h-full bg-zinc-950 text-zinc-50" :data-theme="resolvedTheme">
+    <div
+      v-if="updateBanner"
+      class="fixed inset-x-0 top-0 z-[45] flex items-center gap-3 border-b border-indigo-800 bg-indigo-950/95 px-4 py-2 text-sm shadow-lg"
+    >
+      <span class="min-w-0 flex-1 truncate text-indigo-100">
+        {{ t("updateNewVersion").replace("{version}", updateBanner.version) }}
+      </span>
+      <template v-if="updateBannerBusy">
+        <div class="h-1.5 w-40 shrink-0 overflow-hidden rounded-full bg-zinc-800">
+          <div
+            class="h-full rounded-full bg-indigo-500 transition-all"
+            :style="{ width: Math.min(updateBannerProgress, 100) + '%' }"
+          ></div>
+        </div>
+        <span v-if="updateBannerStatus" class="max-w-xs truncate text-xs text-indigo-300">
+          {{ updateBannerStatus }}
+        </span>
+      </template>
+      <button
+        v-else
+        class="shrink-0 rounded-md border border-indigo-500 bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+        @click="startUpdateDownload"
+      >
+        {{ t("updateDownloadAndInstall") }}
+      </button>
+      <button
+        class="shrink-0 rounded-md px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-800"
+        @click="updateBanner = null"
+      >
+        {{ t("dismiss") }}
+      </button>
+    </div>
     <template v-if="accounts.active">
-      <AccountBar @login="showLogin = true" />
+      <AccountBar @login="openLogin('login')" />
 
       <main class="flex min-w-0 flex-1 flex-col">
         <header class="flex items-center justify-between gap-3 border-b border-zinc-800 px-6 py-3">
@@ -264,7 +345,7 @@ watch(
     <SettingsModal
       :open="showSettings"
       @close="showSettings = false"
-      @login="showSettings = false; showLogin = true"
+      @login="showSettings = false; openLogin('login')"
     />
     <ToastStack />
   </div>

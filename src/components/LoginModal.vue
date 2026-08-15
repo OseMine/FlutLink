@@ -42,6 +42,15 @@ watch(
     if (m) mode.value = m;
   }
 );
+// F8: also reset the mode every time the dialog opens. `initialMode` alone is
+// not enough — reopening with the same value would leave the last tab active
+// (e.g. "Register" after a previous registration).
+watch(
+  () => props.open,
+  (open) => {
+    if (open) mode.value = props.initialMode ?? "login";
+  }
+);
 
 const form = ref({
   username: "",

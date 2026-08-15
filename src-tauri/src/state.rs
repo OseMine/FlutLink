@@ -105,12 +105,20 @@ pub struct AppState {
     pub http_client: Client,
     pub accounts: RwLock<Vec<Account>>,
     pub sync: Arc<crate::sync::SyncEngine>,
+    /// Instance URLs of persisted accounts hidden by `load_accounts` because
+    /// they point to a different server than the configured FlutCloud server.
+    pub filtered_accounts: RwLock<Vec<String>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         let http_client = Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
+            // No total timeout: large WebDAV transfers (uploads/downloads, sync)
+            // legitimately take longer than 60 s. Only the connect phase and each
+            // single read are bounded, so a slow-but-progressing transfer never
+            // aborts while a stalled connection is still detected.
+            .connect_timeout(std::time::Duration::from_secs(30))
+            .read_timeout(std::time::Duration::from_secs(60))
             .user_agent(concat!("FlutLink/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("failed to build HTTP client");
@@ -118,6 +126,7 @@ impl AppState {
             http_client,
             accounts: RwLock::new(Vec::new()),
             sync: Arc::new(crate::sync::SyncEngine::default()),
+            filtered_accounts: RwLock::new(Vec::new()),
         }
     }
 
@@ -125,6 +134,19 @@ impl AppState {
         if let Ok(mut guard) = self.accounts.write() {
             *guard = accounts;
         }
+    }
+
+    pub fn set_filtered_accounts(&self, urls: Vec<String>) {
+        if let Ok(mut guard) = self.filtered_accounts.write() {
+            *guard = urls;
+        }
+    }
+
+    pub fn filtered_accounts(&self) -> Vec<String> {
+        self.filtered_accounts
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
     }
 
     pub fn accounts_snapshot(&self) -> Vec<Account> {

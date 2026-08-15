@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
-use tauri::{AppHandle, State};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
@@ -89,6 +89,28 @@ pub async fn account_add(
 #[tauri::command]
 pub async fn account_list(state: State<'_, AppState>) -> AppResult<Vec<AccountMeta>> {
     Ok(to_meta_list(&state.accounts_snapshot()))
+}
+
+/// F8: information about accounts that were hidden during startup because they
+/// point to a server other than the configured FlutCloud server. Returns `None`
+/// when every saved account was loaded.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountFilterInfo {
+    pub dropped_count: usize,
+    pub server_url: Option<String>,
+}
+
+#[tauri::command]
+pub fn account_filter_info(state: State<'_, AppState>) -> AppResult<Option<AccountFilterInfo>> {
+    let dropped = state.filtered_accounts();
+    if dropped.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(AccountFilterInfo {
+        dropped_count: dropped.len(),
+        server_url: crate::flutcloud::flutcloud_url().ok(),
+    }))
 }
 
 /// Project folder for the FlutCloud Nextcloud app, created during every
@@ -269,6 +291,9 @@ pub async fn account_switch(
         .ok_or_else(|| AppError::NotFound(format!("{}@{}", username, instance_url)))?;
     accounts::persist_accounts(&app, &state.accounts_snapshot())?;
     crate::refresh_tray_menu(&app)?;
+    // Mirror the tray path (lib.rs): the frontend store reloads on this event,
+    // keeping the is_active flags of every account in sync.
+    let _ = app.emit("accounts-changed", ());
     Ok(account.meta)
 }
 
@@ -356,6 +381,21 @@ fn validate_dav_path(path: &str) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+/// New absolute WebDAV path for renaming `path` to `new_name`, keeping the
+/// parent directory (with its leading slash) intact:
+/// `/Documents/report.pdf` → `/Documents/neu.pdf`, `/report.pdf` → `/neu.pdf`.
+fn rename_new_path(path: &str, new_name: &str) -> String {
+    let parent = path
+        .rsplit_once('/')
+        .map(|(parent, _)| if parent.is_empty() { "/" } else { parent })
+        .unwrap_or("/");
+    if parent == "/" {
+        format!("/{}", new_name)
+    } else {
+        format!("{}/{}", parent, new_name)
+    }
 }
 
 /// Upload a local file to the cloud at `remote_path` (absolute, decoded path
@@ -463,8 +503,7 @@ pub async fn webdav_rename(
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    let parent = path.rsplit('/').nth(1).unwrap_or("");
-    let new_path = format!("{}/{}", parent, new_name);
+    let new_path = rename_new_path(&path, &new_name);
     validate_dav_path(&new_path)?;
     webdav::rename_as(
         &state.http_client,
@@ -554,6 +593,7 @@ const ADMIN_EDIT_KEYS: &[&str] = &[
     "password",
     "language",
     "locale",
+    "enabled",
 ];
 
 #[tauri::command]
@@ -620,16 +660,16 @@ pub async fn sync_add(
     };
     // Two folders with the same remote path for one account would overwrite
     // each other's remote data; refuse duplicates before anything is written.
-    if state
+    if let Some(existing) = state
         .sync
         .folders_snapshot()
         .iter()
-        .any(|f| f.account_key == folder.account_key && f.remote_path == folder.remote_path)
+        .find(|f| f.account_key == folder.account_key && f.remote_path == folder.remote_path)
     {
-        return Err(AppError::App(format!(
-            "Another sync folder of this account already targets {}.",
-            folder.remote_path
-        )));
+        return Err(AppError::SyncFolderConflict {
+            local_path: existing.local_path.clone(),
+            remote_path: existing.remote_path.clone(),
+        });
     }
     let status = state.sync.add_folder(&app, folder)?;
     state.sync.notify_one();
@@ -664,4 +704,53 @@ pub async fn sync_set_paused(
 pub async fn sync_trigger(state: State<'_, AppState>) -> AppResult<()> {
     state.sync.notify_one();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_dav_path_accepts_absolute_paths() {
+        assert!(validate_dav_path("/Documents/report.pdf").is_ok());
+        assert!(validate_dav_path("/report.pdf").is_ok());
+        assert!(validate_dav_path("/").is_ok());
+    }
+
+    #[test]
+    fn validate_dav_path_rejects_relative_and_escapes() {
+        assert!(
+            validate_dav_path("Documents/neu.pdf").is_err(),
+            "must start with '/'"
+        );
+        assert!(
+            validate_dav_path("/../etc/passwd").is_err(),
+            "must not contain '..'"
+        );
+        assert!(
+            validate_dav_path("/Resources/x").is_err(),
+            "virtual folders are protected"
+        );
+        assert!(
+            validate_dav_path("/parts/x").is_err(),
+            "virtual folders are protected"
+        );
+    }
+
+    #[test]
+    fn rename_new_path_keeps_subfolder_prefix() {
+        assert_eq!(
+            rename_new_path("/Documents/report.pdf", "neu.pdf"),
+            "/Documents/neu.pdf"
+        );
+        assert_eq!(
+            rename_new_path("/Documents/Sub/invoice.txt", "final.txt"),
+            "/Documents/Sub/final.txt"
+        );
+    }
+
+    #[test]
+    fn rename_new_path_keeps_root_slash() {
+        assert_eq!(rename_new_path("/report.pdf", "neu.pdf"), "/neu.pdf");
+    }
 }

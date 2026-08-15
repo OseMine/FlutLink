@@ -140,10 +140,11 @@ async function toggleEnabled() {
   error.value = null;
   editMsg.value = null;
   try {
+    // The OCS provisioning API expects "0"/"1" for the `enabled` key.
     await api.adminEditUser(
       selected.value.id,
       "enabled",
-      selected.value.enabled ? "false" : "true"
+      selected.value.enabled ? "0" : "1"
     );
     await selectUser(selected.value.id);
     ui.toast(selected.value.enabled ? t("userEnabled") : t("userDisabled"), "success");

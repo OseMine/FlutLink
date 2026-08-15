@@ -70,11 +70,9 @@ export const useSyncStore = defineStore("sync", () => {
   }
 
   async function trigger() {
-    try {
-      await api.syncTrigger();
-    } catch {
-      // error surfaced via statuses
-    }
+    // F5: do not swallow failures here — the caller decides how to report
+    // them. A silent success toast is worse than an honest error.
+    await api.syncTrigger();
   }
 
   return { folders, loading, error, load, bind, add, remove, setPaused, trigger };

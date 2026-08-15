@@ -42,6 +42,11 @@ export interface UserDetails {
   enabled: boolean;
 }
 
+export interface AccountFilterInfo {
+  droppedCount: number;
+  serverUrl: string | null;
+}
+
 export type SyncState = "idle" | "syncing" | "paused" | "error";
 
 export interface SyncFolderStatus {
@@ -87,8 +92,14 @@ function describe(e: unknown): string {
   return err?.message ?? "Unknown error";
 }
 
-export function invokeError(e: unknown): Error {
-  return new Error(describe(e));
+export type AppErrorLike = Error & { code?: string };
+
+export function invokeError(e: unknown): AppErrorLike {
+  const err = new Error(describe(e)) as AppErrorLike;
+  if (typeof e === "object" && e !== null && "code" in e) {
+    err.code = (e as Partial<AppError>).code;
+  }
+  return err;
 }
 
 export const api = {
@@ -117,6 +128,9 @@ export const api = {
     invoke<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
   accountStorage: () => invoke<UserQuota | null>("account_storage"),
+
+  accountFilterInfo: () =>
+    invoke<AccountFilterInfo | null>("account_filter_info"),
 
   webdavList: (path: string, targetUser?: string) =>
     invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),

@@ -14,6 +14,12 @@ class Application extends App implements IBootstrap
 {
     public const APP_ID = 'flutcloud';
 
+    /**
+     * Features announced via the `flutcloud` capability and the ping endpoint.
+     * Add new features here so client feature detection stays in sync.
+     */
+    public const FEATURES = ['virtual-links', 'project-folder'];
+
     public function __construct(array $urlParams = [])
     {
         parent::__construct(self::APP_ID, $urlParams);

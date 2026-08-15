@@ -21,6 +21,7 @@ const sortAsc = ref(true);
 const selected = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
 const busyPath = ref<string | null>(null);
+const uploading = ref(false);
 const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
@@ -121,23 +122,31 @@ async function download(entry: WebDavEntry) {
 }
 
 async function uploadFiles() {
-  if (busyPath.value) return;
-  busyPath.value = "";
+  if (uploading.value) return;
+  uploading.value = true;
   try {
     const picked = await openDialog({ multiple: true });
     if (!picked) return;
     const list = typeof picked === "string" ? [picked] : picked;
+    // F2: a failed file must not abort the remaining uploads. Collect the
+    // per-file errors and report the total afterwards.
+    let failed = 0;
     for (const local of list) {
       const name = local.split(/[\\/]/).pop() ?? "file";
       const remote =
         (files.currentPath === "/" ? "" : files.currentPath) + "/" + name;
-      await files.uploadFile(local, remote);
+      try {
+        await files.uploadFile(local, remote);
+      } catch (e) {
+        failed += 1;
+        ui.toast(`${name}: ${invokeError(e).message}`, "error");
+      }
     }
-    ui.toast(t("fileUploaded"), "success");
+    if (failed === 0) ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
-    busyPath.value = null;
+    uploading.value = false;
   }
 }
 
@@ -200,10 +209,27 @@ async function createLink(entry: WebDavEntry) {
   try {
     const url = await files.createShare(entry.path);
     shareState.set(entry.path, { status: "done", value: url });
-    await navigator.clipboard.writeText(url);
-    ui.toast(t("linkCopied"), "success");
+    try {
+      await navigator.clipboard.writeText(url);
+      ui.toast(t("linkCopied"), "success");
+    } catch {
+      // F1: a clipboard failure must not destroy the freshly created link.
+      // The URL stays visible in the entry state and can be copied again.
+      ui.toast(t("linkCopyFailed"), "error");
+    }
   } catch {
     shareState.set(entry.path, { status: "error" });
+  }
+}
+
+async function copyLink(path: string) {
+  const state = shareState.get(path);
+  if (!state?.value) return;
+  try {
+    await navigator.clipboard.writeText(state.value);
+    ui.toast(t("linkCopied"), "success");
+  } catch {
+    ui.toast(t("linkCopyFailed"), "error");
   }
 }
 
@@ -320,8 +346,8 @@ watch(
           + {{ t("newFolder") }}
         </button>
         <button
-          class="rounded-md bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-500"
-          :disabled="busyPath !== null"
+          class="rounded-md bg-indigo-600 px-3 py-1 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          :disabled="uploading"
           @click="uploadFiles"
         >
           {{ t("upload") }}
@@ -473,13 +499,21 @@ watch(
               <span
                 v-else-if="shareStatus(entry.path)?.status === 'done'"
                 class="text-xs text-emerald-400"
-                :title="t('linkCopied')"
+                :title="shareStatus(entry.path)?.value ?? ''"
               >
                 ✓
               </span>
               <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="text-xs text-red-400">✗</span>
               <button
-                v-else
+                v-if="shareStatus(entry.path)?.status === 'done'"
+                class="ml-1 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-800"
+                :title="shareStatus(entry.path)?.value ?? ''"
+                @click.stop="copyLink(entry.path)"
+              >
+                ⧉
+              </button>
+              <button
+                v-else-if="!shareStatus(entry.path)"
                 class="rounded-md border border-zinc-700 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-800"
                 @click.stop="createLink(entry)"
               >
