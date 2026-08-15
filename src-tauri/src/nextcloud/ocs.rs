@@ -259,12 +259,12 @@ pub async fn create_share(
         "{}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
         account.base_url()
     );
-    let encoded_path = encode_segments(rel_path);
-    let form = [
-        ("path", encoded_path.as_str()),
-        ("shareType", "3"),
-        ("permissions", "1"),
-    ];
+    // F4: the path goes into the form UNENCODED. `req.form()` applies a single
+    // form-url-encoding pass; PHP decodes it once, so the server receives the
+    // raw path ("My Folder"). Encoding here a second time (encode_segments)
+    // would produce "%2520" → "path not found" for any path with spaces,
+    // umlauts or `#`/`&`/`+`/`?`.
+    let form = [("path", rel_path), ("shareType", "3"), ("permissions", "1")];
     let res = request_as(
         client,
         account,
@@ -288,4 +288,31 @@ fn parse_u64(value: Option<&Value>) -> Option<u64> {
     value
         .and_then(|v| v.as_u64())
         .or_else(|| value.and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_form_encoding_preserves_special_characters() {
+        // F4: `req.form()` (serde_urlencoded) performs the single encoding pass
+        // and PHP decodes it once, so the raw path must survive a roundtrip.
+        let raw = "/My Folder/#test&more+file?.txt";
+        let encoded = urlencoding::encode(raw);
+        let decoded = urlencoding::decode(&encoded).unwrap();
+        assert_eq!(decoded.as_ref(), raw);
+    }
+
+    #[test]
+    fn pre_encoding_the_path_double_encodes() {
+        // The old bug: encode_segments() + form-url-encoding turned "%20" into
+        // "%2520", so the server looked for "My%20Folder" instead of "My Folder".
+        let raw = "/My Folder";
+        let pre_encoded = encode_segments(raw);
+        let wire = urlencoding::encode(&pre_encoded);
+        let after_server_decode = urlencoding::decode(&wire).unwrap();
+        assert_ne!(after_server_decode.as_ref(), raw);
+        assert_eq!(after_server_decode.as_ref(), "My%20Folder");
+    }
 }

@@ -40,7 +40,14 @@ async function pickFolder() {
       ui.toast(t("syncAdded"), "success");
     }
   } catch (e) {
-    sync.error = invokeError(e).message;
+    const err = invokeError(e);
+    // F10: render the friendly, translated message for the well-known
+    // "folder already synced" conflict; everything else is already
+    // localized by the N14 code/detail translation.
+    sync.error =
+      err.code === "sync_folder_conflict"
+        ? t("syncConflictMessage")
+        : err.message;
   }
 }
 
@@ -62,8 +69,12 @@ async function togglePaused(folder: { folderId: string; paused: boolean }) {
 }
 
 async function syncNow() {
-  await sync.trigger();
-  ui.toast(t("syncTriggered"), "success");
+  try {
+    await sync.trigger();
+    ui.toast(t("syncTriggered"), "success");
+  } catch (e) {
+    ui.toast(e instanceof Error ? e.message : String(e), "error");
+  }
 }
 </script>
 

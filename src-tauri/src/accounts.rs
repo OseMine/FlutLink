@@ -71,26 +71,41 @@ pub fn persist_accounts(app: &AppHandle, accounts: &[Account]) -> AppResult<()> 
     Ok(())
 }
 
+/// Result of [`load_accounts`].
+#[derive(Debug, Default)]
+pub struct LoadAccountsResult {
+    pub accounts: Vec<Account>,
+    /// Instance URLs of persisted accounts that were NOT loaded because they
+    /// point to a different server than the configured FlutCloud server (or
+    /// because `FLUTCLOUD_URL` is not set at all). The frontend shows a hint.
+    pub dropped: Vec<String>,
+}
+
 /// Load account metadata from disk, restoring tokens from the OS keychain.
 /// Accounts whose token is missing are skipped.
-pub fn load_accounts(app: &AppHandle) -> AppResult<Vec<Account>> {
+///
+/// FlutLink is a dedicated client for the FlutCloud server only, so any
+/// account persisted against a different instance is dropped — but the reason
+/// is reported through [`LoadAccountsResult::dropped`] instead of being
+/// silently swallowed.
+pub fn load_accounts(app: &AppHandle) -> AppResult<LoadAccountsResult> {
     let path = accounts_file(app)?;
     if !path.exists() {
-        return Ok(Vec::new());
+        return Ok(LoadAccountsResult::default());
     }
     let raw = std::fs::read_to_string(&path)?;
     let metas: Vec<AccountMeta> =
         serde_json::from_str(&raw).map_err(|e| AppError::Parse(e.to_string()))?;
-    // FlutLink is a dedicated client for the FlutCloud server only. Drop any
-    // account that was persisted against a different instance.
-    let metas = metas
-        .into_iter()
-        .filter(|m| crate::flutcloud::assert_flutcloud_url(&m.instance_url).is_ok());
+    let mut dropped = Vec::new();
     let mut accounts = Vec::new();
     for meta in metas {
+        if crate::flutcloud::assert_flutcloud_url(&meta.instance_url).is_err() {
+            dropped.push(meta.instance_url);
+            continue;
+        }
         if let Ok(token) = load_token(&meta) {
             accounts.push(Account { meta, token });
         }
     }
-    Ok(accounts)
+    Ok(LoadAccountsResult { accounts, dropped })
 }

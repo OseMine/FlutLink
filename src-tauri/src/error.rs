@@ -7,7 +7,10 @@ pub enum AppError {
     Forbidden,
     NotFound(String),
     Http(reqwest::Error),
-    Status { status: u16, body: String },
+    Status {
+        status: u16,
+        body: String,
+    },
     Ocs(String),
     App(String),
     Json(serde_json::Error),
@@ -17,6 +20,12 @@ pub enum AppError {
     NotFlutCloud(String),
     FlutCloudAppMissing,
     Update(String),
+    /// Two sync folders of one account target the same remote folder, which
+    /// would overwrite each other's data.
+    SyncFolderConflict {
+        local_path: String,
+        remote_path: String,
+    },
 }
 
 impl AppError {
@@ -36,6 +45,7 @@ impl AppError {
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
             AppError::Update(_) => "update",
+            AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
         }
     }
 
@@ -64,6 +74,10 @@ impl AppError {
             AppError::NotFlutCloud(url) => Some(url.clone()),
             AppError::FlutCloudAppMissing => crate::flutcloud::flutcloud_url().ok(),
             AppError::Update(msg) => Some(msg.clone()),
+            AppError::SyncFolderConflict {
+                local_path,
+                remote_path,
+            } => Some(format!("{local_path} ↔ {remote_path}")),
         }
     }
 
@@ -105,6 +119,13 @@ impl AppError {
                 )
             }
             AppError::Update(msg) => format!("Update error: {}", msg),
+            AppError::SyncFolderConflict {
+                local_path,
+                remote_path,
+            } => format!(
+                "The local folder '{}' is already connected to '{}'. Remove that sync folder first or choose a different local folder.",
+                local_path, remote_path
+            ),
         }
     }
 }

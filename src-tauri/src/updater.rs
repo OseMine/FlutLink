@@ -269,34 +269,44 @@ pub async fn download_update(
         .map_err(|e| format!("Cannot create output file: {e}"))?;
     let mut downloaded: u64 = 0;
 
-    while let Some(chunk) = resp
-        .chunk()
-        .await
-        .map_err(|e| format!("Stream error: {e}"))?
-    {
-        file.write_all(&chunk)
+    // F3: never leave a half-written installer behind. On any stream/write
+    // error the partial file is removed so the next attempt starts clean.
+    let stream_result: Result<(), String> = async {
+        while let Some(chunk) = resp
+            .chunk()
             .await
-            .map_err(|e| format!("Write error: {e}"))?;
+            .map_err(|e| format!("Stream error: {e}"))?
+        {
+            file.write_all(&chunk)
+                .await
+                .map_err(|e| format!("Write error: {e}"))?;
 
-        downloaded += chunk.len() as u64;
+            downloaded += chunk.len() as u64;
 
-        let _ = app.emit(
-            "update://progress",
-            DownloadProgress {
-                downloaded,
-                total,
-                percent: if total > 0 {
-                    downloaded as f64 / total as f64 * 100.0
-                } else {
-                    0.0
+            let _ = app.emit(
+                "update://progress",
+                DownloadProgress {
+                    downloaded,
+                    total,
+                    percent: if total > 0 {
+                        downloaded as f64 / total as f64 * 100.0
+                    } else {
+                        0.0
+                    },
                 },
-            },
-        );
-    }
+            );
+        }
 
-    file.flush()
-        .await
-        .map_err(|e| format!("Flush failed: {e}"))?;
+        file.flush()
+            .await
+            .map_err(|e| format!("Flush failed: {e}"))?;
+        Ok(())
+    }
+    .await;
+    if let Err(e) = stream_result {
+        let _ = fs::remove_file(&dest).await;
+        return Err(e);
+    }
 
     // The size advertised by the API must match what we actually got.
     if let Ok(meta) = fs::metadata(&dest).await {
@@ -319,6 +329,12 @@ pub async fn download_update(
                 "SHA-256 checksum mismatch: expected {expected}, got {actual}"
             ));
         }
+    } else {
+        // F9: GitHub does not always report an asset digest (e.g. web uploads).
+        // Do not silently skip verification — surface it in the log and UI.
+        let message = "checksum unavailable, skipping verification";
+        eprintln!("warn: {message}");
+        let _ = app.emit("update://status", message);
     }
 
     Ok(dest)
@@ -553,10 +569,14 @@ pub async fn download_and_install_update(app: AppHandle) -> AppResult<()> {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Build a `reqwest` client with sensible defaults (TLS, timeout, UA).
+/// Build a `reqwest` client with sensible defaults (TLS, timeouts, UA).
 fn build_client() -> Result<Client, String> {
     Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        // No total timeout: installer downloads can exceed 30 s on slow links.
+        // Bound the connect phase and each single read instead, so a stalled
+        // connection is detected without aborting a progressing download.
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .read_timeout(std::time::Duration::from_secs(120))
         .user_agent(USER_AGENT)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))
