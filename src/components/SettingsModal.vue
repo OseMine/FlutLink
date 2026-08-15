@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore, type Theme } from "../stores/ui";
@@ -13,6 +14,17 @@ const emit = defineEmits<{ close: []; login: [] }>();
 const accounts = useAccountsStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
+
+// F9: read the real app version from the Tauri runtime instead of hardcoding
+// it (the displayed value drifted from the packaged version).
+const appVersion = ref("…");
+void getVersion()
+  .then((v) => {
+    appVersion.value = v;
+  })
+  .catch(() => {
+    appVersion.value = "";
+  });
 
 const tab = ref<"accounts" | "admin" | "about">("accounts");
 const users = ref<string[]>([]);
@@ -234,7 +246,7 @@ async function downloadAndInstall() {
               <div>
                 <p class="text-base font-semibold text-zinc-50">{{ t("aboutApp") }}</p>
                 <p class="text-xs text-zinc-500">
-                  {{ t("version") }} 0.1.0 · {{ t("rustBackend") }} · Tauri v2
+                  {{ t("version") }} {{ appVersion }} · {{ t("rustBackend") }} · Tauri v2
                 </p>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
+import { invokeError } from "../lib/ipc";
 
 const sync = useSyncStore();
 const ui = useUiStore();
@@ -35,7 +36,13 @@ async function pickFolder() {
       ui.toast(t("syncAdded"), "success");
     }
   } catch (e) {
-    sync.error = e instanceof Error ? e.message : String(e);
+    const err = invokeError(e);
+    // F10: render the friendly, translated message for the well-known
+    // "folder already synced" conflict, everything else verbatim.
+    sync.error =
+      err.code === "sync_folder_conflict"
+        ? t("syncConflictMessage")
+        : err.message;
   }
 }
 
@@ -57,8 +64,12 @@ async function togglePaused(folder: { folderId: string; paused: boolean }) {
 }
 
 async function syncNow() {
-  await sync.trigger();
-  ui.toast(t("syncTriggered"), "success");
+  try {
+    await sync.trigger();
+    ui.toast(t("syncTriggered"), "success");
+  } catch (e) {
+    ui.toast(e instanceof Error ? e.message : String(e), "error");
+  }
 }
 </script>
 

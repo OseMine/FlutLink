@@ -20,12 +20,29 @@ async function switchTo(username: string, instanceUrl: string) {
 }
 
 async function remove(username: string, instanceUrl: string) {
+  const name = store.accounts.find(
+    (a) => a.username === username && a.instanceUrl === instanceUrl,
+  )?.displayName ?? username;
+  // F7: never delete an account without explicit confirmation.
+  if (!window.confirm(t("deleteAccountConfirm").replace("{name}", name))) return;
   try {
     await store.remove(username, instanceUrl);
   } catch {
     // error surfaced via store.error
   }
 }
+
+const filterHint = computed(() => {
+  const info = store.filterInfo;
+  if (!info) return null;
+  const count = info.droppedCount;
+  if (info.serverUrl) {
+    return t("filteredAccountsHintServer")
+      .replace("{count}", String(count))
+      .replace("{server}", info.serverUrl);
+  }
+  return t("filteredAccountsHintNoServer").replace("{count}", String(count));
+});
 
 const storagePct = computed(() => {
   const s = store.storage;
@@ -66,6 +83,10 @@ const storageFreeLabel = computed(() => {
 
     <div v-if="store.error" class="m-3 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300">
       {{ store.error }}
+    </div>
+
+    <div v-if="filterHint" class="m-3 rounded-md border border-amber-800 bg-amber-950/50 px-3 py-2 text-xs text-amber-300">
+      {{ filterHint }}
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">

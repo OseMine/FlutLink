@@ -28,7 +28,7 @@ class Capabilities implements ICapability
         return [
             Application::APP_ID => [
                 'version' => $this->appManager->getAppVersion(Application::APP_ID),
-                'features' => ['virtual-links', 'project-folder'],
+                'features' => Application::FEATURES,
             ],
         ];
     }

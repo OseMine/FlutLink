@@ -185,6 +185,13 @@ const dict: Record<Lang, Record<string, string>> = {
     open: "Open",
     selected: "selected",
     clear: "Clear",
+    selectAll: "Select all",
+    uploading: "Uploading",
+    downloading: "Downloading",
+    deleting: "Deleting",
+    working: "Working…",
+    dropToUpload: "Drop files to upload",
+    deleteSelectedConfirm: "Delete {count} selected items? This cannot be undone.",
     viewList: "List view",
     viewGrid: "Grid view",
     fileUploaded: "Uploaded.",
@@ -195,6 +202,21 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "Delete {name}? This cannot be undone.",
     quotaInvalid: "Quota must be greater than 0.",
     userFieldsRequired: "User ID and password are required.",
+    deleteAccountConfirm:
+      "Remove account {name}? The account will be removed from this device.",
+    filteredAccountsHintServer:
+      "{count} saved account(s) were hidden because they belong to a different server than your configured FlutCloud server ({server}).",
+    filteredAccountsHintNoServer:
+      "FLUTCLOUD_URL is not configured — {count} saved account(s) could not be verified and were hidden.",
+    linkCopyFailed:
+      "Could not copy the link to the clipboard. Please copy it manually.",
+    syncTriggerFailed: "Sync could not be started.",
+    syncConflictTitle: "Folder already synced",
+    syncConflictMessage:
+      "This local folder is already connected to a FlutCloud folder.",
+    dismiss: "Dismiss",
+    updateNewVersion: "FlutLink {version} is available.",
+    updateAutoCheckFailed: "Automatic update check failed. You can retry in Settings.",
   },
   de: {
     appName: "FlutLink",
@@ -381,6 +403,13 @@ const dict: Record<Lang, Record<string, string>> = {
     open: "Öffnen",
     selected: "ausgewählt",
     clear: "Leeren",
+    selectAll: "Alle auswählen",
+    uploading: "Lade hoch",
+    downloading: "Lade herunter",
+    deleting: "Lösche",
+    working: "Arbeite…",
+    dropToUpload: "Dateien zum Hochladen ablegen",
+    deleteSelectedConfirm: "{count} ausgewählte Elemente löschen? Dies kann nicht rückgängig gemacht werden.",
     viewList: "Listenansicht",
     viewGrid: "Rasteransicht",
     fileUploaded: "Hochgeladen.",
@@ -391,6 +420,22 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteConfirm: "{name} löschen? Dies kann nicht rückgängig gemacht werden.",
     quotaInvalid: "Das Kontingent muss größer als 0 sein.",
     userFieldsRequired: "Benutzer-ID und Passwort sind erforderlich.",
+    deleteAccountConfirm:
+      "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
+    filteredAccountsHintServer:
+      "{count} gespeicherte(s) Konto/Konten wurde(n) ausgeblendet, weil sie zu einem anderen Server gehören als deinem konfigurierten FlutCloud-Server ({server}).",
+    filteredAccountsHintNoServer:
+      "FLUTCLOUD_URL ist nicht konfiguriert — {count} gespeicherte(s) Konto/Konten konnte(n) nicht verifiziert werden und wurde(n) ausgeblendet.",
+    linkCopyFailed:
+      "Der Link konnte nicht in die Zwischenablage kopiert werden. Bitte kopiere ihn manuell.",
+    syncTriggerFailed: "Die Synchronisierung konnte nicht gestartet werden.",
+    syncConflictTitle: "Ordner wird bereits synchronisiert",
+    syncConflictMessage:
+      "Dieser lokale Ordner ist bereits mit einem FlutCloud-Ordner verbunden.",
+    dismiss: "Ausblenden",
+    updateNewVersion: "FlutLink {version} ist verfügbar.",
+    updateAutoCheckFailed:
+      "Automatische Update-Prüfung fehlgeschlagen. In den Einstellungen kannst du es erneut versuchen.",
   },
 };
 

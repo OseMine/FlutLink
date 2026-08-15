@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\FlutCloud\Service;
 
+use OCA\FlutCloud\Exception\NotAFolderException;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
-use OCP\Files\NotPermittedException;
 
 /**
  * Manages the non-standard FlutCloud storage layout inside a user's home:
@@ -55,10 +55,12 @@ erwartete Verhalten.
 MD;
 
     private IRootFolder $rootFolder;
+    private NameValidator $nameValidator;
 
-    public function __construct(IRootFolder $rootFolder)
+    public function __construct(IRootFolder $rootFolder, NameValidator $nameValidator)
     {
         $this->rootFolder = $rootFolder;
+        $this->nameValidator = $nameValidator;
     }
 
     /**
@@ -72,7 +74,7 @@ MD;
             if ($folder->nodeExists($segment)) {
                 $node = $folder->get($segment);
                 if (!$node instanceof Folder) {
-                    throw new NotPermittedException("'$segment' exists but is not a folder");
+                    throw new NotAFolderException("'$segment' exists but is not a folder");
                 }
                 $folder = $node;
             } else {
@@ -95,23 +97,37 @@ MD;
 
     /**
      * Create a virtual link folder under `resources/`. Idempotent.
+     *
+     * @throws \OCA\FlutCloud\Exception\InvalidNameException on invalid names
+     * @throws NotAFolderException when a path segment exists as a file
      */
     public function createLink(string $userId, string $name): array
     {
+        $this->nameValidator->assertValid($name);
         $folder = $this->ensureFolder($userId, self::RESOURCES . '/' . $name);
         return $this->describe($folder);
     }
 
     /**
-     * Remove a virtual link folder. No-op if it does not exist.
+     * Remove a virtual link folder. No-op if it does not exist. Only folders
+     * are removed; a file stored under a link name is left untouched.
+     *
+     * @throws \OCA\FlutCloud\Exception\InvalidNameException on invalid names
+     * @throws NotAFolderException when the target exists as a file
      */
     public function deleteLink(string $userId, string $name): void
     {
+        $this->nameValidator->assertValid($name);
         $userFolder = $this->rootFolder->getUserFolder($userId);
         $path = self::RESOURCES . '/' . $name;
-        if ($userFolder->nodeExists($path)) {
-            $userFolder->get($path)->delete();
+        if (!$userFolder->nodeExists($path)) {
+            return;
         }
+        $node = $userFolder->get($path);
+        if (!$node instanceof Folder) {
+            throw new NotAFolderException("'$name' is not a link folder");
+        }
+        $node->delete();
     }
 
     /**
@@ -127,9 +143,13 @@ MD;
 
     /**
      * Create a writable part folder under `parts/`. Idempotent.
+     *
+     * @throws \OCA\FlutCloud\Exception\InvalidNameException on invalid names
+     * @throws NotAFolderException when a path segment exists as a file
      */
     public function createPart(string $userId, string $name): array
     {
+        $this->nameValidator->assertValid($name);
         $folder = $this->ensureFolder($userId, self::PARTS . '/' . $name);
         return $this->describe($folder);
     }

@@ -7,7 +7,10 @@ pub enum AppError {
     Forbidden,
     NotFound(String),
     Http(reqwest::Error),
-    Status { status: u16, body: String },
+    Status {
+        status: u16,
+        body: String,
+    },
     Ocs(String),
     App(String),
     Json(serde_json::Error),
@@ -16,6 +19,12 @@ pub enum AppError {
     Parse(String),
     NotFlutCloud(String),
     FlutCloudAppMissing,
+    /// Two sync folders of one account target the same remote folder, which
+    /// would overwrite each other's data.
+    SyncFolderConflict {
+        local_path: String,
+        remote_path: String,
+    },
 }
 
 impl AppError {
@@ -34,6 +43,7 @@ impl AppError {
             AppError::Parse(_) => "parse",
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
+            AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
         }
     }
 
@@ -74,6 +84,13 @@ impl AppError {
                     server
                 )
             }
+            AppError::SyncFolderConflict {
+                local_path,
+                remote_path,
+            } => format!(
+                "The local folder '{}' is already connected to '{}'. Remove that sync folder first or choose a different local folder.",
+                local_path, remote_path
+            ),
         }
     }
 }
