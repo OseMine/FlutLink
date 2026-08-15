@@ -375,7 +375,7 @@ watch(
     </div>
 
     <div
-      v-if="files.targetUser"
+      v-if="files.targetUser && files.targetUser !== accounts.active?.username"
       class="flex items-center gap-2 border-b border-sky-900 bg-sky-950/40 px-6 py-1.5 text-xs text-sky-300"
     >
       <span class="shrink-0 opacity-80">{{ t("impersonationNotice") }}</span>

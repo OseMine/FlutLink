@@ -151,12 +151,6 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       i18n (`src/lib/i18n.ts`) deckt nur Frontend-Texte ab. Fix: Fehler-Codes
       im Frontend mappen (wie `AppError.code` es bereits erlaubt) oder
       `message` aus dem i18n-Dict übersetzen.
-- [ ] **N15 (UX, minor):** Nach Admin-Login setzt `loadAdminUsers`
-      (`FileExplorer.vue:214-231`) `targetUser` auf den **eigenen** Namen →
-      Banner „Admin impersonation — … von <ich>" (Z. 377-383) erscheint beim
-      Betrachten der eigenen Dateien. `webdav_list` filtert den eigenen Namen
-      zwar heraus (`commands.rs:307`), das Banner bleibt aber irreführend.
-      Fix: Banner nur bei fremdem `targetUser` anzeigen.
 - [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
       (F7 offen) und die About-Version ist hartkodiert (F5 offen,
       `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
@@ -305,6 +299,16 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (N15)
+
+- [x] **N15 (UX, minor):** Nach Admin-Login setzt `loadAdminUsers`
+      (`FileExplorer.vue:214-231`) `targetUser` auf den **eigenen** Namen →
+      Banner „Admin impersonation — … von <ich>" (Z. 377-383) erscheint beim
+      Betrachten der eigenen Dateien. `webdav_list` filtert den eigenen Namen
+      zwar heraus (`commands.rs:307`), das Banner bleibt aber irreführend.
+      Fix: Banner nur bei fremdem `targetUser` anzeigen. → Banner-Bedingung
+      in `FileExplorer.vue` prüft jetzt `targetUser !== username`.
 
 ### Review 2026-08-14 (Lauf 5, N12)
 
