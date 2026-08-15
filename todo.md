@@ -6,6 +6,84 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-15 (Lauf 6, Fokus: Phase 3 & 4 — Chunking/Progress, DnD, resources/parts, Provisioning, Notifications, Offline-Cache)
+
+**Verifikation:** Seit Lauf 5 sind genau zwei Fixes eingegangen: **U11**
+(doRename aktualisiert `selected`-Set, Commit d6771b9 — in
+`FileExplorer.vue:170-178` verifiziert) und **N12** (`unique_conflict_target`
+prüft jetzt lokal **und** remote, Commit a102bb6 — `sync.rs:151-169` +
+Unit-Test `move_local_conflict_skips_existing_local_conflict_copy` verifiziert).
+Beide sind bereits im Archiv markiert. **Alle übrigen Punkte (U1–U10, F1–F10,
+N1–N11, N13–N16, P1–P17, U8–U16) sind weiterhin offen** — erneut gegen den
+aktuellen Stand geprüft und bestätigt. Checks ausgeführt:
+`cargo test --manifest-path src-tauri/Cargo.toml` → **43 passed / 0 failed**
+(42 + neuer N12-Test); `npm run build` (vue-tsc + vite) → grün. Hinweis:
+`cargo test` benötigt auf Linux glib/webkit2gtk-4.1-Systembibliotheken (auf dem
+Runner nachinstalliert), sonst bricht der Build vor den Tests ab (kein Codefehler).
+
+Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
+
+- [ ] **Q1 (Phase 4, Feature, mittel):** Native Notifications fehlen komplett:
+      `tauri-plugin-notification` ist weder in `src-tauri/Cargo.toml` noch in
+      `lib.rs:196-199` (nur opener/dialog/cli) registriert. Sync-Fehler/
+      -Abschluss, verfügbare Updates und Transfers erzeugen keine
+      OS-Notification. README Phase 4 verspricht „native notifications".
+      Fix: Plugin registrieren + Emission aus `sync.rs::run_all` (Z. 1119-1121)
+      und `updater.rs::check_update`.
+- [ ] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
+      hält nur das aktuelle Listing in Memory; ohne Netz zeigt der Browser
+      leere Ordner/Fehler statt gecachter Daten. README Phase 4 „offline cache"
+      ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
+      Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
+      `FileExplorer.vue`.
+- [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
+      zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
+      Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
+      `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
+      „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
+      + UI.
+- [ ] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
+      Progress fehlen: `webdav_upload_file` (`commands.rs:364-391`) streamt
+      einen einzigen PUT (`put_file_as`, `webdav.rs:122-146`),
+      `webdav_download_file` (`commands.rs:395-418`) einen einzigen GET.
+      **Kein** WebDAV-Chunking, **keine** `app.emit`-Progress-Events für
+      Datei-Transfers (nur der Updater emittiert `update://progress`,
+      `updater.rs:271-283`; in `commands.rs`/`webdav.rs` kein `emit`,
+      verifiziert). README Phase 3 verspricht „chunked uploads/downloads with
+      progress events (app.emit)"; große Dateien brechen zusätzlich am 60-s-
+      Total-Timeout ab (F2, `state.rs:112-113`). Fix: Progress-Callback durch
+      die Transfer-Helper ziehen + Chunking (WebDAV-Chunked-Upload v2).
+- [ ] **Q5 (Phase 3, Feature, minor):** Drag & Drop-Upload fehlt:
+      `FileExplorer.vue` hat keinen `@drop`/`@dragover`-Handler (kein
+      Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
+      README Phase 3 „drag & drop". Fix: DnD-Handler, der `files.uploadFile`
+      wie `uploadFiles` (Z. 123-142) aufruft.
+- [ ] **Q6 (Phase 3, Feature, mittel):** `resources`/`parts`-Dual-Pane-Workflow
+      fehlt: Backend klassifiziert korrekt (`webdav.rs::classify`,
+      Z. 531-542, Flags `is_resource`/`is_part`), die UI zeigt nur Badges
+      (`FileExplorer.vue:464-478`). Kein Pairing virtueller Links
+      (`resources`) mit ihren schreibbaren Teilen (`parts`), kein
+      „virtual ↔ real"-Navigationsfluss. Fix: Split-View-/Pairing-Konzept +
+      Verknüpfungsfeld in `WebDavEntry`.
+- [ ] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlt:
+      `walk_local` überspringt Symlinks still (`sync.rs:196-198`),
+      `resources`-Einträge werden nie auf ihr Ziel aufgelöst (kein
+      Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
+      resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
+      Backend.
+- [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
+      (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
+      Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
+      unlimited) + benutzerdefiniert.
+- [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
+      `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
+      `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
+      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüft nicht
+      und meldet nur „Uploaded.". N1 deckt nur das Rename-Overwrite ab
+      (`Overwrite: T`, `webdav.rs:359`). Fix: Existenz-Check (PROPFIND) vor
+      PUT oder `Overwrite: F` + klarer `AppError`; UI-Confirm bei existierendem
+      Ziel.
+
 ### Review 2026-08-14 (Lauf 5, Fokus: Browsing & Link-Sharing)
 
 **Verifikation:** Kein Anwendungscode-Change an `src/` oder `src-tauri/src/`
