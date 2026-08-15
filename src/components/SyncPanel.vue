@@ -3,11 +3,16 @@ import { onMounted } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
-import { translate } from "../lib/i18n";
+import { translate, translateError } from "../lib/i18n";
+import { invokeError } from "../lib/ipc";
 
 const sync = useSyncStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
+
+function errorLabel(err: { code: string; detail?: string | null }): string {
+  return translateError(ui.lang, err.code, err.detail);
+}
 
 function stateLabel(state: string): string {
   return t("state" + state.charAt(0).toUpperCase() + state.slice(1));
@@ -35,7 +40,7 @@ async function pickFolder() {
       ui.toast(t("syncAdded"), "success");
     }
   } catch (e) {
-    sync.error = e instanceof Error ? e.message : String(e);
+    sync.error = invokeError(e).message;
   }
 }
 
@@ -132,7 +137,7 @@ async function syncNow() {
           <span v-if="folder.failures" class="text-red-300">{{ folder.failures }} {{ t("failures") }}</span>
         </div>
 
-        <p v-if="folder.lastError" class="mt-1 text-xs text-red-300">{{ folder.lastError }}</p>
+        <p v-if="folder.lastError" class="mt-1 text-xs text-red-300">{{ errorLabel(folder.lastError) }}</p>
 
         <div class="mt-3 flex gap-2">
           <button

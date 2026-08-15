@@ -145,12 +145,6 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
 - [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
       keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
       `accounts`-Store nutzen.
-- [ ] **N14 (i18n, mittel):** Backend-Fehlermeldungen sind nicht lokalisiert:
-      `error.rs` (`message()`), `ocs.rs`, `webdav.rs` und `updater.rs` liefern
-      englische Strings, die direkt als Toast/Inline-Fehler erscheinen —
-      i18n (`src/lib/i18n.ts`) deckt nur Frontend-Texte ab. Fix: Fehler-Codes
-      im Frontend mappen (wie `AppError.code` es bereits erlaubt) oder
-      `message` aus dem i18n-Dict übersetzen.
 - [ ] **N15 (UX, minor):** Nach Admin-Login setzt `loadAdminUsers`
       (`FileExplorer.vue:214-231`) `targetUser` auf den **eigenen** Namen →
       Banner „Admin impersonation — … von <ich>" (Z. 377-383) erscheint beim
@@ -305,6 +299,18 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (N14)
+
+- [x] **N14 (i18n, mittel):** Backend-Fehlermeldungen waren nicht lokalisiert:
+      `error.rs` (`message()`), `ocs.rs`, `webdav.rs` und `updater.rs` lieferten
+      englische Strings, die direkt als Toast/Inline-Fehler erschienen. Fix:
+      Backend serialisiert jetzt `{code, message, detail}` (neue
+      `AppError::detail()`, `Update`-Variant, `PassError` für Sync-Status);
+      Frontend mappt Codes über `translateError()`/`ERROR_CODE_KEYS` in
+      `src/lib/i18n.ts` auf en/de-Texte (`err*`-Schlüssel). `updater.rs`
+      liefert strukturierte `update://status`-Payloads; `SettingsModal.vue`
+      und `SyncPanel.vue` rendern nur noch lokalisierte Fehler.
 
 ### Review 2026-08-15 (U11)
 
