@@ -53,23 +53,23 @@ const storageFreeLabel = computed(() => {
 </script>
 
 <template>
-  <aside class="flex h-full w-72 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-    <div class="flex items-center gap-2.5 border-b border-zinc-800 px-4 py-4">
+  <aside class="flex h-full w-72 shrink-0 flex-col border-r border-outline-variant bg-surface-container">
+    <div class="flex items-center gap-2.5 border-b border-outline-variant px-4 py-4">
       <img src="/flutlink-mark.svg" alt="FlutLink" class="h-8 w-8 shrink-0" />
       <div class="min-w-0">
-        <h1 class="truncate text-base font-semibold tracking-tight text-zinc-50">
+        <h1 class="truncate text-base font-semibold tracking-tight text-on-surface">
           {{ t("appName") }}
         </h1>
-        <p class="truncate text-xs text-zinc-500">{{ t("tagline") }}</p>
+        <p class="truncate text-xs text-on-surface-variant">{{ t("tagline") }}</p>
       </div>
     </div>
 
-    <div v-if="store.error" class="m-3 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300">
+    <div v-if="store.error" class="m-3 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
       {{ store.error }}
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">
-      <p class="px-1 pb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+      <p class="px-1 pb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
         {{ t("accounts") }}
       </p>
 
@@ -78,8 +78,8 @@ const storageFreeLabel = computed(() => {
         :key="account.instanceUrl + '/' + account.username"
         class="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition"
         :class="account.isActive
-          ? 'bg-indigo-600 text-white'
-          : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'"
+          ? 'bg-primary text-on-primary'
+          : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'"
         @click="switchTo(account.username, account.instanceUrl)"
       >
         <div class="min-w-0 flex-1">
@@ -98,42 +98,42 @@ const storageFreeLabel = computed(() => {
       </button>
 
       <button
-        class="mt-1 w-full rounded-md border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400 hover:border-indigo-500 hover:text-indigo-300"
+        class="mt-1 w-full rounded-md border border-dashed border-outline px-3 py-2 text-sm text-on-surface-variant hover:border-primary hover:text-primary-emphasis"
         @click="emit('login')"
       >
         + {{ t("addAccount") }}
       </button>
     </div>
 
-    <div class="border-t border-zinc-800 p-3">
+    <div class="border-t border-outline-variant p-3">
       <template v-if="store.active">
         <div v-if="store.storage" class="mb-3">
           <p class="mb-1 flex items-baseline justify-between text-xs">
-            <span class="font-medium text-zinc-500">{{ t("storage") }}</span>
-            <span class="text-zinc-300">{{ storageSummary }}</span>
+            <span class="font-medium text-on-surface-variant">{{ t("storage") }}</span>
+            <span class="text-on-surface-variant">{{ storageSummary }}</span>
           </p>
-          <div class="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div class="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high">
             <div
               class="h-full rounded-full transition-all"
-              :class="storagePct >= 90 ? 'bg-red-500' : 'bg-indigo-500'"
+              :class="storagePct >= 90 ? 'bg-error' : 'bg-primary'"
               :style="{ width: storagePct + '%' }"
             ></div>
           </div>
-          <p class="mt-1 text-[11px] text-zinc-500">{{ t("free") }}: {{ storageFreeLabel }}</p>
+          <p class="mt-1 text-[11px] text-on-surface-variant">{{ t("free") }}: {{ storageFreeLabel }}</p>
         </div>
 
-        <p class="text-xs text-zinc-500">{{ t("signedInAs") }}</p>
-        <p class="truncate text-sm text-zinc-50">
+        <p class="text-xs text-on-surface-variant">{{ t("signedInAs") }}</p>
+        <p class="truncate text-sm text-on-surface">
           {{ store.active.displayName || store.active.username }}
         </p>
         <button
-          class="mt-2 text-xs text-zinc-400 underline-offset-2 hover:text-red-400 hover:underline"
+          class="mt-2 text-xs text-on-surface-variant underline-offset-2 hover:text-error hover:underline"
           @click="remove(store.active.username, store.active.instanceUrl)"
         >
           {{ t("removeAccount") }}
         </button>
       </template>
-      <p v-else class="text-xs text-zinc-500">{{ t("noAccount") }}</p>
+      <p v-else class="text-xs text-on-surface-variant">{{ t("noAccount") }}</p>
     </div>
   </aside>
 </template>

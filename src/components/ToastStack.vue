@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
+import Icon from "./Icon.vue";
 
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
@@ -12,22 +13,22 @@ const t = (key: string) => translate(ui.lang, key);
       <div
         v-for="toast in ui.toasts"
         :key="toast.id"
-        class="pointer-events-auto flex items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-xl"
+        class="pointer-events-auto flex items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-m3-2"
         :class="
           toast.type === 'success'
-            ? 'border-emerald-800 bg-[#022c22]/95 text-emerald-200'
+            ? 'border-success bg-success-container/95 text-on-success-container'
             : toast.type === 'error'
-              ? 'border-red-800 bg-[#450a0a]/95 text-red-200'
-              : 'border-zinc-700 bg-zinc-900/95 text-zinc-200'
+              ? 'border-error bg-error-container/95 text-on-error-container'
+              : 'border-outline-variant bg-surface-container/95 text-on-surface'
         "
       >
         <span class="flex-1 leading-snug">{{ toast.message }}</span>
         <button
-          class="mt-0.5 text-zinc-500 transition hover:text-zinc-200"
+          class="mt-0.5 text-on-surface-variant transition hover:text-on-surface"
           :aria-label="t('close')"
           @click="ui.dismiss(toast.id)"
         >
-          ✕
+          <Icon name="close" :size="16" />
         </button>
       </div>
     </transition-group>

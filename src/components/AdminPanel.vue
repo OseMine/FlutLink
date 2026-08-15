@@ -212,61 +212,61 @@ function quotaFree(q: UserQuota | null): string {
 <template>
   <div class="flex h-full flex-col gap-4 overflow-hidden p-6">
     <div>
-      <h2 class="text-lg font-semibold text-zinc-50">{{ t("adminPanelTitle") }}</h2>
-      <p class="text-sm text-zinc-500">{{ t("adminPanelSubtitle") }}</p>
+      <h2 class="text-lg font-semibold text-on-surface">{{ t("adminPanelTitle") }}</h2>
+      <p class="text-sm text-on-surface-variant">{{ t("adminPanelSubtitle") }}</p>
     </div>
 
-    <div v-if="error" class="rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+    <div v-if="error" class="rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
       {{ error }}
     </div>
-    <div v-if="editMsg" class="rounded-md border border-emerald-800 bg-emerald-950/50 px-3 py-2 text-sm text-emerald-300">
+    <div v-if="editMsg" class="rounded-md border border-success bg-success-container px-3 py-2 text-sm text-on-success-container">
       {{ editMsg }}
     </div>
 
     <div class="flex gap-2">
       <input
         v-model="search"
-        class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+        class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         :placeholder="t('searchUsers')"
         @keyup.enter="listUsers"
       />
       <button
-        class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
         @click="listUsers"
       >
         {{ loading ? t("loading") : t("listUsers") }}
       </button>
       <button
-        class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+        class="rounded-md border border-outline px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
         @click="showCreate = !showCreate"
       >
         + {{ t("createUser") }}
       </button>
     </div>
 
-    <div v-if="showCreate" class="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-      <h3 class="mb-1 text-sm font-medium text-zinc-50">{{ t("createUserTitle") }}</h3>
-      <p class="mb-3 text-xs text-zinc-500">{{ t("newUserHint") }}</p>
+    <div v-if="showCreate" class="rounded-lg border border-outline-variant bg-surface-container p-4">
+      <h3 class="mb-1 text-sm font-medium text-on-surface">{{ t("createUserTitle") }}</h3>
+      <p class="mb-3 text-xs text-on-surface-variant">{{ t("newUserHint") }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
         <input
           v-model="newUser.userId"
           :placeholder="t('userId')"
-          class="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <input
           v-model="newUser.password"
           type="password"
           :placeholder="t('password')"
-          class="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <input
           v-model="newUser.displayName"
           :placeholder="t('displayName')"
-          class="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
       </div>
       <button
-        class="mt-3 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+        class="mt-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
         @click="createUser"
       >
         {{ t("create") }}
@@ -274,34 +274,34 @@ function quotaFree(q: UserQuota | null): string {
     </div>
 
     <div class="grid min-h-0 flex-1 grid-cols-2 gap-4">
-      <div class="overflow-y-auto rounded-lg border border-zinc-800">
-        <ul v-if="users.length" class="divide-y divide-zinc-800/60">
+      <div class="overflow-y-auto rounded-lg border border-outline-variant">
+        <ul v-if="users.length" class="divide-y divide-outline-variant/60">
           <li v-for="userId in users" :key="userId">
             <button
-              class="w-full px-4 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800/60"
-              :class="selected?.id === userId ? 'bg-indigo-950/60 text-indigo-200' : ''"
+              class="w-full px-4 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high/60"
+              :class="selected?.id === userId ? 'bg-primary-container/60 text-on-primary-container' : ''"
               @click="selectUser(userId)"
             >
               {{ userId }}
             </button>
           </li>
         </ul>
-        <p v-else class="p-4 text-sm text-zinc-500">
+        <p v-else class="p-4 text-sm text-on-surface-variant">
           {{ loading ? t("loading") : t("noUsersYet") }}
         </p>
       </div>
 
-      <div class="overflow-y-auto rounded-lg border border-zinc-800 p-4">
-        <p v-if="detailsLoading" class="text-sm text-zinc-500">{{ t("loadingDetails") }}</p>
+      <div class="overflow-y-auto rounded-lg border border-outline-variant p-4">
+        <p v-if="detailsLoading" class="text-sm text-on-surface-variant">{{ t("loadingDetails") }}</p>
         <template v-else-if="selected">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <h3 class="truncate text-base font-medium text-zinc-50">{{ selected.displayName || selected.id }}</h3>
-              <p class="text-sm text-zinc-500">{{ selected.id }}</p>
+              <h3 class="truncate text-base font-medium text-on-surface">{{ selected.displayName || selected.id }}</h3>
+              <p class="text-sm text-on-surface-variant">{{ selected.id }}</p>
               <p class="mt-1 text-xs">
                 <span
                   class="rounded px-1.5 py-0.5 font-semibold"
-                  :class="selected.enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'"
+                  :class="selected.enabled ? 'bg-success/15 text-success' : 'bg-error/15 text-error'"
                 >
                   {{ selected.enabled ? t("enabled") : t("disabled") }}
                 </span>
@@ -309,19 +309,19 @@ function quotaFree(q: UserQuota | null): string {
             </div>
             <div class="flex shrink-0 flex-col items-end gap-1.5">
               <button
-                class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click="emit('browse', selected.id)"
               >
                 {{ t("browseFiles") }}
               </button>
               <button
-                class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click="toggleEnabled"
               >
                 {{ selected.enabled ? t("disableAccount") : t("enableAccount") }}
               </button>
               <button
-                class="rounded-md border border-red-800 px-2.5 py-1 text-xs text-red-300 hover:bg-red-950/40"
+                class="rounded-md border border-error px-2.5 py-1 text-xs text-error hover:bg-error-container"
                 @click="removeUser"
               >
                 {{ t("deleteUser") }}
@@ -331,16 +331,16 @@ function quotaFree(q: UserQuota | null): string {
 
           <div class="mt-4 space-y-3">
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("displayName") }}
               </label>
               <div class="flex gap-2">
                 <input
                   v-model="edits.displayName"
-                  class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 focus:border-indigo-500 focus:outline-none"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
                 />
                 <button
-                  class="rounded-md bg-zinc-700 px-3 py-2 text-sm text-zinc-50 hover:bg-zinc-600"
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
                   @click="saveField('displayname')"
                 >
                   {{ t("save") }}
@@ -349,17 +349,17 @@ function quotaFree(q: UserQuota | null): string {
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("email") }}
               </label>
               <div class="flex gap-2">
                 <input
                   v-model="edits.email"
                   type="email"
-                  class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 focus:border-indigo-500 focus:outline-none"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
                 />
                 <button
-                  class="rounded-md bg-zinc-700 px-3 py-2 text-sm text-zinc-50 hover:bg-zinc-600"
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
                   @click="saveField('email')"
                 >
                   {{ t("save") }}
@@ -368,7 +368,7 @@ function quotaFree(q: UserQuota | null): string {
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("password") }}
               </label>
               <div class="flex gap-2">
@@ -376,16 +376,16 @@ function quotaFree(q: UserQuota | null): string {
                   v-model="edits.password"
                   :type="showPassword ? 'text' : 'password'"
                   :placeholder="t('passwordPlaceholder')"
-                  class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
                 />
                 <button
-                  class="rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-700"
+                  class="rounded-md bg-surface-container-high px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
                   @click="showPassword = !showPassword"
                 >
                   {{ showPassword ? t("hide") : t("show") }}
                 </button>
                 <button
-                  class="rounded-md bg-zinc-700 px-3 py-2 text-sm text-zinc-50 hover:bg-zinc-600"
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
                   @click="saveField('password')"
                 >
                   {{ t("save") }}
@@ -394,38 +394,38 @@ function quotaFree(q: UserQuota | null): string {
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("groups") }}
               </p>
               <div v-if="selected.groups.length" class="flex flex-wrap gap-1.5">
                 <span
                   v-for="group in selected.groups"
                   :key="group"
-                  class="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300"
+                  class="rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
                 >
                   {{ group }}
                 </span>
               </div>
-              <p v-else class="text-xs text-zinc-600">{{ t("noGroups") }}</p>
+              <p v-else class="text-xs text-outline">{{ t("noGroups") }}</p>
             </div>
 
-            <div class="rounded-md bg-zinc-800/60 p-3 text-sm text-zinc-300">
+            <div class="rounded-md bg-surface-container-high/60 p-3 text-sm text-on-surface-variant">
               <div class="flex justify-between">
-                <span class="text-zinc-500">{{ t("quota") }}</span>
+                <span class="text-on-surface-variant">{{ t("quota") }}</span>
                 <span>{{ quotaTotal(selected.quota) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-zinc-500">{{ t("used") }}</span>
+                <span class="text-on-surface-variant">{{ t("used") }}</span>
                 <span>{{ quotaUsed(selected.quota) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-zinc-500">{{ t("free") }}</span>
+                <span class="text-on-surface-variant">{{ t("free") }}</span>
                 <span>{{ quotaFree(selected.quota) }}</span>
               </div>
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("setQuota") }}
               </label>
               <div class="flex gap-2">
@@ -435,18 +435,18 @@ function quotaFree(q: UserQuota | null): string {
                   :disabled="edits.quotaUnit === 'unlimited'"
                   min="0"
                   step="0.1"
-                  class="flex-1 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-50 focus:border-indigo-500 focus:outline-none disabled:opacity-40"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary disabled:opacity-40"
                 />
                 <select
                   v-model="edits.quotaUnit"
-                  class="rounded-md border border-zinc-700 bg-zinc-800 px-2 py-2 text-sm text-zinc-50 focus:border-indigo-500 focus:outline-none"
+                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
                 >
                   <option value="gb">{{ t("gb") }}</option>
                   <option value="mb">{{ t("mb") }}</option>
                   <option value="unlimited">{{ t("unlimited") }}</option>
                 </select>
                 <button
-                  class="rounded-md bg-zinc-700 px-3 py-2 text-sm text-zinc-50 hover:bg-zinc-600"
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
                   @click="setQuota"
                 >
                   {{ t("save") }}
@@ -455,7 +455,7 @@ function quotaFree(q: UserQuota | null): string {
             </div>
           </div>
         </template>
-        <p v-else class="text-sm text-zinc-500">{{ t("selectUser") }}</p>
+        <p v-else class="text-sm text-on-surface-variant">{{ t("selectUser") }}</p>
       </div>
     </div>
   </div>

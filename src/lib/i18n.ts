@@ -72,6 +72,10 @@ const dict: Record<Lang, Record<string, string>> = {
     themeSystem: "System Default",
     systemThemeNote:
       "System Default follows your operating system (FlutLink is dark-first).",
+    accentColor: "Accent color",
+    accentColorHint:
+      "A Material-You-style accent: a seed hue derives the whole primary palette.",
+    accentReset: "Reset",
     storage: "Storage",
     free: "Free",
     unlimited: "Unlimited",
@@ -268,6 +272,10 @@ const dict: Record<Lang, Record<string, string>> = {
     themeSystem: "System-Standard",
     systemThemeNote:
       "System-Standard folgt deinem Betriebssystem (FlutLink ist dunkel-orientiert).",
+    accentColor: "Akzentfarbe",
+    accentColorHint:
+      "Ein Akzent im Material-You-Stil: Ein Farbton leitet die gesamte Primärpalette ab.",
+    accentReset: "Zurücksetzen",
     storage: "Speicher",
     free: "Frei",
     unlimited: "Unbegrenzt",

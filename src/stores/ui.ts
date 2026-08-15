@@ -12,6 +12,7 @@ export interface Toast {
 
 const LANG_KEY = "flutlink.lang";
 const THEME_KEY = "flutlink.theme";
+const ACCENT_KEY = "flutlink.accentHue";
 
 function read<T>(key: string): T | null {
   const raw = localStorage.getItem(key);
@@ -26,6 +27,8 @@ function read<T>(key: string): T | null {
 export const useUiStore = defineStore("ui", () => {
   const lang = ref<Lang>(read<Lang>(LANG_KEY) ?? "en");
   const theme = ref<Theme>(read<Theme>(THEME_KEY) ?? "operationflut");
+  // Material You accent seed: null means "use the theme's default hue".
+  const accentHue = ref<number | null>(read<number>(ACCENT_KEY) ?? null);
   const toasts = ref<Toast[]>([]);
   let nextId = 1;
 
@@ -37,6 +40,12 @@ export const useUiStore = defineStore("ui", () => {
   function setTheme(value: Theme) {
     theme.value = value;
     localStorage.setItem(THEME_KEY, JSON.stringify(value));
+  }
+
+  function setAccentHue(value: number | null) {
+    accentHue.value = value;
+    if (value === null) localStorage.removeItem(ACCENT_KEY);
+    else localStorage.setItem(ACCENT_KEY, JSON.stringify(value));
   }
 
   function toast(message: string, type: Toast["type"] = "info") {
@@ -51,5 +60,5 @@ export const useUiStore = defineStore("ui", () => {
     toasts.value = toasts.value.filter((t) => t.id !== id);
   }
 
-  return { lang, theme, toasts, setLang, setTheme, toast, dismiss };
+  return { lang, theme, accentHue, toasts, setLang, setTheme, setAccentHue, toast, dismiss };
 });

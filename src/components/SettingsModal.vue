@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import AppLogo from "./AppLogo.vue";
+import Icon from "./Icon.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore, type Theme } from "../stores/ui";
 import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "../lib/ipc";
@@ -51,11 +52,34 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
   { value: "system", label: t("themeSystem") },
 ]);
 
+// Material You accent seed; null keeps the theme's default hue.
+const accentValue = ref(ui.accentHue ?? 266);
+
+function themeDefaultHue(): number {
+  const resolved =
+    ui.theme === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "midnight"
+        : "light"
+      : ui.theme;
+  return resolved === "midnight" ? 220 : 266;
+}
+
+function applyAccent() {
+  ui.setAccentHue(Math.round(accentValue.value));
+}
+
+function resetAccent() {
+  ui.setAccentHue(null);
+  accentValue.value = themeDefaultHue();
+}
+
 watch(
   () => props.open,
   (open) => {
     if (open) {
       tab.value = "accounts";
+      accentValue.value = ui.accentHue ?? 266;
       if (accounts.active?.isAdmin) void loadUsers();
     }
   }
@@ -138,24 +162,24 @@ async function downloadAndInstall() {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       @click.self="emit('close')"
     >
-      <div class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-          <h2 class="text-base font-semibold text-zinc-50">{{ t("settingsTitle") }}</h2>
+      <div class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-outline bg-surface-container shadow-m3-3">
+        <div class="flex items-center justify-between border-b border-outline-variant px-5 py-3">
+          <h2 class="text-base font-semibold text-on-surface">{{ t("settingsTitle") }}</h2>
           <button
-            class="rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            class="flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
             :aria-label="t('close')"
             @click="emit('close')"
           >
-            ✕
+            <Icon name="close" :size="18" />
           </button>
         </div>
 
-        <div class="flex gap-1 border-b border-zinc-800 px-4 pt-2">
+        <div class="flex gap-1 border-b border-outline-variant px-4 pt-2">
           <button
             v-for="key in (['accounts', 'admin', 'about'] as const)"
             :key="key"
             class="rounded-t-md px-3 py-1.5 text-sm font-medium transition"
-            :class="tab === key ? 'border-b-2 border-indigo-500 text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'"
+            :class="tab === key ? 'border-b-2 border-primary text-on-surface' : 'text-on-surface-variant hover:text-on-surface-variant'"
             @click="tab = key"
           >
             {{ t(key === 'accounts' ? 'tabAccounts' : key === 'admin' ? 'tabAdmin' : 'tabAbout') }}
@@ -165,65 +189,66 @@ async function downloadAndInstall() {
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
           <!-- Accounts -->
           <div v-if="tab === 'accounts'" class="space-y-2">
-            <p v-if="!accounts.accounts.length" class="text-sm text-zinc-500">
+            <p v-if="!accounts.accounts.length" class="text-sm text-on-surface-variant">
               {{ t("noAccount") }}
             </p>
             <div
               v-for="account in accounts.accounts"
               :key="account.instanceUrl + '/' + account.username"
-              class="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-800/40 p-3"
+              class="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-high/40 p-3"
             >
               <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-2 truncate text-sm font-medium text-zinc-50">
+                <p class="flex items-center gap-2 truncate text-sm font-medium text-on-surface">
                   {{ account.displayName || account.username }}
                   <span
                     v-if="account.isActive"
-                    class="rounded bg-indigo-600/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-indigo-300"
+                    class="rounded bg-primary-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-primary-container"
                   >
                     {{ t("active") }}
                   </span>
                 </p>
-                <p class="truncate text-xs text-zinc-500">{{ account.instanceUrl }}</p>
+                <p class="truncate text-xs text-on-surface-variant">{{ account.instanceUrl }}</p>
               </div>
               <button
                 v-if="!account.isActive"
-                class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click="switchTo(account.username, account.instanceUrl)"
               >
                 {{ t("switchAccount") }}
               </button>
               <button
-                class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-red-300 hover:bg-red-950/40"
+                class="rounded-md border border-outline px-2.5 py-1 text-xs text-error hover:bg-error-container"
                 @click="remove(account.username, account.instanceUrl)"
               >
                 {{ t("removeAccount") }}
               </button>
             </div>
             <button
-              class="w-full rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-sm text-zinc-400 hover:border-indigo-500 hover:text-indigo-300"
+              class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline px-3 py-2 text-sm text-on-surface-variant hover:border-primary hover:text-primary-emphasis"
               @click="emit('login')"
             >
-              + {{ t("addAccount") }}
+              <Icon name="add" :size="16" />
+              {{ t("addAccount") }}
             </button>
           </div>
 
           <!-- Admin -->
           <div v-if="tab === 'admin'">
-            <p v-if="!accounts.active?.isAdmin" class="text-sm text-zinc-500">
+            <p v-if="!accounts.active?.isAdmin" class="text-sm text-on-surface-variant">
               {{ t("adminTabNote") }}
             </p>
             <template v-else>
-              <p class="mb-3 text-sm text-zinc-500">{{ t("adminTabNote") }}</p>
-              <div v-if="adminError" class="mb-3 rounded-md border border-red-800 bg-red-950/50 px-3 py-2 text-xs text-red-300">
+              <p class="mb-3 text-sm text-on-surface-variant">{{ t("adminTabNote") }}</p>
+              <div v-if="adminError" class="mb-3 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
                 {{ adminError }}
               </div>
-              <p v-if="adminLoading" class="text-sm text-zinc-500">{{ t("users") }}…</p>
-              <ul v-else-if="users.length" class="divide-y divide-zinc-800/60 rounded-lg border border-zinc-800">
-                <li v-for="userId in users" :key="userId" class="px-3 py-2 text-sm text-zinc-200">
+              <p v-if="adminLoading" class="text-sm text-on-surface-variant">{{ t("users") }}…</p>
+              <ul v-else-if="users.length" class="divide-y divide-outline-variant/60 rounded-lg border border-outline-variant">
+                <li v-for="userId in users" :key="userId" class="px-3 py-2 text-sm text-on-surface">
                   {{ userId }}
                 </li>
               </ul>
-              <p v-else class="text-sm text-zinc-500">{{ t("noUsersFound") }}</p>
+              <p v-else class="text-sm text-on-surface-variant">{{ t("noUsersFound") }}</p>
             </template>
           </div>
 
@@ -232,26 +257,26 @@ async function downloadAndInstall() {
             <div class="flex items-center gap-3">
               <AppLogo class="h-10 w-10" />
               <div>
-                <p class="text-base font-semibold text-zinc-50">{{ t("aboutApp") }}</p>
-                <p class="text-xs text-zinc-500">
+                <p class="text-base font-semibold text-on-surface">{{ t("aboutApp") }}</p>
+                <p class="text-xs text-on-surface-variant">
                   {{ t("version") }} 0.1.0 · {{ t("rustBackend") }} · Tauri v2
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2.5">
-              <span class="text-xs text-zinc-400">{{ t("partOf") }}</span>
+            <div class="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high/40 px-3 py-2.5">
+              <span class="text-xs text-on-surface-variant">{{ t("partOf") }}</span>
               <img src="/operationflut-logo.svg" alt="OperationFlut" class="h-4" />
             </div>
-            <p class="text-xs leading-relaxed text-zinc-600">{{ t("aboutOperationflut") }}</p>
+            <p class="text-xs leading-relaxed text-outline">{{ t("aboutOperationflut") }}</p>
 
-            <div class="space-y-1 text-xs leading-relaxed text-zinc-600">
+            <div class="space-y-1 text-xs leading-relaxed text-outline">
               <p>{{ t("trayHint") }}</p>
               <p>{{ t("cliHint") }}</p>
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("language") }}
               </p>
               <div class="flex gap-1.5">
@@ -260,8 +285,8 @@ async function downloadAndInstall() {
                   :key="option.value"
                   class="rounded-md border px-3 py-1.5 text-sm transition"
                   :class="ui.lang === option.value
-                    ? 'border-indigo-500 bg-indigo-600/20 text-zinc-50'
-                    : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'"
+                    ? 'border-primary bg-primary-container text-on-primary-container'
+                    : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
                   @click="ui.setLang(option.value)"
                 >
                   {{ option.label }}
@@ -270,7 +295,7 @@ async function downloadAndInstall() {
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("theme") }}
               </p>
               <div class="space-y-1.5">
@@ -279,34 +304,59 @@ async function downloadAndInstall() {
                   :key="option.value"
                   class="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition"
                   :class="ui.theme === option.value
-                    ? 'border-indigo-500 bg-indigo-600/20 text-zinc-50'
-                    : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'"
+                    ? 'border-primary bg-primary-container text-on-primary-container'
+                    : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
                   @click="ui.setTheme(option.value)"
                 >
                   {{ option.label }}
-                  <span v-if="ui.theme === option.value" class="text-indigo-300">✓</span>
+                  <Icon v-if="ui.theme === option.value" name="check" :size="16" class="text-on-primary-container" />
                 </button>
               </div>
-              <p class="mt-2 text-xs text-zinc-600">{{ t("systemThemeNote") }}</p>
+              <p class="mt-2 text-xs text-outline">{{ t("systemThemeNote") }}</p>
             </div>
 
-            <div class="rounded-lg border border-zinc-800 bg-zinc-800/40 p-3">
-              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <div>
+              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+                {{ t("accentColor") }}
+              </p>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model.number="accentValue"
+                  type="range"
+                  min="0"
+                  max="360"
+                  step="1"
+                  class="w-full accent-primary"
+                  :aria-label="t('accentColor')"
+                  @input="applyAccent"
+                />
+                <button
+                  class="shrink-0 rounded-md border border-outline px-2.5 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+                  @click="resetAccent"
+                >
+                  {{ t("accentReset") }}
+                </button>
+              </div>
+              <p class="mt-2 text-xs text-outline">{{ t("accentColorHint") }}</p>
+            </div>
+
+            <div class="rounded-lg border border-outline-variant bg-surface-container-high/40 p-3">
+              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
                 {{ t("updates") }}
               </p>
 
               <template v-if="updateState === 'checking'">
-                <p class="text-sm text-zinc-400">{{ t("checkingForUpdates") }}</p>
+                <p class="text-sm text-on-surface-variant">{{ t("checkingForUpdates") }}</p>
               </template>
 
               <template v-else-if="updateState === 'available' && updateInfo">
-                <p class="mb-1 text-sm font-medium text-zinc-50">
+                <p class="mb-1 text-sm font-medium text-on-surface">
                   {{ t("updateAvailable") }}
-                  <span class="text-indigo-300">v{{ updateInfo.version }}</span>
+                  <span class="text-primary-emphasis">v{{ updateInfo.version }}</span>
                 </p>
-                <p class="mb-2 truncate text-xs text-zinc-500">{{ updateInfo.name }}</p>
+                <p class="mb-2 truncate text-xs text-on-surface-variant">{{ updateInfo.name }}</p>
                 <button
-                  class="w-full rounded-md border border-indigo-600 bg-indigo-600/20 px-3 py-2 text-sm text-indigo-200 hover:bg-indigo-600/30"
+                  class="w-full rounded-md border border-primary bg-primary/20 px-3 py-2 text-sm text-primary-emphasis hover:bg-primary/30"
                   @click="downloadAndInstall"
                 >
                   {{ t("updateDownloadAndInstall") }}
@@ -316,33 +366,33 @@ async function downloadAndInstall() {
               <template
                 v-else-if="updateState === 'downloading' || updateState === 'installing'"
               >
-                <p class="mb-1 text-sm text-zinc-400">
+                <p class="mb-1 text-sm text-on-surface-variant">
                   {{
                     updateState === "downloading"
                       ? t("updateDownloading")
                       : t("updateInstalling")
                   }}
                 </p>
-                <div
-                  v-if="updateState === 'downloading'"
-                  class="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"
-                >
                   <div
-                    class="h-full rounded-full bg-indigo-500 transition-all"
-                    :style="{ width: Math.min(updateProgress, 100) + '%' }"
-                  ></div>
-                </div>
-                <p v-if="updateStatus" class="mt-1 truncate text-xs text-zinc-600">
-                  {{ updateStatus }}
-                </p>
-              </template>
+                    v-if="updateState === 'downloading'"
+                    class="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high"
+                  >
+                    <div
+                      class="h-full rounded-full bg-primary transition-all"
+                      :style="{ width: Math.min(updateProgress, 100) + '%' }"
+                    ></div>
+                  </div>
+                  <p v-if="updateStatus" class="mt-1 truncate text-xs text-outline">
+                    {{ updateStatus }}
+                  </p>
+                </template>
 
-              <template v-else-if="updateState === 'error'">
-                <p class="mb-2 text-xs text-red-300">
-                  {{ updateError || t("updateCheckFailed") }}
-                </p>
+                <template v-else-if="updateState === 'error'">
+                  <p class="mb-2 text-xs text-error">
+                    {{ updateError || t("updateCheckFailed") }}
+                  </p>
                 <button
-                  class="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                  class="w-full rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
                   @click="checkForUpdate"
                 >
                   {{ t("checkForUpdates") }}
@@ -350,9 +400,9 @@ async function downloadAndInstall() {
               </template>
 
               <template v-else>
-                <p class="mb-2 text-xs text-zinc-600">{{ t("updateUpToDate") }}</p>
+                <p class="mb-2 text-xs text-outline">{{ t("updateUpToDate") }}</p>
                 <button
-                  class="w-full rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+                  class="w-full rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
                   @click="checkForUpdate"
                 >
                   {{ t("checkForUpdates") }}
@@ -360,7 +410,7 @@ async function downloadAndInstall() {
               </template>
             </div>
 
-            <p class="text-xs leading-relaxed text-zinc-600">{{ t("keychainSecured") }}</p>
+            <p class="text-xs leading-relaxed text-outline">{{ t("keychainSecured") }}</p>
           </div>
         </div>
       </div>

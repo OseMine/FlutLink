@@ -105,17 +105,6 @@ public + private link sharing"):
 
 Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
 
-- [ ] **U8 (Feature/Design, mittel):** Kein Material-3-Expressive-Design
-      umgesetzt, obwohl der Fokus darauf liegt: Keine Design-Tokens (State-
-      Layer, Elevation, Shape, Motion), keine dynamische Farbpalette
-      (Material You), Icons sind Emojis (📁/📄/☰/▦/⚙) statt SVG-Icon-Set
-      (Material Symbols o. Ä.), kein Ripple/Hover-Feedback, keine
-      Fokus-Ringe (`:focus-visible`). `src/style.css` überschreibt nur
-      `--color-zinc-*`/`--color-indigo-*`; alle Komponenten nutzen
-      hartkodierte Klassen (`bg-indigo-600`, `text-indigo-300`,
-      `bg-indigo-950/40` in `FileExplorer.vue`, `App.vue:163`,
-      `SettingsModal.vue`). Fix: M3-Token-System in `style.css` unter
-      `[data-theme]` etablieren und Komponenten auf Tokens umstellen.
 - [ ] **U9 (Feature, mittel):** Dateibrowser ohne Google-Drive-Kernfunktionen:
       Es gibt **keine Suche** (der in B9 archivierte `webdav_search`-Command
       wurde nie implementiert — weder in `commands.rs` noch `src/lib/ipc.ts`),
@@ -305,6 +294,23 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (U8)
+
+- [x] **U8 (Feature/Design, mittel):** Kein Material-3-Expressive-Design
+      umgesetzt. Fix umgesetzt: M3-Token-System in `src/style.css` unter
+      `[data-theme]` (State-Layer, Elevation, Shape, Motion, `:focus-visible`-
+      Ringe, M3-Ripple), dynamische Farbpalette (Material You, konfigurierbarer
+      Accent-Hue in den Settings, `--m3-accent-hue`), SVG-Icon-Set
+      (`src/components/Icon.vue` mit Material-Icons-Pfaden) ersetzt alle Emojis
+      (📁/📄/☰/▦/⚙/🔒/✕/✓/✗), Ripple-Feedback über `src/lib/ripple.ts`
+      (delegierter Pointerdown). Alle Komponenten (App, FileExplorer,
+      SettingsModal, LoginModal, AdminPanel, SyncPanel, AccountBar,
+      WelcomeScreen, ToastStack) auf Tokens umgestellt statt hartkodierter
+      Klassen (`bg-indigo-600`, `text-indigo-300`, `bg-indigo-950/40`); Theme
+      liegt jetzt auf `document.documentElement` (Teleport-Overlays erben
+      Tokens), Accent-Wert persistiert in localStorage. Verifikation:
+      `npm run build` grün (vue-tsc + vite).
 
 ### Review 2026-08-15 (U11)
 
