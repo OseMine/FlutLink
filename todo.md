@@ -134,10 +134,10 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       refresht die Liste, der alte Pfad bleibt in `selected` → Zähler
       (Z. 390) zeigt stale Einträge. Fix: Pfad nach Rename im Set ersetzen
       (bzw. `removeEntry` Z. 183 analog bereits ok).
-- [ ] **N10 (Konsistenz, minor):** `webdav_create_share` (`commands.rs:326-337`)
+- [x] **N10 (Konsistenz, minor):** `webdav_create_share` (`commands.rs:326-337`)
       ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
       `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
-      oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzen.
+      oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzt.
 - [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
       `/` im `new_name` → „Rename" wird still zu einem Move in einen
       Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
@@ -305,6 +305,13 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (N10)
+
+- [x] **N10 (Konsistenz, minor):** `webdav_create_share` (`commands.rs:326-337`)
+      rief im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
+      `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
+      oder mit `..` waren möglich. Fix: `validate_dav_path(&path)?` ergänzt.
 
 ### Review 2026-08-15 (U11)
 
