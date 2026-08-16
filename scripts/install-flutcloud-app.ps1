@@ -20,7 +20,7 @@
   detected path or to enter the path where you installed Nextcloud.
 
 .PARAMETER Ref
-  Git ref to fetch the app from (release tag such as "v0.1.0" or a branch
+  Git ref to fetch the app from (release tag such as "v1.0.0" or a branch
   name). Defaults to the latest release tag, falling back to "main".
 
 .PARAMETER WebUser
