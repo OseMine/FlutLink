@@ -45,6 +45,19 @@ Die Doku liegt in `docs/` mit `en/`- und `de/`-Ordnern. Beide Sprachversionen
 müssen synchron bleiben — aktualisiere beim Ändern einer Seite immer die
 Gegenseite und halte den Index in `docs/README.md` aktuell.
 
+## Release-Vorgang
+
+1. **Version prüfen/anheben** (`package.json`, `src-tauri/Cargo.toml` +
+   `Cargo.lock`, `src-tauri/tauri.conf.json`). Davon hängen die Asset-Namen
+   (`FlutLink_<version>_…`) und der Tag (`v<version>`) ab (`release.yml`).
+2. **Tag pushen** (`git tag v1.0.0 && git push origin v1.0.0`): `release.yml`
+   baut die Binaries für alle Plattformen und lädt die Assets hoch.
+3. **Draft manuell publizieren (R7-7):** `release.yml` veröffentlicht als
+   Draft (`releaseDraft: true`). `check_for_update` überspringt Drafts und
+   Prereleases (`updater.rs`), daher erhalten Bestandskunden das Update erst,
+   wenn der Draft nach erfolgreichem Build **manuell** publiziert wird:
+   GitHub → Releases → `v<version>` → „Publish release".
+
 ## CI
 
 `.github/workflows/` führt bei jedem Push/PR Build, Lint und Checks sowie

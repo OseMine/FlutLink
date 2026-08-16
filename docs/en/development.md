@@ -45,6 +45,20 @@ Docs live in `docs/` with `en/` and `de/` folders. Both language versions must
 stay in sync — update the counterpart whenever you touch a page, and keep the
 index in `docs/README.md` up to date.
 
+## Release process
+
+1. **Check/bump the version** (`package.json`, `src-tauri/Cargo.toml` +
+   `Cargo.lock`, `src-tauri/tauri.conf.json`). The asset names
+   (`FlutLink_<version>_…`) and the tag (`v<version>`) derive from it
+   (`release.yml`).
+2. **Push the tag** (`git tag v1.0.0 && git push origin v1.0.0`): `release.yml`
+   builds the binaries for all platforms and uploads the assets.
+3. **Publish the draft manually (R7-7):** `release.yml` publishes as a draft
+   (`releaseDraft: true`). `check_for_update` skips drafts and prereleases
+   (`updater.rs`), so existing customers only receive the update once the
+   draft is **manually** published after a successful build:
+   GitHub → Releases → `v<version>` → "Publish release".
+
 ## CI
 
 `.github/workflows/` runs build, lint and checks on every push/PR, plus
