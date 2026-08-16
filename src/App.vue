@@ -174,7 +174,7 @@ watch(
   <div class="flex h-full bg-surface text-on-surface" :style="accentStyle">
     <div
       v-if="updateBanner"
-      class="fixed inset-x-0 top-0 z-[45] flex items-center gap-3 border-b border-primary bg-primary-container/95 px-4 py-2 text-sm shadow-lg"
+      class="flex shrink-0 items-center gap-3 border-b border-primary bg-primary-container px-4 py-2 text-sm"
     >
       <span class="min-w-0 flex-1 truncate text-on-primary-container">
         {{ t("updateNewVersion").replace("{version}", updateBanner.version) }}

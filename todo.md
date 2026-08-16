@@ -45,11 +45,6 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
       (Z. 216-222); die Grid-Kacheln haben kein Äquivalent. Fix: Badge in die
       Grid-Kachel übernehmen.
-- [ ] **U-R8-5 (UX, minor):** Update-Banner überlagert den Header ohne
-      Layout-Ausgleich. `App.vue` Z. 175-206: `fixed inset-x-0 top-0 z-[45]` liegt
-      über dem Header (Tabs, Einstellungen, Account-Menü); die Header-Buttons
-      sind bis zum Dismiss des Banners nicht erreichbar. Fix: Platzhalter oder
-      `padding-top` auf dem Shell-Wrapper, wenn der Banner sichtbar ist.
 - [ ] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
       Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wird nur bei
       `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
@@ -200,6 +195,17 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-5)
+
+- [x] **U-R8-5 (UX, minor):** Update-Banner überlagert den Header ohne
+      Layout-Ausgleich. Fix in `App.vue`: Der Banner ist nicht mehr
+      `fixed inset-x-0 top-0 z-[45]`, sondern ein normal im Fluss liegendes
+      Flex-Kind der Shell (`flex shrink-0 … bg-primary-container`, keine
+      Transparenz/Shadow mehr). Da der Shell-Wrapper selbst nie scrollt
+      (Panels scrollen intern über `min-h-0 flex-1`), bleibt der Banner oben
+      sichtbar und schiebt den Header nach unten — alle Header-Buttons
+      (Tabs, Einstellungen, Account-Menü) bleiben erreichbar, kein Überlappen.
 
 ### Review 2026-08-16 (Android-Client)
 
