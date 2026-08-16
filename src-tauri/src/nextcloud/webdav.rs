@@ -805,7 +805,7 @@ fn to_entry(
     let (is_resource, is_part) = classify(&rel);
     Some(WebDavEntry {
         name,
-        path: rel,
+        path: rel.clone(),
         is_dir,
         size,
         mtime,
@@ -813,6 +813,7 @@ fn to_entry(
         content_type,
         is_resource,
         is_part,
+        paired_path: paired_path(&rel),
     })
 }
 
@@ -880,6 +881,28 @@ fn classify(rel: &str) -> (bool, bool) {
         }
     }
     (is_resource, is_part)
+}
+
+/// Compute the counterpart of a path in the FlutCloud virtual namespaces:
+/// `/resources/…` (read-only virtual links) pair with the matching `/parts/…`
+/// (write-enabled) and vice versa. The first segment matching either name is
+/// swapped; the remainder of the path is preserved. Returns `None` for paths
+/// outside both namespaces.
+fn paired_path(rel: &str) -> Option<String> {
+    let segments: Vec<&str> = rel.split('/').collect();
+    for (i, segment) in segments.iter().enumerate() {
+        if segment.eq_ignore_ascii_case("resources") {
+            let mut paired = segments.clone();
+            paired[i] = "parts";
+            return Some(paired.join("/"));
+        }
+        if segment.eq_ignore_ascii_case("parts") {
+            let mut paired = segments.clone();
+            paired[i] = "resources";
+            return Some(paired.join("/"));
+        }
+    }
+    None
 }
 
 fn decode_segment(segment: &str) -> String {
@@ -961,6 +984,7 @@ mod tests {
             .expect("resources");
         assert!(resources.is_resource);
         assert!(!resources.is_part);
+        assert_eq!(resources.paired_path.as_deref(), Some("/parts"));
 
         let data = entries
             .iter()
@@ -971,6 +995,11 @@ mod tests {
         assert!(
             data.is_part,
             "folder 'Parts' is case-insensitively detected"
+        );
+        assert_eq!(
+            data.paired_path.as_deref(),
+            Some("/resources/Data.bin"),
+            "an entry under 'Parts' pairs with the 'resources' namespace"
         );
         assert_eq!(
             data.content_type.as_deref(),
@@ -985,6 +1014,26 @@ mod tests {
         assert_eq!(classify("/resources/virtual/link.txt"), (true, false));
         assert_eq!(classify("/Parts"), (false, true));
         assert_eq!(classify("/parts/write/me.txt"), (false, true));
+    }
+
+    #[test]
+    fn pairs_virtual_and_real_paths() {
+        assert_eq!(paired_path("/foo"), None);
+        assert_eq!(paired_path("/Photos"), None);
+        assert_eq!(paired_path("/resources"), Some("/parts".to_string()));
+        assert_eq!(
+            paired_path("/resources/link"),
+            Some("/parts/link".to_string())
+        );
+        assert_eq!(
+            paired_path("/resources/link/file.txt"),
+            Some("/parts/link/file.txt".to_string())
+        );
+        assert_eq!(paired_path("/Parts"), Some("/resources".to_string()));
+        assert_eq!(
+            paired_path("/parts/write/me.txt"),
+            Some("/resources/write/me.txt".to_string())
+        );
     }
 
     #[test]

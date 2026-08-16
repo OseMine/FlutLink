@@ -50,13 +50,6 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
       README Phase 3 „drag & drop". Fix: DnD-Handler, der `files.uploadFile`
       wie `uploadFiles` (Z. 123-142) aufruft.
-- [ ] **Q6 (Phase 3, Feature, mittel):** `resources`/`parts`-Dual-Pane-Workflow
-      fehlt: Backend klassifiziert korrekt (`webdav.rs::classify`,
-      Z. 531-542, Flags `is_resource`/`is_part`), die UI zeigt nur Badges
-      (`FileExplorer.vue:464-478`). Kein Pairing virtueller Links
-      (`resources`) mit ihren schreibbaren Teilen (`parts`), kein
-      „virtual ↔ real"-Navigationsfluss. Fix: Split-View-/Pairing-Konzept +
-      Verknüpfungsfeld in `WebDavEntry`.
 - [ ] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlt:
       `walk_local` überspringt Symlinks still (`sync.rs:196-198`),
       `resources`-Einträge werden nie auf ihr Ziel aufgelöst (kein
@@ -374,6 +367,22 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Q6)
+
+- [x] **Q6 (Phase 3, Feature, mittel):** `resources`/`parts`-Dual-Pane-Workflow
+      fehlte: Backend klassifizierte korrekt (`webdav.rs::classify`, Flags
+      `is_resource`/`is_part`), die UI zeigte nur Badges (`FileExplorer.vue`),
+      kein Pairing virtueller Links (`resources`) mit ihren schreibbaren
+      Teilen (`parts`), kein „virtual ↔ real"-Navigationsfluss. Fix umgesetzt:
+      `WebDavEntry` trägt jetzt `paired_path` (`state.rs`), berechnet in
+      `webdav.rs::paired_path` (ersetzt das erste `resources`/`parts`-Segment,
+      Unit-Tests ergänzt). Frontend: `src/stores/files.ts` liefert `pairOf()`
+      und den Split-View-Store (`splitView`, `pairedPath`, `pairedEntries`),
+      neue `src/components/EntryList.vue` (gemeinsame Listen-/Grid-Darstellung
+      inkl. Sortierung und „↔"-Pairing-Button), `FileExplorer.vue` mit
+      Pairing-Leiste („Virtual ↔ Real", dynamische Pane-Labels), Split-View-
+      Button und Dual-Pane-Layout. Verifikation: `cargo test` → 50 passed,
+      `npm run build` grün.
 ### Review 2026-08-15 (P10/N6)
 
 - [x] **P10/N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name`
