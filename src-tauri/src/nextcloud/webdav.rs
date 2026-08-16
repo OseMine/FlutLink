@@ -99,7 +99,7 @@ pub async fn list(
             "/remote.php/dav/files/{}",
             urlencoding::encode(effective_user)
         );
-        let entries = parse_multistatus(&body, &base_path)?;
+        let entries = parse_listing(&body, &base_path, path)?;
         // Namespace guard: if the server silently ignored `Impersonate-User`,
         // the hrefs point at the *admin's* namespace. `relative_path` strips
         // scheme + host from absolute hrefs, so a leftover "/remote.php/..."
@@ -889,6 +889,33 @@ fn tmp_path(dest: &std::path::Path) -> std::path::PathBuf {
     dest.with_file_name(name)
 }
 
+/// Parse a Depth-1 listing for the folder `path` and drop the folder itself.
+///
+/// A PROPFIND with `Depth: 1` on a collection always includes the target
+/// resource itself (RFC 4918). Without this filter every folder would appear
+/// as an entry inside its own listing: empty folders would look non-empty and
+/// clicking the self entry (whose path equals the current folder) would be a
+/// no-op — the "cannot navigate folders" symptom.
+pub fn parse_listing(body: &str, base_path: &str, path: &str) -> AppResult<Vec<WebDavEntry>> {
+    let current = list_current_path(path);
+    Ok(parse_multistatus(body, base_path)?
+        .into_iter()
+        .filter(|e| e.path != current)
+        .collect())
+}
+
+/// Normalize a client-supplied folder path into the logical relative path used
+/// in listings: `""` and `"/"` → `"/"`, `"/Photos"` stays as is, a trailing
+/// slash is stripped so it matches the relative paths computed from hrefs.
+fn list_current_path(path: &str) -> String {
+    let trimmed = path.trim_matches('/');
+    if trimmed.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{}", trimmed)
+    }
+}
+
 /// Parse a WebDAV multistatus XML document into structured entries.
 pub fn parse_multistatus(body: &str, base_path: &str) -> AppResult<Vec<WebDavEntry>> {
     let mut reader = Reader::from_str(body);
@@ -1180,6 +1207,59 @@ mod tests {
     </d:propstat>
   </d:response>
 </d:multistatus>"#;
+
+    #[test]
+    fn drops_the_listed_folder_from_its_own_listing() {
+        // Depth-1 PROPFIND on /Photos: the folder itself is the first response.
+        let body = r#"<d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/remote.php/dav/files/admin/Photos/</d:href>
+            <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/remote.php/dav/files/admin/Photos/2024/</d:href>
+            <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/remote.php/dav/files/admin/Photos/vacation.jpg</d:href>
+            <d:propstat><d:prop><d:getcontentlength>1024</d:getcontentlength></d:prop></d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+        let entries =
+            parse_listing(body, "/remote.php/dav/files/admin", "/Photos").expect("parse ok");
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, vec!["2024", "vacation.jpg"]);
+        assert!(
+            entries.iter().all(|e| e.path != "/Photos"),
+            "the listed folder must not appear inside itself"
+        );
+    }
+
+    #[test]
+    fn keeps_the_root_listing_unchanged() {
+        // At the root the container itself is already skipped by the parser.
+        let body = r#"<d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/remote.php/dav/files/admin/</d:href>
+            <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/remote.php/dav/files/admin/Photos/</d:href>
+            <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+        let entries = parse_listing(body, "/remote.php/dav/files/admin", "/").expect("parse ok");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path, "/Photos");
+    }
+
+    #[test]
+    fn normalizes_listing_current_paths() {
+        assert_eq!(list_current_path(""), "/");
+        assert_eq!(list_current_path("/"), "/");
+        assert_eq!(list_current_path("/Photos"), "/Photos");
+        assert_eq!(list_current_path("/Photos/"), "/Photos");
+    }
 
     #[test]
     fn parses_multistatus() {

@@ -66,6 +66,7 @@ class WebDavApi(private val client: OkHttpClient) {
             session
         ).header("Depth", "1").build()
         executeWebDav(request, "/remote.php/dav/files/${encodeSegment(session.username)}")
+            .filterNot { it.path == listingCurrentPath(path) }
     }
 
     /** WebDAV-SEARCH across the whole files tree. */
@@ -261,6 +262,18 @@ class WebDavApi(private val client: OkHttpClient) {
             } catch (_: IllegalArgumentException) {
                 segment
             }
+
+        /**
+         * Normalize a client-supplied folder path into the logical relative
+         * path used in listings ("" → "/", "/Photos" stays as is, trailing
+         * slashes stripped). The Depth-1 response of a folder always contains
+         * the folder itself, which must not appear as an entry inside its own
+         * listing — otherwise clicking it is a no-op.
+         */
+        private fun listingCurrentPath(path: String): String {
+            val trimmed = path.trim('/')
+            return if (trimmed.isEmpty()) "/" else "/$trimmed"
+        }
 
         /** Strip scheme + host from an absolute href. */
         private fun hrefPath(href: String): String {
