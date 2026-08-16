@@ -253,6 +253,13 @@ function parentPath(path: string): string {
           @click.stop
           @change="emit('toggleSelect', entry.path)"
         />
+        <span
+          v-if="props.sharesByPath?.get(entry.path)?.length"
+          class="absolute left-1.5 top-1.5 rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+          :title="t('sharesCount').replace('{count}', String(props.sharesByPath?.get(entry.path)?.length ?? 0))"
+        >
+          {{ props.sharesByPath?.get(entry.path)?.length }}
+        </span>
         <div class="relative">
           <img
             v-if="props.thumbs?.get(entry.path)"

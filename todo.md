@@ -41,7 +41,7 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       wird also an- und wieder abgewählt; die Datei öffnet, ist danach aber nicht
       mehr markiert (inkonsistent zur Listenansicht). Fix: Toggle nur bei
       `e.detail === 1` ausführen oder das Toggle beim `dblclick` zurücknehmen.
-- [ ] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
+- [x] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
       Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
       (Z. 216-222); die Grid-Kacheln haben kein Äquivalent. Fix: Badge in die
       Grid-Kachel übernehmen.
@@ -200,6 +200,19 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 8, U-R8-4)
+
+- [x] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
+      Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
+      (Z. 216-222); die Grid-Kacheln hatten kein Äquivalent. Fix: Die
+      Grid-Kachel zeigt jetzt analog zur Listenansicht einen runden
+      Share-Badge oben links (`absolute left-1.5 top-1.5`, gleiche
+      Token-Klassen `bg-primary-container`/`text-on-primary-container` und
+      gleicher `sharesCount`-Tooltip); die Checkbox bleibt oben rechts.
+      Verifikation: `npm run build` grün, `cargo fmt --check` grün
+      (Frontend-only-Änderung; clippy im CI-Runner wegen fehlender
+      gobject/glib-Systembibliotheken nicht ausführbar).
 
 ### Review 2026-08-16 (Android-Client)
 
