@@ -34,14 +34,39 @@ let unlistenDragDrop: (() => void) | null = null;
 
 const isSearching = computed(() => files.searchQuery.length > 0);
 
+const sortKey = ref<"name" | "size" | "mtime">("name");
+const sortAsc = ref(true);
+
 const sortedEntries = computed(() => {
   const dirs = files.displayEntries.filter((e) => e.isDir);
   const others = files.displayEntries.filter((e) => !e.isDir);
-  const byName = (a: WebDavEntry, b: WebDavEntry) => a.name.localeCompare(b.name);
-  dirs.sort(byName);
-  others.sort(byName);
+  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
+    if (sortKey.value === "size") {
+      const av = a.size ?? 0;
+      const bv = b.size ?? 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    if (sortKey.value === "mtime") {
+      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
+      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    const av = a.name.toLowerCase();
+    const bv = b.name.toLowerCase();
+    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
+  };
+  dirs.sort(cmp);
+  others.sort(cmp);
   return [...dirs, ...others];
 });
+
+function toggleSort(key: "name" | "size" | "mtime") {
+  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
+  else {
+    sortKey.value = key;
+    sortAsc.value = true;
+  }
+}
 
 watch(searchInput, (value) => {
   if (searchTimer) clearTimeout(searchTimer);
@@ -218,6 +243,7 @@ async function download(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name });
     if (typeof dest !== "string") return;
     await files.downloadFile(entry.path, dest);
+    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -235,6 +261,7 @@ async function downloadZip(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name + ".zip" });
     if (typeof dest !== "string") return;
     await files.downloadZip(entry.path, dest);
+    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -338,6 +365,7 @@ async function uploadFiles() {
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
     }
+    files.clearTransfer();
     if (failed === 0) ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -348,7 +376,10 @@ async function uploadFiles() {
 
 async function createFolder() {
   const name = nameInput.value.trim();
-  if (!name) return;
+  if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+    ui.toast(t("folderNameInvalid"), "error");
+    return;
+  }
   try {
     await files.createFolder(name);
     ui.toast(t("folderCreated"), "success");
@@ -625,6 +656,13 @@ watch(
 watch(
   () => files.entries,
   () => {
+    const paths = new Set(files.entries.map((e) => e.path));
+    for (const key of [...thumbs.keys()]) {
+      if (!paths.has(key)) thumbs.delete(key);
+    }
+    for (const key of [...shareState.keys()]) {
+      if (!paths.has(key)) shareState.delete(key);
+    }
     void loadAllShares();
     for (const entry of files.entries) void loadThumb(entry);
     if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
@@ -992,6 +1030,9 @@ watch(
             :view-mode="viewMode"
             :selected="selected"
             :share-state="shareState"
+            :sort-key="sortKey"
+            :sort-asc="sortAsc"
+            :kbd-index="kbdIndex"
             @open="open"
             @toggle-select="toggleSelect"
             @contextmenu="openCtx"
@@ -999,6 +1040,7 @@ watch(
             @create-link="createLink"
             @copy-link="copyLink"
             @pair="goToPaired"
+            @toggle-sort="toggleSort"
           />
         </div>
       </div>
@@ -1024,12 +1066,15 @@ watch(
             :selected="emptySelection"
             :share-state="shareState"
             :selectable="false"
+            :sort-key="sortKey"
+            :sort-asc="sortAsc"
             @open="open"
             @contextmenu="openCtx"
             @rename="startRename"
             @create-link="createLink"
             @copy-link="copyLink"
             @pair="goToPaired"
+            @toggle-sort="toggleSort"
           />
         </div>
       </div>
@@ -1045,6 +1090,9 @@ watch(
         :searching="isSearching"
         :thumbs="thumbs"
         :shares-by-path="sharesByPath"
+        :sort-key="sortKey"
+        :sort-asc="sortAsc"
+        :kbd-index="kbdIndex"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
@@ -1055,6 +1103,7 @@ watch(
         @download="download"
         @delete="removeEntry"
         @share="openShareDialog"
+        @toggle-sort="toggleSort"
       />
     </div>
 
@@ -1068,6 +1117,9 @@ watch(
         :searching="isSearching"
         :thumbs="thumbs"
         :shares-by-path="sharesByPath"
+        :sort-key="sortKey"
+        :sort-asc="sortAsc"
+        :kbd-index="kbdIndex"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
@@ -1078,6 +1130,7 @@ watch(
         @download="download"
         @delete="removeEntry"
         @share="openShareDialog"
+        @toggle-sort="toggleSort"
       />
     </div>
 

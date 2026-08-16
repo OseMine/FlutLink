@@ -957,6 +957,19 @@ async fn download_tree(ctx: TransferCtx<'_>, remote_rel: &str, dest: &Path) -> A
     Ok(files_written)
 }
 
+/// Map a cloud path (`/a/b/c.txt`) to a local path under `dest`, preserving
+/// the relative directory structure (`dest/a/b/c.txt`). Equal-named leaves
+/// from different folders no longer collide on disk.
+fn bulk_local_path(dest: &Path, path: &str) -> PathBuf {
+    let mut out = dest.to_path_buf();
+    for segment in path.trim_start_matches('/').split('/') {
+        if !segment.is_empty() {
+            out = out.join(segment);
+        }
+    }
+    out
+}
+
 /// Download multiple cloud files/folders into `dest_dir`, preserving the
 /// folder structure. Emits `file://progress` events per file.
 #[tauri::command]
@@ -986,17 +999,13 @@ pub async fn webdav_bulk_download(
         total_files,
     };
     for t in &targets {
-        let local = dest.join(
-            t.path
-                .rsplit('/')
-                .next()
-                .unwrap_or_default()
-                .trim_matches('/'),
-        );
+        let local = bulk_local_path(&dest, &t.path);
         if t.is_dir {
             download_tree(ctx.clone(), &t.path, &local).await?;
         } else {
-            std::fs::create_dir_all(&dest)?;
+            if let Some(parent) = local.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
             let progress =
                 transfer_progress(app.clone(), "download", &t.path, ctx.index, total_files);
             webdav::get_file_as_progress(
@@ -1171,6 +1180,14 @@ pub async fn webdav_mkdir(
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&path)?;
+    // U-R8-10: the leaf is the folder name the user typed — reject `.`, `..`,
+    // empty names and (defensively) any `/` that could build folder chains.
+    let leaf = path
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .trim_matches('/');
+    validate_rename_name(leaf)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -1518,5 +1535,34 @@ mod tests {
         assert!(validate_rename_name("..").is_err(), "must not be '..'");
         assert!(validate_rename_name(".").is_err(), "must not be '.'");
         assert!(validate_rename_name("").is_err(), "must not be empty");
+    }
+
+    #[test]
+    fn bulk_local_path_preserves_relative_structure() {
+        let dest = Path::new("/tmp/out");
+        assert_eq!(
+            bulk_local_path(dest, "/Docs/report.pdf"),
+            Path::new("/tmp/out/Docs/report.pdf")
+        );
+        assert_eq!(
+            bulk_local_path(dest, "/readme.md"),
+            Path::new("/tmp/out/readme.md")
+        );
+        assert_eq!(
+            bulk_local_path(dest, "/a/notes.txt"),
+            Path::new("/tmp/out/a/notes.txt")
+        );
+        assert_ne!(
+            bulk_local_path(dest, "/a/notes.txt"),
+            bulk_local_path(dest, "/b/notes.txt")
+        );
+    }
+
+    #[test]
+    fn webdav_mkdir_leaf_must_be_a_single_name() {
+        assert!(validate_rename_name("bericht").is_ok());
+        assert!(validate_rename_name("a/b").is_err());
+        assert!(validate_rename_name("..").is_err());
+        assert!(validate_rename_name("").is_err());
     }
 }
