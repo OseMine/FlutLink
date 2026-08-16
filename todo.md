@@ -62,12 +62,12 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       text-amber-300` — U8 hat alle Komponenten auf Tokens umgestellt, dieser
       Hinweis ist die verbliebene Lücke (im hellen Theme schlechter Kontrast).
       Fix: Token-Klassen/CSS-Variablen verwenden.
-- [ ] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
+- [x] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
       `App.vue` initialisiert `resolvedTheme` mit `"operationflut"` (Z. 30) und
       ruft `resolveTheme()` erst in `onMounted` (Z. 102) auf → Nutzer mit
       `theme = "system"` und dunkler OS-Präferenz sehen kurz das helle
       OperationFlut-Theme. Fix: `resolvedTheme` initial aus `ui.theme` +
-      `matchMedia` ableiten.
+      `matchMedia` ableiten. → umgesetzt (siehe Archiv).
 - [ ] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
       falschen Default. `SettingsModal.vue` Z. 75/101: `ui.accentHue ?? 266` —
       bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
@@ -200,6 +200,18 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-8)
+
+- [x] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
+      `App.vue` initialisierte `resolvedTheme` hartkodiert mit `"operationflut"`
+      und leitete das Theme erst in `onMounted` ab → Nutzer mit
+      `theme = "system"` und dunkler OS-Präferenz sahen kurz das helle
+      OperationFlut-Theme. Fix: Neue Helper-Funktion
+      `resolveThemeFromPreference(theme)` leitet das Theme aus `ui.theme` +
+      `matchMedia` ab und liefert den initialen `resolvedTheme`-Wert bereits bei
+      der Setup-Initialisierung (kein FOUC mehr); `resolveTheme()` nutzt
+      denselben Helper (keine Duplikation).
 
 ### Review 2026-08-16 (Android-Client)
 

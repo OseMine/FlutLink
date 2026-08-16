@@ -27,7 +27,17 @@ const showLogin = ref(false);
 const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
 const accountMenu = ref(false);
-const resolvedTheme = ref<"operationflut" | "midnight" | "light">("operationflut");
+// Derive the initial theme from the persisted preference + OS preference at
+// setup time, so "system" users with a dark OS never see a light-theme FOUC.
+function resolveThemeFromPreference(theme: "operationflut" | "midnight" | "system") {
+  if (theme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "midnight" : "light";
+  }
+  return theme;
+}
+const resolvedTheme = ref<"operationflut" | "midnight" | "light">(
+  resolveThemeFromPreference(ui.theme)
+);
 
 // The theme lives on <html> so teleported overlays (modals, toasts) inherit
 // the M3 tokens too. A customized accent hue overrides the theme's seed.
@@ -58,13 +68,7 @@ const activeInitial = computed(() =>
 );
 
 function resolveTheme() {
-  if (ui.theme === "system") {
-    resolvedTheme.value = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "midnight"
-      : "light";
-  } else {
-    resolvedTheme.value = ui.theme;
-  }
+  resolvedTheme.value = resolveThemeFromPreference(ui.theme);
 }
 
 function toggleLang() {
