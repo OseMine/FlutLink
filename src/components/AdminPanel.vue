@@ -37,6 +37,57 @@ const newUser = reactive({
   displayName: "",
 });
 
+const groupInput = ref("");
+
+async function addToGroup() {
+  if (!selected.value) return;
+  const group = groupInput.value.trim();
+  if (!group) {
+    error.value = t("groupNameEmpty");
+    return;
+  }
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminAddGroupMember(group, selected.value.id);
+    groupInput.value = "";
+    await selectUser(selected.value.id);
+    ui.toast(t("groupMemberAdded"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
+async function removeFromGroup(group: string) {
+  if (!selected.value) return;
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminRemoveGroupMember(group, selected.value.id);
+    await selectUser(selected.value.id);
+    ui.toast(t("groupMemberRemoved"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
+async function createGroup() {
+  const group = groupInput.value.trim();
+  if (!group) {
+    error.value = t("groupNameEmpty");
+    return;
+  }
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminCreateGroup(group);
+    groupInput.value = "";
+    ui.toast(t("groupCreated"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
 function setQuotaFromTotal(total: number | null) {
   if (total === null || total < 0) {
     edits.quotaValue = null;
@@ -402,12 +453,39 @@ function quotaFree(q: UserQuota | null): string {
                 <span
                   v-for="group in selected.groups"
                   :key="group"
-                  class="rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
+                  class="flex items-center gap-1 rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
                 >
                   {{ group }}
+                  <button
+                    class="leading-none text-on-surface-variant hover:text-error"
+                    :title="t('removeFromGroup')"
+                    @click="removeFromGroup(group)"
+                  >
+                    ×
+                  </button>
                 </span>
               </div>
               <p v-else class="text-xs text-outline">{{ t("noGroups") }}</p>
+              <div class="mt-2 flex gap-2">
+                <input
+                  v-model="groupInput"
+                  :placeholder="t('groupName')"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+                  @keyup.enter="addToGroup"
+                />
+                <button
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                  @click="addToGroup"
+                >
+                  {{ t("addToGroup") }}
+                </button>
+                <button
+                  class="rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
+                  @click="createGroup"
+                >
+                  {{ t("createGroup") }}
+                </button>
+              </div>
             </div>
 
             <div class="rounded-md bg-surface-container-high/60 p-3 text-sm text-on-surface-variant">

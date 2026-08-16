@@ -36,8 +36,8 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
       Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
       `FileExplorer.vue`.
-- [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
-      zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlte: `AdminPanel.vue`
+      zeigte `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kannte keine
       Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
       `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
       „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
@@ -362,6 +362,22 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Q3)
+
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung umgesetzt.
+      `ocs.rs` kennt jetzt die OCS-Gruppen-Endpunkte (`list_groups` mit
+      Duplikat-Guard gegen Offset-ignorierende Server, `create_group` über
+      `POST /cloud/groups`, `add_group_member` über
+      `POST /cloud/groups/{id}/users`, `remove_group_member` über
+      `DELETE /cloud/groups/{id}/users/{uid}`). In `commands.rs` sind
+      `admin_list_groups`/`admin_create_group`/`admin_add_group_member`/
+      `admin_remove_group_member` (alle mit Admin-Check) hinzugekommen und in
+      `lib.rs` registriert; `src/lib/ipc.ts` hat die passenden Wrapper.
+      `AdminPanel.vue` verwaltet Gruppen jetzt interaktiv: Gruppen der
+      ausgewählten Person mit Entfernen-Button, Eingabefeld zum Hinzufügen in
+      eine Gruppe und Button zum Anlegen einer neuen Gruppe (Toast-Feedback,
+      i18n en/de).
 
 ### Review 2026-08-15 (U8)
 
