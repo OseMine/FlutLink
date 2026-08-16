@@ -43,7 +43,6 @@ jobs:
       github.event.comment.user.login != 'dependabot[bot]'
     needs: rust-check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
