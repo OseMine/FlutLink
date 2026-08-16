@@ -27,7 +27,7 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       als sichtbar. Fix: `kbdIndex` + Sortierung in `EntryList.vue` übergeben
       (bzw. dort zentralisieren) und den fokussierten Eintrag mit einer
       Highlight-Klasse versehen.
-- [ ] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
+- [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
       Einzel-Datei-Operationen dauerhaft stehen. `FileExplorer.vue` `uploadFiles()`
       (Z. 301-347), `download()` (Z. 214-227) und `downloadZip()` (Z. 231-244)
       rufen kein `files.clearTransfer()` auf — nur `bulkDownload`, `bulkDelete`
@@ -35,6 +35,7 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       `file://progress`-Events gesetzt (`files.ts` `bindProgress`, Z. 304-310);
       nach dem letzten Event (100 %) bleibt die Leiste hängen, bis die nächste
       Aktion kommt. Fix: `clearTransfer()` nach Abschluss der Einzel-Operationen.
+      → umgesetzt (siehe Archiv).
 - [ ] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
       wieder ab. `EntryList.vue` Grid (Z. 244-246): `@click` toggelt die Auswahl,
       `@dblclick` öffnet — ein Doppelklick feuert zwei `click`-Events, die Auswahl
@@ -200,6 +201,19 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (U-R8-2)
+
+- [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste blieb nach
+      Einzel-Datei-Operationen dauerhaft stehen. Fix: `files.clearTransfer()`
+      nach Abschluss der Einzel-Operationen in `FileExplorer.vue` ergänzt —
+      in `download()` nach `files.downloadFile(...)`, in `downloadZip()` nach
+      `files.downloadZip(...)` und in `uploadFiles()` nach Abschluss der
+      Upload-Schleife (vor dem Erfolgs-Toast). Konsistent zu
+      `bulkDownload`/`bulkDelete`/`dropUpload`; die Leiste verschwindet jetzt
+      nach dem letzten `file://progress`-Event. Verifikation:
+      `npm run build` grün (vue-tsc + vite), `cargo fmt --check` grün,
+      `cargo clippy --all-targets -D warnings` grün, `cargo test` grün.
 
 ### Review 2026-08-16 (Android-Client)
 

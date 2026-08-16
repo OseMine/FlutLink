@@ -218,6 +218,7 @@ async function download(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name });
     if (typeof dest !== "string") return;
     await files.downloadFile(entry.path, dest);
+    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -235,6 +236,7 @@ async function downloadZip(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name + ".zip" });
     if (typeof dest !== "string") return;
     await files.downloadZip(entry.path, dest);
+    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -338,6 +340,7 @@ async function uploadFiles() {
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
     }
+    files.clearTransfer();
     if (failed === 0) ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
