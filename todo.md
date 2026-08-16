@@ -6,6 +6,111 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-16 (Lauf 9, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
+
+Fokus dieses Laufs: Parität zwischen Desktop-UI (Vue/`FileExplorer.vue`,
+`SyncPanel.vue`, `AdminPanel.vue`, `SettingsModal.vue`) und dem Android-Port
+(`android/`). Verifikation frisch und grün: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --check`
+grün; `npm run build` (vue-tsc + vite) grün; `./gradlew :app:assembleDebug`
+in `android/` grün. `android/README.md` und `AGENTS.md` behaupten, der
+Android-Port „spiegle den Desktop-Funktionsumfang" — das trifft laut
+Befunden **nicht** zu: Neu gefunden:
+
+- [ ] **A9-1 (Feature, hoch):** Android-Port hat **keinerlei Sync-Funktion** —
+      der Desktop-Kern (`SyncPanel.vue` + `sync.rs`, Zwei-Wege-Sync mit
+      Journal/Planner/Worker) fehlt komplett. `HomeScreen.kt` kennt nur die
+      Tabs Files/Admin/Settings (kein Sync-Tab); im gesamten Android-Code
+      existiert kein Sync-Äquivalent. Damit widerspricht der Port der
+      AGENTS.md-Aussage („spiegelt den Desktop-Funktionsumfang"). Fix:
+      Sync-Tab + Sync-Engine (oder Funktionsumfang in README korrigieren).
+- [ ] **A9-2 (i18n, mittel):** Android komplett ohne Lokalisierung —
+      `android/app/src/main/res/values/strings.xml` enthält nur `app_name`;
+      sämtliche UI-Texte sind hartkodiert englisch (`FilesScreen.kt`,
+      `LoginScreen.kt`, `AdminScreen.kt`, `SettingsScreen.kt`). Der Desktop
+      lokalisiert alles über `src/lib/i18n.ts` (en/de). AGENTS.md fordert
+      i18n für alle UI-Texte. Fix: Android-`strings.xml`-Ressourcen + Werte
+      nachziehen.
+- [ ] **A9-3 (Bug, minor):** Android erlaubt **Rename nur für Ordner** —
+      `FilesScreen.kt` `EntryRow` (Z. 375-384) zeigt „Rename" nur
+      `if (entry.isDir)`; Dateien sind auf Android nicht umbenennbar.
+      Desktop erlaubt Rename für Dateien und Ordner (`FileExplorer.vue`
+      `startRename`). Fix: Menüpunkt auch für Dateien anbieten.
+- [ ] **A9-4 (Perf, minor):** Android-Suche ohne Debounce —
+      `FilesScreen.kt` `SearchBar` (Z. 280-293) ruft `onValueChange =
+      { vm.search(it) }` bei **jedem** Tastendruck → pro Zeichen ein
+      SEARCH-Request mit `depth: infinity`. Desktop debounced 300 ms
+      (`FileExplorer.vue` Z. 31/47-60). Fix: Debounce in
+      `FilesViewModel.search`.
+- [ ] **A9-5 (Robustheit, mittel):** Android lädt Dateien komplett in den
+      RAM: Upload via `readAllBytes` (`FilesScreen.kt` Z. 523-524), Download
+      via `response.body?.bytes()` (`WebDavApi.download` Z. 121-135). Desktop
+      streamt (chunked upload > 10 MiB, `stream_to_file`). Große Dateien →
+      OOM auf Android. Fix: Streaming (OkHttp ResponseBody → Datei), optional
+      Chunked-Upload-Parität.
+- [ ] **A9-6 (Bug, Datenverlust-Risiko, mittel):** Android-Upload
+      überschreibt existierende Dateien still — der Desktop-Fix **Q9**
+      (Existenz-Check `webdav::exists` + `AppError::TargetExists` +
+      Overwrite-Confirm in `FileExplorer.vue`) wurde **nicht** portiert.
+      `WebDavApi.exists()` (Z. 84-102) existiert, wird aber von
+      `FilesViewModel.upload` (Z. 173-187) nie aufgerufen. Fix:
+      `exists`-Check + Bestätigungs-Dialog vor dem PUT.
+- [ ] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
+      Desktop erlaubt Admins das Browsen fremder Nutzer (`webdav_list`
+      `target_user` + `FileExplorer.vue` adminViewAll, `Impersonate-User`-
+      Header in `webdav.rs`); `AdminScreen.kt`/`WebDavApi.kt` haben weder
+      `target_user`-Parameter noch `Impersonate-User`-Support. Fix:
+      Impersonation im Admin-Screen (Zugriff auf alle Nutzer-Dateien).
+- [ ] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
+      Desktop hat seit Q3 `admin_list_groups`/`admin_create_group`/
+      `admin_add_group_member`/`admin_remove_group_member` + UI in
+      `AdminPanel.vue`; Android-`AdminScreen.kt`/`FlutCloudApi.kt` haben
+      keine Gruppen-Endpunkte. Auch fehlen displayname/email/password-
+      Bearbeitung (Desktop `admin_edit_user`). Fix: Gruppen-API + UI portieren.
+- [ ] **A9-9 (Feature, minor):** Android-Shares nur Public-Link —
+      `FilesViewModel.createPublicShare` (Z. 153-171) hartkodiert
+      `shareType = 3`; User-/Gruppen-Shares (Desktop P1) und
+      `publicUpload`-Option fehlen. `FlutCloudApi.listShares`/
+      `deleteShare` (Z. 245-253) existieren zwar, werden aber von keiner
+      UI aufgerufen (Dead Code) → kein Share-Management (Liste/Widerruf,
+      Desktop P2). Fix: Share-Optionen + Verwaltung portieren.
+- [ ] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
+      (unlimited/1/5/10 GB); Desktop erlaubt seit Q8 freie Werteingabe
+      („custom"). Fix: Freieingabe ergänzen.
+- [ ] **A9-11 (Policy, mittel):** Android-Login erzwingt `FLUTCLOUD_URL`
+      nicht — `LoginViewModel` (Z. 28-33, 37) nimmt jede editierbare URL
+      (Default aus `BuildConfig.FLUTCLOUD_URL`) und prüft nur die
+      FlutCloud-App-Capability (`verifyServer`); Desktop erzwingt die exakte
+      `.env`-URL via `assert_flutcloud_url` (`flutcloud.rs`). AGENTS.md
+      verspricht „ausschließlich `$FLUTCLOUD_URL`". Fix: URL gegen
+      `BuildConfig.FLUTCLOUD_URL` validieren oder URL-Feld sperren.
+- [ ] **A9-12 (UX, minor):** Android speichert Downloads in den App-Files
+      (`saveToAppStorage`, `FilesViewModel` Z. 96-102) statt im Download-
+      Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
+      Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
+- [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
+      dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
+      Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
+      Brand-Themes + Accent-Hue auf Android portieren.
+- [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
+      nirgends aufgerufen — Thumbnails existieren nur im Desktop
+      (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
+      `FilesScreen` nutzen oder `preview()` entfernen.
+- [ ] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
+      `FilesScreen.kt` `SearchResults` (Z. 315-318) übergibt `onRename`/
+      `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
+      in Suchtreffern weiterhin Aktionen. Fix: Aktionen in Treffern
+      freischalten oder Hinweis ergänzen.
+- [ ] **A9-16 (Feature, minor):** Kein Offline-Cache auf Android — Desktop
+      hat seit Q2 den Listing-Cache (`cache.rs`, Stale-Flag + Offline-Banner
+      in `FileExplorer.vue`); Android zeigt bei Netzwerkausfall nur Fehler.
+      Fix: Listing-Cache + Offline-Banner portieren.
+
+Nicht erledigt aus früheren Läufen (weiter offen): U-R8-1 bis U-R8-12,
+R8-B1 (Bulk-Download-Kollision), R8-C1 (tauri-action auf `@v1` gepinnt),
+R7-7 (Release-Draft-Hinweis).
+
 ### Review 2026-08-16 (Lauf 8, Fokus UX — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt und grün: `cargo test --manifest-path
