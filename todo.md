@@ -30,29 +30,21 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       OS-Notification. README Phase 4 verspricht „native notifications".
       Fix: Plugin registrieren + Emission aus `sync.rs::run_all` (Z. 1119-1121)
       und `updater.rs::check_update`.
-- [ ] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
+- [x] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
       hält nur das aktuelle Listing in Memory; ohne Netz zeigt der Browser
       leere Ordner/Fehler statt gecachter Daten. README Phase 4 „offline cache"
       ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
       Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
-      `FileExplorer.vue`.
+      `FileExplorer.vue`. → umgesetzt (siehe Archiv).
 - [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
       zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
+      `FileExplorer.vue`.
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlte: `AdminPanel.vue`
+      zeigte `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kannte keine
       Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
       `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
       „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
       + UI.
-- [ ] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
-      Progress fehlen: `webdav_upload_file` (`commands.rs:364-391`) streamt
-      einen einzigen PUT (`put_file_as`, `webdav.rs:122-146`),
-      `webdav_download_file` (`commands.rs:395-418`) einen einzigen GET.
-      **Kein** WebDAV-Chunking, **keine** `app.emit`-Progress-Events für
-      Datei-Transfers (nur der Updater emittiert `update://progress`,
-      `updater.rs:271-283`; in `commands.rs`/`webdav.rs` kein `emit`,
-      verifiziert). README Phase 3 verspricht „chunked uploads/downloads with
-      progress events (app.emit)"; große Dateien brechen zusätzlich am 60-s-
-      Total-Timeout ab (F2, `state.rs:112-113`). Fix: Progress-Callback durch
-      die Transfer-Helper ziehen + Chunking (WebDAV-Chunked-Upload v2).
 - [ ] **Q5 (Phase 3, Feature, minor):** Drag & Drop-Upload fehlt:
       `FileExplorer.vue` hat keinen `@drop`/`@dragover`-Handler (kein
       Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
@@ -75,6 +67,18 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
       Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
       unlimited) + benutzerdefiniert.
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
+      `webdav_upload_file` sendete einen ungeprüften PUT (`put_file_as`,
+      `webdav.rs:135-146`) — existierte die Zieldatei, wurde sie ohne Rückfrage
+      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüfte nicht
+      und meldete nur „Uploaded.". N1 deckte nur das Rename-Overwrite ab
+      (`Overwrite: T`, `webdav.rs:359`). Fix umgesetzt: Existenz-Check
+      (PROPFIND, `webdav::exists`) vor dem PUT in `webdav_upload_file`,
+      `upload_tree` und `webdav_upload_local_paths`; klarer
+      `AppError::TargetExists` (Code `target_exists`); UI-Confirm in
+      `uploadFiles`/`dropUpload` (i18n `uploadOverwriteConfirm`/
+      `uploadOverwriteAllConfirm`/`uploadSkipped`), Überschreiben nur nach
+      Bestätigung über den neuen `overwrite`-Parameter.
 - [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
       `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
       `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
@@ -140,7 +144,7 @@ public + private link sharing"):
       jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
       einer Datei füllt das Temp-Verzeichnis. Fix: nach `openPath` löschen oder
       eigenes Cache-Verzeichnis mit Cleanup.
-- [ ] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
+- [x] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
       Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
       `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
       Duplikat-Erkennung als Abbruchbedingung.
@@ -148,7 +152,7 @@ public + private link sharing"):
       asymmetrisch: lokale versteckte Dateien (`.env`, `.gitignore`) werden
       nie hochgeladen, remote vorhandene versteckte Dateien werden beim
       Erst-Sync heruntergeladen. Beide Richtungen einheitlich skippen.
-- [ ] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
+- [x] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
       `run_all` (`sync.rs:1079-1080`) und `run_pass` (`sync.rs:714`) →
       unnötige MKCOL-Requests pro Tick. Eine Stelle reicht.
 - [ ] **P12 (Security, bestätigt N3):** `release.yml` (Z. 41-57) interpoliert
@@ -170,11 +174,12 @@ public + private link sharing"):
       (`ocs.rs:59-71`) schluckt alle Fehler (`Err(_) => Ok(false)`) →
       transiente Netzwerkfehler beim Login markieren ein Admin-Konto dauerhaft
       als Nicht-Admin. Fix: Admin-Status beim App-Start neu evaluieren.
-- [ ] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
+- [x] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
       Liefert der Server absolute hrefs (mit Scheme/Host), findet
       `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
       Namespace-Guard (`webdav.rs:56-61`) prüft nur das Präfix `/remote.php/`
-      und greift dann nicht. Guard auf beide Formen erweitern.
+      und greift dann nicht. Guard auf beide Formen erweitern. → Fix in
+      Archiv.
 - [ ] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
       kein „Zurück"-Button, keine Tastatur-Navigation (Enter = öffnen,
       Entf = löschen), Grid-Ansicht ohne Link-Button, keine Ordner-ZIP-
@@ -207,13 +212,19 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
       `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
       oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzt.
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (commands.rs:403-414) lehnt
+      `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht erst am
+      zusammengesetzten Pfad); `webdav_rename` ruft sie vor `rename_new_path`
+      auf. Unit-Tests ergänzt.
+- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
+      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
+      `accounts`-Store nutzen.
 - [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
       `/` im `new_name` → „Rename" wird still zu einem Move in einen
       Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
       nicht nur auf den zusammengesetzten Pfad).
-- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
-      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
-      `accounts`-Store nutzen.
 - [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
       (F7 offen) und die About-Version ist hartkodiert (F5 offen,
       `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
@@ -241,7 +252,7 @@ Neue Befunde (Lauf 4):
       stillschweigend (SabreDAV/Nextcloud führt Overwrite aus). Fix:
       Existenz-Check des Ziels im Backend (PROPFIND oder `Overwrite: F` +
       sauberer AppError „Ziel existiert bereits") + UI-Hinweis.
-- [ ] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
+- [x] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
       Die Offset-Pagination hat keinen Fortschritts-Guard. Wenn der Server den
       `offset`-Parameter ignoriert (gleiche Seite erneut), läuft die Schleife
       endlos (Duplikate werden nicht erkannt, `count == LIMIT` → `offset += 200`).
@@ -268,10 +279,10 @@ Neue Befunde (Lauf 4):
 - [ ] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
       `catch`-Block verschluckt die Backend-Fehlermeldung (nur ✗-Icon, kein
       Toast/kein Grund) — Fehlermeldung per `invokeError` anzeigen (ergänzt U3).
-- [ ] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
+- [x] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
       Pass aus: `run_all` (Z. 1079-1080) und nochmals `run_pass` (Z. 714) →
       unnötige MKCOL-Requests auf jedem Tick. Eine Stelle reicht.
-- [ ] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
+- [x] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
       das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
       der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
       ungültig; in `docs/` + i18n (`initHint`) klarstellen, dass das
@@ -376,6 +387,158 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
       `target_exists_serializes_with_code_and_name_detail` in `error.rs`.
       Verifikation: `cargo fmt --check`, `cargo clippy -D warnings`,
       `cargo test` (50 passed), `npm run build` grün.
+### Review 2026-08-16 (P16)
+
+- [x] **P16 (Bug/Robustheit, minor):** `relative_path`
+      (`webdav.rs:641-658`) fand bei absoluten hrefs (mit Scheme/Host) kein
+      `base_path` und erzeugte Pfade wie `/https:/host/...`; der
+      Namespace-Guard (`webdav.rs:88-97`) prüfte nur das Präfix `/remote.php/`
+      und griff bei der absoluten Form nicht. Fix: Neuer `href_path` strippt
+      Scheme + Host aus absoluten hrefs, `find_base_path` matcht `base_path`
+      nur an Pfadgrenzen (kein Fehltreffer bei `/remote.php/dav/files/admin2`),
+      und der Guard nutzt `is_namespace_mismatch`, das sowohl die relative
+      (`/remote.php/…`) als auch die geleakte absolute Form (`/https:/…`,
+      `/http:/…`) erkennt. Vier neue Unit-Tests
+      (`handles_absolute_hrefs`, `relative_path_keeps_base_path_boundaries`,
+      `detects_namespace_mismatch_for_both_href_forms`,
+      `parses_absolute_hrefs`).
+### Review 2026-08-16 (Q4)
+
+- [x] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
+      Progress fehlten. Fix umgesetzt: **WebDAV-Chunked-Upload v2** in
+      `put_file_as_progress` (`webdav.rs`): Dateien > 10 MiB laufen über
+      `chunked_put_v2` (MKCOL-Session unter `/remote.php/dav/uploads/` mit
+      `Destination`-Header → nummerierte Chunk-PUTs in 10-MiB-Blöcken
+      (5 MiB..5 GiB, serverkonform, per Kompilierzeit-`assert` abgesichert)
+      → finaler MOVE von `.file` mit `X-OC-MTime` + `OC-Total-Length`);
+      kleinere Dateien behalten den einfachen PUT. Progress-Callback ist
+      durch die Transfer-Helper gezogen (`ProgressStream`,
+      `put_file_as_progress`, `get_file_as_progress`) und emittiert
+      `file://progress`-Events (`transfer_progress`, `commands.rs`) für
+      Upload und Download. Große Dateien brechen nicht mehr am 60-s-Total-
+      Timeout ab (F2): `state.rs` nutzt `connect_timeout`/`read_timeout`
+      ohne Gesamtlimit; jede Chunk-Anfrage ist eigenständig. Fehlgeschlagene
+      Chunk-Sessions werden per DELETE aufgeräumt (kein Quota-Leak). Test
+      `transfer_ids_are_unique` ergänzt. Verifikation: `cargo fmt --check`,
+      `cargo clippy --all-targets -D warnings`, `cargo test` → 50 passed,
+      `npm run build` grün.
+### Review 2026-08-16 (P9/N2)
+
+- [x] **P9/N2 (Bug, Robustheit):** `list_users` (`ocs.rs:75-119`) paginiert
+      per Offset ohne Fortschritts-Guard → Endlosschleife, wenn der Server den
+      `offset`-Parameter ignoriert (gleiche Seite erneut, `count == LIMIT`).
+      Fix: Duplikat-Erkennung als Abbruchbedingung. Der Loop trackt jetzt eine
+      `HashSet<String>` (`seen`) über den neuen Helper `progress_count`; liefert
+      eine Seite keine neuen Benutzer, wird abgebrochen statt `offset += 200`
+      endlos weiterzulaufen. Unit-Tests `progress_guard_stops_on_repeated_page`
+      und `progress_guard_counts_partial_new_users` ergänzt.
+### Review 2026-08-16 (Q2)
+
+- [x] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache im Dateibrowser.
+      Fix umgesetzt: Neues Backend-Modul `src-tauri/src/cache.rs` persistiert
+      Listing- und Quota-Daten im AppData-Verzeichnis (Unterordner `cache/`,
+      Dateinamen aus namespace+path gehasht → kein Pfad-Escape). `webdav_list`
+      (`commands.rs`) schreibt jedes erfolgreiche Listing in den Cache und
+      liefert bei Netzwerkfehlern (`AppError::is_network()`, nur
+      `AppError::Http`) das zuletzt gecachte Listing statt eines Fehlers/leeren
+      Ordners zurück — als `WebDavListResult { entries, stale }`.
+      `account_storage` speichert/liest analog die Quota
+      (`StorageResult { quota, stale }`). Frontend: `src/stores/files.ts`
+      hält jetzt ein `offline`-Flag (aus `stale`), `FileExplorer.vue` zeigt
+      bei Offline einen Indikator-Banner („Offline – zeige
+      zwischengespeicherte Daten", Icon `cloud_off`, i18n `offline`/
+      `offlineHint` en+de). Cache-Namespace inkludiert Account + gebrowsten
+      Benutzer (kein Kollidieren zwischen Konten/Impersonation).
+      Verifikation: `cargo fmt --check`, `cargo clippy -D warnings`,
+      `cargo test`, `npm run build` grün.
+### Review 2026-08-16 (N9)
+
+- [x] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
+      das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
+      der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
+      ungültig. Fix: `docs/en/getting-started.md` + `docs/de/getting-started.md`
+      (neuer Abschnitt „Registering a new account" / „Neues Konto registrieren"),
+      `docs/en/security.md` + `docs/de/security.md` (Abschnitt
+      „Registration password = app password" / „Registrierungs-Passwort =
+      App-Passwort") und der i18n-`initHint`-Text (en + de) stellen jetzt klar,
+      dass das Registrierungs-Passwort dauerhaft das App-Passwort ist und ein
+      Passwortwechsel das gespeicherte Token ungültig macht (Konto muss entfernt
+      und neu hinzugefügt werden).
+### Review 2026-08-16 (P11/N8)
+
+- [x] **P11/N8 (Perf, minor):** `ensure_collection` wurde doppelt pro Sync-Pass
+      ausgeführt — `run_all` (`sync.rs:1106-1107`) und nochmals `run_pass`
+      (`sync.rs:738`) → unnötige MKCOL-Requests auf jedem Tick. Fix: Der Aufruf
+      in `run_all` wurde entfernt; `run_pass` (einziger Aufrufer ist `run_all`)
+      übernimmt das `ensure_collection` weiterhin vor dem Pass. Verifikation:
+      `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` grün,
+      `cargo test` 49 passed.
+### Review 2026-08-16 (Q9)
+
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschrieb eine
+      existierende Zieldatei still: `webdav_upload_file` sendete einen
+      ungeprüften PUT (`put_file_as`, `webdav.rs:135-146`), `uploadFiles`
+      (`FileExplorer.vue:123-142`) prüfte nicht und meldete nur „Uploaded.".
+      Fix: Neuer Existenz-Check `webdav::exists` (PROPFIND, Depth 0) in
+      `nextcloud/webdav.rs`; `webdav_upload_file`, `upload_tree` und
+      `webdav_upload_local_paths` in `commands.rs` prüfen vor dem PUT und
+      liefern den neuen `AppError::TargetExists` (Code `target_exists`,
+      Serialize-Test in `error.rs`). `overwrite`-Parameter (Tauri-Command +
+      `src/lib/ipc.ts` + `src/stores/files.ts`) erlaubt bewusstes Ersetzen.
+      UI-Confirm in `FileExplorer.vue` (`uploadFiles` pro Datei mit
+      `uploadOverwriteConfirm`, `dropUpload` pauschal mit
+      `uploadOverwriteAllConfirm`; `uploadSkipped` beim Ablehnen). i18n
+      en/de ergänzt (`errTargetExists` in `ERROR_CODE_KEYS`). Sync-Engine
+      bleibt unverändert (darf weiter überschreiben). Verifikation:
+      `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+      (50 passed), `npm run build` grün.
+### Review 2026-08-16 (N11)
+
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:819-842`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (`commands.rs:403-414`)
+      lehnt `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht nur
+      am zusammengesetzten Pfad, den `validate_dav_path` bereits prüfte);
+      `webdav_rename` ruft sie vor `rename_new_path` auf. Unit-Tests
+      `validate_rename_name_accepts_plain_names` /
+      `validate_rename_name_rejects_slashes_and_dots` ergänzt. Verifikation:
+      `cargo fmt --check` grün, `cargo clippy --all-targets -D warnings` grün,
+      `cargo test` 51 passed / 0 failed.
+### Review 2026-08-16 (N13)
+
+- [x] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hatte
+      keinen Frontend-Aufrufer (Dead Code). Fix: Komplette Kette entfernt —
+      `accountActive`-Wrapper aus `src/lib/ipc.ts` (Z. 147) gestrichen,
+      Backend-Command `account_active` (`commands.rs:278-281`) entfernt und
+      aus der Command-Registry (`lib.rs:228`) deregistriert. Der
+      `accounts`-Store leitet `active` bereits aus `accountList()` ab
+      (`src/stores/accounts.ts:34`) und braucht den separaten Call nicht.
+### Review 2026-08-16 (Q8)
+
+- [x] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlten in
+      `AdminPanel.vue` (nur freie MB/GB-Eingabe + „Unlimited"). Fix:
+      Preset-Select (1/5/10 GB, unlimited, benutzerdefiniert) in der
+      Quota-Verwaltung; Auswahl eines Presets setzt Wert/Einheit, manuelle
+      Eingabe bleibt möglich und wechselt zurück auf „custom"; beim Laden
+      eines Benutzers wird das passende Preset vorausgewählt. Verifikation:
+      `npm run build` grün (vue-tsc + vite), `cargo fmt --check`, `cargo
+      clippy --all-targets -- -D warnings` und `cargo test` grün.
+### Review 2026-08-16 (Q3)
+
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung umgesetzt.
+      `ocs.rs` kennt jetzt die OCS-Gruppen-Endpunkte (`list_groups` mit
+      Duplikat-Guard gegen Offset-ignorierende Server, `create_group` über
+      `POST /cloud/groups`, `add_group_member` über
+      `POST /cloud/groups/{id}/users`, `remove_group_member` über
+      `DELETE /cloud/groups/{id}/users/{uid}`). In `commands.rs` sind
+      `admin_list_groups`/`admin_create_group`/`admin_add_group_member`/
+      `admin_remove_group_member` (alle mit Admin-Check) hinzugekommen und in
+      `lib.rs` registriert; `src/lib/ipc.ts` hat die passenden Wrapper.
+      `AdminPanel.vue` verwaltet Gruppen jetzt interaktiv: Gruppen der
+      ausgewählten Person mit Entfernen-Button, Eingabefeld zum Hinzufügen in
+      eine Gruppe und Button zum Anlegen einer neuen Gruppe (Toast-Feedback,
+      i18n en/de).
+
 ### Review 2026-08-16 (U10)
 
 - [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
