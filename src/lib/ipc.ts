@@ -19,6 +19,7 @@ export interface WebDavEntry {
   contentType: string | null;
   isResource: boolean;
   isPart: boolean;
+  pairedPath: string | null;
 }
 
 export interface OcsUser {

@@ -40,6 +40,10 @@ pub struct WebDavEntry {
     pub is_resource: bool,
     /// True when this entry lives under a folder named `parts` (write-enabled).
     pub is_part: bool,
+    /// Path of the counterpart in the paired namespace: `/resources/…` entries
+    /// point at their writable `/parts/…` part and vice versa. `None` for
+    /// regular files/folders outside the FlutCloud virtual namespaces.
+    pub paired_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
