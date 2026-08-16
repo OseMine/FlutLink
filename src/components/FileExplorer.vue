@@ -36,6 +36,16 @@ function formatMtime(mtime: string | null): string {
   return isNaN(date.getTime()) ? mtime : date.toLocaleString();
 }
 
+function entryPreview(entry: WebDavEntry): string {
+  const parts = [entry.name];
+  if (!entry.isDir) parts.push(formatBytes(entry.size));
+  const mtime = formatMtime(entry.mtime);
+  if (mtime !== "—") parts.push(mtime);
+  if (entry.isResource) parts.push(t("resource"));
+  else if (entry.isPart) parts.push(t("part"));
+  return parts.join(" — ");
+}
+
 const sortedEntries = computed(() => {
   const dirs = files.entries.filter((e) => e.isDir);
   const others = files.entries.filter((e) => !e.isDir);
@@ -148,6 +158,9 @@ function toggleSort(key: "name" | "size" | "mtime") {
 
 function openCtx(e: MouseEvent, entry: WebDavEntry) {
   e.preventDefault();
+  if (!selected.value.has(entry.path)) {
+    selected.value = new Set([entry.path]);
+  }
   ctxMenu.value = { x: e.clientX, y: e.clientY, entry };
 }
 
@@ -696,34 +709,64 @@ watch(
         <div
           v-for="entry in sortedEntries"
           :key="entry.path"
-          class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
+          class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
           :class="isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
-          @contextmenu="openCtx($event, entry)"
+          @click="toggleSelect(entry.path)"
           @dblclick="open(entry)"
+          @contextmenu="openCtx($event, entry)"
         >
           <input
             type="checkbox"
-            class="accent-primary"
+            class="accent-primary absolute right-1.5 top-1.5"
             :checked="isSelected(entry.path)"
+            @click.stop
             @change="toggleSelect(entry.path)"
           />
-          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
-          <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
+          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
+          <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
           <p class="w-full truncate text-[10px] text-on-surface-variant">
             {{ entry.isDir ? "—" : formatBytes(entry.size) }}
           </p>
-          <div class="flex gap-1">
+          <div
+            class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-black/50 group-hover:flex"
+            @click.stop
+            @dblclick.stop
+          >
             <button
-              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-              @click.stop="open(entry)"
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+              :title="t('open')"
+              @click="open(entry)"
             >
-              {{ t("open") }}
+              <Icon name="open" :size="16" />
             </button>
             <button
-              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-              @click.stop="startRename(entry)"
+              v-if="!entry.isDir"
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+              :title="t('download')"
+              @click="download(entry)"
             >
-              {{ t("rename") }}
+              <Icon name="download" :size="16" />
+            </button>
+            <button
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+              :title="shareStatus(entry.path)?.status === 'done' ? t('linkCopied') : t('link')"
+              @click="shareStatus(entry.path)?.status === 'done' ? copyLink(entry.path) : createLink(entry)"
+            >
+              <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="16" />
+            </button>
+            <button
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+              :title="t('rename')"
+              @click="startRename(entry)"
+            >
+              <Icon name="edit" :size="16" />
+            </button>
+            <button
+              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-error shadow-m3-1 transition hover:bg-error hover:text-on-error"
+              :title="t('delete')"
+              @click="removeEntry(entry)"
+            >
+              <Icon name="delete" :size="16" />
             </button>
           </div>
         </div>
