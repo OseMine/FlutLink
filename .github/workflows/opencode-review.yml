@@ -63,8 +63,7 @@ jobs:
             4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
                vorhanden), bestehende Einträge unangetastet lassen.
             5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als
-               erledigt („[x]") und verschiebe abgehakte Todos in den Abschnitt
-               „## Archiv (erledigt)".
+               erledigt („[x]") und verschiebe abgehakte Todos in die datei archived-todos.md".
 
             WICHTIG:
             - Nur todo.md verändern — KEINEN Anwendungscode,
