@@ -207,9 +207,6 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       `/` im `new_name` → „Rename" wird still zu einem Move in einen
       Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
       nicht nur auf den zusammengesetzten Pfad).
-- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
-      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
-      `accounts`-Store nutzen.
 - [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
       (F7 offen) und die About-Version ist hartkodiert (F5 offen,
       `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
@@ -359,6 +356,15 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (N13)
+
+- [x] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hatte
+      keinen Frontend-Aufrufer (Dead Code). Fix: Komplette Kette entfernt —
+      `accountActive`-Wrapper aus `src/lib/ipc.ts` (Z. 147) gestrichen,
+      Backend-Command `account_active` (`commands.rs:278-281`) entfernt und
+      aus der Command-Registry (`lib.rs:228`) deregistriert. Der
+      `accounts`-Store leitet `active` bereits aus `accountList()` ab
+      (`src/stores/accounts.ts:34`) und braucht den separaten Call nicht.
 ### Review 2026-08-16 (Q8)
 
 - [x] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlten in

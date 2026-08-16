@@ -225,7 +225,6 @@ pub fn run() {
             commands::get_flutcloud_url,
             commands::account_add,
             commands::account_list,
-            commands::account_active,
             commands::account_switch,
             commands::account_remove,
             commands::account_storage,
