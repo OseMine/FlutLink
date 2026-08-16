@@ -101,10 +101,13 @@ pub async fn list(
         );
         let entries = parse_multistatus(&body, &base_path)?;
         // Namespace guard: if the server silently ignored `Impersonate-User`,
-        // the hrefs point at the *admin's* namespace and every rel would start
-        // with "/remote.php/...". Refuse the mismatched listing instead of
-        // feeding garbage paths to the caller.
-        if entries.iter().any(|e| e.path.starts_with("/remote.php/")) {
+        // the hrefs point at the *admin's* namespace. `relative_path` strips
+        // scheme + host from absolute hrefs, so a leftover "/remote.php/..."
+        // path signals the mismatch for both the relative and the absolute
+        // href form (a leaked URL like "/https:/host/..." is caught too).
+        // Refuse the mismatched listing instead of feeding garbage paths to
+        // the caller.
+        if entries.iter().any(|e| is_namespace_mismatch(&e.path)) {
             return Err(AppError::App(format!(
                 "Server did not honor the impersonated namespace for '{}'.",
                 effective_user
@@ -807,11 +810,49 @@ fn to_entry(
     })
 }
 
+/// Path portion of a WebDAV href. Servers may return relative
+/// (`/remote.php/dav/files/…`) or absolute (`https://host/remote.php/…`)
+/// hrefs; for absolute hrefs the scheme + host are stripped so the path can
+/// be matched against `base_path`.
+fn href_path(href: &str) -> &str {
+    match href.find("://") {
+        Some(idx) => match href[idx + 3..].find('/') {
+            Some(slash) => &href[idx + 3 + slash..],
+            None => "/",
+        },
+        None => href,
+    }
+}
+
+/// Index right after the first `base_path` occurrence in `path` that ends on
+/// a path boundary, so e.g. `/remote.php/dav/files/admin` never matches inside
+/// `/remote.php/dav/files/admin2`. Returns `None` when not found.
+fn find_base_path(path: &str, base_path: &str) -> Option<usize> {
+    let mut start = 0;
+    while let Some(idx) = path[start..].find(base_path) {
+        let abs = start + idx;
+        let end = abs + base_path.len();
+        if path[end..].starts_with('/') || path[end..].is_empty() {
+            return Some(end);
+        }
+        start = abs + 1;
+    }
+    None
+}
+
+/// True if a normalized path still points into a foreign WebDAV namespace —
+/// either the relative form (`/remote.php/…`) or an absolute URL that leaked
+/// into the path (`/https:/host/…`, http/https schemes).
+fn is_namespace_mismatch(path: &str) -> bool {
+    path.starts_with("/remote.php/") || path.starts_with("/http:/") || path.starts_with("/https:/")
+}
+
 /// Convert a WebDAV href into a decoded logical path relative to the files root.
 fn relative_path(href: &str, base_path: &str) -> String {
-    let after = match href.find(base_path) {
-        Some(idx) => &href[idx + base_path.len()..],
-        None => href,
+    let path = href_path(href);
+    let after = match find_base_path(path, base_path) {
+        Some(end) => &path[end..],
+        None => path,
     };
     let trimmed = after.trim_matches('/');
     if trimmed.is_empty() {
@@ -938,6 +979,64 @@ mod tests {
         assert_eq!(classify("/resources/virtual/link.txt"), (true, false));
         assert_eq!(classify("/Parts"), (false, true));
         assert_eq!(classify("/parts/write/me.txt"), (false, true));
+    }
+
+    #[test]
+    fn handles_absolute_hrefs() {
+        assert_eq!(
+            relative_path(
+                "https://host/remote.php/dav/files/admin/Photos/",
+                "/remote.php/dav/files/admin"
+            ),
+            "/Photos"
+        );
+        assert_eq!(
+            relative_path(
+                "http://host:8080/remote.php/dav/files/admin/Data.bin",
+                "/remote.php/dav/files/admin"
+            ),
+            "/Data.bin"
+        );
+    }
+
+    #[test]
+    fn relative_path_keeps_base_path_boundaries() {
+        assert_eq!(
+            relative_path(
+                "/remote.php/dav/files/admin2/foo.txt",
+                "/remote.php/dav/files/admin"
+            ),
+            "/remote.php/dav/files/admin2/foo.txt"
+        );
+    }
+
+    #[test]
+    fn detects_namespace_mismatch_for_both_href_forms() {
+        assert!(is_namespace_mismatch("/remote.php/dav/files/admin/Photos"));
+        assert!(is_namespace_mismatch(
+            "/https:/host/remote.php/dav/files/admin/Photos"
+        ));
+        assert!(is_namespace_mismatch(
+            "/http:/host/remote.php/dav/files/admin/Photos"
+        ));
+        assert!(!is_namespace_mismatch("/Photos"));
+    }
+
+    #[test]
+    fn parses_absolute_hrefs() {
+        let entries = parse_multistatus(
+            r#"<d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>https://host/remote.php/dav/files/admin/My%20Folder/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+              </d:response>
+            </d:multistatus>"#,
+            "/remote.php/dav/files/admin",
+        )
+        .expect("parse ok");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "My Folder");
+        assert_eq!(entries[0].path, "/My Folder");
     }
 
     #[test]

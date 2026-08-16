@@ -174,11 +174,12 @@ public + private link sharing"):
       (`ocs.rs:59-71`) schluckt alle Fehler (`Err(_) => Ok(false)`) →
       transiente Netzwerkfehler beim Login markieren ein Admin-Konto dauerhaft
       als Nicht-Admin. Fix: Admin-Status beim App-Start neu evaluieren.
-- [ ] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
+- [x] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
       Liefert der Server absolute hrefs (mit Scheme/Host), findet
       `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
       Namespace-Guard (`webdav.rs:56-61`) prüft nur das Präfix `/remote.php/`
-      und greift dann nicht. Guard auf beide Formen erweitern.
+      und greift dann nicht. Guard auf beide Formen erweitern. → Fix in
+      Archiv.
 - [ ] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
       kein „Zurück"-Button, keine Tastatur-Navigation (Enter = öffnen,
       Entf = löschen), Grid-Ansicht ohne Link-Button, keine Ordner-ZIP-
@@ -373,6 +374,21 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (P16)
+
+- [x] **P16 (Bug/Robustheit, minor):** `relative_path`
+      (`webdav.rs:641-658`) fand bei absoluten hrefs (mit Scheme/Host) kein
+      `base_path` und erzeugte Pfade wie `/https:/host/...`; der
+      Namespace-Guard (`webdav.rs:88-97`) prüfte nur das Präfix `/remote.php/`
+      und griff bei der absoluten Form nicht. Fix: Neuer `href_path` strippt
+      Scheme + Host aus absoluten hrefs, `find_base_path` matcht `base_path`
+      nur an Pfadgrenzen (kein Fehltreffer bei `/remote.php/dav/files/admin2`),
+      und der Guard nutzt `is_namespace_mismatch`, das sowohl die relative
+      (`/remote.php/…`) als auch die geleakte absolute Form (`/https:/…`,
+      `/http:/…`) erkennt. Vier neue Unit-Tests
+      (`handles_absolute_hrefs`, `relative_path_keeps_base_path_boundaries`,
+      `detects_namespace_mismatch_for_both_href_forms`,
+      `parses_absolute_hrefs`).
 ### Review 2026-08-16 (Q4)
 
 - [x] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
