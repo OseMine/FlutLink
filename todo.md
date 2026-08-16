@@ -194,7 +194,7 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       (`webdav_upload_local_paths`, Webview-DragDrop-Event) +
       `file://progress`-Progress-Events in `FileExplorer.vue`/`ipc.ts`/
       `commands.rs` umgesetzt. **Suche bleibt offen** (getrackt unter Issue #73).
-- [ ] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
+- [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
       auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
       Delete fehlen pro Kachel (nur Open/Rename), kein Hover-Preview.
       Google-Drive-Verhalten: Klick = Auswahl, Aktionen im Hover-Overlay.
@@ -377,6 +377,21 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
       `validate_rename_name_rejects_slashes_and_dots` ergänzt. Verifikation:
       `cargo fmt --check` grün, `cargo clippy --all-targets -D warnings` grün,
       `cargo test` 51 passed / 0 failed.
+### Review 2026-08-16 (U10)
+
+- [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
+      auf eine Kachel wählte nichts aus (nur die Checkbox), Download/Link/
+      Delete fehlten pro Kachel (nur Open/Rename), kein Hover-Preview.
+      Fix umgesetzt: Single-Click auf eine Kachel toggelt jetzt die Auswahl
+      (Google-Drive-Verhalten), Doppelklick öffnet weiterhin. Alle Aktionen
+      (Open, Download nur für Dateien, Link, Rename, Delete) liegen jetzt in
+      einem Hover-Overlay (`group-hover`-Overlay über der Kachel mit
+      Icon-Buttons). Der Link-Button respektiert den Share-Status
+      (done → erneut kopieren statt neuen Share erzeugen). Hover-Preview:
+      Titel-Tooltip zeigt Name, Größe, Änderungsdatum und resource/part-Status
+      (`entryPreview`). Rechtsklick wählt die Kachel zusätzlich an (ohne eine
+      bestehende Mehrfachauswahl zu verwerfen, wenn sie die Kachel enthält).
+      Verifikation: `npm run build` grün (vue-tsc + vite).
 
 ### Review 2026-08-15 (U8)
 
