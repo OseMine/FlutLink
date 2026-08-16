@@ -6,6 +6,104 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-16 (Lauf 8, Fokus UX — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt und grün: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --check` grün;
+`npm run build` (vue-tsc + vite) grün. Fokusbereich UX: Dateibrowser
+(`FileExplorer.vue`/`EntryList.vue`), Dialoge (Login/Settings/Admin/Share), Sync-Panel,
+Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
+
+- [ ] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
+      Sortierung von der Anzeige ab. `FileExplorer.vue` `onKeydown` (Z. 266-299)
+      navigiert über `kbdIndex` gegen die eigene `sortedEntries` (Z. 37-44, nur
+      Name-Sortierung, Ordner zuerst), aber `kbdIndex` wird **nie** an
+      `EntryList.vue` übergeben → es gibt kein sichtbares Fokus-Highlight (P17
+      versprach „Highlight über kbdIndex"). Außerdem sortiert `EntryList.vue`
+      separat nach `sortKey` (Z. 42-72): Sobald der Nutzer nach Größe/Datum
+      sortiert, zeigt die Liste eine andere Reihenfolge als die
+      Tastaturnavigation → Pfeiltasten/Enter/Entf operieren auf anderen Einträgen
+      als sichtbar. Fix: `kbdIndex` + Sortierung in `EntryList.vue` übergeben
+      (bzw. dort zentralisieren) und den fokussierten Eintrag mit einer
+      Highlight-Klasse versehen.
+- [ ] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
+      Einzel-Datei-Operationen dauerhaft stehen. `FileExplorer.vue` `uploadFiles()`
+      (Z. 301-347), `download()` (Z. 214-227) und `downloadZip()` (Z. 231-244)
+      rufen kein `files.clearTransfer()` auf — nur `bulkDownload`, `bulkDelete`
+      und `dropUpload` tun das. `files.transfer` wird ausschließlich über
+      `file://progress`-Events gesetzt (`files.ts` `bindProgress`, Z. 304-310);
+      nach dem letzten Event (100 %) bleibt die Leiste hängen, bis die nächste
+      Aktion kommt. Fix: `clearTransfer()` nach Abschluss der Einzel-Operationen.
+- [ ] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
+      wieder ab. `EntryList.vue` Grid (Z. 244-246): `@click` toggelt die Auswahl,
+      `@dblclick` öffnet — ein Doppelklick feuert zwei `click`-Events, die Auswahl
+      wird also an- und wieder abgewählt; die Datei öffnet, ist danach aber nicht
+      mehr markiert (inkonsistent zur Listenansicht). Fix: Toggle nur bei
+      `e.detail === 1` ausführen oder das Toggle beim `dblclick` zurücknehmen.
+- [ ] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
+      Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
+      (Z. 216-222); die Grid-Kacheln haben kein Äquivalent. Fix: Badge in die
+      Grid-Kachel übernehmen.
+- [ ] **U-R8-5 (UX, minor):** Update-Banner überlagert den Header ohne
+      Layout-Ausgleich. `App.vue` Z. 175-206: `fixed inset-x-0 top-0 z-[45]` liegt
+      über dem Header (Tabs, Einstellungen, Account-Menü); die Header-Buttons
+      sind bis zum Dismiss des Banners nicht erreichbar. Fix: Platzhalter oder
+      `padding-top` auf dem Shell-Wrapper, wenn der Banner sichtbar ist.
+- [ ] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
+      Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wird nur bei
+      `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
+      nie beim Ordnerwechsel — `watch(() => files.entries)` (Z. 625-632) lädt für
+      jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
+      (Z. 439-441) wird nur bei Konto-Wechsel geleert → stale Einträge bleiben.
+      Fix: Beim `watch(() => files.currentPath)` auf aktuelle Entries prunen.
+- [ ] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
+      Farben statt M3-Tokens. Z. 88: `border-amber-800 bg-amber-950/50 …
+      text-amber-300` — U8 hat alle Komponenten auf Tokens umgestellt, dieser
+      Hinweis ist die verbliebene Lücke (im hellen Theme schlechter Kontrast).
+      Fix: Token-Klassen/CSS-Variablen verwenden.
+- [ ] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
+      `App.vue` initialisiert `resolvedTheme` mit `"operationflut"` (Z. 30) und
+      ruft `resolveTheme()` erst in `onMounted` (Z. 102) auf → Nutzer mit
+      `theme = "system"` und dunkler OS-Präferenz sehen kurz das helle
+      OperationFlut-Theme. Fix: `resolvedTheme` initial aus `ui.theme` +
+      `matchMedia` ableiten.
+- [ ] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
+      falschen Default. `SettingsModal.vue` Z. 75/101: `ui.accentHue ?? 266` —
+      bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
+      Slider-Position und `resetAccent`-Ergebnis weichen ab. Fix:
+      `ui.accentHue ?? themeDefaultHue()`.
+- [ ] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
+      versehentliches Anlegen von Ordnerketten. `FileExplorer.vue` `createFolder`
+      (Z. 349-360) validiert den Namen nicht; Backend `webdav_mkdir` →
+      `ensure_collection_as` (`webdav.rs` Z. 772-785) iteriert über alle
+      Pfadsegmente und erstellt jede Ebene → Eingabe „a/b" legt `a` **und** `a/b`
+      an. Fix: Namen in `createFolder` wie `validate_rename_name`
+      (`commands.rs` Z. 621-628) prüfen oder `webdav_mkdir` auf ein einzelnes
+      Segment validieren.
+- [ ] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
+      Schließen nicht geleert. `LoginModal.vue` `form` (Z. 55-61) bleibt gefüllt
+      (inkl. Token); beim nächsten Öffnen sind die Felder vorausgefüllt — auf
+      geteilten Geräten droht versehentliches Wiederverbinden mit dem alten
+      Token. Fix: `form` + `showPassword`/`showAdminPassword` beim `close`/`done`
+      zurücksetzen.
+- [ ] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
+      Suchbegriff alle Benutzer (keine UI-Pagination). `AdminPanel.vue`
+      `listUsers` (Z. 159-171) ruft `adminListUsers("")`; `ocs::list_users`
+      (Z. 78-129) holt alle Seiten sequenziell (N/200 Requests). Bei großen
+      Instanzen (1000+ Nutzer) lange Wartezeit ohne Fortschritt. Fix:
+      Suchbegriff verpflichten (wie Nextcloud-Web) oder Server-Pagination in die
+      UI bringen (Limit + „Mehr laden").
+- [ ] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
+      gleichnamige Dateien aus verschiedenen Ordnern. `commands.rs` Z. 988-995:
+      `local = dest.join(t.path.rsplit('/').next()…)` — zwei selektierte Dateien
+      mit gleichem Namen aus unterschiedlichen Ordnern kollidieren in `dest_dir`;
+      die zweite überschreibt die erste ohne Warnung. Fix: relative
+      Verzeichnisstruktur unter `dest_dir` erhalten oder Kollisionen erkennen.
+- [ ] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
+      nur auf `@v1` (bewegliches Tag). Für Supply-Chain-Härtung auf einen
+      vollständigen Commit-SHA pinnen (wie bei den übrigen Drittanbieter-Actions).
+
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt und grün: `cargo test --manifest-path
