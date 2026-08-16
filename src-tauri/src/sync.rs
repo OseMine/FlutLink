@@ -1101,11 +1101,6 @@ impl SyncEngine {
             };
 
             status.state = "syncing".into();
-            // Ensure the cloud root exists (including parent chain); harmless
-            // when it already does.
-            let _ =
-                webdav::ensure_collection(&state.http_client, &account, &folder.remote_path).await;
-
             match run_pass(app, &state.http_client, &account, &folder).await {
                 Ok(result) => {
                     status.pending_uploads = result.planned_uploads;

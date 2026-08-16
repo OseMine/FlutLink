@@ -84,6 +84,24 @@ in with an account or just explore the welcome screen.
 The account is probed against `ocs/v2.php/cloud/user` and marked as **admin**
 when the user belongs to an admin group.
 
+### Registering a new account
+
+Instead of signing in with an existing account you can **register** a new one
+directly from FlutLink (no email required). Registration needs the FlutCloud
+admin credentials once, creates the account via the OCS provisioning API and
+signs you in automatically.
+
+The **password you choose during registration becomes that account's app
+password permanently**: FlutLink stores it in your OS keychain and uses it for
+every request, just like a regular app password. There is no separate app
+password to create — the registration password is the app password.
+
+Because the stored token *is* the account password, changing the account
+password later (e.g. in FlutCloud → Settings → Security → Password) invalidates
+the stored token. After a password change you have to remove and re-add the
+account in FlutLink (and sign in with the new password or a fresh app
+password).
+
 ## What to try next
 
 - Browse your cloud files in the **Files** tab.
