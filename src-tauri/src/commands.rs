@@ -400,6 +400,19 @@ fn rename_new_path(path: &str, new_name: &str) -> String {
     }
 }
 
+/// Reject rename targets that would silently turn a rename into a move or a
+/// path traversal: the new name must be a single name (no `/`) and must not be
+/// `.`, `..` or empty. Validated directly on the name, not on the composed
+/// path, so `/` cannot slip through as a subfolder separator.
+fn validate_rename_name(new_name: &str) -> AppResult<()> {
+    if new_name.is_empty() || new_name == "." || new_name == ".." || new_name.contains('/') {
+        return Err(AppError::App(
+            "The new name must be a plain name without '/', '.' or '..'.".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Upload a local file to the cloud at `remote_path` (absolute, decoded path
 /// relative to the user's files root, e.g. `/Documents/report.pdf`).
 #[tauri::command]
@@ -811,6 +824,7 @@ pub async fn webdav_rename(
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&path)?;
+    validate_rename_name(&new_name)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -1064,5 +1078,27 @@ mod tests {
     #[test]
     fn rename_new_path_keeps_root_slash() {
         assert_eq!(rename_new_path("/report.pdf", "neu.pdf"), "/neu.pdf");
+    }
+
+    #[test]
+    fn validate_rename_name_accepts_plain_names() {
+        assert!(validate_rename_name("neu.pdf").is_ok());
+        assert!(validate_rename_name("bericht 2024.txt").is_ok());
+        assert!(validate_rename_name("_unterordner").is_ok());
+    }
+
+    #[test]
+    fn validate_rename_name_rejects_slashes_and_dots() {
+        assert!(
+            validate_rename_name("sub/neu.pdf").is_err(),
+            "must not contain '/'"
+        );
+        assert!(
+            validate_rename_name("../neu.pdf").is_err(),
+            "must not contain '/'"
+        );
+        assert!(validate_rename_name("..").is_err(), "must not be '..'");
+        assert!(validate_rename_name(".").is_err(), "must not be '.'");
+        assert!(validate_rename_name("").is_err(), "must not be empty");
     }
 }

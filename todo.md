@@ -207,10 +207,12 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
       `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
       oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzt.
-- [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
-      `/` im `new_name` → „Rename" wird still zu einem Move in einen
-      Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
-      nicht nur auf den zusammengesetzten Pfad).
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (commands.rs:403-414) lehnt
+      `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht erst am
+      zusammengesetzten Pfad); `webdav_rename` ruft sie vor `rename_new_path`
+      auf. Unit-Tests ergänzt.
 - [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
       keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
       `accounts`-Store nutzen.
@@ -362,6 +364,19 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (N11)
+
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:819-842`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (`commands.rs:403-414`)
+      lehnt `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht nur
+      am zusammengesetzten Pfad, den `validate_dav_path` bereits prüfte);
+      `webdav_rename` ruft sie vor `rename_new_path` auf. Unit-Tests
+      `validate_rename_name_accepts_plain_names` /
+      `validate_rename_name_rejects_slashes_and_dots` ergänzt. Verifikation:
+      `cargo fmt --check` grün, `cargo clippy --all-targets -D warnings` grün,
+      `cargo test` 51 passed / 0 failed.
 
 ### Review 2026-08-15 (U8)
 
