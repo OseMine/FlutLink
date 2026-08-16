@@ -15,6 +15,21 @@ use crate::state::{Account, WebDavEntry};
 /// progresses. Total is `0` when the remote did not advertise a size.
 pub type ProgressFn = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
+/// Files larger than this many bytes are uploaded via the WebDAV chunked
+/// upload v2 protocol instead of a single PUT. The server enforces a minimum
+/// chunk size of 5 MiB (last chunk excluded), so chunking only pays off for
+/// files that exceed the chunk size itself.
+const CHUNK_UPLOAD_MIN_BYTES: u64 = 10 * 1024 * 1024;
+/// Bytes per chunk of the v2 protocol. The server accepts chunks between
+/// 5 MiB and 5 GiB (the last chunk may be smaller); 10 MiB stays within range.
+const CHUNK_UPLOAD_CHUNK_BYTES: u64 = 10 * 1024 * 1024;
+
+// Compile-time guards so future size changes cannot silently violate the
+// server-side v2 constraints (intermediate chunks 5 MiB..5 GiB).
+const _: () = assert!(CHUNK_UPLOAD_CHUNK_BYTES >= 5 * 1024 * 1024);
+const _: () = assert!(CHUNK_UPLOAD_CHUNK_BYTES <= 5 * 1024 * 1024 * 1024);
+const _: () = assert!(CHUNK_UPLOAD_MIN_BYTES == CHUNK_UPLOAD_CHUNK_BYTES);
+
 /// Wraps a byte stream and reports `(transferred, total)` for every chunk.
 struct ProgressStream<S> {
     inner: S,
@@ -176,6 +191,12 @@ pub async fn put_file_as(
 }
 
 /// Like [`put_file_as`], but reports `(transferred, total)` per uploaded chunk.
+///
+/// Files above [`CHUNK_UPLOAD_MIN_BYTES`] are uploaded through the WebDAV
+/// chunked upload v2 protocol: a session folder under
+/// `/remote.php/dav/uploads/` receives the file in numbered chunks which the
+/// server assembles on a final MOVE. Each chunk is an independent request, so
+/// no single transfer can run into the client's read timeout.
 pub async fn put_file_as_progress(
     client: &Client,
     account: &Account,
@@ -188,26 +209,181 @@ pub async fn put_file_as_progress(
     let url = remote_url(account, remote_rel, target_user);
     let file = tokio::fs::File::open(local_path).await?;
     let total = file.metadata().await.map(|m| m.len()).unwrap_or(0);
-    let stream = ProgressStream {
-        inner: tokio_util::io::ReaderStream::new(file),
-        total,
-        transferred: 0,
-        on_progress: on_progress.unwrap_or_else(|| Arc::new(|_, _| {})),
-    };
-    let body = reqwest::Body::wrap_stream(stream);
+    let on_progress = on_progress.unwrap_or_else(|| Arc::new(|_, _| {}));
+    if total > CHUNK_UPLOAD_MIN_BYTES {
+        chunked_put_v2(
+            client,
+            account,
+            &url,
+            file,
+            mtime_secs,
+            target_user,
+            &on_progress,
+        )
+        .await
+    } else {
+        let stream = ProgressStream {
+            inner: tokio_util::io::ReaderStream::new(file),
+            total,
+            transferred: 0,
+            on_progress,
+        };
+        let body = reqwest::Body::wrap_stream(stream);
+        let res = impersonation_header(
+            client
+                .put(&url)
+                .basic_auth(&account.meta.username, Some(&account.token))
+                .header("X-OC-MTime", mtime_secs.to_string())
+                .header("Content-Type", "application/octet-stream")
+                .body(body),
+            account,
+            target_user,
+        )
+        .send()
+        .await?;
+        status_check(res).await
+    }
+}
+
+/// Upload `file` (of `total` bytes) via the WebDAV chunked upload v2 protocol
+/// (Nextcloud):
+///
+/// 1. A MKCOL creates a uniquely named session folder under
+///    `/remote.php/dav/uploads/{user}/{transferId}`.
+/// 2. The file is read in [`CHUNK_UPLOAD_CHUNK_BYTES`] blocks and each block is
+///    PUT to the session folder under a running number (1..=10000).
+/// 3. A final MOVE of the `.file` pseudo-entry assembles the chunks into the
+///    destination file.
+///
+/// `Destination` (the final file URL) and `OC-Total-Length` are sent on every
+/// request so the server checks the quota while the chunks arrive. On failure
+/// the session folder is removed again to not leak uploaded chunks.
+async fn chunked_put_v2(
+    client: &Client,
+    account: &Account,
+    dest_url: &str,
+    mut file: tokio::fs::File,
+    mtime_secs: i64,
+    target_user: Option<&str>,
+    on_progress: &ProgressFn,
+) -> AppResult<()> {
+    use tokio::io::AsyncReadExt;
+
+    let total = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let effective_user = target_user.unwrap_or(&account.meta.username);
+    let upload_dir = format!(
+        "{}/remote.php/dav/uploads/{}/{}",
+        account.base_url(),
+        urlencoding::encode(effective_user),
+        transfer_id()
+    );
+
+    let method = Method::from_bytes(b"MKCOL").expect("valid HTTP method");
     let res = impersonation_header(
         client
-            .put(&url)
+            .request(method, &upload_dir)
             .basic_auth(&account.meta.username, Some(&account.token))
-            .header("X-OC-MTime", mtime_secs.to_string())
-            .header("Content-Type", "application/octet-stream")
-            .body(body),
+            .header("Destination", dest_url)
+            .header("OC-Total-Length", total.to_string()),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    // 405 = session already exists; with a unique transfer id this only happens
+    // when a previous attempt left a folder behind, which is fine to reuse.
+    if !(status.is_success() || status.as_u16() == 405) {
+        let body = res.text().await.unwrap_or_default();
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        });
+    }
+
+    let result: AppResult<()> = async {
+        let mut transferred = 0u64;
+        let mut number = 1u64;
+        let mut buffer = vec![0u8; CHUNK_UPLOAD_CHUNK_BYTES as usize];
+        loop {
+            let read = file.read(&mut buffer).await?;
+            if read == 0 {
+                break;
+            }
+            let res = impersonation_header(
+                client
+                    .put(format!("{}/{}", upload_dir, number))
+                    .basic_auth(&account.meta.username, Some(&account.token))
+                    .header("Destination", dest_url)
+                    .header("OC-Total-Length", total.to_string())
+                    .body(buffer[..read].to_vec()),
+                account,
+                target_user,
+            )
+            .send()
+            .await?;
+            status_check(res).await?;
+            transferred += read as u64;
+            on_progress(transferred, total);
+            number += 1;
+        }
+        // Assembling the chunks is a MOVE of the `.file` pseudo-entry; the
+        // modification time is forwarded so change detection stays stable.
+        let method = Method::from_bytes(b"MOVE").expect("valid HTTP method");
+        let res = impersonation_header(
+            client
+                .request(method, format!("{}/.file", upload_dir))
+                .basic_auth(&account.meta.username, Some(&account.token))
+                .header("Destination", dest_url)
+                .header("OC-Total-Length", total.to_string())
+                .header("X-OC-MTime", mtime_secs.to_string()),
+            account,
+            target_user,
+        )
+        .send()
+        .await?;
+        status_check(res).await
+    }
+    .await;
+    if result.is_err() {
+        // Never leave an orphaned chunk session behind: the server would only
+        // expire it after 24 h and it would keep occupying storage quota.
+        let _ = delete_upload_session(client, account, &upload_dir, target_user).await;
+    }
+    result
+}
+
+/// Best-effort removal of a chunked-upload session folder after a failure.
+async fn delete_upload_session(
+    client: &Client,
+    account: &Account,
+    upload_dir: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let method = Method::from_bytes(b"DELETE").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, upload_dir)
+            .basic_auth(&account.meta.username, Some(&account.token)),
         account,
         target_user,
     )
     .send()
     .await?;
     status_check(res).await
+}
+
+/// Unique session id for a chunked upload (e.g. `flutlink-1234-1f6c2a...-0`).
+/// Process id + nanosecond timestamp + counter keep collisions negligible even
+/// for concurrent uploads of the same file.
+fn transfer_id() -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    format!("flutlink-{:x}-{:x}-{}", std::process::id(), nanos, n)
 }
 
 /// Upload a small UTF-8 string (e.g. a README) via PUT. The server sets the
@@ -728,6 +904,15 @@ mod tests {
         assert_eq!(classify("/resources/virtual/link.txt"), (true, false));
         assert_eq!(classify("/Parts"), (false, true));
         assert_eq!(classify("/parts/write/me.txt"), (false, true));
+    }
+
+    #[test]
+    fn transfer_ids_are_unique() {
+        let first = transfer_id();
+        let second = transfer_id();
+        assert_ne!(first, second);
+        assert!(first.starts_with("flutlink-"));
+        assert!(second.starts_with("flutlink-"));
     }
 
     #[test]
