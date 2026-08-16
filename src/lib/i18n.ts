@@ -35,7 +35,7 @@ const dict: Record<Lang, Record<string, string>> = {
     signIn: "Sign In",
     registerServer: "Register",
     initHint:
-      "App passwords are created under FlutCloud → Settings → Security → App passwords.",
+      "Sign in with an app password (FlutCloud → Settings → Security → App passwords). The password you set when registering a new account permanently becomes that account's app password — changing it on the server invalidates the stored token.",
     keychainSecured: "Your credentials are stored in your OS keychain.",
     signInTitle: "Sign in to FlutCloud",
     signInSubtitle: "Connect your FlutCloud account using an app password.",
@@ -105,6 +105,8 @@ const dict: Record<Lang, Record<string, string>> = {
     link: "Link",
     linkCopied: "Link copied to clipboard.",
     folderEmptyTitle: "This folder is empty.",
+    offline: "Offline",
+    offlineHint: "Showing cached data — the server is unreachable.",
     allUsersFolders: "All Users' Folders",
     myFilesOnly: "My Files Only",
     filterUser: "Filter user",
@@ -158,6 +160,14 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteUserConfirm: "Delete user {name}? This cannot be undone.",
     groups: "Groups",
     noGroups: "No groups",
+    groupName: "Group name",
+    addToGroup: "Add to group",
+    createGroup: "New group",
+    removeFromGroup: "Remove from group",
+    groupNameEmpty: "Enter a group name.",
+    groupCreated: "Group created.",
+    groupMemberAdded: "User added to group.",
+    groupMemberRemoved: "User removed from group.",
     enabled: "Enabled",
     disabled: "Disabled",
     enableAccount: "Enable account",
@@ -168,6 +178,7 @@ const dict: Record<Lang, Record<string, string>> = {
     quotaUnit: "Unit",
     mb: "MB",
     gb: "GB",
+    custom: "Custom",
     save: "Save",
     browseFiles: "Browse files",
     userCreated: "User created.",
@@ -218,6 +229,11 @@ const dict: Record<Lang, Record<string, string>> = {
     folderCreated: "Folder created.",
     fileRenamed: "Renamed.",
     deleteConfirm: "Delete {name}? This cannot be undone.",
+    uploadOverwriteConfirm:
+      "A file named '{name}' already exists on the server. Overwrite it?",
+    uploadOverwriteAllConfirm:
+      "One or more files already exist on the server. Overwrite them?",
+    uploadSkipped: "Skipped.",
     quotaInvalid: "Quota must be greater than 0.",
     userFieldsRequired: "User ID and password are required.",
     errNoActiveAccount: "No active account. Please add an account first.",
@@ -235,7 +251,9 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
     errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
     errUpdate: "Update failed: {detail}",
-    errUnknown: "Unknown error.",
+      errTargetExists:
+        "A file or folder named '{detail}' already exists. Choose a different name.",
+      errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
     filteredAccountsHintServer:
@@ -273,7 +291,7 @@ const dict: Record<Lang, Record<string, string>> = {
     signIn: "Anmelden",
     registerServer: "Registrieren",
     initHint:
-      "App-Passwörter erstellt man unter FlutCloud → Einstellungen → Sicherheit → App-Passwörter.",
+      "Melde dich mit einem App-Passwort an (FlutCloud → Einstellungen → Sicherheit → App-Passwörter). Das Passwort, das du bei der Registrierung eines neuen Kontos setzt, bleibt dauerhaft dessen App-Passwort – ein Passwortwechsel auf dem Server macht das gespeicherte Token ungültig.",
     keychainSecured: "Deine Anmeldedaten werden im OS-Schlüsselbund gespeichert.",
     signInTitle: "Bei FlutCloud anmelden",
     signInSubtitle: "Verbinde dein FlutCloud-Konto mit einem App-Passwort.",
@@ -344,6 +362,8 @@ const dict: Record<Lang, Record<string, string>> = {
     link: "Link",
     linkCopied: "Link in die Zwischenablage kopiert.",
     folderEmptyTitle: "Dieser Ordner ist leer.",
+    offline: "Offline",
+    offlineHint: "Zeige zwischengespeicherte Daten – der Server ist nicht erreichbar.",
     allUsersFolders: "Alle Benutzerordner",
     myFilesOnly: "Nur meine Dateien",
     filterUser: "Benutzer filtern",
@@ -397,6 +417,14 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteUserConfirm: "Benutzer {name} löschen? Dies kann nicht rückgängig gemacht werden.",
     groups: "Gruppen",
     noGroups: "Keine Gruppen",
+    groupName: "Gruppenname",
+    addToGroup: "Zur Gruppe hinzufügen",
+    createGroup: "Neue Gruppe",
+    removeFromGroup: "Aus Gruppe entfernen",
+    groupNameEmpty: "Bitte einen Gruppennamen eingeben.",
+    groupCreated: "Gruppe erstellt.",
+    groupMemberAdded: "Benutzer zur Gruppe hinzugefügt.",
+    groupMemberRemoved: "Benutzer aus Gruppe entfernt.",
     enabled: "Aktiviert",
     disabled: "Deaktiviert",
     enableAccount: "Konto aktivieren",
@@ -407,6 +435,7 @@ const dict: Record<Lang, Record<string, string>> = {
     quotaUnit: "Einheit",
     mb: "MB",
     gb: "GB",
+    custom: "Benutzerdefiniert",
     save: "Speichern",
     browseFiles: "Dateien ansehen",
     userCreated: "Benutzer erstellt.",
@@ -457,6 +486,11 @@ const dict: Record<Lang, Record<string, string>> = {
     folderCreated: "Ordner erstellt.",
     fileRenamed: "Umbenannt.",
     deleteConfirm: "{name} löschen? Dies kann nicht rückgängig gemacht werden.",
+    uploadOverwriteConfirm:
+      "Eine Datei namens '{name}' existiert bereits auf dem Server. Überschreiben?",
+    uploadOverwriteAllConfirm:
+      "Eine oder mehrere Dateien existieren bereits auf dem Server. Überschreiben?",
+    uploadSkipped: "Übersprungen.",
     quotaInvalid: "Das Kontingent muss größer als 0 sein.",
     userFieldsRequired: "Benutzer-ID und Passwort sind erforderlich.",
     errNoActiveAccount: "Kein aktives Konto. Bitte füge zuerst ein Konto hinzu.",
@@ -474,7 +508,9 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
     errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
     errUpdate: "Update fehlgeschlagen: {detail}",
-    errUnknown: "Unbekannter Fehler.",
+      errTargetExists:
+        "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
+      errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
     filteredAccountsHintServer:
@@ -516,6 +552,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   not_flutcloud: "errNotFlutCloud",
   flutcloud_app_missing: "errFlutcloudAppMissing",
   update: "errUpdate",
+  target_exists: "errTargetExists",
 };
 
 export function translateError(lang: Lang, code: string, detail?: string | null): string {

@@ -59,6 +59,26 @@ pub struct UserQuota {
     pub relative: Option<f64>,
 }
 
+/// A folder listing plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavListResult {
+    pub entries: Vec<WebDavEntry>,
+    /// True when the listing came from the offline cache because the server
+    /// could not be reached; the frontend shows an offline indicator then.
+    pub stale: bool,
+}
+
+/// A storage quota plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageResult {
+    pub quota: Option<UserQuota>,
+    /// True when the quota came from the offline cache because the server
+    /// could not be reached.
+    pub stale: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDetails {
