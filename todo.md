@@ -45,17 +45,6 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
       „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
       + UI.
-- [ ] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
-      Progress fehlen: `webdav_upload_file` (`commands.rs:364-391`) streamt
-      einen einzigen PUT (`put_file_as`, `webdav.rs:122-146`),
-      `webdav_download_file` (`commands.rs:395-418`) einen einzigen GET.
-      **Kein** WebDAV-Chunking, **keine** `app.emit`-Progress-Events für
-      Datei-Transfers (nur der Updater emittiert `update://progress`,
-      `updater.rs:271-283`; in `commands.rs`/`webdav.rs` kein `emit`,
-      verifiziert). README Phase 3 verspricht „chunked uploads/downloads with
-      progress events (app.emit)"; große Dateien brechen zusätzlich am 60-s-
-      Total-Timeout ab (F2, `state.rs:112-113`). Fix: Progress-Callback durch
-      die Transfer-Helper ziehen + Chunking (WebDAV-Chunked-Upload v2).
 - [ ] **Q5 (Phase 3, Feature, minor):** Drag & Drop-Upload fehlt:
       `FileExplorer.vue` hat keinen `@drop`/`@dragover`-Handler (kein
       Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
@@ -384,6 +373,26 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Q4)
+
+- [x] **Q4 (Phase 3, Feature, mittel/hoch):** Chunked Uploads/Downloads mit
+      Progress fehlten. Fix umgesetzt: **WebDAV-Chunked-Upload v2** in
+      `put_file_as_progress` (`webdav.rs`): Dateien > 10 MiB laufen über
+      `chunked_put_v2` (MKCOL-Session unter `/remote.php/dav/uploads/` mit
+      `Destination`-Header → nummerierte Chunk-PUTs in 10-MiB-Blöcken
+      (5 MiB..5 GiB, serverkonform, per Kompilierzeit-`assert` abgesichert)
+      → finaler MOVE von `.file` mit `X-OC-MTime` + `OC-Total-Length`);
+      kleinere Dateien behalten den einfachen PUT. Progress-Callback ist
+      durch die Transfer-Helper gezogen (`ProgressStream`,
+      `put_file_as_progress`, `get_file_as_progress`) und emittiert
+      `file://progress`-Events (`transfer_progress`, `commands.rs`) für
+      Upload und Download. Große Dateien brechen nicht mehr am 60-s-Total-
+      Timeout ab (F2): `state.rs` nutzt `connect_timeout`/`read_timeout`
+      ohne Gesamtlimit; jede Chunk-Anfrage ist eigenständig. Fehlgeschlagene
+      Chunk-Sessions werden per DELETE aufgeräumt (kein Quota-Leak). Test
+      `transfer_ids_are_unique` ergänzt. Verifikation: `cargo fmt --check`,
+      `cargo clippy --all-targets -D warnings`, `cargo test` → 50 passed,
+      `npm run build` grün.
 ### Review 2026-08-16 (P9/N2)
 
 - [x] **P9/N2 (Bug, Robustheit):** `list_users` (`ocs.rs:75-119`) paginiert
