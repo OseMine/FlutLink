@@ -15,7 +15,7 @@ src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
 (`FileExplorer.vue`/`EntryList.vue`), Dialoge (Login/Settings/Admin/Share), Sync-Panel,
 Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
 
-- [ ] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
+- [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
       Sortierung von der Anzeige ab. `FileExplorer.vue` `onKeydown` (Z. 266-299)
       navigiert über `kbdIndex` gegen die eigene `sortedEntries` (Z. 37-44, nur
       Name-Sortierung, Ordner zuerst), aber `kbdIndex` wird **nie** an
@@ -26,7 +26,7 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       Tastaturnavigation → Pfeiltasten/Enter/Entf operieren auf anderen Einträgen
       als sichtbar. Fix: `kbdIndex` + Sortierung in `EntryList.vue` übergeben
       (bzw. dort zentralisieren) und den fokussierten Eintrag mit einer
-      Highlight-Klasse versehen.
+      Highlight-Klasse versehen. → umgesetzt (siehe Archiv).
 - [ ] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
       Einzel-Datei-Operationen dauerhaft stehen. `FileExplorer.vue` `uploadFiles()`
       (Z. 301-347), `download()` (Z. 214-227) und `downloadZip()` (Z. 231-244)
@@ -200,6 +200,25 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (U-R8-1)
+
+- [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar + inkonsistent zur
+      Sortierung. Fix umgesetzt: Die Sortierung ist von `EntryList.vue` nach
+      `FileExplorer.vue` zentralisiert worden — `sortKey`/`sortAsc`-Refs + `toggleSort`
+      dort, gemeinsame `sortEntries(list)`-Helper-Funktion (Ordner zuerst, dann nach
+      Name/Größe/Datum je nach `sortKey`/`sortAsc`, identisch zur bisherigen
+      EntryList-Logik). `sortedEntries` (aus `files.displayEntries`) wird jetzt von
+      `onKeydown` **und** von der Listen-/Grid-Ansicht genutzt, `sortedPaneEntries`
+      bzw. `sortedPairedEntries` für die Split-View-Panes → Pfeiltasten/Enter/Entf
+      operieren auf dem sichtbaren Eintrag auch bei Sortierung nach Größe/Datum.
+      `kbdIndex` wird jetzt als Prop an `EntryList.vue` übergeben und der fokussierte
+      Eintrag mit einer Highlight-Klasse sichtbar markiert (`bg-secondary-container/50`
+      in der Liste, `border-secondary bg-secondary-container/50` in der Grid-Ansicht).
+      `EntryList.vue` ist damit ein rein präsentationales Component (kein eigenes
+      Sorting mehr, `@sort`-Event nach oben, Sortier-Indikatoren aus Props).
+      Verifikation: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+      `cargo test` (76 passed) und `npm run build` (vue-tsc + vite) grün.
 
 ### Review 2026-08-16 (Android-Client)
 

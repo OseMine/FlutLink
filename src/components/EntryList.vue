@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { useUiStore } from "../stores/ui";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
@@ -19,8 +18,11 @@ const props = withDefaults(
     searching?: boolean;
     thumbs?: Map<string, string>;
     sharesByPath?: Map<string, Share[]>;
+    kbdIndex?: number;
+    sortKey?: "name" | "size" | "mtime";
+    sortAsc?: boolean;
   }>(),
-  { selectable: true }
+  { selectable: true, sortKey: "name", sortAsc: true, kbdIndex: -1 }
 );
 
 const emit = defineEmits<{
@@ -34,49 +36,16 @@ const emit = defineEmits<{
   download: [entry: WebDavEntry];
   delete: [entry: WebDavEntry];
   share: [entry: WebDavEntry];
+  sort: [key: "name" | "size" | "mtime"];
 }>();
 
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
-const sortKey = ref<"name" | "size" | "mtime">("name");
-const sortAsc = ref(true);
-
 function formatMtime(mtime: string | null): string {
   if (!mtime) return "—";
   const date = new Date(mtime);
   return isNaN(date.getTime()) ? mtime : date.toLocaleString();
-}
-
-const sortedEntries = computed(() => {
-  const dirs = props.entries.filter((e) => e.isDir);
-  const others = props.entries.filter((e) => !e.isDir);
-  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey.value === "size") {
-      const av = a.size ?? 0;
-      const bv = b.size ?? 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    if (sortKey.value === "mtime") {
-      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
-      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    const av = a.name.toLowerCase();
-    const bv = b.name.toLowerCase();
-    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  dirs.sort(cmp);
-  others.sort(cmp);
-  return [...dirs, ...others];
-});
-
-function toggleSort(key: "name" | "size" | "mtime") {
-  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
-  else {
-    sortKey.value = key;
-    sortAsc.value = true;
-  }
 }
 
 function shareStatus(path: string) {
@@ -107,18 +76,18 @@ function parentPath(path: string): string {
         <tr class="text-left text-xs uppercase tracking-wide text-on-surface-variant">
           <th v-if="selectable" class="w-8 px-3 py-2"></th>
           <th class="px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('name')">
-              {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
+            <button class="uppercase tracking-wide hover:text-on-surface" @click="emit('sort', 'name')">
+              {{ t("name") }} {{ props.sortKey === "name" ? (props.sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
           <th class="w-28 px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('size')">
-              {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
+            <button class="uppercase tracking-wide hover:text-on-surface" @click="emit('sort', 'size')">
+              {{ t("size") }} {{ props.sortKey === "size" ? (props.sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
           <th class="w-44 px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('mtime')">
-              {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
+            <button class="uppercase tracking-wide hover:text-on-surface" @click="emit('sort', 'mtime')">
+              {{ t("modified") }} {{ props.sortKey === "mtime" ? (props.sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
           <th class="w-40 px-3 py-2 font-medium">{{ t("kind") }}</th>
@@ -127,10 +96,13 @@ function parentPath(path: string): string {
       </thead>
       <tbody>
         <tr
-          v-for="entry in sortedEntries"
+          v-for="(entry, index) in props.entries"
           :key="entry.path"
           class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
-          :class="selectable && selected.has(entry.path) ? 'bg-primary-container/40' : ''"
+          :class="[
+            selectable && selected.has(entry.path) ? 'bg-primary-container/40' : '',
+            index === props.kbdIndex ? 'bg-secondary-container/50' : ''
+          ]"
           @contextmenu="emit('contextmenu', $event, entry)"
         >
           <td v-if="selectable" class="px-3 py-2">
@@ -237,10 +209,13 @@ function parentPath(path: string): string {
   <div v-else class="p-4">
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       <div
-        v-for="entry in sortedEntries"
+        v-for="(entry, index) in props.entries"
         :key="entry.path"
         class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-        :class="selectable && selected.has(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
+        :class="[
+          selectable && selected.has(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60',
+          index === props.kbdIndex ? 'border-secondary bg-secondary-container/50' : ''
+        ]"
         @click="selectable && emit('toggleSelect', entry.path)"
         @dblclick="emit('open', entry)"
         @contextmenu="emit('contextmenu', $event, entry)"

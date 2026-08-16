@@ -34,14 +34,43 @@ let unlistenDragDrop: (() => void) | null = null;
 
 const isSearching = computed(() => files.searchQuery.length > 0);
 
-const sortedEntries = computed(() => {
-  const dirs = files.displayEntries.filter((e) => e.isDir);
-  const others = files.displayEntries.filter((e) => !e.isDir);
-  const byName = (a: WebDavEntry, b: WebDavEntry) => a.name.localeCompare(b.name);
-  dirs.sort(byName);
-  others.sort(byName);
+const sortKey = ref<"name" | "size" | "mtime">("name");
+const sortAsc = ref(true);
+
+function toggleSort(key: "name" | "size" | "mtime") {
+  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
+  else {
+    sortKey.value = key;
+    sortAsc.value = true;
+  }
+}
+
+function sortEntries(list: WebDavEntry[]): WebDavEntry[] {
+  const dirs = list.filter((e) => e.isDir);
+  const others = list.filter((e) => !e.isDir);
+  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
+    if (sortKey.value === "size") {
+      const av = a.size ?? 0;
+      const bv = b.size ?? 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    if (sortKey.value === "mtime") {
+      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
+      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
+      return sortAsc.value ? av - bv : bv - av;
+    }
+    const av = a.name.toLowerCase();
+    const bv = b.name.toLowerCase();
+    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
+  };
+  dirs.sort(cmp);
+  others.sort(cmp);
   return [...dirs, ...others];
-});
+}
+
+const sortedEntries = computed(() => sortEntries(files.displayEntries));
+const sortedPaneEntries = computed(() => sortEntries(files.entries));
+const sortedPairedEntries = computed(() => sortEntries(files.pairedEntries));
 
 watch(searchInput, (value) => {
   if (searchTimer) clearTimeout(searchTimer);
@@ -627,7 +656,7 @@ watch(
   () => {
     void loadAllShares();
     for (const entry of files.entries) void loadThumb(entry);
-    if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
+    if (kbdIndex.value >= files.displayEntries.length) kbdIndex.value = -1;
   }
 );
 
@@ -988,10 +1017,14 @@ watch(
         </div>
         <div class="flex-1 overflow-y-auto">
           <EntryList
-            :entries="files.entries"
+            :entries="sortedPaneEntries"
             :view-mode="viewMode"
             :selected="selected"
             :share-state="shareState"
+            :kbd-index="kbdIndex"
+            :sort-key="sortKey"
+            :sort-asc="sortAsc"
+            @sort="toggleSort"
             @open="open"
             @toggle-select="toggleSelect"
             @contextmenu="openCtx"
@@ -1019,11 +1052,14 @@ watch(
           </div>
           <EntryList
             v-else
-            :entries="files.pairedEntries"
+            :entries="sortedPairedEntries"
             :view-mode="viewMode"
             :selected="emptySelection"
             :share-state="shareState"
             :selectable="false"
+            :sort-key="sortKey"
+            :sort-asc="sortAsc"
+            @sort="toggleSort"
             @open="open"
             @contextmenu="openCtx"
             @rename="startRename"
@@ -1038,13 +1074,17 @@ watch(
     <!-- List view -->
     <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto">
       <EntryList
-        :entries="files.displayEntries"
+        :entries="sortedEntries"
         :view-mode="viewMode"
         :selected="selected"
         :share-state="shareState"
         :searching="isSearching"
         :thumbs="thumbs"
         :shares-by-path="sharesByPath"
+        :kbd-index="kbdIndex"
+        :sort-key="sortKey"
+        :sort-asc="sortAsc"
+        @sort="toggleSort"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
@@ -1061,13 +1101,17 @@ watch(
     <!-- Grid view -->
     <div v-else class="flex-1 overflow-y-auto">
       <EntryList
-        :entries="files.displayEntries"
+        :entries="sortedEntries"
         :view-mode="viewMode"
         :selected="selected"
         :share-state="shareState"
         :searching="isSearching"
         :thumbs="thumbs"
         :shares-by-path="sharesByPath"
+        :kbd-index="kbdIndex"
+        :sort-key="sortKey"
+        :sort-asc="sortAsc"
+        @sort="toggleSort"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
