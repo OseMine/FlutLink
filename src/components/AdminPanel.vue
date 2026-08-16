@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, watch } from "vue";
 import { api, invokeError, type UserDetails, type UserQuota } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
@@ -12,6 +12,13 @@ const t = (key: string) => translate(ui.lang, key);
 
 const MB = 1024 * 1024;
 const GB = 1024 * 1024 * 1024;
+
+type QuotaPresetId = "1gb" | "5gb" | "10gb" | "unlimited" | "custom";
+const QUOTA_PRESETS: { id: Exclude<QuotaPresetId, "unlimited" | "custom">; value: number; unit: "gb" }[] = [
+  { id: "1gb", value: 1, unit: "gb" },
+  { id: "5gb", value: 5, unit: "gb" },
+  { id: "10gb", value: 10, unit: "gb" },
+];
 
 const search = ref("");
 const users = ref<string[]>([]);
@@ -29,6 +36,7 @@ const edits = reactive({
   password: "",
   quotaValue: null as number | null,
   quotaUnit: "gb" as "gb" | "mb" | "unlimited",
+  quotaPreset: "custom" as QuotaPresetId,
 });
 
 const newUser = reactive({
@@ -41,16 +49,61 @@ function setQuotaFromTotal(total: number | null) {
   if (total === null || total < 0) {
     edits.quotaValue = null;
     edits.quotaUnit = "unlimited";
+    edits.quotaPreset = "unlimited";
+    return;
+  }
+  const gbValue = Math.round((total / GB) * 10) / 10;
+  const preset = QUOTA_PRESETS.find(
+    (p) => p.value === gbValue && p.unit === "gb"
+  );
+  if (preset) {
+    edits.quotaValue = gbValue;
+    edits.quotaUnit = "gb";
+    edits.quotaPreset = preset.id;
     return;
   }
   if (total >= GB) {
     edits.quotaUnit = "gb";
-    edits.quotaValue = Math.round((total / GB) * 10) / 10;
+    edits.quotaValue = gbValue;
   } else {
     edits.quotaUnit = "mb";
     edits.quotaValue = Math.round((total / MB) * 10) / 10;
   }
+  edits.quotaPreset = "custom";
 }
+
+watch(
+  () => edits.quotaPreset,
+  (preset) => {
+    if (preset === "unlimited") {
+      edits.quotaValue = null;
+      edits.quotaUnit = "unlimited";
+      return;
+    }
+    if (preset === "custom") return;
+    const found = QUOTA_PRESETS.find((p) => p.id === preset);
+    if (found) {
+      edits.quotaValue = found.value;
+      edits.quotaUnit = found.unit;
+    }
+  }
+);
+
+watch(
+  () => [edits.quotaValue, edits.quotaUnit] as const,
+  ([value, unit]) => {
+    if (edits.quotaPreset === "unlimited") return;
+    if (unit === "unlimited") {
+      edits.quotaPreset = "unlimited";
+      return;
+    }
+    if (edits.quotaPreset === "custom") return;
+    const matches = QUOTA_PRESETS.some(
+      (p) => p.value === value && p.unit === unit
+    );
+    if (!matches) edits.quotaPreset = "custom";
+  }
+);
 
 async function listUsers() {
   loading.value = true;
@@ -430,6 +483,16 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("setQuota") }}
               </label>
               <div class="flex gap-2">
+                <select
+                  v-model="edits.quotaPreset"
+                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
+                >
+                  <option value="1gb">1 GB</option>
+                  <option value="5gb">5 GB</option>
+                  <option value="10gb">10 GB</option>
+                  <option value="unlimited">{{ t("unlimited") }}</option>
+                  <option value="custom">{{ t("custom") }}</option>
+                </select>
                 <input
                   v-model.number="edits.quotaValue"
                   type="number"
@@ -440,7 +503,8 @@ function quotaFree(q: UserQuota | null): string {
                 />
                 <select
                   v-model="edits.quotaUnit"
-                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
+                  :disabled="edits.quotaUnit === 'unlimited'"
+                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary disabled:opacity-40"
                 >
                   <option value="gb">{{ t("gb") }}</option>
                   <option value="mb">{{ t("mb") }}</option>

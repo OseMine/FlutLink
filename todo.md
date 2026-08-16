@@ -71,10 +71,6 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
       resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
       Backend.
-- [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
-      (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
-      Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
-      unlimited) + benutzerdefiniert.
 - [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
       `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
       `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
@@ -362,6 +358,17 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Q8)
+
+- [x] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlten in
+      `AdminPanel.vue` (nur freie MB/GB-Eingabe + „Unlimited"). Fix:
+      Preset-Select (1/5/10 GB, unlimited, benutzerdefiniert) in der
+      Quota-Verwaltung; Auswahl eines Presets setzt Wert/Einheit, manuelle
+      Eingabe bleibt möglich und wechselt zurück auf „custom"; beim Laden
+      eines Benutzers wird das passende Preset vorausgewählt. Verifikation:
+      `npm run build` grün (vue-tsc + vite), `cargo fmt --check`, `cargo
+      clippy --all-targets -- -D warnings` und `cargo test` grün.
 
 ### Review 2026-08-15 (U8)
 
