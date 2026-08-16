@@ -85,7 +85,7 @@ const storageFreeLabel = computed(() => {
       {{ store.error }}
     </div>
 
-    <div v-if="filterHint" class="m-3 rounded-md border border-tertiary bg-tertiary-container px-3 py-2 text-xs text-on-tertiary-container">
+    <div v-if="filterHint" class="m-3 rounded-md border border-info bg-info-container/60 px-3 py-2 text-xs text-on-info-container">
       {{ filterHint }}
     </div>
 

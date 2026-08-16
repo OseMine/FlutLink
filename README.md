@@ -66,12 +66,12 @@ pass options (e.g. a specific version, or only download):
 
 ```powershell
 irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+./install-flutlink.ps1 -Tag v1.0.0 -NoRun
 ```
 
 ```bash
 curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v0.1.0 --no-run
+./install-flutlink.sh --tag v1.0.0 --no-run
 ```
 
 ### FlutCloud server app

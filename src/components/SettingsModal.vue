@@ -72,7 +72,7 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
 ]);
 
 // Material You accent seed; null keeps the theme's default hue.
-const accentValue = ref(ui.accentHue ?? 266);
+const accentValue = ref(ui.accentHue ?? themeDefaultHue());
 
 function themeDefaultHue(): number {
   const resolved =
@@ -98,7 +98,7 @@ watch(
   (open) => {
     if (open) {
       tab.value = "accounts";
-      accentValue.value = ui.accentHue ?? 266;
+      accentValue.value = ui.accentHue ?? themeDefaultHue();
       if (accounts.active?.isAdmin) void loadUsers();
     }
   }

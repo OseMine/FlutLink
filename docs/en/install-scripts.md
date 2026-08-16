@@ -107,19 +107,19 @@ it:
 
 ```powershell
 irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+./install-flutlink.ps1 -Tag v1.0.0 -NoRun
 ```
 
 ```bash
 curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v0.1.0 --no-run
+./install-flutlink.sh --tag v1.0.0 --no-run
 ```
 
 ### `install-flutlink.*`
 
 | PowerShell | bash | Meaning |
 | --- | --- | --- |
-| `-Tag v0.1.0` | `--tag v0.1.0` | Install a specific release instead of the latest |
+| `-Tag v1.0.0` | `--tag v1.0.0` | Install a specific release instead of the latest |
 | `-DownloadDir <dir>` | `--dir <dir>` | Directory for the downloaded installer |
 | `-NoRun` | `--no-run` | Only download (and verify), do not install |
 | `-NoVerify` | `--no-verify` | Skip the SHA-256 verification (not recommended) |

@@ -28,7 +28,7 @@ What actually happened. Include error messages or screenshots if possible.
 ## Environment
 
 - OS: [e.g. Windows 11, macOS 14, Ubuntu 24.04]
-- FlutLink version: [e.g. 0.1.0]
+- FlutLink version: [e.g. 1.0.0]
 - Nextcloud server version: [e.g. 30]
 - Installation: `npm run tauri dev` / bundled app
 
