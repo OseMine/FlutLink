@@ -9,8 +9,8 @@ use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, SyncFolder, SyncFolderStatus, TransferProgress, UserDetails,
-    UserQuota, WebDavEntry,
+    Account, AccountMeta, AppState, StorageResult, SyncFolder, SyncFolderStatus, TransferProgress,
+    UserDetails, WebDavListResult,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -317,26 +317,87 @@ pub async fn account_remove(
     Ok(to_meta_list(&list))
 }
 
+/// Offline-cache namespace: the browsed user + the server instance, so listings
+/// and quotas of different accounts/users never collide.
+fn cache_namespace(account: &Account, target_user: Option<&str>) -> String {
+    format!(
+        "{}@{}",
+        target_user.unwrap_or(&account.meta.username),
+        account.meta.instance_url
+    )
+}
+
 #[tauri::command]
 pub async fn webdav_list(
+    app: AppHandle,
     state: State<'_, AppState>,
     path: Option<String>,
     target_user: Option<String>,
-) -> AppResult<Vec<WebDavEntry>> {
+) -> AppResult<WebDavListResult> {
     let account = current_account(&state)?;
     let path = path.unwrap_or_else(|| "/".into());
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    webdav::list(&state.http_client, &account, &path, target.as_deref()).await
+    let namespace = cache_namespace(&account, target.as_deref());
+    match webdav::list(&state.http_client, &account, &path, target.as_deref()).await {
+        Ok(entries) => {
+            // Refresh the offline cache so the browser can show the latest
+            // listing when the server becomes unreachable later.
+            if let Err(err) = crate::cache::save_listing(&app, &namespace, &path, &entries) {
+                eprintln!("warn: could not cache listing {}: {}", path, err.message());
+            }
+            Ok(WebDavListResult {
+                entries,
+                stale: false,
+            })
+        }
+        Err(err) if err.is_network() => {
+            // Server unreachable: serve the last cached listing instead of an
+            // empty folder/error. Only report the error when nothing was cached.
+            if let Some(entries) = crate::cache::load_listing(&app, &namespace, &path)? {
+                Ok(WebDavListResult {
+                    entries,
+                    stale: true,
+                })
+            } else {
+                Err(err)
+            }
+        }
+        Err(err) => Err(err),
+    }
 }
 
 /// Storage quota of the currently active account (from the OCS v2 user endpoint).
+///
+/// The quota is persisted in the offline cache and served from there when the
+/// server is unreachable (instead of failing or showing "unavailable").
 #[tauri::command]
-pub async fn account_storage(state: State<'_, AppState>) -> AppResult<Option<UserQuota>> {
+pub async fn account_storage(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<StorageResult> {
     let account = current_account(&state)?;
-    ocs::get_current_quota(&state.http_client, &account).await
+    let namespace = cache_namespace(&account, None);
+    match ocs::get_current_quota(&state.http_client, &account).await {
+        Ok(quota) => {
+            if let Some(quota) = &quota {
+                if let Err(err) = crate::cache::save_quota(&app, &namespace, quota) {
+                    eprintln!("warn: could not cache quota: {}", err.message());
+                }
+            }
+            Ok(StorageResult {
+                quota,
+                stale: false,
+            })
+        }
+        Err(err) if err.is_network() => Ok(StorageResult {
+            quota: crate::cache::load_quota(&app, &namespace)?,
+            stale: true,
+        }),
+        Err(err) => Err(err),
+    }
 }
 
 /// Create a public link share for the given file/folder and return the URL.

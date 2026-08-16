@@ -86,6 +86,12 @@ impl AppError {
         }
     }
 
+    /// True when the failure is a network-level error (server unreachable),
+    /// used to decide whether the caller may fall back to the offline cache.
+    pub fn is_network(&self) -> bool {
+        matches!(self, AppError::Http(_))
+    }
+
     pub fn message(&self) -> String {
         match self {
             AppError::NoActiveAccount => {

@@ -562,6 +562,15 @@ watch(
       <span class="truncate font-semibold">{{ files.targetUser }}</span>
     </div>
 
+    <div
+      v-if="files.offline"
+      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+    >
+      <Icon name="cloud_off" :size="14" class="shrink-0" />
+      <span class="shrink-0 font-semibold">{{ t("offline") }}</span>
+      <span class="truncate opacity-80">{{ t("offlineHint") }}</span>
+    </div>
+
     <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
       {{ files.error }}
     </div>
