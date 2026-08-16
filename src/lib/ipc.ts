@@ -163,8 +163,12 @@ export const api = {
   webdavCreateShare: (path: string, targetUser?: string) =>
     invoke<string>("webdav_create_share", { path, targetUser }),
 
-  webdavUploadFile: (remotePath: string, localPath: string, targetUser?: string) =>
-    invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser }),
+  webdavUploadFile: (
+    remotePath: string,
+    localPath: string,
+    targetUser?: string,
+    overwrite = false
+  ) => invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser, overwrite }),
 
   webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
@@ -178,11 +182,17 @@ export const api = {
   webdavBulkDownload: (targets: BulkTarget[], destDir: string, targetUser?: string) =>
     invoke<void>("webdav_bulk_download", { targets, destDir, targetUser }),
 
-  webdavUploadLocalPaths: (localPaths: string[], remoteDir: string, targetUser?: string) =>
+  webdavUploadLocalPaths: (
+    localPaths: string[],
+    remoteDir: string,
+    targetUser?: string,
+    overwrite = false
+  ) =>
     invoke<void>("webdav_upload_local_paths", {
       localPaths,
       remoteDir,
       targetUser,
+      overwrite,
     }),
 
   webdavMkdir: (path: string, targetUser?: string) =>

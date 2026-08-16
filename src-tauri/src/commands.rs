@@ -402,6 +402,9 @@ fn rename_new_path(path: &str, new_name: &str) -> String {
 
 /// Upload a local file to the cloud at `remote_path` (absolute, decoded path
 /// relative to the user's files root, e.g. `/Documents/report.pdf`).
+///
+/// Without `overwrite`, an existing destination is refused with
+/// [`AppError::TargetExists`] instead of being silently replaced.
 #[tauri::command]
 pub async fn webdav_upload_file(
     app: AppHandle,
@@ -409,12 +412,24 @@ pub async fn webdav_upload_file(
     remote_path: String,
     local_path: String,
     target_user: Option<String>,
+    overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&remote_path)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
+    }
+    if !overwrite
+        && webdav::exists(
+            &state.http_client,
+            &account,
+            &remote_path,
+            target.as_deref(),
+        )
+        .await?
+    {
+        return Err(AppError::TargetExists(remote_path.clone()));
     }
     let mtime = std::fs::metadata(&local_path)
         .ok()
@@ -658,8 +673,14 @@ pub async fn webdav_bulk_download(
 }
 
 /// Recursively upload a local tree into a remote folder, returning the number
-/// of files uploaded.
-async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> AppResult<u64> {
+/// of files uploaded. Without `overwrite`, existing remote files abort the
+/// upload with [`AppError::TargetExists`] instead of being silently replaced.
+async fn upload_tree(
+    ctx: TransferCtx<'_>,
+    local: &Path,
+    remote_rel: &str,
+    overwrite: bool,
+) -> AppResult<u64> {
     let mut files_written = 0u64;
     let mut entries = tokio::fs::read_dir(local).await?;
     while let Some(entry) = entries.next_entry().await? {
@@ -669,8 +690,13 @@ async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> Ap
         if path.is_dir() {
             webdav::ensure_collection_as(&ctx.state.http_client, ctx.account, &remote, ctx.target)
                 .await?;
-            files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote)).await?;
+            files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote, overwrite)).await?;
         } else {
+            if !overwrite
+                && webdav::exists(&ctx.state.http_client, ctx.account, &remote, ctx.target).await?
+            {
+                return Err(AppError::TargetExists(remote));
+            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -703,6 +729,9 @@ async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> Ap
 /// Upload multiple local files/folders (e.g. from drag & drop) into the given
 /// remote directory, recursively for local subfolders. Emits
 /// `file://progress` events per file.
+///
+/// Without `overwrite`, existing remote files abort the upload with
+/// [`AppError::TargetExists`] instead of being silently replaced.
 #[tauri::command]
 pub async fn webdav_upload_local_paths(
     app: AppHandle,
@@ -710,6 +739,7 @@ pub async fn webdav_upload_local_paths(
     local_paths: Vec<String>,
     remote_dir: String,
     target_user: Option<String>,
+    overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&remote_dir)?;
@@ -744,8 +774,13 @@ pub async fn webdav_upload_local_paths(
         if path.is_dir() {
             webdav::ensure_collection_as(&state.http_client, &account, &remote, target.as_deref())
                 .await?;
-            upload_tree(ctx.clone(), &path, &remote).await?;
+            upload_tree(ctx.clone(), &path, &remote, overwrite).await?;
         } else if path.is_file() {
+            if !overwrite
+                && webdav::exists(&state.http_client, &account, &remote, target.as_deref()).await?
+            {
+                return Err(AppError::TargetExists(remote));
+            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
