@@ -10,6 +10,11 @@ Servern, die die FlutCloud-Nextcloud-App
 (keyring). Das Frontend ist Vue 3 + TypeScript + Tailwind v4 und läuft in
 einem Tauri WebView.
 
+**`android/` ist ein Port des Desktop-Clients auf Kotlin + Jetpack Compose,
+generiert mit opencode** — es spiegelt den Desktop-Funktionsumfang und ist
+kein separates Produkt. Änderungen an Features/Verhalten müssen dort
+mitgezogen werden (CI: `.github/workflows/android.yml`).
+
 ## Struktur
 
 - `src/` — Vue 3 Frontend (Komponenten, Pinia-Stores in `src/stores/`,
@@ -32,6 +37,9 @@ einem Tauri WebView.
   - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
     Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)
   - `nextcloud/ocs.rs` — OCS Provisioning API (User-Liste, Details, Quota, Shares)
+- `android/` — Port des Desktop-Clients auf Kotlin + Jetpack Compose
+  (generiert mit opencode, siehe oben); `android/README.md` beschreibt
+  Struktur und Build
 - `flutcloud-app/` — Nextcloud-Server-App (PHP) für die Nicht-Standard-Funktionen
   des FlutCloud-Servers (Capability, `resources`/`parts`-Virtuelle-Links,
   Projektordner). FlutLink verbindet sich nur mit Servern, die diese App
@@ -55,6 +63,8 @@ einem Tauri WebView.
 - `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings`
 - `cargo test --manifest-path src-tauri/Cargo.toml` (Unit-Tests in
   `nextcloud/`-Modulen)
+- `cd android && ./gradlew :app:assembleDebug` — Android-Client bauen
+  (JDK 17; CI siehe `.github/workflows/android.yml`)
 
 ## Konventionen
 
@@ -78,4 +88,5 @@ einem Tauri WebView.
 Vor dem Abschluss einer Änderung immer ausführen:
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `cargo test` (jeweils mit `--manifest-path src-tauri/Cargo.toml`) und
-`npm run build`.
+`npm run build`. Bei Änderungen an `android/` zusätzlich
+`cd android && ./gradlew :app:assembleDebug`.

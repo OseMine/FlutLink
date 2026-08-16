@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FlutLink connects only to the configured FlutCloud server. Cleartext traffic
+  is disabled by default (Android P+); enable it only for a developer override
+  via the FLUTCLOUD_URL build config.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

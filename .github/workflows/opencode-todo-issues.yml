@@ -60,15 +60,34 @@ jobs:
                - Body mit: Kontext, betroffene Dateien/Funktionen (mit Zeilennummern
                  aus todo.md), Akzeptanzkriterien und den daraus übernommenen
                  todo.md-Text.
-            5. Nutze die GitHub API via $GH_TOKEN (REST: POST /repos/{owner}/{repo}/issues)
+            5. Vergib bei der Erstellung passende Labels (Parameter `labels` der
+               GitHub-REST-API bzw. `gh issue create --label`):
+               - Bug/Datenverlust/Sicherheitsproblem → `bug` (Sicherheits-Befunde
+                 zusätzlich `security`)
+               - Neues Feature → `enhancement`
+               - Performance → `perf`
+               - UX/Design → `ux`
+               - Doku → `documentation`
+               - CI/Workflows/Build/Release → `ci`
+               - Mobile-Client-Befunde → `android`
+               - Sync-Engine-Befunde → `sync`
+               Fehlt ein Label, lege es zuerst an (`gh label create <name> --color …`
+               bzw. POST /repos/{owner}/{repo}/labels). Schlägt das Label-Anlegen
+               fehl (z. B. 403 wegen minimaler Token-Rechte), erstelle das Issue
+               trotzdem mit dem am besten passenden existierenden Label und vermerke
+               das in der Zusammenfassung. Lege KEINE Labels an, die in der Liste
+               oben nicht genannt sind.
+            6. Nutze die GitHub API via $GH_TOKEN (REST: POST /repos/{owner}/{repo}/issues)
                oder das installierte `gh`-CLI (GH_TOKEN ist gesetzt).
-            6. Duplizierte/bereits existierende Issues nicht neu anlegen – vorher
+            7. Duplizierte/bereits existierende Issues nicht neu anlegen – vorher
                bestehende Issues per API auflisten und Titel vergleichen.
 
             WICHTIG:
             - Verändere KEINE Dateien, committe NICHTS und erstelle KEINEN Pull Request.
+            - Jedes erstellte Issue MUSS mindestens ein passendes Label erhalten (siehe
+              Schritt 5); Issues ohne Label sind ein Fehler.
             - Antworte am Ende mit einer Zusammenfassung der erstellten Issues
-              (Nummer, Titel) und der übersprungenen Duplikate.
+              (Nummer, Titel, Label) und der übersprungenen Duplikate.
         run: |
           # Zeitlimit (25 min) schützt vor hängenden Läufen; nur der
           # issues:write-Token wird an opencode weitergereicht.

@@ -78,11 +78,15 @@ R7-5 (Version auf `1.0.0` angehoben) und R7-6 (Docs + `info.xml` committet)
 sind erledigt. R7-7 (Release läuft als Draft) ist ein Hinweis für den
 Release-Vorgang, kein Code-Fix.
 
-Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 69 passed /
+Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 72 passed /
 0 failed; `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
--- -D warnings` grün; `cargo fmt --check` grün; `npm run build` grün.
+-- -D warnings` grün; `cargo fmt --check` grün; `npm run build` grün;
+Android `./gradlew :app:assembleDebug` in `android/` grün.
 
-Keine offenen Punkte mehr.
+Am 2026-08-16 ist zusätzlich der **Android-Client** (siehe Archiv) als neue
+Komponente hinzugekommen: `android/` ist ein Kotlin/Jetpack-Compose-
+Mirror des Desktop-Clients (FlutCloud-only-Policy, WebDAV/OCS, M3-Expressive-
+Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
@@ -98,6 +102,28 @@ Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Android-Client)
+
+- [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —
+      **Port des Desktop-Clients auf Kotlin + Jetpack Compose, generiert mit
+      opencode** (kein separates Produkt; spiegelt den Desktop-Funktionsumfang,
+      Änderungen müssen dort mitgezogen werden). Kotlin + Jetpack Compose
+      (Material 3), App-Modul
+      `com.flutcloud.flutlink` (compileSdk/targetSdk 36, minSdk 26, Java 17,
+      AGP 8.13.2, Compose BOM 2025.06.00, OkHttp 5, kotlinx-serialization),
+      Gradle-Wrapper 8.13. Backend-Anbindung über `FlutCloudApi` (OCS:
+      User/Quota/Admin/Shares + FlutCloud-App-Capability-Probe) und
+      `WebDavApi` (PROPFIND, SEARCH, Upload/Download, mkdir/rename/delete,
+      `resources`/`parts`-Virtuallinks). Tokens liegen in
+      `EncryptedSharedPreferences`, Metadaten in separaten Prefs (analog zum
+      Keyring-Design des Desktop-Clients). UI: Login-, Files-, Admin- und
+      Settings-Screens mit Navigation + ViewModels, M3-Theme in den
+      FlutCloud-Farben. CI: `.github/workflows/android.yml` (assembleDebug +
+      lintDebug). Verifikation: `./gradlew :app:assembleDebug` grün,
+      `cargo fmt --check`/`cargo clippy -D warnings`/`cargo test`
+      (72 passed)/`npm run build` grün; README-Strukturbaum aktualisiert,
+      `android/README.md` ergänzt.
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — R7-1 bis R7-6)
 
