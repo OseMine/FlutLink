@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +66,7 @@ fun AdminScreen(container: AppContainer) {
     val search by vm.search.collectAsState()
 
     var showCreate by remember { mutableStateOf(false) }
+    var groupTarget by remember { mutableStateOf<ManagedUser?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.loadUsers() }
@@ -109,7 +111,8 @@ fun AdminScreen(container: AppContainer) {
                             user = user,
                             onToggleEnabled = { vm.setEnabled(user, !user.enabled) },
                             onDelete = { vm.deleteUser(user) },
-                            onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) }
+                            onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) },
+                            onManageGroups = { groupTarget = user }
                         )
                     }
                 }
@@ -126,6 +129,17 @@ fun AdminScreen(container: AppContainer) {
             }
         )
     }
+
+    groupTarget?.let { target ->
+        val current = users.firstOrNull { it.id == target.id } ?: target
+        GroupsDialog(
+            user = current,
+            onDismiss = { groupTarget = null },
+            onAddToGroup = { group -> vm.addToGroup(current, group) },
+            onRemoveFromGroup = { group -> vm.removeFromGroup(current, group) },
+            onCreateGroup = { group -> vm.createGroup(group) }
+        )
+    }
 }
 
 @Composable
@@ -133,7 +147,8 @@ private fun UserRow(
     user: ManagedUser,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
-    onQuota: (Long?) -> Unit
+    onQuota: (Long?) -> Unit,
+    onManageGroups: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     ListItem(
@@ -218,6 +233,14 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Manage groups") },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onManageGroups()
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Delete user") },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                             onClick = {
@@ -260,6 +283,87 @@ private fun CreateUserDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun GroupsDialog(
+    user: ManagedUser,
+    onDismiss: () -> Unit,
+    onAddToGroup: (String) -> Unit,
+    onRemoveFromGroup: (String) -> Unit,
+    onCreateGroup: (String) -> Unit
+) {
+    var groupInput by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Groups — ${user.displayName ?: user.id}") },
+        text = {
+            Column {
+                Text("@${user.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                if (user.groups.isEmpty()) {
+                    Text(
+                        "No groups",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    user.groups.forEach { group ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    group,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                            TextButton(onClick = { onRemoveFromGroup(group) }) { Text("Remove") }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                TextField(
+                    value = groupInput,
+                    onValueChange = { groupInput = it },
+                    singleLine = true,
+                    label = { Text("Group name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "Creating a new group uses the name above; adding to an existing group requires that it already exists on the server.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(
+                    onClick = { onCreateGroup(groupInput.trim()) },
+                    enabled = groupInput.isNotBlank()
+                ) { Text("Create group") }
+                TextButton(
+                    onClick = {
+                        onAddToGroup(groupInput.trim())
+                        groupInput = ""
+                    },
+                    enabled = groupInput.isNotBlank()
+                ) { Text("Add to group") }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
 }

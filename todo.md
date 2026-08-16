@@ -186,6 +186,13 @@ Komponente hinzugekommen: `android/` ist ein Kotlin/Jetpack-Compose-
 Mirror des Desktop-Clients (FlutCloud-only-Policy, WebDAV/OCS, M3-Expressive-
 Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
+Am 2026-08-16 ist die **Android-Feature-Parität (Issue #136)** umgesetzt
+(siehe Archiv): Share-Liste + Widerruf in der Datei-UI, Gruppenverwaltung im
+Admin-Bereich, Offline-Cache für Ordner-Listings, Registrierungs-Flow und
+„Öffnen mit externer App". Zwei-Wege-Sync ist eine **bewusste
+Produktentscheidung** (mobile bleibt Desktop-Feature, dokumentiert in
+`android/README.md`).
+
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
 - Review 2026-08-16 (Lauf 7, Release-Review v1) — R7-1 bis R7-6 umgesetzt,
@@ -200,6 +207,56 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Android-Feature-Parität, Issue #136)
+
+- [x] **Share-Liste + Widerruf in der Datei-UI (analog Desktop):** Der
+      `ShareDialog` in `FilesScreen.kt` zeigt jetzt alle bestehenden Shares
+      des Eintrags (Public-Links + User-/Gruppen-Shares, `ocsApi.listShares`
+      war vorhanden) mit Widerruf-Button pro Eintrag (`vm.deleteShare` →
+      `ocsApi.deleteShare`, vorhandene Backend-Methode). Der Public-Link-
+      Erstellungs-Block (Passwort + Ablauf) bleibt erhalten. Die
+      Share-Erstellung refreshed danach die Liste.
+- [x] **Gruppenverwaltung im Admin-Bereich (Liste/Anlegen/Mitglieder):**
+      `FlutCloudApi` kennt jetzt die OCS-Gruppen-Endpunkte `listGroups`
+      (Pagination + Duplikat-Guard wie `listUsers`), `createGroup`
+      (`POST /cloud/groups`), `addGroupMember` (`POST /cloud/groups/{id}`
+      mit `userid`) und `removeGroupMember`
+      (`DELETE /cloud/groups/{id}/users/{uid}`) — Spiegel der Desktop-`ocs.rs`
+      (Q3). `AdminViewModel` hat `addToGroup`/`removeFromGroup`/`createGroup`;
+      `AdminScreen` zeigt pro Benutzer im Menü „Manage groups" einen
+      `GroupsDialog` (Chips mit × zum Entfernen, Eingabefeld + „Add to group"/
+      „Create group", analog `AdminPanel.vue`).
+- [x] **Offline-Cache + klarer Offline-/Fehlerzustand:** Neues
+      `data/ListCache.kt` persistiert jedes erfolgreiche Folder-Listing im
+      App-Dateibereich (`filesDir/cache/listings/`, Dateiname aus
+      Account-Key + Pfad gehasht, `WebDavEntry` ist jetzt `@Serializable`).
+      `FilesViewModel.listFolder` schreibt den Cache bei Erfolg und liefert bei
+      `NetworkException` das letzte Listing mit `offline=true` zurück
+      (Spiegel des Desktop-`cache.rs`-Moduls, Q2). `FilesScreen` zeigt dann
+      einen „Offline — showing cached data"-Banner; Download-Fehler
+      (offline/404) landen weiterhin klar in der Snackbar.
+- [x] **Sync: bewusste Produktentscheidung:** Zwei-Wege-Sync ist eine
+      **desktop-only**-Entscheidung für die Mobile-App (kein
+      Foreground-Service/Battery-Policy/Conflict-UI in dieser Phase). In
+      `android/README.md` unter „Consciously not on mobile" dokumentiert;
+      bleibt als Phase-2-Roadmap-Punkt, kein Paritäts-Gap.
+- [x] **Registrierungs-Flow:** `LoginViewModel.register` (Spiegel des
+      Desktop-`register_user`, commands.rs): Admin-Credentials → FlutCloud-
+      Capability-Probe → `ocsApi.createUser` → Best-Effort-Anlage des
+      FlutCloud-Projektordners `/FlutLink/FlutCloud` (+ README) → Sign-in mit
+      dem neuen Konto. `LoginScreen` hat einen Sign-in/Register-Umschalter
+      mit den Feldern Admin-Benutzername/-Passwort und Display-Name.
+- [x] **„Öffnen mit externer App":** `FileOpener` lädt die Datei in den
+      Open-Cache (`cacheDir/opened/`, vorherige Öffnung wird zuvor entfernt)
+      und startet `ACTION_VIEW` über den konfigurierten FileProvider
+      (`file_paths.xml` um `opened/` ergänzt, MimeType aus der Dateiendung);
+      ohne passende App fällt die UI auf die Pfad-Snackbar zurück (Spiegel
+      des Desktop-`open_remote_file`).
+- [x] **Verifikation:** `cd android && ./gradlew :app:assembleDebug` grün,
+      `./gradlew :app:lintDebug` grün; `cargo fmt --check`, `cargo clippy
+      --all-targets -- -D warnings`, `cargo test` (76 passed) und
+      `npm run build` unverändert grün (nur Android-Code geändert).
 
 ### Review 2026-08-16 (Android-Client)
 

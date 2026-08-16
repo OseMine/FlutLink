@@ -22,6 +22,11 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
     val loading = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
 
+    val registerMode = MutableStateFlow(false)
+    val displayName = MutableStateFlow("")
+    val adminUsername = MutableStateFlow("")
+    val adminPassword = MutableStateFlow("")
+
     private val _step = MutableStateFlow<String?>(null)
     val step: StateFlow<String?> = _step.asStateFlow()
 
@@ -30,6 +35,10 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             val saved = container.settingsStore.defaultServerUrlOrEmpty()
             serverUrl.value = saved.ifEmpty { BuildConfig.FLUTCLOUD_URL }
         }
+    }
+
+    fun toggleMode() {
+        registerMode.value = !registerMode.value
     }
 
     fun signIn(onSuccess: () -> Unit) {
@@ -72,7 +81,86 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * Register a real new account on the server, mirroring the desktop
+     * `register_user`: the admin credentials create the account via the OCS
+     * Provisioning API, the FlutCloud project folder is ensured (best-effort),
+     * then the new account signs in with its real password.
+     */
+    fun register(onSuccess: () -> Unit) {
+        if (loading.value) return
+        val url = serverUrl.value.trim().trimEnd('/')
+        val user = username.value.trim()
+        val pass = token.value.trim()
+        if (url.isEmpty() || user.isEmpty() || pass.isEmpty() ||
+            adminUsername.value.isBlank() || adminPassword.value.isBlank()
+        ) {
+            error.value = "Fill in all fields: server URL, username, password and the admin credentials."
+            return
+        }
+        viewModelScope.launch {
+            loading.value = true
+            error.value = null
+            try {
+                val adminSession = AuthSession(url, adminUsername.value.trim(), adminPassword.value)
+                _step.value = "Verifying FlutCloud server…"
+                container.ocsApi.verifyServer(adminSession)
+                _step.value = "Creating account…"
+                container.ocsApi.createUser(
+                    adminSession, user, pass,
+                    displayName.value.trim().ifBlank { null }
+                )
+                _step.value = "Setting up project folder…"
+                ensureProjectFolder(adminSession)
+                _step.value = "Signing in…"
+                val session = AuthSession(url, user, pass)
+                val info = container.ocsApi.getCurrentUser(session)
+                container.ocsApi.verifyServer(session)
+                val admin = runCatching { container.ocsApi.isAdmin(session) }.getOrDefault(false)
+                container.settingsStore.setDefaultServerUrl(url)
+                container.sessionManager.addAccount(
+                    AccountMeta(user, url, info.displayName, admin, isActive = true),
+                    pass
+                )
+                onSuccess()
+            } catch (e: FlutCloudAppMissing) {
+                error.value = e.message
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            } catch (e: Exception) {
+                error.value = e.message ?: "Registration failed"
+            } finally {
+                loading.value = false
+                _step.value = null
+            }
+        }
+    }
+
+    /** Best-effort creation of the FlutCloud project folder (never fails the
+     *  registration), mirroring the desktop's `register_user`. */
+    private suspend fun ensureProjectFolder(adminSession: AuthSession) {
+        runCatching { container.webDavApi.mkdir(adminSession, FLUTCLOUD_PROJECT_PATH) }
+        runCatching {
+            container.webDavApi.upload(
+                adminSession,
+                "$FLUTCLOUD_PROJECT_PATH/README.md",
+                FLUTCLOUD_README.toByteArray()
+            )
+        }
+    }
+
     fun clearError() {
         error.value = null
+    }
+
+    companion object {
+        private const val FLUTCLOUD_PROJECT_PATH = "/FlutLink/FlutCloud"
+        private val FLUTCLOUD_README = """
+            # FlutCloud — Nextcloud App
+
+            Shared project space of the **FlutCloud Nextcloud app**.
+        """.trimIndent()
     }
 }
