@@ -77,9 +77,14 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
-  async function uploadFile(localPath: string, remotePath: string) {
+  async function uploadFile(localPath: string, remotePath: string, overwrite = false) {
     try {
-      await api.webdavUploadFile(remotePath, localPath, targetUser.value ?? undefined);
+      await api.webdavUploadFile(
+        remotePath,
+        localPath,
+        targetUser.value ?? undefined,
+        overwrite
+      );
       await refresh();
     } catch (e) {
       error.value = invokeError(e).message;
@@ -125,12 +130,13 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
-  async function uploadLocalPaths(localPaths: string[]) {
+  async function uploadLocalPaths(localPaths: string[], overwrite = false) {
     try {
       await api.webdavUploadLocalPaths(
         localPaths,
         currentPath.value,
-        targetUser.value ?? undefined
+        targetUser.value ?? undefined,
+        overwrite
       );
       await refresh();
     } catch (e) {
