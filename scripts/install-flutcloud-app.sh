@@ -9,7 +9,7 @@
 #
 # Options (only when saved to a file and executed):
 #   -d, --nextcloud-root <path>   Nextcloud installation (folder containing occ).
-#   -r, --ref <ref>               Git ref (release tag like "v0.1.0" or branch).
+#   -r, --ref <ref>               Git ref (release tag like "v1.0.0" or branch).
 #   -u, --web-user <user>         Web-server user; default "www-data".
 #   -c, --docker-container <id>   Nextcloud Docker container (occ via docker exec).
 #   -C, --composer                Run "composer install --no-dev" in the app folder.

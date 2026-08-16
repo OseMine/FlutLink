@@ -17,7 +17,7 @@
 
         FlutLink connects exclusively to servers that run this app.
     </description>
-    <version>0.1.0</version>
+    <version>1.0.0</version>
     <licence>agpl</licence>
     <author mail="marcantemusik@gmail.com" homepage="https://github.com/OseMine/FlutLink">OperationFlut</author>
     <namespace>FlutCloud</namespace>
