@@ -47,7 +47,8 @@ export const useAccountsStore = defineStore("accounts", () => {
       return;
     }
     try {
-      storage.value = await api.accountStorage();
+      const result = await api.accountStorage();
+      storage.value = result.quota;
     } catch {
       storage.value = null;
     }

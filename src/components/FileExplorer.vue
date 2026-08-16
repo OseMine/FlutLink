@@ -5,10 +5,10 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type AppErrorLike, type BulkTarget, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
-import { formatBytes } from "../lib/format";
 import Icon from "./Icon.vue";
+import EntryList from "./EntryList.vue";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -16,8 +16,6 @@ const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
 const viewMode = ref<"list" | "grid">("list");
-const sortKey = ref<"name" | "size" | "mtime">("name");
-const sortAsc = ref(true);
 const selected = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
 const busyPath = ref<string | null>(null);
@@ -26,39 +24,48 @@ const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
 const draggingOver = ref(false);
+const kbdIndex = ref(-1);
+const thumbs = reactive(new Map<string, string>());
+const thumbLoading = new Set<string>();
+const searchInput = ref("");
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+const emptySelection = new Set<string>();
 let unlistenDragDrop: (() => void) | null = null;
 
-function formatMtime(mtime: string | null): string {
-  if (!mtime) return "—";
-  const date = new Date(mtime);
-  return isNaN(date.getTime()) ? mtime : date.toLocaleString();
-}
+const isSearching = computed(() => files.searchQuery.length > 0);
 
 const sortedEntries = computed(() => {
-  const dirs = files.entries.filter((e) => e.isDir);
-  const others = files.entries.filter((e) => !e.isDir);
-  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey.value === "size") {
-      const av = a.size ?? 0;
-      const bv = b.size ?? 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    if (sortKey.value === "mtime") {
-      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
-      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    const av = a.name.toLowerCase();
-    const bv = b.name.toLowerCase();
-    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  dirs.sort(cmp);
-  others.sort(cmp);
+  const dirs = files.displayEntries.filter((e) => e.isDir);
+  const others = files.displayEntries.filter((e) => !e.isDir);
+  const byName = (a: WebDavEntry, b: WebDavEntry) => a.name.localeCompare(b.name);
+  dirs.sort(byName);
+  others.sort(byName);
   return [...dirs, ...others];
 });
 
-function isSelected(path: string): boolean {
-  return selected.value.has(path);
+watch(searchInput, (value) => {
+  if (searchTimer) clearTimeout(searchTimer);
+  const q = value.trim();
+  if (!q) {
+    files.clearSearch();
+    return;
+  }
+  searchTimer = setTimeout(() => {
+    void runSearch();
+  }, 300);
+});
+
+async function runSearch() {
+  try {
+    await files.searchFiles(searchInput.value);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+function clearSearchInput() {
+  searchInput.value = "";
+  files.clearSearch();
 }
 
 function toggleSelect(path: string) {
@@ -70,13 +77,13 @@ function toggleSelect(path: string) {
 
 const allSelected = computed(
   () =>
-    files.entries.length > 0 &&
-    files.entries.every((e) => selected.value.has(e.path))
+    files.displayEntries.length > 0 &&
+    files.displayEntries.every((e) => selected.value.has(e.path))
 );
 
 function toggleSelectAll() {
   if (allSelected.value) clearSelection();
-  else selected.value = new Set(files.entries.map((e) => e.path));
+  else selected.value = new Set(files.displayEntries.map((e) => e.path));
 }
 
 function clearSelection() {
@@ -84,7 +91,7 @@ function clearSelection() {
 }
 
 const selectedTargets = computed<BulkTarget[]>(() =>
-  files.entries
+  files.displayEntries
     .filter((e) => selected.value.has(e.path))
     .map((e) => ({ path: e.path, isDir: e.isDir }))
 );
@@ -130,22 +137,31 @@ async function dropUpload(paths: string[]) {
     files.clearTransfer();
     ui.toast(t("fileUploaded"), "success");
   } catch (e) {
+    if ((e as AppErrorLike)?.code === "target_exists") {
+      // Q9: never silently overwrite an existing remote file. Ask first and
+      // only retry the whole batch with overwrite once the user agrees.
+      if (window.confirm(t("uploadOverwriteAllConfirm"))) {
+        try {
+          await files.uploadLocalPaths(paths, true);
+          files.clearTransfer();
+          ui.toast(t("fileUploaded"), "success");
+        } catch (e2) {
+          ui.toast(invokeError(e2).message, "error");
+        }
+      }
+      return;
+    }
     ui.toast(invokeError(e).message, "error");
   } finally {
     busyPath.value = null;
   }
 }
 
-function toggleSort(key: "name" | "size" | "mtime") {
-  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
-  else {
-    sortKey.value = key;
-    sortAsc.value = true;
-  }
-}
-
 function openCtx(e: MouseEvent, entry: WebDavEntry) {
   e.preventDefault();
+  if (!selected.value.has(entry.path)) {
+    selected.value = new Set([entry.path]);
+  }
   ctxMenu.value = { x: e.clientX, y: e.clientY, entry };
 }
 
@@ -155,6 +171,7 @@ function closeCtx() {
 
 async function open(entry: WebDavEntry) {
   if (entry.isDir) {
+    if (isSearching.value) clearSearchInput();
     await files.navigate(entry.path);
     return;
   }
@@ -169,6 +186,31 @@ async function open(entry: WebDavEntry) {
   }
 }
 
+/// Jump to the counterpart of a single entry (`/resources/…` ↔ `/parts/…`).
+function goToPaired(entry: WebDavEntry) {
+  if (entry.pairedPath) void files.navigate(entry.pairedPath);
+}
+
+/// Jump to an arbitrary path (used by the pairing bar / split-view swap).
+function goToPath(path: string | null) {
+  if (path) void files.navigate(path);
+}
+
+/// "virtual" (read-only `resources`) or "real" (write-enabled `parts`) pane
+/// label for a path inside the FlutCloud virtual namespaces, else `null`.
+function paneKind(path: string | null): "virtual" | "real" | null {
+  if (!path) return null;
+  for (const seg of path.split("/")) {
+    if (seg.toLowerCase() === "resources") return "virtual";
+    if (seg.toLowerCase() === "parts") return "real";
+  }
+  return null;
+}
+
+function paneLabel(kind: "virtual" | "real" | null): string {
+  return kind === "virtual" ? t("virtualPane") : t("realPane");
+}
+
 async function download(entry: WebDavEntry) {
   if (busyPath.value) return;
   busyPath.value = entry.path;
@@ -181,6 +223,78 @@ async function download(entry: WebDavEntry) {
     ui.toast(invokeError(e).message, "error");
   } finally {
     busyPath.value = null;
+  }
+}
+
+/// Download a folder as a ZIP archive (Nextcloud `Accept: application/zip`
+/// WebDAV extension).
+async function downloadZip(entry: WebDavEntry) {
+  if (busyPath.value) return;
+  busyPath.value = entry.path;
+  try {
+    const dest = await save({ defaultPath: entry.name + ".zip" });
+    if (typeof dest !== "string") return;
+    await files.downloadZip(entry.path, dest);
+    ui.toast(t("fileDownloaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+/// Best-effort thumbnail fetch for image entries (Nextcloud
+/// `/core/preview.png`). Failures fall back to the generic file icon.
+async function loadThumb(entry: WebDavEntry) {
+  if (entry.isDir || !entry.contentType?.startsWith("image/")) return;
+  if (thumbs.has(entry.path) || thumbLoading.has(entry.path)) return;
+  thumbLoading.add(entry.path);
+  const dataUrl = await files.getThumbnail(entry.path);
+  thumbLoading.delete(entry.path);
+  if (dataUrl) thumbs.set(entry.path, dataUrl);
+}
+
+function goBack() {
+  const crumbs = files.crumbs;
+  if (crumbs.length <= 1) return;
+  const parent = crumbs[crumbs.length - 2].path;
+  void files.navigate(parent);
+}
+
+/// Keyboard navigation over the entry list: arrows move the focus, Enter opens
+/// the focused entry, Delete/Backspace removes it (or the selection).
+function onKeydown(e: KeyboardEvent) {
+  const entries = sortedEntries.value;
+  if (!entries.length) return;
+  const target = e.target as HTMLElement | null;
+  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  if (typing) return;
+  switch (e.key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      e.preventDefault();
+      kbdIndex.value = (kbdIndex.value + 1) % entries.length;
+      break;
+    case "ArrowUp":
+    case "ArrowLeft":
+      e.preventDefault();
+      kbdIndex.value = kbdIndex.value <= 0 ? entries.length - 1 : kbdIndex.value - 1;
+      break;
+    case "Enter":
+      if (e.target !== e.currentTarget || kbdIndex.value < 0) return;
+      e.preventDefault();
+      void open(entries[kbdIndex.value]);
+      break;
+    case "Delete":
+    case "Backspace":
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      if (kbdIndex.value >= 0) {
+        void removeEntry(entries[kbdIndex.value]);
+      } else if (selected.value.size > 0) {
+        void bulkDelete();
+      }
+      break;
   }
 }
 
@@ -201,6 +315,25 @@ async function uploadFiles() {
       try {
         await files.uploadFile(local, remote);
       } catch (e) {
+        if ((e as AppErrorLike)?.code === "target_exists") {
+          // Q9: never silently overwrite an existing remote file. Ask first,
+          // retry this single file with overwrite if the user agrees.
+          if (
+            window.confirm(t("uploadOverwriteConfirm").replace("{name}", name))
+          ) {
+            try {
+              await files.uploadFile(local, remote, true);
+              continue;
+            } catch (e2) {
+              failed += 1;
+              ui.toast(`${name}: ${invokeError(e2).message}`, "error");
+              continue;
+            }
+          }
+          failed += 1;
+          ui.toast(`${name}: ${t("uploadSkipped")}`, "error");
+          continue;
+        }
         failed += 1;
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
@@ -270,10 +403,6 @@ async function removeEntry(entry: WebDavEntry) {
 const shareState = reactive(
   new Map<string, { status: "loading" | "done" | "error"; value?: string }>()
 );
-
-function shareStatus(path: string) {
-  return shareState.get(path);
-}
 
 async function createLink(entry: WebDavEntry) {
   shareState.set(entry.path, { status: "loading" });
@@ -350,6 +479,22 @@ watch(
   () => clearSelection()
 );
 
+watch(
+  () => files.entries,
+  () => {
+    for (const entry of files.entries) void loadThumb(entry);
+    if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
+  }
+);
+
+watch(
+  () => files.targetUser,
+  () => {
+    thumbs.clear();
+    thumbLoading.clear();
+  }
+);
+
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
@@ -379,8 +524,12 @@ watch(
   () => accounts.active?.username,
   async () => {
     shareState.clear();
+    thumbs.clear();
+    thumbLoading.clear();
+    kbdIndex.value = -1;
     adminViewAll.value = true;
     selectedUser.value = "";
+    searchInput.value = "";
     await files.reset();
     void loadAdminUsers();
   }
@@ -389,7 +538,10 @@ watch(
 
 <template>
   <div
-    class="relative flex h-full flex-col"
+    class="relative flex h-full flex-col outline-none"
+    tabindex="0"
+    @keydown="onKeydown"
+    @blur="kbdIndex = -1"
     @click="closeCtx"
     @dragover.prevent
     @drop.prevent
@@ -402,6 +554,14 @@ watch(
     </div>
     <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
+        <button
+          class="rounded p-1 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface disabled:opacity-40"
+          :disabled="files.crumbs.length <= 1"
+          :title="t('back')"
+          @click="goBack"
+        >
+          <Icon name="back" :size="16" />
+        </button>
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
             class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
@@ -415,6 +575,26 @@ watch(
       </nav>
 
       <div class="flex shrink-0 items-center gap-2">
+        <div class="relative">
+          <Icon
+            name="search"
+            :size="15"
+            class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant"
+          />
+          <input
+            v-model="searchInput"
+            :placeholder="t('searchPlaceholder')"
+            class="w-44 rounded-md border border-outline bg-surface-container-high py-1 pl-7 pr-7 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+          />
+          <button
+            v-if="searchInput"
+            class="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+            :title="t('clearSearch')"
+            @click="clearSearchInput"
+          >
+            <Icon name="close" :size="14" />
+          </button>
+        </div>
         <div class="flex overflow-hidden rounded-md border border-outline">
           <button
             class="flex items-center px-2.5 py-1 transition"
@@ -433,6 +613,16 @@ watch(
             <Icon name="grid" :size="16" />
           </button>
         </div>
+        <button
+          v-if="files.pairedPath"
+          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
+          :class="files.splitView ? 'bg-primary text-on-primary hover:bg-primary-hover' : ''"
+          :title="t('splitViewHint')"
+          @click="files.toggleSplitView"
+        >
+          <Icon name="columns" :size="15" />
+          {{ t("splitView") }}
+        </button>
         <button
           class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
           @click="files.refresh"
@@ -511,11 +701,52 @@ watch(
       <span class="truncate font-semibold">{{ files.targetUser }}</span>
     </div>
 
+    <div
+      v-if="files.pairedPath"
+      class="flex items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-6 py-1.5 text-xs text-on-surface-variant"
+    >
+      <span class="truncate rounded bg-info-container px-2 py-0.5 text-on-info-container">
+        {{ paneLabel(paneKind(files.currentPath)) }}: {{ files.currentPath }}
+      </span>
+      <button
+        class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
+        :title="t('openPaired')"
+        @click="goToPath(files.pairedPath)"
+      >
+        ↔
+      </button>
+      <span class="truncate rounded bg-success-container px-2 py-0.5 text-on-success-container">
+        {{ paneLabel(paneKind(files.pairedPath)) }}: {{ files.pairedPath }}
+      </span>
+    </div>
+
+    <div
+      v-if="files.offline"
+      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+    >
+      <Icon name="cloud_off" :size="14" class="shrink-0" />
+      <span class="shrink-0 font-semibold">{{ t("offline") }}</span>
+      <span class="truncate opacity-80">{{ t("offlineHint") }}</span>
+    </div>
+
     <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
       {{ files.error }}
     </div>
 
-    <div v-if="selected.size > 0 || files.entries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
+    <div
+      v-if="isSearching"
+      class="flex items-center gap-2 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container"
+    >
+      <Icon name="search" :size="14" class="opacity-80" />
+      <span>{{ t("searchResults") }}</span>
+      <span v-if="!files.searching" class="font-semibold">{{ files.displayEntries.length }}</span>
+      <span v-else>{{ t("searching") }}</span>
+      <button class="ml-auto underline-offset-2 hover:underline" @click="clearSearchInput">
+        {{ t("clearSearch") }}
+      </button>
+    </div>
+
+    <div v-if="selected.size > 0 || files.displayEntries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
       <label class="flex cursor-pointer items-center gap-1.5 select-none">
         <input
           type="checkbox"
@@ -568,152 +799,135 @@ watch(
       <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
-    <div v-if="files.loading && files.entries.length === 0" class="m-auto text-on-surface-variant">
+    <div
+      v-if="isSearching && files.searching && files.displayEntries.length === 0"
+      class="m-auto text-on-surface-variant"
+    >
+      {{ t("searching") }}
+    </div>
+
+    <div
+      v-else-if="isSearching && files.displayEntries.length === 0"
+      class="m-auto text-center text-on-surface-variant"
+    >
+      <p class="text-lg">{{ t("noSearchResults").replace("{query}", searchInput.trim()) }}</p>
+    </div>
+
+    <div v-else-if="files.loading && files.displayEntries.length === 0" class="m-auto text-on-surface-variant">
       {{ t("connecting") }}
     </div>
 
-    <div v-else-if="files.entries.length === 0" class="m-auto text-center text-on-surface-variant">
+    <div v-else-if="files.displayEntries.length === 0" class="m-auto text-center text-on-surface-variant">
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
+    <!-- Split view: virtual resources ↔ real parts, side by side -->
+    <div v-else-if="files.splitView" class="flex flex-1 overflow-hidden">
+      <div class="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-outline-variant">
+        <div class="flex shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
+          <span class="truncate font-semibold text-on-surface">{{ files.currentPath }}</span>
+          <span class="flex shrink-0 items-center gap-2">
+            <span class="rounded bg-info-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-info-container">
+              {{ paneLabel(paneKind(files.currentPath)) }}
+            </span>
+            <button
+              class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 hover:bg-surface-container-high"
+              :title="t('openPaired')"
+              @click="goToPath(files.pairedPath)"
+            >
+              ↔
+            </button>
+          </span>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <EntryList
+            :entries="files.entries"
+            :view-mode="viewMode"
+            :selected="selected"
+            :share-state="shareState"
+            @open="open"
+            @toggle-select="toggleSelect"
+            @contextmenu="openCtx"
+            @rename="startRename"
+            @create-link="createLink"
+            @copy-link="copyLink"
+            @pair="goToPaired"
+          />
+        </div>
+      </div>
+      <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div class="flex shrink-0 items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
+          <span class="truncate font-semibold text-on-surface">{{ files.pairedPath }}</span>
+          <span class="shrink-0 rounded bg-success-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-success-container">
+            {{ paneLabel(paneKind(files.pairedPath)) }}
+          </span>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="files.pairedLoading && files.pairedEntries.length === 0" class="p-4 text-on-surface-variant">
+            {{ t("connecting") }}
+          </div>
+          <div v-else-if="files.pairedError" class="p-4 text-error">{{ files.pairedError }}</div>
+          <div v-else-if="files.pairedEntries.length === 0" class="p-4 text-center text-on-surface-variant">
+            <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
+          </div>
+          <EntryList
+            v-else
+            :entries="files.pairedEntries"
+            :view-mode="viewMode"
+            :selected="emptySelection"
+            :share-state="shareState"
+            :selectable="false"
+            @open="open"
+            @contextmenu="openCtx"
+            @rename="startRename"
+            @create-link="createLink"
+            @copy-link="copyLink"
+            @pair="goToPaired"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- List view -->
-    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto px-4 py-2">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-on-surface-variant">
-            <th class="w-8 px-3 py-2"></th>
-            <th class="px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('name')">
-                {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-28 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('size')">
-                {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-44 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('mtime')">
-                {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-24 px-3 py-2 font-medium">{{ t("kind") }}</th>
-            <th class="w-32 px-3 py-2 font-medium"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="entry in sortedEntries"
-            :key="entry.path"
-            class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
-            :class="isSelected(entry.path) ? 'bg-primary-container/40' : ''"
-            @contextmenu="openCtx($event, entry)"
-          >
-            <td class="px-3 py-2">
-              <input
-                type="checkbox"
-                class="accent-primary"
-                :checked="isSelected(entry.path)"
-                @change="toggleSelect(entry.path)"
-              />
-            </td>
-            <td class="px-3 py-2">
-              <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="open(entry)">
-                <span class="flex w-5 justify-center">
-                  <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
-                  <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
-                </span>
-                <span class="truncate">{{ entry.name }}</span>
-              </button>
-            </td>
-            <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
-            <td class="px-3 py-2 text-on-surface-variant">{{ formatMtime(entry.mtime) }}</td>
-            <td class="px-3 py-2">
-              <span
-                v-if="entry.isResource"
-                class="rounded bg-info-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-info-container"
-              >
-                {{ t("resource") }}
-              </span>
-              <span
-                v-else-if="entry.isPart"
-                class="rounded bg-success-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-success-container"
-              >
-                {{ t("part") }}
-              </span>
-              <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
-            </td>
-            <td class="px-3 py-2 text-right">
-              <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
-              <span
-                v-else-if="shareStatus(entry.path)?.status === 'done'"
-                class="flex justify-end text-success"
-                :title="t('linkCopied')"
-              >
-                <Icon name="check" :size="16" />
-              </span>
-              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
-                <Icon name="close" :size="16" />
-              </span>
-              <button
-                v-if="shareStatus(entry.path)?.status === 'done'"
-                class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-                :title="shareStatus(entry.path)?.value ?? ''"
-                @click.stop="copyLink(entry.path)"
-              >
-                ⧉
-              </button>
-              <button
-                v-else-if="!shareStatus(entry.path)"
-                class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
-                @click.stop="createLink(entry)"
-              >
-                {{ t("link") }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto">
+      <EntryList
+        :entries="files.displayEntries"
+        :view-mode="viewMode"
+        :selected="selected"
+        :share-state="shareState"
+        :searching="isSearching"
+        :thumbs="thumbs"
+        @open="open"
+        @toggle-select="toggleSelect"
+        @contextmenu="openCtx"
+        @rename="startRename"
+        @create-link="createLink"
+        @copy-link="copyLink"
+        @pair="goToPaired"
+        @download="download"
+        @delete="removeEntry"
+      />
     </div>
 
     <!-- Grid view -->
-    <div v-else class="flex-1 overflow-y-auto p-4">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        <div
-          v-for="entry in sortedEntries"
-          :key="entry.path"
-          class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-          :class="isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
-          @contextmenu="openCtx($event, entry)"
-          @dblclick="open(entry)"
-        >
-          <input
-            type="checkbox"
-            class="accent-primary"
-            :checked="isSelected(entry.path)"
-            @change="toggleSelect(entry.path)"
-          />
-          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
-          <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
-          <p class="w-full truncate text-[10px] text-on-surface-variant">
-            {{ entry.isDir ? "—" : formatBytes(entry.size) }}
-          </p>
-          <div class="flex gap-1">
-            <button
-              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-              @click.stop="open(entry)"
-            >
-              {{ t("open") }}
-            </button>
-            <button
-              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-              @click.stop="startRename(entry)"
-            >
-              {{ t("rename") }}
-            </button>
-          </div>
-        </div>
-      </div>
+    <div v-else class="flex-1 overflow-y-auto">
+      <EntryList
+        :entries="files.displayEntries"
+        :view-mode="viewMode"
+        :selected="selected"
+        :share-state="shareState"
+        :searching="isSearching"
+        :thumbs="thumbs"
+        @open="open"
+        @toggle-select="toggleSelect"
+        @contextmenu="openCtx"
+        @rename="startRename"
+        @create-link="createLink"
+        @copy-link="copyLink"
+        @pair="goToPaired"
+        @download="download"
+        @delete="removeEntry"
+      />
     </div>
 
     <!-- Context menu -->
@@ -730,11 +944,10 @@ watch(
         {{ t("open") }}
       </button>
       <button
-        v-if="!ctxMenu.entry.isDir"
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
-        @click="download(ctxMenu.entry); ctxMenu = null"
+        @click="ctxMenu.entry.isDir ? downloadZip(ctxMenu.entry) : download(ctxMenu.entry); ctxMenu = null"
       >
-        {{ t("download") }}
+        {{ ctxMenu.entry.isDir ? t("downloadZip") : t("download") }}
       </button>
       <button
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
