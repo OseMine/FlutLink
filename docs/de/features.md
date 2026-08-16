@@ -8,7 +8,10 @@ Freigaben, Administration und Zwei-Wege-Sync.
 - WebDAV-Browser mit `PROPFIND`-Listings (Depth 1).
 - Einträge werden als **resource** oder **part** markiert (siehe die
   `resources`/`parts`-Konventionen auf der FlutCloud-Server-Seite) und als
-  Badges angezeigt.
+  Badges angezeigt. Jeder `resources`-Eintrag trägt sein schreibbares
+  `parts`-Gegenstück (`pairedPath`); eine **Pairing-Leiste** springt
+  „virtuell ↔ real" und eine **Split-Ansicht** zeigt beide Namespaces
+  nebeneinander.
 - **Link-Freigabe** per Klick über die OCS-Share-API — der öffentliche Link
   wird in die Zwischenablage kopiert.
 - **Dateioperationen**: Hochladen, Herunterladen / Öffnen (lädt in eine
