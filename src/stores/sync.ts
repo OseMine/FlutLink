@@ -35,10 +35,10 @@ export const useSyncStore = defineStore("sync", () => {
     });
   }
 
-  async function add(localPath: string) {
+  async function add(localPath: string, followSymlinks = false) {
     error.value = null;
     try {
-      const status = await api.syncAdd(localPath);
+      const status = await api.syncAdd(localPath, followSymlinks);
       folders.value = await api.syncList();
       return status;
     } catch (e) {

@@ -38,7 +38,10 @@ The sync engine lives in `src-tauri/src/sync.rs` and is owned by `AppState`
 
 Deletions only propagate when the other side is unchanged since the journal,
 which prevents accidental loss. Skipped patterns: dotfiles, `~$*`, trailing
-`~`, `Thumbs.db`, symlinks.
+`~`, `Thumbs.db`. Symbolic links are skipped by default; when a sync folder is
+created with the "follow symlinks" option, links are dereferenced during
+`walk_local` (with canonical-path cycle protection) so their targets sync
+instead.
 
 ## Directories & type conflicts
 
@@ -92,8 +95,8 @@ list.
 
 ## IPC
 
-Backend: `sync_list`, `sync_add` (canonicalizes the path, rejects duplicate
-remote paths), `sync_remove`, `sync_set_paused`, `sync_trigger` in
-`commands.rs`. Frontend: wrappers in `src/lib/ipc.ts`, reactive state in
-`src/stores/sync.ts`, UI in `src/components/SyncPanel.vue` (folder picker via
-`tauri-plugin-dialog`).
+Backend: `sync_list`, `sync_add` (canonicalizes the path, accepts an optional
+`follow_symlinks` flag, rejects duplicate remote paths), `sync_remove`,
+`sync_set_paused`, `sync_trigger` in `commands.rs`. Frontend: wrappers in
+`src/lib/ipc.ts`, reactive state in `src/stores/sync.ts`, UI in
+`src/components/SyncPanel.vue` (folder picker via `tauri-plugin-dialog`).

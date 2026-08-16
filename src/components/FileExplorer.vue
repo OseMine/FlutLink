@@ -637,12 +637,14 @@ watch(
               <span
                 v-if="entry.isResource"
                 class="rounded bg-info-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-info-container"
+                :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined"
               >
                 {{ t("resource") }}
               </span>
               <span
                 v-else-if="entry.isPart"
                 class="rounded bg-success-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-success-container"
+                :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined"
               >
                 {{ t("part") }}
               </span>

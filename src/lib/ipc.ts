@@ -19,6 +19,7 @@ export interface WebDavEntry {
   contentType: string | null;
   isResource: boolean;
   isPart: boolean;
+  linkTarget: string | null;
 }
 
 export interface OcsUser {
@@ -56,6 +57,7 @@ export interface SyncFolderStatus {
   localPath: string;
   remotePath: string;
   paused: boolean;
+  followSymlinks: boolean;
   state: SyncState;
   pendingUploads: number;
   pendingDownloads: number;
@@ -211,8 +213,11 @@ export const api = {
 
   syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
 
-  syncAdd: (localPath: string) =>
-    invoke<SyncFolderStatus>("sync_add", { localPath }),
+  syncAdd: (localPath: string, followSymlinks?: boolean) =>
+    invoke<SyncFolderStatus>("sync_add", {
+      localPath,
+      followSymlinks: followSymlinks ?? false,
+    }),
 
   syncRemove: (folderId: string) => invoke<void>("sync_remove", { folderId }),
 

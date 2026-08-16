@@ -8,7 +8,9 @@ Freigaben, Administration und Zwei-Wege-Sync.
 - WebDAV-Browser mit `PROPFIND`-Listings (Depth 1).
 - Einträge werden als **resource** oder **part** markiert (siehe die
   `resources`/`parts`-Konventionen auf der FlutCloud-Server-Seite) und als
-  Badges angezeigt.
+  Badges angezeigt. Virtuelle Links werden aufgelöst: Beim Überfahren des
+  Badges erscheint das beschreibbare `parts/…`-Gegenstück eines
+  `resources/…`-Eintrags (und umgekehrt) über das `linkTarget`-Feld.
 - **Link-Freigabe** per Klick über die OCS-Share-API — der öffentliche Link
   wird in die Zwischenablage kopiert.
 - **Dateioperationen**: Hochladen, Herunterladen / Öffnen (lädt in eine
@@ -33,6 +35,9 @@ Nur für Konten sichtbar/aktiv, die Mitglied einer Admin-Gruppe sind.
 
 - Beliebigen lokalen Ordner hinzufügen; sein Inhalt wird nach
   `/FlutLink/<Ordner>` auf dem aktiven FlutCloud-Konto gespiegelt.
+- Optional **Symlinks im Ordner verfolgen** (Kontrollkästchen „Symlinks folgen"
+  beim Hinzufügen) — Links werden mit Zyklusschutz aufgelöst statt
+  übersprungen.
 - Status pro Ordner: `idle`, `syncing`, `paused`, `error` mit Zählern für
   anstehende Uploads/Downloads/Löschungen und Fehlern.
 - Ordner einzeln pausieren/fortsetzen oder wieder entfernen.

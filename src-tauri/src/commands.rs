@@ -947,6 +947,7 @@ pub async fn sync_add(
     app: AppHandle,
     state: State<'_, AppState>,
     local_path: String,
+    follow_symlinks: Option<bool>,
 ) -> AppResult<SyncFolderStatus> {
     let account = current_account(&state)?;
     let local = PathBuf::from(&local_path);
@@ -969,6 +970,7 @@ pub async fn sync_add(
         local_path: canonical.to_string_lossy().into_owned(),
         remote_path: format!("/FlutLink/{}", name),
         paused: false,
+        follow_symlinks: follow_symlinks.unwrap_or(false),
     };
     // Two folders with the same remote path for one account would overwrite
     // each other's remote data; refuse duplicates before anything is written.

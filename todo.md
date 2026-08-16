@@ -65,12 +65,6 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       (`resources`) mit ihren schreibbaren Teilen (`parts`), kein
       „virtual ↔ real"-Navigationsfluss. Fix: Split-View-/Pairing-Konzept +
       Verknüpfungsfeld in `WebDavEntry`.
-- [ ] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlt:
-      `walk_local` überspringt Symlinks still (`sync.rs:196-198`),
-      `resources`-Einträge werden nie auf ihr Ziel aufgelöst (kein
-      Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
-      resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
-      Backend.
 - [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
       (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
       Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
@@ -362,6 +356,27 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Q7)
+
+- [x] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlte:
+      `walk_local` übersprang Symlinks still (`sync.rs:196-198`),
+      `resources`-Einträge wurden nie auf ihr Ziel aufgelöst (kein
+      Link-Target-Feld in `WebDavEntry`). Fix umgesetzt:
+      **Symlink-Following-Option im Sync** — neues `follow_symlinks`-Flag auf
+      `SyncFolder` (serde-default false), `walk_local` dereferenziert Links mit
+      Kanonikal-Pfad-Zyklusschutz, Threading durch `sync_add`
+      (`Option<bool>`), CLI-Aufruf, `ipc.ts`, `stores/sync.ts` und
+      `SyncPanel.vue` (Checkbox + Status-Anzeige), i18n en/de.
+      **Link-Auflösung im Backend** — `link_target: Option<String>` in
+      `WebDavEntry`; `resolve_link_target` mappt `resources/<name>` →
+      `/parts/<name>` und umgekehrt, Container-/Normalpfade → `None`;
+      Tooltip im Dateibrowser. Unit-Tests (3 × `walk_local` mit echten
+      Symlinks unter `#[cfg(unix)]`, `resolves_virtual_links`,
+      Parse-Assertions). Verifikation: `cargo test` 53 passed / 0 failed,
+      `cargo clippy --all-targets -- -D warnings` grün, `cargo fmt --check`
+      grün, `npm run build` grün. Docs (README Phase 3, `features.md`/`sync.md`
+      en+de) aktualisiert.
 
 ### Review 2026-08-15 (U8)
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
@@ -9,6 +9,7 @@ import { invokeError } from "../lib/ipc";
 const sync = useSyncStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
+const followSymlinks = ref(false);
 
 function errorLabel(err: { code: string; detail?: string | null }): string {
   return translateError(ui.lang, err.code, err.detail);
@@ -36,7 +37,7 @@ async function pickFolder() {
       title: t("chooseFolder"),
     });
     if (typeof selected === "string") {
-      await sync.add(selected);
+      await sync.add(selected, followSymlinks.value);
       ui.toast(t("syncAdded"), "success");
     }
   } catch (e) {
@@ -92,6 +93,14 @@ async function syncNow() {
         >
           {{ t("syncNow") }}
         </button>
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant">
+          <input
+            v-model="followSymlinks"
+            type="checkbox"
+            class="accent-primary"
+          />
+          {{ t("followSymlinks") }}
+        </label>
         <button
           class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary-hover"
           @click="pickFolder"
@@ -122,6 +131,9 @@ async function syncNow() {
             <p class="truncate font-medium text-on-surface">{{ folder.localPath }}</p>
             <p class="truncate text-xs text-on-surface-variant">
               {{ t("remoteFolder") }}: {{ folder.remotePath }}
+            </p>
+            <p v-if="folder.followSymlinks" class="mt-0.5 text-xs text-on-surface-variant">
+              ⤷ {{ t("followSymlinksEnabled") }}
             </p>
           </div>
           <span
