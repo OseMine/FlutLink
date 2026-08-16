@@ -38,7 +38,7 @@ class FlutCloudApi(private val client: OkHttpClient) {
     private val tag = "FlutLinkOcs"
 
     /** Parse the OCS meta + return `(data, errorMessage)`. */
-    private fun parseOcs(body: String): Pair<JsonElement?, String?> {
+    internal fun parseOcs(body: String): Pair<JsonElement?, String?> {
         val obj = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
             ?: return null to "Invalid OCS response"
         val meta = obj["ocs"]?.jsonObject?.get("meta")?.jsonObject

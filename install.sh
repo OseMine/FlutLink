@@ -12,7 +12,7 @@
 #   curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash
 #   ./install.sh --path ~/nextcloud            # force the server app install
 #   ./install.sh --nextcloud-root ~/nextcloud  # same
-#   ./install.sh --tag v0.1.0 --no-run         # client, specific release, download only
+#   ./install.sh --tag v1.0.0 --no-run         # client, specific release, download only
 #
 set -euo pipefail
 

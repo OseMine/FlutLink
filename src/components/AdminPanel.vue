@@ -156,13 +156,20 @@ watch(
   }
 );
 
-async function listUsers() {
+async function listUsers(requireQuery = true) {
+  const query = search.value.trim();
+  // U-R8-12: never load every user of a large instance at once — the OCS API
+  // would paginate through all of them with one request per page.
+  if (!query) {
+    if (requireQuery) error.value = t("searchUsersRequired");
+    return;
+  }
   loading.value = true;
   error.value = null;
   editMsg.value = null;
   selected.value = null;
   try {
-    users.value = await api.adminListUsers(search.value.trim());
+    users.value = await api.adminListUsers(query);
   } catch (e) {
     error.value = invokeError(e).message;
   } finally {
@@ -266,7 +273,7 @@ async function removeUser() {
   try {
     editMsg.value = await api.adminDeleteUser(selected.value.id);
     selected.value = null;
-    await listUsers();
+    await listUsers(false);
     ui.toast(t("userDeleted"), "success");
   } catch (e) {
     error.value = invokeError(e).message;
@@ -290,7 +297,7 @@ async function createUser() {
     newUser.userId = "";
     newUser.password = "";
     newUser.displayName = "";
-    await listUsers();
+    await listUsers(false);
     ui.toast(t("userCreated"), "success");
   } catch (e) {
     error.value = invokeError(e).message;
@@ -333,11 +340,11 @@ function quotaFree(q: UserQuota | null): string {
         v-model="search"
         class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         :placeholder="t('searchUsers')"
-        @keyup.enter="listUsers"
+        @keyup.enter="listUsers()"
       />
       <button
         class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
-        @click="listUsers"
+        @click="listUsers()"
       >
         {{ loading ? t("loading") : t("listUsers") }}
       </button>

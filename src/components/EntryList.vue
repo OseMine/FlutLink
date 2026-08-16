@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useUiStore } from "../stores/ui";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
@@ -19,8 +19,11 @@ const props = withDefaults(
     searching?: boolean;
     thumbs?: Map<string, string>;
     sharesByPath?: Map<string, Share[]>;
+    sortKey?: "name" | "size" | "mtime";
+    sortAsc?: boolean;
+    kbdIndex?: number;
   }>(),
-  { selectable: true }
+  { selectable: true, sortKey: "name", sortAsc: true, kbdIndex: -1 }
 );
 
 const emit = defineEmits<{
@@ -34,13 +37,11 @@ const emit = defineEmits<{
   download: [entry: WebDavEntry];
   delete: [entry: WebDavEntry];
   share: [entry: WebDavEntry];
+  toggleSort: [key: "name" | "size" | "mtime"];
 }>();
 
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
-
-const sortKey = ref<"name" | "size" | "mtime">("name");
-const sortAsc = ref(true);
 
 function formatMtime(mtime: string | null): string {
   if (!mtime) return "—";
@@ -51,20 +52,22 @@ function formatMtime(mtime: string | null): string {
 const sortedEntries = computed(() => {
   const dirs = props.entries.filter((e) => e.isDir);
   const others = props.entries.filter((e) => !e.isDir);
+  const sortKey = props.sortKey ?? "name";
+  const sortAsc = props.sortAsc ?? true;
   const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey.value === "size") {
+    if (sortKey === "size") {
       const av = a.size ?? 0;
       const bv = b.size ?? 0;
-      return sortAsc.value ? av - bv : bv - av;
+      return sortAsc ? av - bv : bv - av;
     }
-    if (sortKey.value === "mtime") {
+    if (sortKey === "mtime") {
       const av = a.mtime ? new Date(a.mtime).getTime() : 0;
       const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc.value ? av - bv : bv - av;
+      return sortAsc ? av - bv : bv - av;
     }
     const av = a.name.toLowerCase();
     const bv = b.name.toLowerCase();
-    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
   };
   dirs.sort(cmp);
   others.sort(cmp);
@@ -72,11 +75,7 @@ const sortedEntries = computed(() => {
 });
 
 function toggleSort(key: "name" | "size" | "mtime") {
-  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
-  else {
-    sortKey.value = key;
-    sortAsc.value = true;
-  }
+  emit("toggleSort", key);
 }
 
 function shareStatus(path: string) {
@@ -127,10 +126,13 @@ function parentPath(path: string): string {
       </thead>
       <tbody>
         <tr
-          v-for="entry in sortedEntries"
+          v-for="(entry, i) in sortedEntries"
           :key="entry.path"
           class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
-          :class="selectable && selected.has(entry.path) ? 'bg-primary-container/40' : ''"
+          :class="[
+            selectable && selected.has(entry.path) ? 'bg-primary-container/40' : '',
+            i === kbdIndex ? 'bg-primary-container/70' : '',
+          ]"
           @contextmenu="emit('contextmenu', $event, entry)"
         >
           <td v-if="selectable" class="px-3 py-2">
@@ -237,10 +239,15 @@ function parentPath(path: string): string {
   <div v-else class="p-4">
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       <div
-        v-for="entry in sortedEntries"
+        v-for="(entry, i) in sortedEntries"
         :key="entry.path"
         class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-        :class="selectable && selected.has(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
+        :class="[
+          selectable && selected.has(entry.path)
+            ? 'border-primary bg-primary-container/40'
+            : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60',
+          i === kbdIndex ? 'ring-2 ring-primary' : '',
+        ]"
         @click="selectable && $event.detail === 1 && emit('toggleSelect', entry.path)"
         @dblclick="emit('open', entry)"
         @contextmenu="emit('contextmenu', $event, entry)"
@@ -253,6 +260,13 @@ function parentPath(path: string): string {
           @click.stop
           @change="emit('toggleSelect', entry.path)"
         />
+        <span
+          v-if="props.sharesByPath?.get(entry.path)?.length"
+          class="absolute left-1.5 top-1.5 rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+          :title="t('sharesCount').replace('{count}', String(props.sharesByPath?.get(entry.path)?.length ?? 0))"
+        >
+          {{ props.sharesByPath?.get(entry.path)?.length }}
+        </span>
         <div class="relative">
           <img
             v-if="props.thumbs?.get(entry.path)"
