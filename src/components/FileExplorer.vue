@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
@@ -163,10 +161,7 @@ async function open(entry: WebDavEntry) {
   if (busyPath.value) return;
   busyPath.value = entry.path;
   try {
-    const dir = await tempDir();
-    const dest = await join(dir, entry.name);
-    await files.downloadFile(entry.path, dest);
-    await openPath(dest);
+    await api.openRemoteFile(entry.path, files.targetUser ?? undefined);
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {

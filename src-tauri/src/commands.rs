@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
@@ -463,6 +464,59 @@ pub async fn webdav_download_file(
         Some(progress),
     )
     .await
+}
+
+/// Download `remote_path` into the dedicated open-cache directory (a subdir of
+/// the system temp dir) and open it with the default application. Files from
+/// previous opens are removed first (best-effort), so the temp directory never
+/// grows with every opened file.
+#[tauri::command]
+pub async fn open_remote_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    remote_path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&remote_path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+
+    let cache_dir = std::env::temp_dir().join("flutlink-open");
+    // Leftovers from previous opens are removed before the new download so the
+    // cache holds at most one file. A file still locked by the viewer app is
+    // skipped and cleaned up on the next open.
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    std::fs::create_dir_all(&cache_dir)?;
+
+    let file_name = Path::new(&remote_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("file");
+    let local_path = cache_dir.join(file_name);
+
+    let progress = transfer_progress(app.clone(), "download", &remote_path, 0, 1);
+    webdav::get_file_as_progress(
+        &state.http_client,
+        &account,
+        &remote_path,
+        &local_path,
+        target.as_deref(),
+        Some(progress),
+    )
+    .await?;
+
+    app.opener()
+        .open_path(local_path.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| AppError::App(e.to_string()))?;
+    Ok(())
 }
 
 /// Delete a cloud file or folder.

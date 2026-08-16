@@ -136,10 +136,6 @@ public + private link sharing"):
       setzt `busyPath = ""` (falsy) → Re-Entry-Guards in `open`/`download`
       (Z. 94/109) greifen nicht; Mehrupload bricht beim ersten Fehler ab. Fix:
       Token/Set statt String.
-- [ ] **P8 (Bug, bestätigt N5):** `open()` (`FileExplorer.vue:96-100`) legt
-      jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
-      einer Datei füllt das Temp-Verzeichnis. Fix: nach `openPath` löschen oder
-      eigenes Cache-Verzeichnis mit Cleanup.
 - [ ] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
       Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
       `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
@@ -256,10 +252,6 @@ Neue Befunde (Lauf 4):
       '.github/**']` auf Pull Requests → Änderungen an Workflows/Actions lösen
       keine CI aus und werden nie getestet. `.github/**` aus paths-ignore
       nehmen (oder nur `*.md` ignorieren).
-- [ ] **N5 (Bug, minor):** `FileExplorer.vue` `open()` (Z. 97-99): Jeder
-      Datei-Download in `tempDir()` bleibt dauerhaft liegen (kein Cleanup) —
-      jedes Öffnen einer Datei füllt das Temp-Verzeichnis. Fix: Datei nach
-      `openPath` löschen oder eigenes Cache-Verzeichnis mit Cleanup.
 - [ ] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
       ist asymmetrisch: Lokale versteckte Dateien (`.env`, `.gitignore`) werden
       nie hochgeladen, aber remote vorhandene versteckte Dateien werden beim
@@ -362,6 +354,18 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (P8/N5)
+
+- [x] **P8/N5 (Bug, bestätigt N5):** `open()` (`FileExplorer.vue:96-100`) legte
+      jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
+      einer Datei füllte das Temp-Verzeichnis. Fix: Neuer Backend-Command
+      `open_remote_file` (`commands.rs`) lädt in das eigene Cache-Verzeichnis
+      `<tempDir>/flutlink-open`, räumt Reste vorheriger Öffnungen vor jedem
+      Download auf (best-effort) und öffnet die Datei direkt aus Rust
+      (`tauri-plugin-opener`). Der Cache wächst nicht mehr mit jedem Öffnen;
+      `FileExplorer.vue` `open()` ruft nur noch `api.openRemoteFile` auf
+      (Wrapper in `ipc.ts`, registriert in `lib.rs`).
 
 ### Review 2026-08-15 (U8)
 
