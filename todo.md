@@ -164,12 +164,7 @@ public + private link sharing"):
       „search" aus B9 wurde nie umgesetzt — nur die OCS-Benutzersuche in
       `ocs.rs:78-92` existiert). Für Google-Drive-ähnliches Browsing fehlt
       die globale Dateisuche. Fix: SEARCH-Command + UI-Suchfeld.
-- [ ] **P15 (Bug/Robustheit, minor):** `is_admin` wird nur beim
-      Account-Add/Register einmal ermittelt (`commands.rs:56-58`, Z. 224-226)
-      und dauerhaft in `accounts.json` gespeichert. `ocs::is_admin`
-      (`ocs.rs:59-71`) schluckt alle Fehler (`Err(_) => Ok(false)`) →
-      transiente Netzwerkfehler beim Login markieren ein Admin-Konto dauerhaft
-      als Nicht-Admin. Fix: Admin-Status beim App-Start neu evaluieren.
+- [ ] **P15 (Bug/Robustheit, minor):** *(erledigt — siehe Archiv)*
 - [ ] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
       Liefert der Server absolute hrefs (mit Scheme/Host), findet
       `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
@@ -362,6 +357,22 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (P15)
+
+- [x] **P15 (Bug/Robustheit, minor):** `is_admin` wurde nur beim
+      Account-Add/Register einmal ermittelt (`commands.rs:56-58`, Z. 224-226)
+      und dauerhaft in `accounts.json` gespeichert. `ocs::is_admin`
+      (`ocs.rs:59-71`) schluckte alle Fehler (`Err(_) => Ok(false)`) →
+      transiente Netzwerkfehler beim Login markierten ein Admin-Konto dauerhaft
+      als Nicht-Admin. Fix: Admin-Status wird beim App-Start neu evaluiert —
+      `commands::refresh_admin_flags` (Spawn in `lib.rs` setup) prüft jedes
+      gespeicherte Konto per OCS und überschreibt das Flag **nur bei Erfolg**
+      (`AppState::set_is_admin`, in-place ohne Reorder; persistiert + emittiert
+      `accounts-changed` nur bei Änderung). `ocs::is_admin` propagiert jetzt
+      Fehler statt `Err(_) => Ok(false)`, und `account_add`/`register_user`
+      behalten bei einem transienten Probe-Fehler den bisherigen Admin-Status
+      (statt `false` zu speichern).
 
 ### Review 2026-08-15 (U8)
 

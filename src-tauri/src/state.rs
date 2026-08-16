@@ -223,4 +223,21 @@ impl AppState {
             .find(|a| a.meta.username == username && a.meta.instance_url == instance_url)
             .cloned()
     }
+
+    /// Overwrite only the admin flag of a stored account (in place, keeping the
+    /// account order and every other field intact). Returns whether the flag
+    /// actually changed.
+    pub fn set_is_admin(&self, username: &str, instance_url: &str, is_admin: bool) -> bool {
+        let mut guard = self.accounts.write().expect("accounts lock poisoned");
+        for account in guard.iter_mut() {
+            if account.meta.username == username && account.meta.instance_url == instance_url {
+                if account.meta.is_admin == is_admin {
+                    return false;
+                }
+                account.meta.is_admin = is_admin;
+                return true;
+            }
+        }
+        false
+    }
 }
