@@ -160,7 +160,7 @@ public + private link sharing"):
       asymmetrisch: lokale versteckte Dateien (`.env`, `.gitignore`) werden
       nie hochgeladen, remote vorhandene versteckte Dateien werden beim
       Erst-Sync heruntergeladen. Beide Richtungen einheitlich skippen.
-- [ ] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
+- [x] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
       `run_all` (`sync.rs:1079-1080`) und `run_pass` (`sync.rs:714`) →
       unnötige MKCOL-Requests pro Tick. Eine Stelle reicht.
 - [ ] **P12 (Security, bestätigt N3):** `release.yml` (Z. 41-57) interpoliert
@@ -286,7 +286,7 @@ Neue Befunde (Lauf 4):
 - [ ] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
       `catch`-Block verschluckt die Backend-Fehlermeldung (nur ✗-Icon, kein
       Toast/kein Grund) — Fehlermeldung per `invokeError` anzeigen (ergänzt U3).
-- [ ] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
+- [x] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
       Pass aus: `run_all` (Z. 1079-1080) und nochmals `run_pass` (Z. 714) →
       unnötige MKCOL-Requests auf jedem Tick. Eine Stelle reicht.
 - [ ] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
@@ -381,6 +381,15 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (P11/N8)
+
+- [x] **P11/N8 (Perf, minor):** `ensure_collection` wurde doppelt pro Sync-Pass
+      ausgeführt — `run_all` (`sync.rs:1106-1107`) und nochmals `run_pass`
+      (`sync.rs:738`) → unnötige MKCOL-Requests auf jedem Tick. Fix: Der Aufruf
+      in `run_all` wurde entfernt; `run_pass` (einziger Aufrufer ist `run_all`)
+      übernimmt das `ensure_collection` weiterhin vor dem Pass. Verifikation:
+      `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` grün,
+      `cargo test` 49 passed.
 ### Review 2026-08-16 (Q9)
 
 - [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschrieb eine
