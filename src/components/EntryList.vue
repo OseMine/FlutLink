@@ -17,6 +17,7 @@ const props = withDefaults(
     >;
     selectable?: boolean;
     searching?: boolean;
+    thumbs?: Map<string, string>;
   }>(),
   { selectable: true }
 );
@@ -141,7 +142,13 @@ function parentPath(path: string): string {
           <td class="px-3 py-2">
             <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="emit('open', entry)">
               <span class="flex w-5 justify-center">
-                <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
+                <img
+                  v-if="props.thumbs?.get(entry.path)"
+                  :src="props.thumbs.get(entry.path)"
+                  class="h-5 w-5 rounded object-cover"
+                  alt=""
+                />
+                <Icon v-else-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
                 <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
               </span>
               <span class="truncate">{{ entry.name }}</span>
@@ -228,7 +235,15 @@ function parentPath(path: string): string {
           @click.stop
           @change="emit('toggleSelect', entry.path)"
         />
-        <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
+        <div class="relative">
+          <img
+            v-if="props.thumbs?.get(entry.path)"
+            :src="props.thumbs.get(entry.path)"
+            class="mt-4 h-16 w-16 rounded object-cover"
+            alt=""
+          />
+          <Icon v-else :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
+        </div>
         <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
         <p class="w-full truncate text-[10px] text-on-surface-variant">
           {{ entry.isDir ? "—" : formatBytes(entry.size) }}

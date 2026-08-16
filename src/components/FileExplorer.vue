@@ -26,12 +26,24 @@ const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
 const draggingOver = ref(false);
+const kbdIndex = ref(-1);
+const thumbs = reactive(new Map<string, string>());
+const thumbLoading = new Set<string>();
 const searchInput = ref("");
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 const emptySelection = new Set<string>();
 let unlistenDragDrop: (() => void) | null = null;
 
 const isSearching = computed(() => files.searchQuery.length > 0);
+
+const sortedEntries = computed(() => {
+  const dirs = files.displayEntries.filter((e) => e.isDir);
+  const others = files.displayEntries.filter((e) => !e.isDir);
+  const byName = (a: WebDavEntry, b: WebDavEntry) => a.name.localeCompare(b.name);
+  dirs.sort(byName);
+  others.sort(byName);
+  return [...dirs, ...others];
+});
 
 watch(searchInput, (value) => {
   if (searchTimer) clearTimeout(searchTimer);
@@ -219,6 +231,78 @@ async function download(entry: WebDavEntry) {
   }
 }
 
+/// Download a folder as a ZIP archive (Nextcloud `Accept: application/zip`
+/// WebDAV extension).
+async function downloadZip(entry: WebDavEntry) {
+  if (busyPath.value) return;
+  busyPath.value = entry.path;
+  try {
+    const dest = await save({ defaultPath: entry.name + ".zip" });
+    if (typeof dest !== "string") return;
+    await files.downloadZip(entry.path, dest);
+    ui.toast(t("fileDownloaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+/// Best-effort thumbnail fetch for image entries (Nextcloud
+/// `/core/preview.png`). Failures fall back to the generic file icon.
+async function loadThumb(entry: WebDavEntry) {
+  if (entry.isDir || !entry.contentType?.startsWith("image/")) return;
+  if (thumbs.has(entry.path) || thumbLoading.has(entry.path)) return;
+  thumbLoading.add(entry.path);
+  const dataUrl = await files.getThumbnail(entry.path);
+  thumbLoading.delete(entry.path);
+  if (dataUrl) thumbs.set(entry.path, dataUrl);
+}
+
+function goBack() {
+  const crumbs = files.crumbs;
+  if (crumbs.length <= 1) return;
+  const parent = crumbs[crumbs.length - 2].path;
+  void files.navigate(parent);
+}
+
+/// Keyboard navigation over the entry list: arrows move the focus, Enter opens
+/// the focused entry, Delete/Backspace removes it (or the selection).
+function onKeydown(e: KeyboardEvent) {
+  const entries = sortedEntries.value;
+  if (!entries.length) return;
+  const target = e.target as HTMLElement | null;
+  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  if (typing) return;
+  switch (e.key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      e.preventDefault();
+      kbdIndex.value = (kbdIndex.value + 1) % entries.length;
+      break;
+    case "ArrowUp":
+    case "ArrowLeft":
+      e.preventDefault();
+      kbdIndex.value = kbdIndex.value <= 0 ? entries.length - 1 : kbdIndex.value - 1;
+      break;
+    case "Enter":
+      if (e.target !== e.currentTarget || kbdIndex.value < 0) return;
+      e.preventDefault();
+      void open(entries[kbdIndex.value]);
+      break;
+    case "Delete":
+    case "Backspace":
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      if (kbdIndex.value >= 0) {
+        void removeEntry(entries[kbdIndex.value]);
+      } else if (selected.value.size > 0) {
+        void bulkDelete();
+      }
+      break;
+  }
+}
+
 async function uploadFiles() {
   if (uploading.value) return;
   uploading.value = true;
@@ -400,6 +484,22 @@ watch(
   () => clearSelection()
 );
 
+watch(
+  () => files.entries,
+  () => {
+    for (const entry of files.entries) void loadThumb(entry);
+    if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
+  }
+);
+
+watch(
+  () => files.targetUser,
+  () => {
+    thumbs.clear();
+    thumbLoading.clear();
+  }
+);
+
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
@@ -429,6 +529,9 @@ watch(
   () => accounts.active?.username,
   async () => {
     shareState.clear();
+    thumbs.clear();
+    thumbLoading.clear();
+    kbdIndex.value = -1;
     adminViewAll.value = true;
     selectedUser.value = "";
     searchInput.value = "";
@@ -440,7 +543,10 @@ watch(
 
 <template>
   <div
-    class="relative flex h-full flex-col"
+    class="relative flex h-full flex-col outline-none"
+    tabindex="0"
+    @keydown="onKeydown"
+    @blur="kbdIndex = -1"
     @click="closeCtx"
     @dragover.prevent
     @drop.prevent
@@ -453,6 +559,14 @@ watch(
     </div>
     <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
+        <button
+          class="rounded p-1 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface disabled:opacity-40"
+          :disabled="files.crumbs.length <= 1"
+          :title="t('back')"
+          @click="goBack"
+        >
+          <Icon name="back" :size="16" />
+        </button>
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
             class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
@@ -780,7 +894,6 @@ watch(
     </div>
 
     <!-- List view -->
-    <!-- List view -->
     <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto">
       <EntryList
         :entries="files.displayEntries"
@@ -788,6 +901,7 @@ watch(
         :selected="selected"
         :share-state="shareState"
         :searching="isSearching"
+        :thumbs="thumbs"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
@@ -795,6 +909,8 @@ watch(
         @create-link="createLink"
         @copy-link="copyLink"
         @pair="goToPaired"
+        @download="download"
+        @delete="removeEntry"
       />
     </div>
 
@@ -806,6 +922,7 @@ watch(
         :selected="selected"
         :share-state="shareState"
         :searching="isSearching"
+        :thumbs="thumbs"
         @open="open"
         @toggle-select="toggleSelect"
         @contextmenu="openCtx"
@@ -832,11 +949,10 @@ watch(
         {{ t("open") }}
       </button>
       <button
-        v-if="!ctxMenu.entry.isDir"
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
-        @click="download(ctxMenu.entry); ctxMenu = null"
+        @click="ctxMenu.entry.isDir ? downloadZip(ctxMenu.entry) : download(ctxMenu.entry); ctxMenu = null"
       >
-        {{ t("download") }}
+        {{ ctxMenu.entry.isDir ? t("downloadZip") : t("download") }}
       </button>
       <button
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"

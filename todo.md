@@ -180,13 +180,20 @@ public + private link sharing"):
       Liefert der Server absolute hrefs (mit Scheme/Host), findet
       `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
       Namespace-Guard (`webdav.rs:56-61`) prüft nur das Präfix `/remote.php/`
+      und greift dann nicht. Guard auf beide Formen erweitern.
+- [x] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
       und greift dann nicht. Guard auf beide Formen erweitern. → Fix in
       Archiv.
 - [ ] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
       kein „Zurück"-Button, keine Tastatur-Navigation (Enter = öffnen,
       Entf = löschen), Grid-Ansicht ohne Link-Button, keine Ordner-ZIP-
       Downloads (Nextcloud bietet `downloadzip`), keine Thumbnails
-      (`/core/preview.png`). Für „real browsing"-Niveau sinnvoll.
+      (`/core/preview.png`). Fix umgesetzt: „Zurück"-Button in der
+      Breadcrumb-Navigation, Tastatur-Navigation (Pfeiltasten bewegen den
+      Fokus, Enter = öffnen, Entf = löschen), Link-Button in der Grid-Ansicht,
+      Ordner-ZIP-Download über `webdav_download_zip` (WebDAV
+      `Accept: application/zip`), Thumbnails über `webdav_thumbnail`
+      (`/core/preview.png`, data-URL) in Listen- und Grid-Ansicht.
 
 Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
 
@@ -379,6 +386,30 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-15 (P17)
+
+- [x] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`
+      geschlossen. Fix umgesetzt:
+  - „Zurück"-Button in der Breadcrumb-Navigation (`goBack`, deaktiviert im
+    Home-Ordner; i18n `back`).
+  - Tastatur-Navigation: Pfeiltasten bewegen den Fokus (Highlight über
+    `kbdIndex`), Enter = öffnen, Entf/Rücktaste = löschen (fokussierter
+    Eintrag bzw. Auswahl); nur wenn kein INPUT/TEXTAREA/SELECT fokussiert ist.
+  - Link-Button in der Grid-Ansicht pro Kachel (inkl. ✓/⧉-Status nach
+    Erstellung); Einzelklick wählt jetzt aus.
+  - Ordner-ZIP-Download: neuer Backend-Command `webdav_download_zip`
+    (`commands.rs` + `lib.rs` + `ipc.ts` + `files.ts`), WebDAV-Get auf den
+    Ordner mit `Accept: application/zip` (dokumentierte Nextcloud-Extension),
+    Atomic-Write + Progress-Events über `stream_to_file` (aus
+    `get_file_as_progress` extrahiert). In Listen-/Grid-Zeile und Kontextmenü
+    (i18n `downloadZip`).
+  - Thumbnails: neuer Backend-Command `webdav_thumbnail` holt
+    `/index.php/core/preview.png?file=…&x=…&y=…` (Basic-Auth,
+    Impersonate-User) und liefert eine base64-data-URL; Frontend lädt
+    Thumbnails für `image/*`-Einträge lazy (Cache `thumbs`), Anzeige in
+    Listen- und Grid-Ansicht mit Icon-Fallback.
+  Verifikation: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`,
+  `cargo test` (49 passed), `npm run build` — alle grün.
 ### Review 2026-08-16 (P14)
 
 - [x] **P14 (Feature, minor):** Globale Dateisuche fehlte (WebDAV-SEARCH).
