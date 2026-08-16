@@ -14,7 +14,7 @@
   Save it to a file first to pass parameters.
 
 .PARAMETER Tag
-  Install a specific release tag (e.g. "v0.1.0"). Defaults to the latest
+  Install a specific release tag (e.g. "v1.0.0"). Defaults to the latest
   stable release.
 
 .PARAMETER DownloadDir
@@ -34,7 +34,7 @@
 
 .EXAMPLE
   irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-  ./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+  ./install-flutlink.ps1 -Tag v1.0.0 -NoRun
 #>
 [CmdletBinding()]
 param(

@@ -6,6 +6,111 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-16 (Lauf 9, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
+
+Fokus dieses Laufs: Parität zwischen Desktop-UI (Vue/`FileExplorer.vue`,
+`SyncPanel.vue`, `AdminPanel.vue`, `SettingsModal.vue`) und dem Android-Port
+(`android/`). Verifikation frisch und grün: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --check`
+grün; `npm run build` (vue-tsc + vite) grün; `./gradlew :app:assembleDebug`
+in `android/` grün. `android/README.md` und `AGENTS.md` behaupten, der
+Android-Port „spiegle den Desktop-Funktionsumfang" — das trifft laut
+Befunden **nicht** zu: Neu gefunden:
+
+- [ ] **A9-1 (Feature, hoch):** Android-Port hat **keinerlei Sync-Funktion** —
+      der Desktop-Kern (`SyncPanel.vue` + `sync.rs`, Zwei-Wege-Sync mit
+      Journal/Planner/Worker) fehlt komplett. `HomeScreen.kt` kennt nur die
+      Tabs Files/Admin/Settings (kein Sync-Tab); im gesamten Android-Code
+      existiert kein Sync-Äquivalent. Damit widerspricht der Port der
+      AGENTS.md-Aussage („spiegelt den Desktop-Funktionsumfang"). Fix:
+      Sync-Tab + Sync-Engine (oder Funktionsumfang in README korrigieren).
+- [ ] **A9-2 (i18n, mittel):** Android komplett ohne Lokalisierung —
+      `android/app/src/main/res/values/strings.xml` enthält nur `app_name`;
+      sämtliche UI-Texte sind hartkodiert englisch (`FilesScreen.kt`,
+      `LoginScreen.kt`, `AdminScreen.kt`, `SettingsScreen.kt`). Der Desktop
+      lokalisiert alles über `src/lib/i18n.ts` (en/de). AGENTS.md fordert
+      i18n für alle UI-Texte. Fix: Android-`strings.xml`-Ressourcen + Werte
+      nachziehen.
+- [ ] **A9-3 (Bug, minor):** Android erlaubt **Rename nur für Ordner** —
+      `FilesScreen.kt` `EntryRow` (Z. 375-384) zeigt „Rename" nur
+      `if (entry.isDir)`; Dateien sind auf Android nicht umbenennbar.
+      Desktop erlaubt Rename für Dateien und Ordner (`FileExplorer.vue`
+      `startRename`). Fix: Menüpunkt auch für Dateien anbieten.
+- [ ] **A9-4 (Perf, minor):** Android-Suche ohne Debounce —
+      `FilesScreen.kt` `SearchBar` (Z. 280-293) ruft `onValueChange =
+      { vm.search(it) }` bei **jedem** Tastendruck → pro Zeichen ein
+      SEARCH-Request mit `depth: infinity`. Desktop debounced 300 ms
+      (`FileExplorer.vue` Z. 31/47-60). Fix: Debounce in
+      `FilesViewModel.search`.
+- [ ] **A9-5 (Robustheit, mittel):** Android lädt Dateien komplett in den
+      RAM: Upload via `readAllBytes` (`FilesScreen.kt` Z. 523-524), Download
+      via `response.body?.bytes()` (`WebDavApi.download` Z. 121-135). Desktop
+      streamt (chunked upload > 10 MiB, `stream_to_file`). Große Dateien →
+      OOM auf Android. Fix: Streaming (OkHttp ResponseBody → Datei), optional
+      Chunked-Upload-Parität.
+- [ ] **A9-6 (Bug, Datenverlust-Risiko, mittel):** Android-Upload
+      überschreibt existierende Dateien still — der Desktop-Fix **Q9**
+      (Existenz-Check `webdav::exists` + `AppError::TargetExists` +
+      Overwrite-Confirm in `FileExplorer.vue`) wurde **nicht** portiert.
+      `WebDavApi.exists()` (Z. 84-102) existiert, wird aber von
+      `FilesViewModel.upload` (Z. 173-187) nie aufgerufen. Fix:
+      `exists`-Check + Bestätigungs-Dialog vor dem PUT.
+- [ ] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
+      Desktop erlaubt Admins das Browsen fremder Nutzer (`webdav_list`
+      `target_user` + `FileExplorer.vue` adminViewAll, `Impersonate-User`-
+      Header in `webdav.rs`); `AdminScreen.kt`/`WebDavApi.kt` haben weder
+      `target_user`-Parameter noch `Impersonate-User`-Support. Fix:
+      Impersonation im Admin-Screen (Zugriff auf alle Nutzer-Dateien).
+- [ ] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
+      Desktop hat seit Q3 `admin_list_groups`/`admin_create_group`/
+      `admin_add_group_member`/`admin_remove_group_member` + UI in
+      `AdminPanel.vue`; Android-`AdminScreen.kt`/`FlutCloudApi.kt` haben
+      keine Gruppen-Endpunkte. Auch fehlen displayname/email/password-
+      Bearbeitung (Desktop `admin_edit_user`). Fix: Gruppen-API + UI portieren.
+- [ ] **A9-9 (Feature, minor):** Android-Shares nur Public-Link —
+      `FilesViewModel.createPublicShare` (Z. 153-171) hartkodiert
+      `shareType = 3`; User-/Gruppen-Shares (Desktop P1) und
+      `publicUpload`-Option fehlen. `FlutCloudApi.listShares`/
+      `deleteShare` (Z. 245-253) existieren zwar, werden aber von keiner
+      UI aufgerufen (Dead Code) → kein Share-Management (Liste/Widerruf,
+      Desktop P2). Fix: Share-Optionen + Verwaltung portieren.
+- [ ] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
+      (unlimited/1/5/10 GB); Desktop erlaubt seit Q8 freie Werteingabe
+      („custom"). Fix: Freieingabe ergänzen.
+- [ ] **A9-11 (Policy, mittel):** Android-Login erzwingt `FLUTCLOUD_URL`
+      nicht — `LoginViewModel` (Z. 28-33, 37) nimmt jede editierbare URL
+      (Default aus `BuildConfig.FLUTCLOUD_URL`) und prüft nur die
+      FlutCloud-App-Capability (`verifyServer`); Desktop erzwingt die exakte
+      `.env`-URL via `assert_flutcloud_url` (`flutcloud.rs`). AGENTS.md
+      verspricht „ausschließlich `$FLUTCLOUD_URL`". Fix: URL gegen
+      `BuildConfig.FLUTCLOUD_URL` validieren oder URL-Feld sperren.
+- [ ] **A9-12 (UX, minor):** Android speichert Downloads in den App-Files
+      (`saveToAppStorage`, `FilesViewModel` Z. 96-102) statt im Download-
+      Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
+      Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
+- [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
+      dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
+      Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
+      Brand-Themes + Accent-Hue auf Android portieren.
+- [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
+      nirgends aufgerufen — Thumbnails existieren nur im Desktop
+      (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
+      `FilesScreen` nutzen oder `preview()` entfernen.
+- [ ] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
+      `FilesScreen.kt` `SearchResults` (Z. 315-318) übergibt `onRename`/
+      `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
+      in Suchtreffern weiterhin Aktionen. Fix: Aktionen in Treffern
+      freischalten oder Hinweis ergänzen.
+- [ ] **A9-16 (Feature, minor):** Kein Offline-Cache auf Android — Desktop
+      hat seit Q2 den Listing-Cache (`cache.rs`, Stale-Flag + Offline-Banner
+      in `FileExplorer.vue`); Android zeigt bei Netzwerkausfall nur Fehler.
+      Fix: Listing-Cache + Offline-Banner portieren.
+
+Nicht erledigt aus früheren Läufen (weiter offen): U-R8-1 bis U-R8-12,
+R8-B1 (Bulk-Download-Kollision), R8-C1 (tauri-action auf `@v1` gepinnt),
+R7-7 (Release-Draft-Hinweis).
+
 ### Review 2026-08-16 (Lauf 8, Fokus UX — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt und grün: `cargo test --manifest-path
@@ -15,94 +120,37 @@ src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
 (`FileExplorer.vue`/`EntryList.vue`), Dialoge (Login/Settings/Admin/Share), Sync-Panel,
 Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
 
-- [ ] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
-      Sortierung von der Anzeige ab. `FileExplorer.vue` `onKeydown` (Z. 266-299)
-      navigiert über `kbdIndex` gegen die eigene `sortedEntries` (Z. 37-44, nur
-      Name-Sortierung, Ordner zuerst), aber `kbdIndex` wird **nie** an
-      `EntryList.vue` übergeben → es gibt kein sichtbares Fokus-Highlight (P17
-      versprach „Highlight über kbdIndex"). Außerdem sortiert `EntryList.vue`
-      separat nach `sortKey` (Z. 42-72): Sobald der Nutzer nach Größe/Datum
-      sortiert, zeigt die Liste eine andere Reihenfolge als die
-      Tastaturnavigation → Pfeiltasten/Enter/Entf operieren auf anderen Einträgen
-      als sichtbar. Fix: `kbdIndex` + Sortierung in `EntryList.vue` übergeben
-      (bzw. dort zentralisieren) und den fokussierten Eintrag mit einer
-      Highlight-Klasse versehen.
-- [ ] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
-      Einzel-Datei-Operationen dauerhaft stehen. `FileExplorer.vue` `uploadFiles()`
-      (Z. 301-347), `download()` (Z. 214-227) und `downloadZip()` (Z. 231-244)
-      rufen kein `files.clearTransfer()` auf — nur `bulkDownload`, `bulkDelete`
-      und `dropUpload` tun das. `files.transfer` wird ausschließlich über
-      `file://progress`-Events gesetzt (`files.ts` `bindProgress`, Z. 304-310);
-      nach dem letzten Event (100 %) bleibt die Leiste hängen, bis die nächste
-      Aktion kommt. Fix: `clearTransfer()` nach Abschluss der Einzel-Operationen.
-- [ ] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
-      wieder ab. `EntryList.vue` Grid (Z. 244-246): `@click` toggelt die Auswahl,
-      `@dblclick` öffnet — ein Doppelklick feuert zwei `click`-Events, die Auswahl
-      wird also an- und wieder abgewählt; die Datei öffnet, ist danach aber nicht
-      mehr markiert (inkonsistent zur Listenansicht). Fix: Toggle nur bei
-      `e.detail === 1` ausführen oder das Toggle beim `dblclick` zurücknehmen.
+- [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
+      Sortierung von der Anzeige ab. → umgesetzt (siehe Archiv).
+- [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
+      Einzel-Datei-Operationen dauerhaft stehen. → umgesetzt (siehe Archiv).
+- [x] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
+      wieder ab. → umgesetzt (siehe Archiv).
 - [x] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
-      Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
-      (Z. 216-222); die Grid-Kacheln haben kein Äquivalent. Fix: Badge in die
-      Grid-Kachel übernehmen.
-- [ ] **U-R8-5 (UX, minor):** Update-Banner überlagert den Header ohne
-      Layout-Ausgleich. `App.vue` Z. 175-206: `fixed inset-x-0 top-0 z-[45]` liegt
-      über dem Header (Tabs, Einstellungen, Account-Menü); die Header-Buttons
-      sind bis zum Dismiss des Banners nicht erreichbar. Fix: Platzhalter oder
-      `padding-top` auf dem Shell-Wrapper, wenn der Banner sichtbar ist.
-- [ ] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
-      Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wird nur bei
-      `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
-      nie beim Ordnerwechsel — `watch(() => files.entries)` (Z. 625-632) lädt für
-      jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
-      (Z. 439-441) wird nur bei Konto-Wechsel geleert → stale Einträge bleiben.
-      Fix: Beim `watch(() => files.currentPath)` auf aktuelle Entries prunen.
-- [ ] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
-      Farben statt M3-Tokens. Z. 88: `border-amber-800 bg-amber-950/50 …
-      text-amber-300` — U8 hat alle Komponenten auf Tokens umgestellt, dieser
-      Hinweis ist die verbliebene Lücke (im hellen Theme schlechter Kontrast).
-      Fix: Token-Klassen/CSS-Variablen verwenden.
-- [ ] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
-      `App.vue` initialisiert `resolvedTheme` mit `"operationflut"` (Z. 30) und
-      ruft `resolveTheme()` erst in `onMounted` (Z. 102) auf → Nutzer mit
-      `theme = "system"` und dunkler OS-Präferenz sehen kurz das helle
-      OperationFlut-Theme. Fix: `resolvedTheme` initial aus `ui.theme` +
-      `matchMedia` ableiten.
-- [ ] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
-      falschen Default. `SettingsModal.vue` Z. 75/101: `ui.accentHue ?? 266` —
-      bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
-      Slider-Position und `resetAccent`-Ergebnis weichen ab. Fix:
-      `ui.accentHue ?? themeDefaultHue()`.
-- [ ] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
-      versehentliches Anlegen von Ordnerketten. `FileExplorer.vue` `createFolder`
-      (Z. 349-360) validiert den Namen nicht; Backend `webdav_mkdir` →
-      `ensure_collection_as` (`webdav.rs` Z. 772-785) iteriert über alle
-      Pfadsegmente und erstellt jede Ebene → Eingabe „a/b" legt `a` **und** `a/b`
-      an. Fix: Namen in `createFolder` wie `validate_rename_name`
-      (`commands.rs` Z. 621-628) prüfen oder `webdav_mkdir` auf ein einzelnes
-      Segment validieren.
-- [ ] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
-      Schließen nicht geleert. `LoginModal.vue` `form` (Z. 55-61) bleibt gefüllt
-      (inkl. Token); beim nächsten Öffnen sind die Felder vorausgefüllt — auf
-      geteilten Geräten droht versehentliches Wiederverbinden mit dem alten
-      Token. Fix: `form` + `showPassword`/`showAdminPassword` beim `close`/`done`
-      zurücksetzen.
-- [ ] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
-      Suchbegriff alle Benutzer (keine UI-Pagination). `AdminPanel.vue`
-      `listUsers` (Z. 159-171) ruft `adminListUsers("")`; `ocs::list_users`
-      (Z. 78-129) holt alle Seiten sequenziell (N/200 Requests). Bei großen
-      Instanzen (1000+ Nutzer) lange Wartezeit ohne Fortschritt. Fix:
-      Suchbegriff verpflichten (wie Nextcloud-Web) oder Server-Pagination in die
-      UI bringen (Limit + „Mehr laden").
-- [ ] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
-      gleichnamige Dateien aus verschiedenen Ordnern. `commands.rs` Z. 988-995:
-      `local = dest.join(t.path.rsplit('/').next()…)` — zwei selektierte Dateien
-      mit gleichem Namen aus unterschiedlichen Ordnern kollidieren in `dest_dir`;
-      die zweite überschreibt die erste ohne Warnung. Fix: relative
-      Verzeichnisstruktur unter `dest_dir` erhalten oder Kollisionen erkennen.
+      Grid-Ansicht. → umgesetzt (siehe Archiv).
+- [x] **U-R8-5 (UX, minor):** Update-Banner überlagert den Header ohne
+      Layout-Ausgleich. → umgesetzt (siehe Archiv).
+- [x] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
+      Navigationen unbegrenzt. → umgesetzt (siehe Archiv).
+- [x] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
+      Farben statt M3-Tokens. → umgesetzt (siehe Archiv).
+- [x] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
+      → umgesetzt (siehe Archiv).
+- [x] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
+      falschen Default. → umgesetzt (siehe Archiv).
+- [x] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
+      versehentliches Anlegen von Ordnerketten. → umgesetzt (siehe Archiv).
+- [x] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
+      Schließen nicht geleert. → umgesetzt (siehe Archiv).
+- [x] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
+      Suchbegriff alle Benutzer (keine UI-Pagination). → umgesetzt (siehe Archiv).
+- [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
+      gleichnamige Dateien aus verschiedenen Ordnern. → umgesetzt (siehe Archiv).
 - [ ] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
       nur auf `@v1` (bewegliches Tag). Für Supply-Chain-Härtung auf einen
       vollständigen Commit-SHA pinnen (wie bei den übrigen Drittanbieter-Actions).
+      → im automatisierten Lauf offen gelassen (Workflow-Dateien sind von der
+      Aufgabe ausgenommen; weiterhin offen).
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — neue Befunde)
 
@@ -165,18 +213,22 @@ F9 (SHA-Warnung bei fehlendem Digest), N16 (= F5/F7), P12/N3 (`release.yml`
 Prompt-Injection-Schutz), P13/N4 (`build.yml` paths-ignore ohne `.github/**`)
 und Q1 (native OS-Notifications).
 
-Im Review 2026-08-16 (Lauf 7, Release-Review v1) gefundene Punkte
-R7-1 bis R7-6 sind umgesetzt (Details im [Archiv](#archiv-erledigt)):
-R7-1 (env-URL mit Trailing-Slash → `NotFlutCloud`, Login unmöglich) ist als
-Bug behoben und mit Test abgesichert; R7-2 (Asset-Name aus der GitHub-API
-wird gegen Pfadtraversal gehärtet) und R7-3 (`to_str().unwrap()` durch
-`unwrap_or("")`) sind im Updater behoben; R7-4 (Ripple überschrieb per Inline-
-Style `position`/`overflow` und schnitt Tooltips/Menüs ab) ist entschärft;
-R7-5 (Version auf `1.0.0` angehoben) und R7-6 (Docs + `info.xml` committet)
-sind erledigt. R7-7 (Release läuft als Draft) ist ein Hinweis für den
-Release-Vorgang, kein Code-Fix.
+Im Review 2026-08-16 (Lauf 8, Fokus UX) gefundene Punkte
+U-R8-1 bis U-R8-12 und R8-B1 sind umgesetzt (Details im
+[Archiv](#archiv-erledigt)): U-R8-1 (Tastatur-Navigation jetzt sichtbar und mit
+der Sortierung konsistent — `kbdIndex` + Sortierzustand in `EntryList.vue`),
+U-R8-2 (Transfer-Leiste wird nach Einzel-Operationen geleert), U-R8-3
+(Grid-Doppelklick wählt nicht mehr ab), U-R8-4 (Share-Badge in der Grid-
+Kachel), U-R8-5 (Update-Banner als In-Flow-Element statt Overlay), U-R8-6
+(Thumbnail-/Share-State-Prune beim Ordnerwechsel), U-R8-7 (AccountBar-Hinweis
+auf M3-Tokens), U-R8-8 (Theme-FOUC behoben), U-R8-9 (Accent-Default aus
+`themeDefaultHue`), U-R8-10 („Neuer Ordner" + `webdav_mkdir` validieren den
+Namen), U-R8-11 (Login-Formular wird geleert), U-R8-12 (AdminPanel verlangt
+einen Suchbegriff) und R8-B1 (`webdav_bulk_download` erhält die relative
+Verzeichnisstruktur). R8-C1 (CI-Pin `tauri-action`) bleibt offen — Workflow-
+Dateien sind von der automatisierten Aufgabe ausgenommen.
 
-Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 72 passed /
+Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 78 passed /
 0 failed; `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
 -- -D warnings` grün; `cargo fmt --check` grün; `npm run build` grün;
 Android `./gradlew :app:assembleDebug` in `android/` grün.
@@ -188,6 +240,8 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
+- Review 2026-08-16 (Lauf 8, Fokus UX) — U-R8-1 bis U-R8-12, R8-B1 umgesetzt;
+  R8-C1 (CI-Pin) offen.
 - Review 2026-08-16 (Lauf 7, Release-Review v1) — R7-1 bis R7-6 umgesetzt,
   R7-7 als Hinweis dokumentiert.
 - Review 2026-08-15 (Lauf 6, Fokus Phase 3 & 4) — Q2, Q3, Q5–Q9, P1–P17,
@@ -201,18 +255,56 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ## Archiv (erledigt)
 
-### Review 2026-08-16 (Lauf 8, U-R8-4)
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
-- [x] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
-      Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
-      (Z. 216-222); die Grid-Kacheln hatten kein Äquivalent. Fix: Die
-      Grid-Kachel zeigt jetzt analog zur Listenansicht einen runden
-      Share-Badge oben links (`absolute left-1.5 top-1.5`, gleiche
-      Token-Klassen `bg-primary-container`/`text-on-primary-container` und
-      gleicher `sharesCount`-Tooltip); die Checkbox bleibt oben rechts.
-      Verifikation: `npm run build` grün, `cargo fmt --check` grün
-      (Frontend-only-Änderung; clippy im CI-Runner wegen fehlender
-      gobject/glib-Systembibliotheken nicht ausführbar).
+- [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
+      Fix: `sortKey`/`sortAsc` in `FileExplorer.vue` zentralisiert, `kbdIndex` +
+      Sortierzustand werden an `EntryList.vue` durchgereicht (Sortierung dort per
+      Props, neues Event `toggleSort`); der fokussierte Eintrag erhält eine
+      Highlight-Klasse (Liste: `bg-primary-container/70`, Grid: `ring-2
+      ring-primary`). Tastatur und Anzeige operieren jetzt auf derselben
+      sortierten Reihenfolge.
+- [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste hing nach
+      Einzel-Operationen. Fix: `FileExplorer.vue` ruft `files.clearTransfer()`
+      nach `uploadFiles()`, `download()` und `downloadZip()` auf.
+- [x] **U-R8-3 (UX, Bug, minor):** Grid-Doppelklick wählte ab. Fix:
+      `EntryList.vue` Grid toggelt die Auswahl nur noch bei `$event.detail === 1`.
+- [x] **U-R8-4 (UX, minor):** Share-Badge fehlte in der Grid-Ansicht. Fix:
+      Zähler-Badge (`sharesByPath`) in die Grid-Kachel übernommen (oben links).
+- [x] **U-R8-5 (UX, minor):** Update-Banner überlagerte den Header. Fix:
+      `App.vue` legt Banner + Content in einer Flex-Column an — der Banner ist
+      jetzt in-flow, kein Overlay mehr; Header-Buttons bleiben erreichbar.
+- [x] **U-R8-6 (UX, minor):** `thumbs` und `shareState` wuchsen über
+      Navigationen. Fix: `watch(() => files.entries)` prunt beide Maps auf die
+      Pfade der aktuellen Einträge.
+- [x] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt jetzt
+      M3-Tokens (`border-info bg-info-container/60 text-on-info-container`)
+      statt `amber-*`-Klassen.
+- [x] **U-R8-8 (UX, minor):** Theme-FOUC behoben. Fix: `resolvedTheme` wird
+      initial synchron aus `ui.theme` + `matchMedia("(prefers-color-scheme:
+      dark)")` abgeleitet (Helper `initialTheme`), bevor das `data-theme`-Watch
+      greift.
+- [x] **U-R8-9 (UX, minor):** Accent-Slider startet jetzt mit
+      `ui.accentHue ?? themeDefaultHue()` (initiale Ref + beim Öffnen).
+- [x] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" verweigert `/`, `\`,
+      `.` und `..` in `createFolder` (Toast `folderNameInvalid`, i18n en/de);
+      Backend `webdav_mkdir` validiert zusätzlich das Leaf-Segment mit
+      `validate_rename_name` (Unit-Test `webdav_mkdir_leaf_must_be_a_single_name`).
+- [x] **U-R8-11 (UX, minor):** `LoginModal.vue` setzt `form`,
+      `showPassword`, `showAdminPassword` und `formError` beim Schließen
+      (`close()`) und nach Erfolg (`done()`) zurück — kein vorausgefüllter Token
+      mehr auf geteilten Geräten.
+- [x] **U-R8-12 (UX, minor):** `AdminPanel.vue` `listUsers` verlangt einen
+      Suchbegriff (`searchUsersRequired`, i18n en/de); interne Refresh-Aufrufe
+      nach Anlegen/Löschen nutzen `listUsers(false)` ohne Zwang.
+- [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt keine
+      gleichnamigen Dateien mehr aus verschiedenen Ordnern. Fix: neuer Helper
+      `bulk_local_path(dest, path)` erhält die relative Verzeichnisstruktur unter
+      `dest_dir` (`/a/notes.txt` → `dest/a/notes.txt`); Datei-Targets legen ihren
+      Parent-Ordner an. Unit-Test `bulk_local_path_preserves_relative_structure`.
+- [ ] **R8-C1 (CI, minor, offen):** `release.yml` pinnt `tauri-action` nur auf
+      `@v1`. Im automatisierten Lauf nicht angefasst (Workflow-Dateien sind von
+      der Aufgabe ausgenommen) — weiterhin offen.
 
 ### Review 2026-08-16 (Android-Client)
 
@@ -235,6 +327,34 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       `cargo fmt --check`/`cargo clippy -D warnings`/`cargo test`
       (72 passed)/`npm run build` grün; README-Strukturbaum aktualisiert,
       `android/README.md` ergänzt.
+
+### Review 2026-08-16 (Android-Unit-Tests)
+
+- [x] **AT1 (Feature, neu):** Unit-Tests für die kritischen Android-Module
+      ergänzt (`android/app/src/test/`; vorher gab es keinerlei Tests). Abgedeckt:
+      `WebDavApi.parseMultistatus` (absolute/relative hrefs, Namespace-Grenzen
+      `admin` vs. `admin2`, Default-/präfix-Namespace, `resources`/`parts`-
+      Klassifikation inkl. case-insensitive, URL-Decoding inkl. `+`-Erhaltung —
+      Spiegel der Desktop-Tests in `src-tauri/src/nextcloud/webdav.rs`),
+      `AccountStore`-Roundtrip (Metadaten, Tokens, Löschen, Key-Normalisierung,
+      korruptes JSON), `SessionManager` (init/restore, add/switch/remove,
+      Sign-out, Token-Wechsel) und `FlutCloudApi.parseOcs` (Meta-OK/Fehler,
+      generische Fehlermeldung, invalid JSON).
+- [x] **AT2 (Testbarkeit):** `AccountStore` akzeptiert die `SharedPreferences`-
+      Instanzen jetzt per Primär-Konstruktor (Metadata-Prefs + Secure-Prefs);
+      der `Context`-Konstruktor baut unverändert die echte
+      `EncryptedSharedPreferences`-Ablage. Ein In-Memory-`SharedPreferences`-
+      Fake (`InMemorySharedPreferences.kt`) macht Roundtrip + SessionManager
+      ohne Robolectric auf der JVM testbar. `FlutCloudApi.parseOcs` von
+      `private` auf `internal` gestellt. Produktionsverhalten unverändert.
+- [x] **AT3 (Build/CI):** Test-Dependencies `junit` (4.13.2) und `xpp3`
+      (1.1.4c, bringt die `org.xmlpull.v1`-API + MXParser für die JVM) in
+      `android/gradle/libs.versions.toml` + `android/app/build.gradle.kts`
+      ergänzt. Verifikation: `./gradlew :app:testDebugUnitTest` → 30 passed /
+      0 failed; `assembleDebug` und `lintDebug` grün (0 errors). Der
+      CI-Workflow `.github/workflows/android.yml` wurde bewusst nicht
+      angefasst (Workflows sind tabu); `:app:testDebugUnitTest` lässt sich
+      dort als zusätzlicher Schritt nachziehen.
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — R7-1 bis R7-6)
 

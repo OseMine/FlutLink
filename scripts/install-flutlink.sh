@@ -7,7 +7,7 @@
 #   curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
 #
 # Options (only when saved to a file and executed):
-#   -t, --tag <ref>     Install a specific release tag (e.g. "v0.1.0").
+#   -t, --tag <ref>     Install a specific release tag (e.g. "v1.0.0").
 #   -d, --dir <path>    Directory used for the downloaded installer.
 #   -n, --no-run        Only download (and verify); do not install.
 #   -S, --no-verify     Skip the SHA-256 checksum verification (not recommended).
