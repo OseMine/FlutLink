@@ -201,6 +201,22 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Android Sign-out Persistenz)
+
+- [x] **A-SO1 (Bug, Android):** „Sign out" war nicht persistent — `signOut()`
+      setzte nur den In-Memory-State (`_session.value = null`); das Konto blieb
+      mit `isActive = true` in `AccountStore` persistiert, und
+      `restoreSession()` stellte beim nächsten App-Start das zuletzt aktive
+      Konto samt Token wieder her (Fallback `?: firstOrNull()`). Fix in
+      `SessionManager.kt`: `signOut()` persistiert jetzt `isActive = false`
+      für alle Konten (`updateAccounts`) **und** leert die Session;
+      `restoreSession()` ohne `isActive`-Konto liefert keine Session mehr
+      (kein Auto-Fallback auf das erste Konto). Token/Metadaten bleiben
+      gespeichert, werden aber nicht mehr automatisch verwendet — nach
+      „Sign out" + App-Neustart ist kein Konto aktiv angemeldet, bis sich der
+      Nutzer erneut anmeldet bzw. explizit `switchAccount` aufruft.
+      Verifikation: `./gradlew :app:assembleDebug` grün.
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —

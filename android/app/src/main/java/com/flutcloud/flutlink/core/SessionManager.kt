@@ -24,8 +24,7 @@ class SessionManager(private val accountStore: AccountStore) {
     }
 
     private suspend fun restoreSession() {
-        val active = _accounts.value.firstOrNull { it.isActive } ?: _accounts.value.firstOrNull()
-        if (active == null) {
+        val active = _accounts.value.firstOrNull { it.isActive } ?: run {
             _session.value = null
             return
         }
@@ -57,6 +56,8 @@ class SessionManager(private val accountStore: AccountStore) {
     }
 
     fun signOut() {
+        val updated = _accounts.value.map { it.copy(isActive = false) }
+        updateAccounts(updated)
         _session.value = null
     }
 
