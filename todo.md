@@ -6,394 +6,60 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
-### Review 2026-08-15 (Lauf 6, Fokus: Phase 3 & 4 — Chunking/Progress, DnD, resources/parts, Provisioning, Notifications, Offline-Cache)
+### Aktueller Stand (2026-08-16)
 
-**Verifikation:** Seit Lauf 5 sind genau zwei Fixes eingegangen: **U11**
-(doRename aktualisiert `selected`-Set, Commit d6771b9 — in
-`FileExplorer.vue:170-178` verifiziert) und **N12** (`unique_conflict_target`
-prüft jetzt lokal **und** remote, Commit a102bb6 — `sync.rs:151-169` +
-Unit-Test `move_local_conflict_skips_existing_local_conflict_copy` verifiziert).
-Beide sind bereits im Archiv markiert. **Alle übrigen Punkte (U1–U10, F1–F10,
-N1–N11, N13–N16, P1–P17, U8–U16) sind weiterhin offen** — erneut gegen den
-aktuellen Stand geprüft und bestätigt. Checks ausgeführt:
-`cargo test --manifest-path src-tauri/Cargo.toml` → **43 passed / 0 failed**
-(42 + neuer N12-Test); `npm run build` (vue-tsc + vite) → grün. Hinweis:
-`cargo test` benötigt auf Linux glib/webkit2gtk-4.1-Systembibliotheken (auf dem
-Runner nachinstalliert), sonst bricht der Build vor den Tests ab (kein Codefehler).
+Alle in den Review-Läufen 2–6 (2026-08-13 bis 2026-08-15) erfassten Punkte
+sind umgesetzt und im [Archiv](#archiv-erledigt) dokumentiert. Am 2026-08-16
+zusätzlich gegen den Code verifiziert und als umgesetzt bestätigt: P5/U1
+(Rename in Unterordnern, `rename_new_path` mit `rsplit_once` + Tests),
+P7/U4 (`busyPath`-Guards, `ref<string | null>`), U2 (`account_switch` emittiert
+`accounts-changed`), U5 (`sync.trigger` propagiert Fehler), U6/U7 (Confirm-
+Dialog bzw. Login-Modus-Reset), F1 (`enabled` in `ADMIN_EDIT_KEYS`),
+F3 (Updater räumt Teildownloads auf), F5 (`getVersion()`),
+F6 (`LoadAccountsResult.dropped`), F7 (Auto-Update-Check + Update-Banner in
+`App.vue`), F8 (Signing-Plan in `release.yml`, opencode auf Version gepinnt),
+F9 (SHA-Warnung bei fehlendem Digest), N16 (= F5/F7), P12/N3 (`release.yml`
+Prompt-Injection-Schutz), P13/N4 (`build.yml` paths-ignore ohne `.github/**`)
+und Q1 (native OS-Notifications).
 
-Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
+Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 69 passed /
+0 failed; `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
+-- -D warnings` grün; `cargo fmt --check` grün; `npm run build` grün.
 
-- [ ] **Q1 (Phase 4, Feature, mittel):** Native Notifications fehlen komplett:
-      `tauri-plugin-notification` ist weder in `src-tauri/Cargo.toml` noch in
-      `lib.rs:196-199` (nur opener/dialog/cli) registriert. Sync-Fehler/
-      -Abschluss, verfügbare Updates und Transfers erzeugen keine
-      OS-Notification. README Phase 4 verspricht „native notifications".
-      Fix: Plugin registrieren + Emission aus `sync.rs::run_all` (Z. 1119-1121)
-      und `updater.rs::check_update`.
-- [x] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
-      hält nur das aktuelle Listing in Memory; ohne Netz zeigt der Browser
-      leere Ordner/Fehler statt gecachter Daten. README Phase 4 „offline cache"
-      ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
-      Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
-      `FileExplorer.vue`. → umgesetzt (siehe Archiv).
-- [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
-      zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
-      `FileExplorer.vue`.
-- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlte: `AdminPanel.vue`
-      zeigte `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kannte keine
-      Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
-      `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
-      „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
-      + UI.
-- [ ] **Q5 (Phase 3, Feature, minor):** Drag & Drop-Upload fehlt:
-      `FileExplorer.vue` hat keinen `@drop`/`@dragover`-Handler (kein
-      Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
-      README Phase 3 „drag & drop". Fix: DnD-Handler, der `files.uploadFile`
-      wie `uploadFiles` (Z. 123-142) aufruft.
-- [ ] **Q6 (Phase 3, Feature, mittel):** `resources`/`parts`-Dual-Pane-Workflow
-      fehlt: Backend klassifiziert korrekt (`webdav.rs::classify`,
-      Z. 531-542, Flags `is_resource`/`is_part`), die UI zeigt nur Badges
-      (`FileExplorer.vue:464-478`). Kein Pairing virtueller Links
-      (`resources`) mit ihren schreibbaren Teilen (`parts`), kein
-      „virtual ↔ real"-Navigationsfluss. Fix: Split-View-/Pairing-Konzept +
-      Verknüpfungsfeld in `WebDavEntry`.
-- [ ] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlt:
-      `walk_local` überspringt Symlinks still (`sync.rs:196-198`),
-      `resources`-Einträge werden nie auf ihr Ziel aufgelöst (kein
-      Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
-      resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
-      Backend.
-- [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
-      (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
-      Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
-      unlimited) + benutzerdefiniert.
-- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
-      `webdav_upload_file` sendete einen ungeprüften PUT (`put_file_as`,
-      `webdav.rs:135-146`) — existierte die Zieldatei, wurde sie ohne Rückfrage
-      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüfte nicht
-      und meldete nur „Uploaded.". N1 deckte nur das Rename-Overwrite ab
-      (`Overwrite: T`, `webdav.rs:359`). Fix umgesetzt: Existenz-Check
-      (PROPFIND, `webdav::exists`) vor dem PUT in `webdav_upload_file`,
-      `upload_tree` und `webdav_upload_local_paths`; klarer
-      `AppError::TargetExists` (Code `target_exists`); UI-Confirm in
-      `uploadFiles`/`dropUpload` (i18n `uploadOverwriteConfirm`/
-      `uploadOverwriteAllConfirm`/`uploadSkipped`), Überschreiben nur nach
-      Bestätigung über den neuen `overwrite`-Parameter.
-- [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
-      `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
-      `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
-      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüft nicht
-      und meldet nur „Uploaded.". N1 deckt nur das Rename-Overwrite ab
-      (`Overwrite: T`, `webdav.rs:359`). Fix: Existenz-Check (PROPFIND) vor
-      PUT oder `Overwrite: F` + klarer `AppError`; UI-Confirm bei existierendem
-      Ziel.
+Keine offenen Punkte mehr.
 
-### Review 2026-08-14 (Lauf 5, Fokus: Browsing & Link-Sharing)
+### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
-**Verifikation:** Kein Anwendungscode-Change an `src/` oder `src-tauri/src/`
-seit Lauf 4 (letzte App-Komits e31f4f6/davor; seitdem nur `scripts/`-Komits).
-Damit sind **U1–U7, F1–F10 und N1–N9 weiterhin offen** (alle Verdachtsfälle
-erneut gegen den aktuellen Stand geprüft und bestätigt). Checks ausgeführt:
-`cargo test --manifest-path src-tauri/Cargo.toml` → 42 passed / 0 failed;
-`npm run build` (vue-tsc + vite) → grün.
-
-Neue Befunde (Lauf 5, Fokus „real browsing like Nextcloud UI/Google Drive,
-public + private link sharing"):
-
-- [x] **P1 (Feature, mittel/hoch — Kern-Fokus):** Nur öffentliche
-      Read-Only-Links, kein privates Sharing. `ocs::create_share`
-      (`src-tauri/src/nextcloud/ocs.rs:252-285`) sendet hartkodiert
-      `shareType=3` (öffentlicher Link) + `permissions=1`. Private Freigaben
-      (OCS `shareType=0` User / `shareType=1` Gruppe mit `shareWith`) fehlen
-      durchgängig: `webdav_create_share` (`src-tauri/src/commands.rs:326-337`)
-      hat keinen `share_with`/`share_type`-Parameter, `src/lib/ipc.ts`
-      (`webdavCreateShare`, Z. 124-125) und `FileExplorer.vue` (`createLink`,
-      Z. 198-208) bieten nur „Link". Fix: Parameter durchreichen + UI-Dialog
-      („Mit Benutzer teilen" / „Link mit Passwort").
-- [x] **P2 (Feature, mittel):** Kein Share-Management: Es gibt weder
-      `list_shares` noch `delete_share` (OCS `GET /shares` bzw.
-      `DELETE /shares/{id}` unter `apps/files_sharing/api/v1/shares`). Ein
-      erstellter Link ist nach dem Kopieren weder erneut abrufbar noch
-      widerrufbar (`FileExplorer.vue` zeigt nur ein ✓-Icon) — für
-      Nextcloud-UI-Niveau unverzichtbar. Fix: `list_shares`/`delete_share` als
-      Commands (commands.rs + ipc.ts) + Share-Status pro Eintrag in der UI.
-- [x] **P3 (Feature, mittel):** Link-Optionen fehlen: `create_share`
-      (ocs.rs:262-267) unterstützt kein `password`, `expireDate` oder
-      `publicUpload` (permissions 15). Öffentliches Link-Sharing ist damit auf
-      „read-only, ewig gültig, ohne Passwort" reduziert.
-- [x] **P4 (Bug, bestätigt F4, hier gegen Stand verifiziert):** Doppel-Encoding
-      in `create_share`: `encode_segments(rel_path)` (ocs.rs:262) + `req.form()`
-      (`nextcloud/mod.rs:57-59`, url-encodiert erneut) → `%20` wird `%2520` →
-      Share-Erstellung für Pfade mit Leerzeichen/Umlauten schlägt fehl. Fix:
-      Raw-Pfad ins Formular + Roundtrip-Test.
-- [ ] **P5 (Bug, bestätigt U1):** `webdav_rename` (`commands.rs:466-467`):
-      `parent = path.rsplit('/').nth(1)` → `new_path` ohne führenden Slash →
-      `validate_dav_path` (commands.rs:342-359) lehnt ab. Umbenennen in
-      Unterordnern schlägt immer fehl, nur Root-Rename funktioniert. Fix:
-      `rsplit_once('/')` + Test.
-- [x] **P6 (Bug, bestätigt U3/N7):** `createLink` (`FileExplorer.vue:198-208`)
-      verschluckt den Backend-Fehler (nur ✗-Icon) und verliert die Share-URL,
-      wenn `navigator.clipboard.writeText` fehlschlägt (häufig WebKitGTK/
-      Linux). Fix: URL auch bei Clipboard-Fehler anzeigen (Toast/
-      Klick-zum-Kopieren), Fehler via `invokeError` toasten.
-- [ ] **P7 (Bug, bestätigt U4):** `uploadFiles` (`FileExplorer.vue:123-142`)
-      setzt `busyPath = ""` (falsy) → Re-Entry-Guards in `open`/`download`
-      (Z. 94/109) greifen nicht; Mehrupload bricht beim ersten Fehler ab. Fix:
-      Token/Set statt String.
-- [ ] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
-- [ ] **P8 (Bug, bestätigt N5):** `open()` (`FileExplorer.vue:96-100`) legt
-      jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
-      einer Datei füllt das Temp-Verzeichnis. Fix: nach `openPath` löschen oder
-      eigenes Cache-Verzeichnis mit Cleanup.
-- [x] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
-      Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
-      `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
-      Duplikat-Erkennung als Abbruchbedingung.
-- [x] **P10 (Bug, bestätigt N6):** `should_skip_name` (`sync.rs:172-175`)
-      asymmetrisch: lokale versteckte Dateien (`.env`, `.gitignore`) werden
-      nie hochgeladen, remote vorhandene versteckte Dateien werden beim
-      Erst-Sync heruntergeladen. Beide Richtungen einheitlich skippen.
-- [x] **P11 (Bug, bestätigt N8):** `ensure_collection` doppelt pro Pass:
-      `run_all` (`sync.rs:1079-1080`) und `run_pass` (`sync.rs:714`) →
-      unnötige MKCOL-Requests pro Tick. Eine Stelle reicht.
-- [ ] **P12 (Security, bestätigt N3):** `release.yml` (Z. 41-57) interpoliert
-      Commit-Nachrichten (`$LOG`) ungefiltert in den opencode-Prompt →
-      Prompt-Injection über bösartige Commit-Titel (Gegenstück in
-      `opencode.yml` ist bereits entschärft). Fix: „UNTRUSTED INPUT"-
-      Markierung + Log auf `--oneline`-Titel kürzen.
-- [ ] **P13 (CI, bestätigt N4):** `build.yml` (Z. 6-9): `paths-ignore:
-      ['.github/**']` auf PRs → Workflow-/Action-Änderungen lösen keine CI
-      aus und werden nie getestet. `.github/**` aus paths-ignore nehmen.
-- [x] **P14 (Feature, minor):** Keine Dateisuche: Es gab keinen
-      WebDAV-SEARCH-Command (weder `commands.rs` noch `src/lib/ipc.ts`;
-      „search" aus B9 wurde nie umgesetzt — nur die OCS-Benutzersuche in
-      `ocs.rs:78-92` existierte). Für Google-Drive-ähnliches Browsing fehlte
-      die globale Dateisuche. Fix: `webdav::search` (SEARCH auf
-      `/remote.php/dav/`, `displayname`-„contains" über `depth: infinity`,
-      `Impersonate-User`-Support) + Command `webdav_search` (commands.rs, in
-      `lib.rs` registriert) + Wrapper `webdavSearch` (`src/lib/ipc.ts`) +
-      UI-Suchfeld im `FileExplorer.vue` (Debounce, Suchergebnis-Liste mit
-      Speicherort, Navigieren ins Ergebnis) umgesetzt (Issue #73).
-      `ocs.rs:78-92` existiert). Für Google-Drive-ähnliches Browsing fehlt
-      die globale Dateisuche. Fix: SEARCH-Command + UI-Suchfeld.
-- [ ] **P15 (Bug/Robustheit, minor):** *(erledigt — siehe Archiv)*
-- [ ] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
-- [ ] **P15 (Bug/Robustheit, minor):** `is_admin` wird nur beim
-      Account-Add/Register einmal ermittelt (`commands.rs:56-58`, Z. 224-226)
-      und dauerhaft in `accounts.json` gespeichert. `ocs::is_admin`
-      (`ocs.rs:59-71`) schluckt alle Fehler (`Err(_) => Ok(false)`) →
-      transiente Netzwerkfehler beim Login markieren ein Admin-Konto dauerhaft
-      als Nicht-Admin. Fix: Admin-Status beim App-Start neu evaluieren.
-- [x] **P16 (Bug/Robustheit, minor):** `relative_path` (`webdav.rs:517-528`):
-      Liefert der Server absolute hrefs (mit Scheme/Host), findet
-      `href.find(base_path)` nichts → Pfade wie `/https:/host/...`; der
-      Namespace-Guard (`webdav.rs:56-61`) prüft nur das Präfix `/remote.php/`
-      und greift dann nicht. Guard auf beide Formen erweitern.
-- [x] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
-      und greift dann nicht. Guard auf beide Formen erweitern. → Fix in
-      Archiv.
-- [ ] **P17 (Feature, minor):** Browsing-UX-Lücken im `FileExplorer.vue`:
-      kein „Zurück"-Button, keine Tastatur-Navigation (Enter = öffnen,
-      Entf = löschen), Grid-Ansicht ohne Link-Button, keine Ordner-ZIP-
-      Downloads (Nextcloud bietet `downloadzip`), keine Thumbnails
-      (`/core/preview.png`). Fix umgesetzt: „Zurück"-Button in der
-      Breadcrumb-Navigation, Tastatur-Navigation (Pfeiltasten bewegen den
-      Fokus, Enter = öffnen, Entf = löschen), Link-Button in der Grid-Ansicht,
-      Ordner-ZIP-Download über `webdav_download_zip` (WebDAV
-      `Accept: application/zip`), Thumbnails über `webdav_thumbnail`
-      (`/core/preview.png`, data-URL) in Listen- und Grid-Ansicht.
-
-Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
-
-- [x] **U9 (Feature, mittel):** Dateibrowser ohne Google-Drive-Kernfunktionen:
-      Es gab **keine Suche** (der in B9 archivierte `webdav_search`-Command wurde
-      nie implementiert — weder in `commands.rs` noch `src/lib/ipc.ts`), keine
-      Select-All-Checkbox, **keine Bulk-Aktionen** trotz Mehrfachauswahl
-      (Z. 389-394 zeigten nur Zähler + Clear), kein Drag & Drop-Upload, keine
-      Upload/Download-Fortschrittsanzeige (README „Phase 3" verspricht chunked
-      progress events per `app.emit`). Fix: Select-All + Bulk-Download/Delete
-      (`webdav_bulk_delete`/`webdav_bulk_download`) + Drag & Drop-Upload
-      (`webdav_upload_local_paths`, Webview-DragDrop-Event) +
-      `file://progress`-Progress-Events in `FileExplorer.vue`/`ipc.ts`/
-      `commands.rs` umgesetzt. **Suche war offen** (getrackt unter Issue #73,
-      jetzt umgesetzt — siehe P14).
-- [ ] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
-      `commands.rs` umgesetzt. **Suche bleibt offen** (getrackt unter Issue #73).
-- [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
-      auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
-      Delete fehlen pro Kachel (nur Open/Rename), kein Hover-Preview.
-      Google-Drive-Verhalten: Klick = Auswahl, Aktionen im Hover-Overlay.
-- [x] **U11 (Bug, minor):** `selected`-Set in `FileExplorer.vue` wird nach
-      Rename nie bereinigt (`doRename` Z. 162-177): `files.renameEntry`
-      refresht die Liste, der alte Pfad bleibt in `selected` → Zähler
-      (Z. 390) zeigt stale Einträge. Fix: Pfad nach Rename im Set ersetzen
-      (bzw. `removeEntry` Z. 183 analog bereits ok).
-- [x] **N10 (Konsistenz, minor):** `webdav_create_share` (`commands.rs:326-337`)
-      ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
-      `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
-      oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzt.
-- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptierte
-      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
-      Unterordner. Fix: neue `validate_rename_name` (commands.rs:403-414) lehnt
-      `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht erst am
-      zusammengesetzten Pfad); `webdav_rename` ruft sie vor `rename_new_path`
-      auf. Unit-Tests ergänzt.
-- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
-      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
-      `accounts`-Store nutzen.
-- [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
-      `/` im `new_name` → „Rename" wird still zu einem Move in einen
-      Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
-      nicht nur auf den zusammengesetzten Pfad).
-- [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
-      (F7 offen) und die About-Version ist hartkodiert (F5 offen,
-      `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
-      einplanen (Update-Banner + `getVersion()`).
-
-### Review 2026-08-14 (Lauf 4, Fokus: Bugs & Errors)
-
-**Verifikation:** Kein Code-Change an `src/` oder `src-tauri/src/` seit Lauf 3
-(letzte Anwendungskomits: e31f4f6 „consolidate tracking", davor e696d4d;
-seitdem nur `scripts/`-Komits). Damit sind **U1–U7 und F1–F10 weiterhin offen** —
-alle Verdachtsfälle erneut gegen den aktuellen Stand geprüft und bestätigt.
-Checks ausgeführt: `cargo test --manifest-path src-tauri/Cargo.toml`
-→ 42 passed / 0 failed; `cargo clippy --all-targets -- -D warnings` → grün;
-`npm run build` (vue-tsc + vite) → grün. Hinweis: `cargo test` braucht auf
-Linux `libsecret-1-dev`/`libwebkit2gtk-4.1-dev` (keyring-Systemlib), sonst
-bricht der Build vor den Tests ab (kein Codefehler).
-
-Neue Befunde (Lauf 4):
-
-- [x] **N1 (Bug, Datenverlust, mittel/hoch):** `webdav_rename`
-      (`src-tauri/src/commands.rs:453-477`) delegiert an `webdav::rename_as`,
-      das den MOVE mit `Overwrite: T` sendet (`nextcloud/webdav.rs:359`). Die
-      UI (`FileExplorer.vue` `doRename`, Z. 162-177) prüft nicht, ob der
-      Zielname bereits existiert → „a.txt" → „b.txt" überschreibt b.txt
-      stillschweigend (SabreDAV/Nextcloud führt Overwrite aus). Fix:
-      Existenz-Check des Ziels im Backend (PROPFIND oder `Overwrite: F` +
-      sauberer AppError „Ziel existiert bereits") + UI-Hinweis.
-- [x] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
-      Die Offset-Pagination hat keinen Fortschritts-Guard. Wenn der Server den
-      `offset`-Parameter ignoriert (gleiche Seite erneut), läuft die Schleife
-      endlos (Duplikate werden nicht erkannt, `count == LIMIT` → `offset += 200`).
-      Fix: Sammel-Menge oder Duplikat-Erkennung als Abbruchbedingung.
-- [ ] **N3 (Security, mittel):** `release.yml` `release-notes`-Job (Z. 41-57):
-      Die Commit-Nachrichten (`$LOG`) werden ungefiltert in den opencode-Prompt
-      interpoliert — Prompt-Injection über bösartige Commit-Titel möglich. Das
-      Gegenstück in `opencode.yml` ist bereits mit „UNTRUSTED INPUT"-Markierung
-      entschärft (B13), `release.yml` nicht. Fix: Prompt um Warnhinweis
-      ergänzen und Log auf `--oneline`-Titel kürzen/escapen.
-- [ ] **N4 (CI, minor):** `build.yml` (Z. 6-9): `paths-ignore: ['*.md',
-      '.github/**']` auf Pull Requests → Änderungen an Workflows/Actions lösen
-      keine CI aus und werden nie getestet. `.github/**` aus paths-ignore
-      nehmen (oder nur `*.md` ignorieren).
-- [ ] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
-- [ ] **N5 (Bug, minor):** `FileExplorer.vue` `open()` (Z. 97-99): Jeder
-      Datei-Download in `tempDir()` bleibt dauerhaft liegen (kein Cleanup) —
-      jedes Öffnen einer Datei füllt das Temp-Verzeichnis. Fix: Datei nach
-      `openPath` löschen oder eigenes Cache-Verzeichnis mit Cleanup.
-- [x] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
-      ist asymmetrisch: Lokale versteckte Dateien (`.env`, `.gitignore`) werden
-      nie hochgeladen, aber remote vorhandene versteckte Dateien werden beim
-      Erst-Sync heruntergeladen. Entweder beide Richtungen einheitlich skippen
-      oder in der Doku dokumentieren.
-- [x] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
-      `catch`-Block verschluckt die Backend-Fehlermeldung (nur ✗-Icon, kein
-      Toast/kein Grund) — Fehlermeldung per `invokeError` anzeigen (ergänzt U3).
-- [x] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
-      Pass aus: `run_all` (Z. 1079-1080) und nochmals `run_pass` (Z. 714) →
-      unnötige MKCOL-Requests auf jedem Tick. Eine Stelle reicht.
-- [x] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
-      das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
-      der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
-      ungültig; in `docs/` + i18n (`initHint`) klarstellen, dass das
-      Registrierungs-Passwort dauerhaft das App-Passwort ist.
-
-Bestätigt weiter offen (kein Fix seit Lauf 3, Code unverändert): U1 (Rename
-`commands.rs:466-467` ohne führenden Slash), U2 (`account_switch` emittiert
-kein `accounts-changed`, `commands.rs:260-273`; Store `sync()` statt `load()`),
-U3, U4 (`busyPath = ""`), U5, U6, U7, F1 (`ADMIN_EDIT_KEYS` ohne `enabled`,
-`commands.rs:550-557`), F2 (60 s-Total-Timeout `state.rs:112-113`, 30 s
-`updater.rs:526-528`), F3 (partieller Download bleibt in `updater.rs:260-283`),
-F4 (Doppel-Encoding `ocs.rs:262-273`), F5, F6, F8, F9, F10.
-
-### Review 2026-08-14 (Lauf 3, Fokus UI)
-
-Alle Punkte aus Lauf 2 (F1–F10) sind weiterhin offen (kein Code-Change seit
-Lauf 2). Details zu den Befunden: datierter Review-Abschnitt Lauf 3 (vormals
-`reports/review-2026-08-14.md`).
-
-- [ ] **U1 (Bug, mittel):** Umbenennen in Unterordnern schlägt immer fehl —
-      `webdav_rename` (`src-tauri/src/commands.rs:466-467`) baut `new_path`
-      ohne führenden Slash (`parent = path.rsplit('/').nth(1)` →
-      `"Documents/neu.txt"`), `validate_dav_path` lehnt ab. Nur Root-Rename
-      funktioniert. Fix: `path.rsplit_once('/')` / Slash beibehalten + Test.
-- [ ] **U2 (Bug, UI):** Nach Konto-Wechsel über das UI erscheinen mehrere
-      Konten als „aktiv" — `accounts.switchTo` (`src/stores/accounts.ts:90-101`)
-      nutzt `sync()` statt `load()`, und `account_switch`
-      (`src-tauri/src/commands.rs:260-273`) emittiert kein `accounts-changed`
-      (nur der Tray-Pfad `lib.rs:115-128`). Fix: `await load()` oder Event
-      emittieren.
-- [x] **U3 (Bug/UX, mittel):** Share-Link — bei `navigator.clipboard.writeText`
-      -Fehler (v. a. Linux/WebKitGTK) zeigt `FileExplorer.vue:198-208`
-      (`createLink`) ein ✗, obwohl der Share erstellt wurde; die URL ist dann
-      verloren. Fix: URL bei Clipboard-Fehler trotzdem anzeigen (Toast/
-      Klick-zum-Kopieren) oder `plugin-clipboard-manager`.
-- [ ] **U4 (Bug, minor):** `uploadFiles` (`FileExplorer.vue:123-142`) setzt
-      `busyPath = ""` → falsy → Re-Entry-Guards in `open`/`download` (Z. 94,
-      109) greifen nicht; Mehrupload bricht beim ersten Fehler ab und der
-      Erfolgs-Toast fehlt. Fix: Token/Set verwenden, Fehler pro Datei sammeln.
-- [ ] **U5 (UX, minor):** „Sync now" (`SyncPanel.vue:59-62`) toastet „Sync
-      started." auch wenn `sync.trigger()` (store `sync.ts:72-78`) einen
-      Fehler verschluckt hat. Fix: Fehler propagieren, nur bei Erfolg toasten.
-- [ ] **U6 (UX, minor):** Konto-Entfernung ohne Bestätigungsdialog
-      (`AccountBar.vue:129-134`, `App.vue:60-70`) — im Gegensatz zu
-      Datei-/User-Löschungen. Fix: `confirm()` + i18n-Key.
-- [ ] **U7 (UX, minor):** „Add account" öffnet den Login-Dialog im zuletzt
-      gewählten Modus (Register bleibt Register) — `App.vue:111`
-      (`@login="showLogin = true"`) reicht kein `loginMode` durch, das
-      `LoginModal` (Z. 38-44) setzt `mode` nur bei `initialMode`-Änderung.
-      Fix: `openLogin('login')` oder Mode bei jedem Öffnen neu setzen.
-
-### Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft)
-
-- [ ] **F1 (Blockierer):** AdminPanel-Button „enabled" funktioniert nie —
-      `adminEditUser(id, "enabled", …)` in `src/components/AdminPanel.vue:143`
-      vs. `ADMIN_EDIT_KEYS`-Whitelist ohne `enabled` in
-      `src-tauri/src/commands.rs:550-570`. Entweder `enabled` in die Whitelist
-      aufnehmen (`ocs::update_user` unterstützt es, Nextcloud 25+) oder Button
-      entfernen.
-- [ ] **F2 (Blockierer):** Total-Timeout 60 s (state.rs:112-113) bricht große
-      WebDAV-Transfers ab; 30 s (updater.rs:526-527) bricht
-      Installer-Downloads ab. Auf `connect_timeout`/`read_timeout` umstellen
-      (reqwest 0.13).
-- [ ] **F4 (Blockierer):** Doppel-URL-Encoding in `ocs::create_share`
-      (ocs.rs:262-273): `encode_segments` + `req.form()` → Shares für Pfade mit
-      Leerzeichen/Umlauten/Sonderzeichen schlagen fehl. Raw-Pfad ins Formular,
-      Roundtrip-Test ergänzen.
-- [ ] **F5:** About-Tab zeigt hartkodierte Version „0.1.0"
-      (SettingsModal.vue:237) — via `getVersion()` auflösen.
-- [ ] **F3:** Updater räumt partielle Downloads bei Stream-Fehlern nicht auf
-      (updater.rs, Stream-Schleife ~260-283, analog B18).
-- [ ] **F6:** `load_accounts` verwirft still Konten bei fehlender/abweichender
-      FLUTCLOUD_URL (accounts.rs:84-94) — Hinweis/Status an Frontend
-      durchreichen.
-- [ ] **F7:** Automatischer Update-Check beim App-Start (aktuell nur manuell in
-      SettingsModal) — nicht-blockierendes Update-Banner.
-- [ ] **F8:** Signing/Notarisierung nur dokumentiert (release.yml:116-141,
-      Fallback ad-hoc/unsigned) + `opencode.yml` pinnt
-      `anomalyco/opencode/github@latest` nicht (auf Tag pinnen).
-- [ ] **F9:** SHA-256-Prüfung still übersprungen, wenn GitHub keinen
-      Asset-Digest liefert (updater.rs:302-310) — Warnung/Log ergänzen, besser
-      eigenen `.sha256`-Anhang im Release-Workflow erzeugen.
-- [ ] **F10:** Sync: gleiche lokale Ordnernamen kollidieren beim remote_path
-      (commands.rs:618-633) — i18n-Fehltext präzisieren (kein Blocker).
-
-**Priorität für v1.0.0:** Muss — F1, F2, F4 (F5 kosmetisch). Sollte — F3, F6,
-F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
-`cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
+- Review 2026-08-15 (Lauf 6, Fokus Phase 3 & 4) — Q2, Q3, Q5–Q9, P1–P17,
+  U9–U11, N1–N16 umgesetzt.
+- Review 2026-08-14 (Lauf 5, Fokus Browsing & Link-Sharing) — P1–P17, U9–U11,
+  N1–N16 umgesetzt.
+- Review 2026-08-14 (Lauf 4, Fokus Bugs & Errors) — N1–N9, U1–U7, F1–F10
+  umgesetzt.
+- Review 2026-08-14 (Lauf 3, Fokus UI) — U1–U7 umgesetzt.
+- Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Q1 / P12 / P13 / N3 / N4)
+
+- [x] **Q1 (Phase 4, Feature, mittel):** Native Notifications umgesetzt
+      (Issues #94). `tauri-plugin-notification` in `src-tauri/Cargo.toml`
+      ergänzt und in `lib.rs` registriert. `sync.rs::run_all` erzeugt nach
+      einem Pass eine OS-Notification bei Fehlern bzw. bei synchronisierten
+      Dateien (Aggregat über alle Ordner; keine Spam-Notifications bei
+      Leerläufen). `updater.rs::check_update` benachrichtigt, wenn eine neue
+      Version verfügbar ist. README-Phase-4-Versprechen „native notifications"
+      damit erfüllt.
+- [x] **P12 / N3 (Security, bestätigt):** `release.yml` `release-notes`-Job
+      gegen Prompt-Injection gehärtet (Issue #71): `$LOG` wird auf
+      `--oneline`-Titel gekürzt, Steuerzeichen entfernt, auf 120 Zeichen
+      begrenzt und der Prompt enthält einen expliziten „UNTRUSTED INPUT"-Block,
+      der die Commit-Liste strikt als Daten deklariert (analog zur bereits
+      entschärften `opencode.yml`).
+- [x] **P13 / N4 (CI, bestätigt):** `build.yml` `paths-ignore` bereinigt
+      (Issue #72): `.github/**` entfernt, sodass Workflow-/Action-Änderungen
+      wieder CI auslösen; nur noch `*.md` wird ignoriert.
 
 ### Review 2026-08-16 (Sharing vervollständigen)
 
