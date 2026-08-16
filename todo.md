@@ -50,13 +50,14 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       über dem Header (Tabs, Einstellungen, Account-Menü); die Header-Buttons
       sind bis zum Dismiss des Banners nicht erreichbar. Fix: Platzhalter oder
       `padding-top` auf dem Shell-Wrapper, wenn der Banner sichtbar ist.
-- [ ] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
+- [x] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
       Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wird nur bei
       `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
       nie beim Ordnerwechsel — `watch(() => files.entries)` (Z. 625-632) lädt für
       jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
       (Z. 439-441) wird nur bei Konto-Wechsel geleert → stale Einträge bleiben.
       Fix: Beim `watch(() => files.currentPath)` auf aktuelle Entries prunen.
+      → umgesetzt (siehe Archiv).
 - [ ] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
       Farben statt M3-Tokens. Z. 88: `border-amber-800 bg-amber-950/50 …
       text-amber-300` — U8 hat alle Komponenten auf Tokens umgestellt, dieser
@@ -200,6 +201,22 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-6)
+
+- [x] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
+      Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wurde nur bei
+      `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
+      nie beim Ordnerwechsel — `watch(() => files.entries)` (Z. 625-632) lud für
+      jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
+      (Z. 439-441) wurde nur bei Konto-Wechsel geleert → stale Einträge blieben.
+      Fix in `src/components/FileExplorer.vue`: Der `watch(() => files.currentPath)`
+      prunt jetzt über `pruneCaches()` alle `thumbs`- und `shareState`-Einträge, die
+      nicht mehr unter dem aktuellen Ordner liegen (`isInCurrentFolder`-Präfix-Check;
+      der Watch läuft vor dem `entries`-Refresh). Zusätzlich prunt `loadThumb` das
+      Ergebnis nach dem async-`getThumbnail` gegen den aktuellen Ordner, und der
+      `targetUser`-Watch leert nun auch `shareState`. Kein unbegrenztes
+      Speicherwachstum mehr über Navigationen; Verifikation grün.
 
 ### Review 2026-08-16 (Android-Client)
 

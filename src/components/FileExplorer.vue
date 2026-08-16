@@ -243,6 +243,23 @@ async function downloadZip(entry: WebDavEntry) {
   }
 }
 
+/// U-R8-6: keep `thumbs`/`shareState` bounded across folder navigation. Only
+/// entries inside the current folder stay relevant; the `currentPath` watcher
+/// runs before `files.entries` are refreshed, so pruning goes by path prefix.
+function isInCurrentFolder(path: string): boolean {
+  const prefix = files.currentPath === "/" ? "/" : files.currentPath + "/";
+  return path.startsWith(prefix);
+}
+
+function pruneCaches() {
+  for (const path of thumbs.keys()) {
+    if (!isInCurrentFolder(path)) thumbs.delete(path);
+  }
+  for (const path of shareState.keys()) {
+    if (!isInCurrentFolder(path)) shareState.delete(path);
+  }
+}
+
 /// Best-effort thumbnail fetch for image entries (Nextcloud
 /// `/core/preview.png`). Failures fall back to the generic file icon.
 async function loadThumb(entry: WebDavEntry) {
@@ -251,7 +268,7 @@ async function loadThumb(entry: WebDavEntry) {
   thumbLoading.add(entry.path);
   const dataUrl = await files.getThumbnail(entry.path);
   thumbLoading.delete(entry.path);
-  if (dataUrl) thumbs.set(entry.path, dataUrl);
+  if (dataUrl && isInCurrentFolder(entry.path)) thumbs.set(entry.path, dataUrl);
 }
 
 function goBack() {
@@ -619,7 +636,10 @@ function onUserSelect() {
 
 watch(
   () => files.currentPath,
-  () => clearSelection()
+  () => {
+    clearSelection();
+    pruneCaches();
+  }
 );
 
 watch(
@@ -636,6 +656,7 @@ watch(
   () => {
     thumbs.clear();
     thumbLoading.clear();
+    shareState.clear();
   }
 );
 
