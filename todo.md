@@ -35,12 +35,15 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       `file://progress`-Events gesetzt (`files.ts` `bindProgress`, Z. 304-310);
       nach dem letzten Event (100 %) bleibt die Leiste hängen, bis die nächste
       Aktion kommt. Fix: `clearTransfer()` nach Abschluss der Einzel-Operationen.
-- [ ] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
+- [x] **U-R8-3 (UX, Bug, minor):** Grid-Ansicht: Doppelklick schaltet die Auswahl
       wieder ab. `EntryList.vue` Grid (Z. 244-246): `@click` toggelt die Auswahl,
       `@dblclick` öffnet — ein Doppelklick feuert zwei `click`-Events, die Auswahl
       wird also an- und wieder abgewählt; die Datei öffnet, ist danach aber nicht
       mehr markiert (inkonsistent zur Listenansicht). Fix: Toggle nur bei
       `e.detail === 1` ausführen oder das Toggle beim `dblclick` zurücknehmen.
+      Fix: `@click` toggelt nur noch bei `$event.detail === 1` (Single-Click),
+      sodass der Doppelklick die Auswahl nicht mehr zurücknimmt — konsistent zur
+      Listenansicht.
 - [ ] **U-R8-4 (UX, minor):** Share-Badge (`sharesByPath`-Zähler) fehlt in der
       Grid-Ansicht. `EntryList.vue` zeigt den Badge nur in der Listenansicht
       (Z. 216-222); die Grid-Kacheln haben kein Äquivalent. Fix: Badge in die

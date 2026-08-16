@@ -241,7 +241,7 @@ function parentPath(path: string): string {
         :key="entry.path"
         class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
         :class="selectable && selected.has(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
-        @click="selectable && emit('toggleSelect', entry.path)"
+        @click="selectable && $event.detail === 1 && emit('toggleSelect', entry.path)"
         @dblclick="emit('open', entry)"
         @contextmenu="emit('contextmenu', $event, entry)"
       >
