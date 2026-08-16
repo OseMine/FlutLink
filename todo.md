@@ -36,8 +36,8 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
       Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
       `FileExplorer.vue`.
-- [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
-      zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlte: `AdminPanel.vue`
+      zeigte `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kannte keine
       Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
       `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
       „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
@@ -71,10 +71,6 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
       resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
       Backend.
-- [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
-      (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
-      Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
-      unlimited) + benutzerdefiniert.
 - [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
       `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
       `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
@@ -216,6 +212,10 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
 - [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
       keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
       `accounts`-Store nutzen.
+- [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
+      `/` im `new_name` → „Rename" wird still zu einem Move in einen
+      Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
+      nicht nur auf den zusammengesetzten Pfad).
 - [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
       (F7 offen) und die About-Version ist hartkodiert (F5 offen,
       `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
@@ -377,6 +377,41 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
       `validate_rename_name_rejects_slashes_and_dots` ergänzt. Verifikation:
       `cargo fmt --check` grün, `cargo clippy --all-targets -D warnings` grün,
       `cargo test` 51 passed / 0 failed.
+### Review 2026-08-16 (N13)
+
+- [x] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hatte
+      keinen Frontend-Aufrufer (Dead Code). Fix: Komplette Kette entfernt —
+      `accountActive`-Wrapper aus `src/lib/ipc.ts` (Z. 147) gestrichen,
+      Backend-Command `account_active` (`commands.rs:278-281`) entfernt und
+      aus der Command-Registry (`lib.rs:228`) deregistriert. Der
+      `accounts`-Store leitet `active` bereits aus `accountList()` ab
+      (`src/stores/accounts.ts:34`) und braucht den separaten Call nicht.
+### Review 2026-08-16 (Q8)
+
+- [x] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlten in
+      `AdminPanel.vue` (nur freie MB/GB-Eingabe + „Unlimited"). Fix:
+      Preset-Select (1/5/10 GB, unlimited, benutzerdefiniert) in der
+      Quota-Verwaltung; Auswahl eines Presets setzt Wert/Einheit, manuelle
+      Eingabe bleibt möglich und wechselt zurück auf „custom"; beim Laden
+      eines Benutzers wird das passende Preset vorausgewählt. Verifikation:
+      `npm run build` grün (vue-tsc + vite), `cargo fmt --check`, `cargo
+      clippy --all-targets -- -D warnings` und `cargo test` grün.
+### Review 2026-08-16 (Q3)
+
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung umgesetzt.
+      `ocs.rs` kennt jetzt die OCS-Gruppen-Endpunkte (`list_groups` mit
+      Duplikat-Guard gegen Offset-ignorierende Server, `create_group` über
+      `POST /cloud/groups`, `add_group_member` über
+      `POST /cloud/groups/{id}/users`, `remove_group_member` über
+      `DELETE /cloud/groups/{id}/users/{uid}`). In `commands.rs` sind
+      `admin_list_groups`/`admin_create_group`/`admin_add_group_member`/
+      `admin_remove_group_member` (alle mit Admin-Check) hinzugekommen und in
+      `lib.rs` registriert; `src/lib/ipc.ts` hat die passenden Wrapper.
+      `AdminPanel.vue` verwaltet Gruppen jetzt interaktiv: Gruppen der
+      ausgewählten Person mit Entfernen-Button, Eingabefeld zum Hinzufügen in
+      eine Gruppe und Button zum Anlegen einer neuen Gruppe (Toast-Feedback,
+      i18n en/de).
+
 ### Review 2026-08-16 (U10)
 
 - [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
