@@ -178,6 +178,7 @@ const dict: Record<Lang, Record<string, string>> = {
     adminPanelSubtitle:
       "User provisioning via the OCS API of your FlutCloud server. Only available for admin accounts.",
     searchUsers: "Search users…",
+    searchUsersRequired: "Enter at least one character to search users.",
     listUsers: "List users",
     loading: "Loading…",
     loadingDetails: "Loading details…",
@@ -242,6 +243,7 @@ const dict: Record<Lang, Record<string, string>> = {
     download: "Download",
     newFolder: "New folder",
     folderName: "Folder name",
+    folderNameInvalid: "Folder name must not contain '/', '.' or '..'.",
     rename: "Rename",
     delete: "Delete",
     open: "Open",
@@ -470,6 +472,7 @@ const dict: Record<Lang, Record<string, string>> = {
     adminPanelSubtitle:
       "Benutzerverwaltung über die OCS-API deines FlutCloud-Servers. Nur für Admin-Konten verfügbar.",
     searchUsers: "Benutzer suchen…",
+    searchUsersRequired: "Gib mindestens ein Zeichen ein, um Benutzer zu suchen.",
     listUsers: "Benutzer auflisten",
     loading: "Lädt…",
     loadingDetails: "Lade Details…",
@@ -534,6 +537,7 @@ const dict: Record<Lang, Record<string, string>> = {
     download: "Herunterladen",
     newFolder: "Neuer Ordner",
     folderName: "Ordnername",
+    folderNameInvalid: "Der Ordnername darf kein '/', '.' oder '..' enthalten.",
     rename: "Umbenennen",
     delete: "Löschen",
     open: "Öffnen",
