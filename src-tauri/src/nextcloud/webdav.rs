@@ -997,6 +997,7 @@ fn to_entry(
         return None;
     }
     let (is_resource, is_part) = classify(&rel);
+    let link_target = resolve_link_target(&rel);
     Some(WebDavEntry {
         name,
         path: rel.clone(),
@@ -1007,6 +1008,7 @@ fn to_entry(
         content_type,
         is_resource,
         is_part,
+        link_target,
         paired_path: paired_path(&rel),
     })
 }
@@ -1075,6 +1077,24 @@ fn classify(rel: &str) -> (bool, bool) {
         }
     }
     (is_resource, is_part)
+}
+
+/// Resolve a virtual link to its writable/readable counterpart:
+/// `resources/<name>` maps to `/parts/<name>` and vice versa. The container
+/// folders `resources`/`parts` themselves are not links; regular entries
+/// resolve to `None`.
+fn resolve_link_target(rel: &str) -> Option<String> {
+    let mut segments: Vec<&str> = rel.trim_matches('/').split('/').collect();
+    if segments.len() < 2 {
+        return None;
+    }
+    let target = match segments[0].to_ascii_lowercase().as_str() {
+        "resources" => "parts",
+        "parts" => "resources",
+        _ => return None,
+    };
+    segments[0] = target;
+    Some(format!("/{}", segments.join("/")))
 }
 
 /// Compute the counterpart of a path in the FlutCloud virtual namespaces:
@@ -1178,6 +1198,11 @@ mod tests {
             .expect("resources");
         assert!(resources.is_resource);
         assert!(!resources.is_part);
+        assert_eq!(
+            resources.link_target.as_deref(),
+            None,
+            "the resources container itself is not a link"
+        );
         assert_eq!(resources.paired_path.as_deref(), Some("/parts"));
 
         let data = entries
@@ -1199,6 +1224,11 @@ mod tests {
             data.content_type.as_deref(),
             Some("application/octet-stream")
         );
+        assert_eq!(
+            data.link_target.as_deref(),
+            Some("/resources/Data.bin"),
+            "a parts entry resolves to its read-only counterpart"
+        );
     }
 
     #[test]
@@ -1208,6 +1238,25 @@ mod tests {
         assert_eq!(classify("/resources/virtual/link.txt"), (true, false));
         assert_eq!(classify("/Parts"), (false, true));
         assert_eq!(classify("/parts/write/me.txt"), (false, true));
+    }
+
+    #[test]
+    fn resolves_virtual_links() {
+        assert_eq!(resolve_link_target("/photos/beach.jpg"), None);
+        assert_eq!(resolve_link_target("/resources"), None);
+        assert_eq!(resolve_link_target("/parts"), None);
+        assert_eq!(
+            resolve_link_target("/resources/Team/Plan.md"),
+            Some("/parts/Team/Plan.md".into())
+        );
+        assert_eq!(
+            resolve_link_target("/parts/Team/Plan.md"),
+            Some("/resources/Team/Plan.md".into())
+        );
+        assert_eq!(
+            resolve_link_target("/resources/Project"),
+            Some("/parts/Project".into())
+        );
     }
 
     #[test]

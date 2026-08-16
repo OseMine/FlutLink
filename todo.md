@@ -50,6 +50,13 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       Vorkommen von `@drop`/`dragover`/`dataTransfer` im File, verifiziert).
       README Phase 3 „drag & drop". Fix: DnD-Handler, der `files.uploadFile`
       wie `uploadFiles` (Z. 123-142) aufruft.
+- [ ] **Q6 (Phase 3, Feature, mittel):** `resources`/`parts`-Dual-Pane-Workflow
+      fehlt: Backend klassifiziert korrekt (`webdav.rs::classify`,
+      Z. 531-542, Flags `is_resource`/`is_part`), die UI zeigt nur Badges
+      (`FileExplorer.vue:464-478`). Kein Pairing virtueller Links
+      (`resources`) mit ihren schreibbaren Teilen (`parts`), kein
+      „virtual ↔ real"-Navigationsfluss. Fix: Split-View-/Pairing-Konzept +
+      Verknüpfungsfeld in `WebDavEntry`.
 - [ ] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlt:
       `walk_local` überspringt Symlinks still (`sync.rs:196-198`),
       `resources`-Einträge werden nie auf ihr Ziel aufgelöst (kein
@@ -388,6 +395,26 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Q7)
+
+- [x] **Q7 (Phase 3, Feature, minor):** Symlink-/Virtual-Link-Auflösung fehlte:
+      `walk_local` übersprang Symlinks still (`sync.rs:196-198`),
+      `resources`-Einträge wurden nie auf ihr Ziel aufgelöst (kein
+      Link-Target-Feld in `WebDavEntry`). Fix umgesetzt:
+      **Symlink-Following-Option im Sync** — neues `follow_symlinks`-Flag auf
+      `SyncFolder` (serde-default false), `walk_local` dereferenziert Links mit
+      Kanonikal-Pfad-Zyklusschutz, Threading durch `sync_add`
+      (`Option<bool>`), CLI-Aufruf, `ipc.ts`, `stores/sync.ts` und
+      `SyncPanel.vue` (Checkbox + Status-Anzeige), i18n en/de.
+      **Link-Auflösung im Backend** — `link_target: Option<String>` in
+      `WebDavEntry`; `resolve_link_target` mappt `resources/<name>` →
+      `/parts/<name>` und umgekehrt, Container-/Normalpfade → `None`;
+      Tooltip im Dateibrowser. Unit-Tests (3 × `walk_local` mit echten
+      Symlinks unter `#[cfg(unix)]`, `resolves_virtual_links`,
+      Parse-Assertions). Verifikation: `cargo test` 53 passed / 0 failed,
+      `cargo clippy --all-targets -- -D warnings` grün, `cargo fmt --check`
+      grün, `npm run build` grün. Docs (README Phase 3, `features.md`/`sync.md`
+      en+de) aktualisiert.
 ### Review 2026-08-16 (P8/N5)
 
 - [x] **P8/N5 (Bug, bestätigt N5):** `open()` (`FileExplorer.vue:96-100`) legte

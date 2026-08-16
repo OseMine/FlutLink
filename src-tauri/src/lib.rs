@@ -169,7 +169,7 @@ fn handle_cli(app: &tauri::App) {
     if let Some(path) = cli_path {
         let handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
-            match commands::sync_add(handle.clone(), handle.state::<AppState>(), path).await {
+            match commands::sync_add(handle.clone(), handle.state::<AppState>(), path, None).await {
                 Ok(_) => {
                     let _ = handle.emit("sync-folders-changed", ());
                 }

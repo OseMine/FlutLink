@@ -40,6 +40,11 @@ pub struct WebDavEntry {
     pub is_resource: bool,
     /// True when this entry lives under a folder named `parts` (write-enabled).
     pub is_part: bool,
+    /// Resolved counterpart of a virtual link: `resources/<name>` entries point
+    /// to their writable `parts/<name>` target and vice versa. `None` for
+    /// regular (non virtual) entries.
+    #[serde(default)]
+    pub link_target: Option<String>,
     /// Path of the counterpart in the paired namespace: `/resources/…` entries
     /// point at their writable `/parts/…` part and vice versa. `None` for
     /// regular files/folders outside the FlutCloud virtual namespaces.
@@ -103,6 +108,10 @@ pub struct SyncFolder {
     pub local_path: String,
     pub remote_path: String,
     pub paused: bool,
+    /// Follow symbolic links inside the local folder instead of skipping them
+    /// (defaults to false for existing sync folders).
+    #[serde(default)]
+    pub follow_symlinks: bool,
 }
 
 /// Progress of a file transfer (upload/download) or a bulk operation (delete),
@@ -135,6 +144,8 @@ pub struct SyncFolderStatus {
     pub local_path: String,
     pub remote_path: String,
     pub paused: bool,
+    /// Whether symbolic links in the local folder are followed during sync.
+    pub follow_symlinks: bool,
     /// "idle" | "syncing" | "paused" | "error"
     pub state: String,
     pub pending_uploads: u64,

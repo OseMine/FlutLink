@@ -42,7 +42,10 @@ WebDAV-Helfer in `nextcloud/webdav.rs` (`put_file`, `get_file`, `delete`,
 
 Löschungen werden nur weitergegeben, wenn die andere Seite seit dem Journal
 unverändert ist — das verhindert versehentlichen Datenverlust. Übersprungene
-Muster: Dotfiles, `~$*`, nachgestelltes `~`, `Thumbs.db`, Symlinks.
+Muster: Dotfiles, `~$*`, nachgestelltes `~`, `Thumbs.db`. Symbolische Links
+werden standardmäßig übersprungen; wird ein Sync-Ordner mit der Option
+„Symlinks folgen“ angelegt, werden Links in `walk_local` aufgelöst (mit
+Kanonal-Pfad-Zyklusschutz), sodass ihre Ziele synchronisiert werden.
 
 ## Verzeichnisse & Typkonflikte
 
@@ -101,8 +104,9 @@ empfängt.
 
 ## IPC
 
-Backend: `sync_list`, `sync_add` (kanonisiert den Pfad, weist doppelte
-Remote-Pfade ab), `sync_remove`, `sync_set_paused`, `sync_trigger` in
+Backend: `sync_list`, `sync_add` (kanonisiert den Pfad, akzeptiert ein
+optionales `follow_symlinks`-Flag, weist doppelte Remote-Pfade ab),
+`sync_remove`, `sync_set_paused`, `sync_trigger` in
 `commands.rs`. Frontend: Wrapper in `src/lib/ipc.ts`, reaktiver Zustand in
 `src/stores/sync.ts`, UI in `src/components/SyncPanel.vue` (Ordnerauswahl via
 `tauri-plugin-dialog`).
