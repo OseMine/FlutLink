@@ -140,7 +140,7 @@ public + private link sharing"):
       jeden Download dauerhaft in `tempDir()` ab (kein Cleanup) — jedes Öffnen
       einer Datei füllt das Temp-Verzeichnis. Fix: nach `openPath` löschen oder
       eigenes Cache-Verzeichnis mit Cleanup.
-- [ ] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
+- [x] **P9 (Bug, bestätigt N2):** `list_users` (`ocs.rs:75-119`): Offset-
       Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
       `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
       Duplikat-Erkennung als Abbruchbedingung.
@@ -241,7 +241,7 @@ Neue Befunde (Lauf 4):
       stillschweigend (SabreDAV/Nextcloud führt Overwrite aus). Fix:
       Existenz-Check des Ziels im Backend (PROPFIND oder `Overwrite: F` +
       sauberer AppError „Ziel existiert bereits") + UI-Hinweis.
-- [ ] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
+- [x] **N2 (Robustheit, minor):** `nextcloud/ocs.rs` `list_users` (Z. 75-119):
       Die Offset-Pagination hat keinen Fortschritts-Guard. Wenn der Server den
       `offset`-Parameter ignoriert (gleiche Seite erneut), läuft die Schleife
       endlos (Duplikate werden nicht erkannt, `count == LIMIT` → `offset += 200`).
@@ -362,6 +362,17 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (P9/N2)
+
+- [x] **P9/N2 (Bug, Robustheit):** `list_users` (`ocs.rs:75-119`) paginiert
+      per Offset ohne Fortschritts-Guard → Endlosschleife, wenn der Server den
+      `offset`-Parameter ignoriert (gleiche Seite erneut, `count == LIMIT`).
+      Fix: Duplikat-Erkennung als Abbruchbedingung. Der Loop trackt jetzt eine
+      `HashSet<String>` (`seen`) über den neuen Helper `progress_count`; liefert
+      eine Seite keine neuen Benutzer, wird abgebrochen statt `offset += 200`
+      endlos weiterzulaufen. Unit-Tests `progress_guard_stops_on_repeated_page`
+      und `progress_guard_counts_partial_new_users` ergänzt.
 
 ### Review 2026-08-15 (U8)
 

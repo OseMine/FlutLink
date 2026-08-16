@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use reqwest::{Client, Method};
 use serde_json::Value;
 
@@ -79,6 +81,7 @@ pub async fn list_users(
 ) -> AppResult<Vec<String>> {
     const LIMIT: usize = 200;
     let mut all: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
     let mut offset = 0usize;
     loop {
         let mut url = format!(
@@ -109,6 +112,12 @@ pub async fn list_users(
             break;
         }
         let count = users.len();
+        let new_count = progress_count(&mut seen, &users);
+        if new_count == 0 {
+            // Progress guard: the server ignored `offset` and repeated an
+            // already-seen page — stop instead of looping forever.
+            break;
+        }
         all.extend(users);
         if count < LIMIT {
             break;
@@ -116,6 +125,14 @@ pub async fn list_users(
         offset += LIMIT;
     }
     Ok(all)
+}
+
+/// Progress guard for the offset pagination in [`list_users`]. Inserts every
+/// user id into `seen` and returns how many of `users` were new. When a page
+/// yields no new users, the server ignored `offset` and pagination must stop
+/// to avoid an infinite loop.
+fn progress_count(seen: &mut HashSet<String>, users: &[String]) -> usize {
+    users.iter().filter(|u| seen.insert((*u).clone())).count()
 }
 
 pub async fn get_user(client: &Client, account: &Account, user_id: &str) -> AppResult<UserDetails> {
@@ -314,5 +331,22 @@ mod tests {
         let after_server_decode = urlencoding::decode(&wire).unwrap();
         assert_ne!(after_server_decode.as_ref(), raw);
         assert_eq!(after_server_decode.as_ref(), "My%20Folder");
+    }
+
+    #[test]
+    fn progress_guard_stops_on_repeated_page() {
+        // Server ignores `offset` and repeats the same full page — the guard
+        // must detect zero progress and stop the pagination.
+        let page: Vec<String> = (0..200).map(|i| format!("user{i}")).collect();
+        let mut seen = HashSet::new();
+        assert_eq!(progress_count(&mut seen, &page), 200);
+        assert_eq!(progress_count(&mut seen, &page), 0);
+    }
+
+    #[test]
+    fn progress_guard_counts_partial_new_users() {
+        let mut seen = HashSet::from([String::from("a")]);
+        let page = vec![String::from("a"), String::from("b")];
+        assert_eq!(progress_count(&mut seen, &page), 1);
     }
 }
