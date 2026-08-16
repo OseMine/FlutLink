@@ -64,6 +64,26 @@ const showAdminPassword = ref(false);
 const submitting = ref(false);
 const formError = ref<string | null>(null);
 
+// U-R8-11: clear the form (including token) and password visibility whenever the
+// dialog closes or a login/registration succeeds — on shared devices the fields
+// must not be pre-filled on the next open.
+function resetForm() {
+  form.value = { username: "", token: "", displayName: "", adminUsername: "", adminPassword: "" };
+  showPassword.value = false;
+  showAdminPassword.value = false;
+  formError.value = null;
+}
+
+function close() {
+  resetForm();
+  emit("close");
+}
+
+function done() {
+  resetForm();
+  emit("done");
+}
+
 async function submit() {
   if (submitting.value) return;
   if (!serverUrl.value) {
@@ -79,7 +99,7 @@ async function submit() {
       token: form.value.token,
     });
     ui.toast(t("accountAdded"), "success");
-    emit("done");
+    done();
   } catch (e) {
     formError.value = invokeError(e).message;
   } finally {
@@ -109,7 +129,7 @@ async function submitRegister() {
       adminPassword: form.value.adminPassword,
     });
     ui.toast(t("accountRegistered"), "success");
-    emit("done");
+    done();
   } catch (e) {
     formError.value = invokeError(e).message;
   } finally {
@@ -123,7 +143,7 @@ async function submitRegister() {
     <div
       v-if="props.open"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      @click.self="emit('close')"
+      @click.self="close()"
     >
       <div class="w-full max-w-sm rounded-xl border border-outline bg-surface-container p-6 shadow-m3-3">
         <div class="flex flex-col items-center gap-2 text-center">
@@ -209,7 +229,7 @@ async function submitRegister() {
             <button
               type="button"
               class="rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-              @click="emit('close')"
+              @click="close()"
             >
               {{ t("cancel") }}
             </button>
@@ -314,7 +334,7 @@ async function submitRegister() {
             <button
               type="button"
               class="rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-              @click="emit('close')"
+              @click="close()"
             >
               {{ t("cancel") }}
             </button>

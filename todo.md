@@ -81,12 +81,12 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       an. Fix: Namen in `createFolder` wie `validate_rename_name`
       (`commands.rs` Z. 621-628) prüfen oder `webdav_mkdir` auf ein einzelnes
       Segment validieren.
-- [ ] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
+- [x] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
       Schließen nicht geleert. `LoginModal.vue` `form` (Z. 55-61) bleibt gefüllt
       (inkl. Token); beim nächsten Öffnen sind die Felder vorausgefüllt — auf
       geteilten Geräten droht versehentliches Wiederverbinden mit dem alten
       Token. Fix: `form` + `showPassword`/`showAdminPassword` beim `close`/`done`
-      zurücksetzen.
+      zurücksetzen. → umgesetzt (siehe Archiv).
 - [ ] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
       Suchbegriff alle Benutzer (keine UI-Pagination). `AdminPanel.vue`
       `listUsers` (Z. 159-171) ruft `adminListUsers("")`; `ocs::list_users`
@@ -200,6 +200,19 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (U-R8-11)
+
+- [x] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wurde nach Erfolg bzw.
+      Schließen nicht geleert — `form` (inkl. Token) und
+      `showPassword`/`showAdminPassword` blieben gefüllt; beim nächsten Öffnen
+      waren die Felder vorausgefüllt (Risiko auf geteilten Geräten: versehentliches
+      Wiederverbinden mit dem alten Token). Fix in `src/components/LoginModal.vue`:
+      neue `resetForm()` setzt `form`, `showPassword`, `showAdminPassword` und
+      `formError` zurück; die Wrapper `close()`/`done()` rufen `resetForm()` vor
+      dem Emit auf. Alle Aufrufstellen (Backdrop-`@click.self`, beide Cancel-
+      Buttons, Erfolgspfade in `submit()`/`submitRegister()`) nutzen die Wrapper.
+      Verifikation: `npm run build` (vue-tsc + vite) grün, `cargo fmt --check` grün.
 
 ### Review 2026-08-16 (Android-Client)
 
