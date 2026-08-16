@@ -234,6 +234,130 @@ pub async fn delete_user(client: &Client, account: &Account, user_id: &str) -> A
         .unwrap_or_else(|| "User deleted".to_string()))
 }
 
+/// List all groups, paging through the OCS `offset`/`limit` parameters so the
+/// result is not truncated at the server's hard limit of 200 per request.
+pub async fn list_groups(
+    client: &Client,
+    account: &Account,
+    search: &str,
+) -> AppResult<Vec<String>> {
+    const LIMIT: usize = 200;
+    let mut all: Vec<String> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut offset = 0usize;
+    loop {
+        let mut url = format!(
+            "{}/ocs/v1.php/cloud/groups?format=json&limit={}&offset={}",
+            account.base_url(),
+            LIMIT,
+            offset
+        );
+        if !search.is_empty() {
+            url.push_str("&search=");
+            url.push_str(&urlencoding::encode(search));
+        }
+        let res = request(client, account, Method::GET, &url, None).await?;
+        let json: Value = res.json().await?;
+        if let Some(msg) = ocs_meta_error(&json) {
+            return Err(AppError::Ocs(msg));
+        }
+        let groups: Vec<String> = json
+            .pointer("/ocs/data/groups")
+            .and_then(|g| g.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if groups.is_empty() {
+            break;
+        }
+        let mut new_groups = 0usize;
+        for group in groups {
+            if seen.insert(group.clone()) {
+                all.push(group);
+                new_groups += 1;
+            }
+        }
+        // Guard against servers that ignore `offset` and return the same page
+        // again: stop instead of looping forever on duplicate pages.
+        if new_groups < LIMIT {
+            break;
+        }
+        offset += LIMIT;
+    }
+    Ok(all)
+}
+
+/// Create a group via the OCS Provisioning API (POST /cloud/groups).
+pub async fn create_group(client: &Client, account: &Account, group_id: &str) -> AppResult<String> {
+    let url = format!("{}/ocs/v1.php/cloud/groups?format=json", account.base_url());
+    let form = [("groupid", group_id)];
+    let res = request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "Group created".to_string()))
+}
+
+/// Add a user to a group via the OCS Provisioning API
+/// (POST /cloud/groups/{groupId}/users).
+pub async fn add_group_member(
+    client: &Client,
+    account: &Account,
+    group_id: &str,
+    user_id: &str,
+) -> AppResult<String> {
+    let url = format!(
+        "{}/ocs/v1.php/cloud/groups/{}?format=json",
+        account.base_url(),
+        urlencoding::encode(group_id)
+    );
+    let form = [("userid", user_id)];
+    let res = request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "User added to group".to_string()))
+}
+
+/// Remove a user from a group via the OCS Provisioning API
+/// (DELETE /cloud/groups/{groupId}/users/{userId}).
+pub async fn remove_group_member(
+    client: &Client,
+    account: &Account,
+    group_id: &str,
+    user_id: &str,
+) -> AppResult<String> {
+    let url = format!(
+        "{}/ocs/v1.php/cloud/groups/{}/users/{}?format=json",
+        account.base_url(),
+        urlencoding::encode(group_id),
+        urlencoding::encode(user_id)
+    );
+    let res = request(client, account, Method::DELETE, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "User removed from group".to_string()))
+}
+
 /// Update a single user attribute (displayname, email, password, quota, ...)
 /// via the OCS Provisioning API edit-user endpoint.
 pub async fn update_user(
