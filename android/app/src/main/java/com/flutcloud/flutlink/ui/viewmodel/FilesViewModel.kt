@@ -81,8 +81,11 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             loading.value = true
             error.value = null
             try {
-                val bytes = container.webDavApi.download(s, entry.path)
-                _downloaded.value = saveToAppStorage(entry.name, bytes)
+                val dir = container.appFilesDir()
+                dir.mkdirs()
+                val file = java.io.File(dir, entry.name)
+                container.webDavApi.downloadToFile(s, entry.path, file)
+                _downloaded.value = file.absolutePath
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
             } catch (e: ApiException) {
@@ -91,14 +94,6 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 loading.value = false
             }
         }
-    }
-
-    private fun saveToAppStorage(name: String, bytes: ByteArray): String {
-        val dir = container.appFilesDir()
-        dir.mkdirs()
-        val file = java.io.File(dir, name)
-        file.writeBytes(bytes)
-        return file.absolutePath
     }
 
     fun mkdir(name: String, onDone: () -> Unit = {}) {
@@ -170,13 +165,13 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun upload(targetDir: String, name: String, bytes: ByteArray) {
+    fun upload(targetDir: String, name: String, openStream: () -> java.io.InputStream, size: Long) {
         val s = session ?: return
         viewModelScope.launch {
             error.value = null
             try {
                 val remotePath = if (targetDir == "/") "/$name" else "$targetDir/$name"
-                container.webDavApi.upload(s, remotePath, bytes)
+                container.webDavApi.uploadStream(s, remotePath, openStream, size)
                 listFolder(path.value)
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"

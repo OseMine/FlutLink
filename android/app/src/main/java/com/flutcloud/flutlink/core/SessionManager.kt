@@ -23,8 +23,8 @@ class SessionManager(private val accountStore: AccountStore) {
         restoreSession()
     }
 
-    private suspend fun restoreSession() {
-        val active = _accounts.value.firstOrNull { it.isActive } ?: _accounts.value.firstOrNull()
+    private fun restoreSession() {
+        val active = _accounts.value.firstOrNull { it.isActive }
         if (active == null) {
             _session.value = null
             return
@@ -34,11 +34,9 @@ class SessionManager(private val accountStore: AccountStore) {
     }
 
     fun addAccount(meta: AccountMeta, token: String) {
-        val withoutOld = _accounts.value.filterNot {
-            it.username == meta.username && it.instanceUrl.trimEnd('/') == meta.instanceUrl.trimEnd('/')
-        }
+        val withoutOld = _accounts.value.filterNot { it.key == meta.key }
         val updated = (withoutOld + meta.copy(isActive = true))
-            .map { it.copy(isActive = it.username == meta.username) }
+            .map { it.copy(isActive = it.key == meta.key) }
         accountStore.saveAccounts(updated)
         accountStore.saveToken(meta, token)
         _accounts.value = updated
@@ -51,13 +49,43 @@ class SessionManager(private val accountStore: AccountStore) {
     }
 
     suspend fun switchAccount(meta: AccountMeta) {
-        val updated = _accounts.value.map { it.copy(isActive = it.username == meta.username) }
+        val updated = _accounts.value.map { it.copy(isActive = it.key == meta.key) }
         updateAccounts(updated)
         restoreSession()
     }
 
+    /**
+     * Re-probe admin status for every stored account. Only overwrites the
+     * stored flag when the OCS probe succeeds; a transient network failure
+     * keeps the previous value (an admin account is never demoted by a
+     * flaky connection). Persists only when something actually changed.
+     */
+    suspend fun refreshAdminFlags(probe: suspend (AuthSession) -> Boolean) {
+        val refreshed = _accounts.value.map { meta ->
+            val token = accountStore.tokenFor(meta) ?: return@map meta
+            val isAdmin = try {
+                probe(AuthSession(meta.instanceUrl, meta.username, token))
+            } catch (_: Exception) {
+                meta.isAdmin
+            }
+            if (isAdmin == meta.isAdmin) meta else meta.copy(isAdmin = isAdmin)
+        }
+        if (refreshed != _accounts.value) updateAccounts(refreshed)
+    }
+
+    /** Persist the sign-out: the active account is deactivated so a restart
+     *  does not silently restore its session (login screen instead). */
     fun signOut() {
+        val active = _session.value
         _session.value = null
+        if (active != null) {
+            val updated = _accounts.value.map {
+                if (it.key == "${active.username}@${active.baseUrl.trimEnd('/')}") {
+                    it.copy(isActive = false)
+                } else it
+            }
+            updateAccounts(updated)
+        }
     }
 
     fun removeAccount(meta: AccountMeta) {

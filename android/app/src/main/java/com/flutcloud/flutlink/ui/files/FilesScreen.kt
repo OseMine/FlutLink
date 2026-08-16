@@ -119,8 +119,9 @@ fun FilesScreen(container: AppContainer) {
     ) { uri: Uri? ->
         uri?.let {
             val name = context.displayName(it) ?: "upload.bin"
-            val bytes = context.readAllBytes(it)
-            vm.upload(path, name, bytes)
+            val size = context.contentSize(it)
+            val uriRef = it
+            vm.upload(path, name, { context.contentResolver.openInputStream(uriRef) ?: java.io.ByteArrayInputStream(ByteArray(0)) }, size)
         }
     }
 
@@ -520,5 +521,8 @@ private fun Context.displayName(uri: Uri): String? =
         if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
     }
 
-private fun Context.readAllBytes(uri: Uri): ByteArray =
-    contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+private fun Context.contentSize(uri: Uri): Long =
+    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
+        if (idx >= 0 && cursor.moveToFirst() && !cursor.isNull(idx)) cursor.getLong(idx) else -1L
+    } ?: -1L

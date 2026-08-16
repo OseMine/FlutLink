@@ -101,31 +101,66 @@ class WebDavApi(private val client: OkHttpClient) {
         }
     }
 
-    /** Upload bytes via PUT. Sends X-OC-MTime so the stored mtime stays stable. */
-    suspend fun upload(
+    /** Stream a content Uri / input stream into a remote path via PUT (no
+     *  full-memory copy). [size] must be the exact byte length; pass -1 when
+     *  unknown (falls back to chunked transfer). */
+    suspend fun uploadStream(
         session: AuthSession,
         path: String,
-        bytes: ByteArray,
+        openStream: () -> java.io.InputStream,
+        size: Long,
         contentType: String = "application/octet-stream",
         mtimeEpochSeconds: Long? = null
     ) = withContext(Dispatchers.IO) {
-        val builder = auth(
-            Request.Builder().url(davUrl(session, path)),
-            session
-        ).put(bytes.toRequestBody(contentType.toMediaType()))
+        val body = object : okhttp3.RequestBody() {
+            override fun contentType(): okhttp3.MediaType? = contentType.toMediaType()
+            override fun contentLength(): Long = if (size >= 0) size else -1L
+            override fun writeTo(sink: okio.BufferedSink) {
+                openStream().use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        sink.write(buffer, 0, read)
+                    }
+                }
+            }
+        }
+        val builder = auth(Request.Builder().url(davUrl(session, path)), session).put(body)
         mtimeEpochSeconds?.let { builder.header("X-OC-MTime", it.toString()) }
         statusCheck(builder.build())
     }
 
-    /** Download a remote file into memory. */
-    suspend fun download(session: AuthSession, path: String): ByteArray = withContext(Dispatchers.IO) {
+    /** Stream a remote file to a local file, returning its length. */
+    suspend fun downloadToFile(
+        session: AuthSession,
+        path: String,
+        target: java.io.File,
+        onProgress: ((Long) -> Unit)? = null
+    ): Long = withContext(Dispatchers.IO) {
         val request = auth(Request.Builder().url(davUrl(session, path)).get(), session).build()
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     throw ApiException("Download failed: HTTP ${response.code}", "http_${response.code}", response.code)
                 }
-                response.body?.bytes() ?: throw ApiException("Empty download")
+                val body = response.body ?: throw ApiException("Empty download")
+                target.parentFile?.mkdirs()
+                val length = body.contentLength()
+                body.byteStream().use { input ->
+                    target.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            total += read
+                            onProgress?.invoke(total)
+                        }
+                    }
+                }
+                return@withContext length
             }
         } catch (e: ApiException) {
             throw e

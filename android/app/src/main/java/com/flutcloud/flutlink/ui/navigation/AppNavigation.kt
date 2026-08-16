@@ -23,6 +23,10 @@ fun AppNavigation(container: AppContainer) {
 
     LaunchedEffect(Unit) {
         container.sessionManager.init()
+        // Re-evaluate admin flags on every start so an admin account that was
+        // demoted (or a non-admin that was granted admin) is reflected without
+        // a re-login; transient failures keep the stored flag.
+        container.sessionManager.refreshAdminFlags { container.ocsApi.isAdmin(it) }
     }
 
     val sessionKey = session?.let { "${it.baseUrl}|${it.username}" }

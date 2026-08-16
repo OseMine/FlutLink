@@ -50,7 +50,17 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
                 val info = container.ocsApi.getCurrentUser(session)
                 _step.value = "Verifying FlutCloud server…"
                 container.ocsApi.verifyServer(session)
-                val admin = runCatching { container.ocsApi.isAdmin(session) }.getOrDefault(false)
+                val previousAdmin = container.sessionManager.accounts.value
+                    .firstOrNull { it.key == "$user@${url.trimEnd('/')}" }
+                    ?.isAdmin ?: false
+                val admin = try {
+                    container.ocsApi.isAdmin(session)
+                } catch (e: NetworkException) {
+                    // Transient probe failure: keep the previously stored flag
+                    // so an admin account is not demoted; the startup
+                    // re-check fixes it later.
+                    previousAdmin
+                }
                 container.settingsStore.setDefaultServerUrl(url)
                 container.sessionManager.addAccount(
                     AccountMeta(user, url, info.displayName, admin, isActive = true),

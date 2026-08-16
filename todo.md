@@ -201,6 +201,40 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Android-Client — Kern-Bugs #130/#131/#135)
+
+- [x] **#130 (Bug):** Sign-out im Android-Client war nicht persistent.
+      `SessionManager.signOut()` setzte nur `_session = null` im Speicher —
+      beim nächsten App-Start stellte `restoreSession()` das Konto wieder
+      her (`isActive` blieb persistiert). Fix: `signOut()` deaktiviert das
+      aktive Konto (`isActive = false`) und persistiert das; `restoreSession()`
+      stellt nur noch ein explizit aktives Konto wieder her (kein
+      `firstOrNull()`-Fallback mehr). Zusätzlich identifizieren
+      `addAccount`/`switchAccount` Konten jetzt über `AccountMeta.key`
+      (username+Instance) statt nur über den Benutzernamen.
+- [x] **#131 (Bug):** Admin-Status wurde im Android-Client nur beim Login
+      einmal ermittelt und nie aktualisiert. Fix: `FlutCloudApi.isAdmin`
+      wertet das OCS-Meta aus (`parseOcs`, `error == null` statt nur
+      `data != null`) — ein verweigerter Request liefert `false` statt einer
+      Exception, Netzwerkfehler propagieren weiterhin. Neue
+      `SessionManager.refreshAdminFlags(probe)` evaluiert beim App-Start
+      (`AppNavigation` nach `init()`) jedes gespeicherte Konto per OCS und
+      überschreibt das Flag **nur bei Erfolg** (transiente Fehler behalten
+      den alten Wert). `LoginViewModel` bewahrt bei einem transienten
+      Probe-Fehler den zuvor gespeicherten Admin-Status eines bestehenden
+      Kontos (analog Desktop `account_add`).
+- [x] **#135 (Bug, OOM):** Datei-Transfer lief komplett im Arbeitsspeicher:
+      `WebDavApi.download`/`upload` arbeiteten auf `ByteArray`, der
+      `FilesScreen` las den gesamten SAF-Upload per `readAllBytes`. Fix:
+      neue `WebDavApi.downloadToFile` (Stream in `64 KiB`-Blöcken, mit
+      optionalem Progress) und `uploadStream` (chunked `RequestBody`, streamt
+      aus einem InputStream); die in-Memory-Varianten `upload`/`download`
+      wurden entfernt (Dead Code). `FilesViewModel` lädt direkt in
+      `appFilesDir()` und lädt per `contentResolver.openInputStream` +
+      `OpenableColumns.SIZE` (Chunked-Fallback bei unbekannter Größe) hoch.
+      Verifikation: `./gradlew :app:assembleDebug` und `:app:lintDebug`
+      grün; Desktop-Checks unverändert grün (keine Desktop-Änderungen).
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —
