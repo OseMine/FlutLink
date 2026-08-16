@@ -144,8 +144,6 @@ export const api = {
 
   accountList: () => invoke<AccountMeta[]>("account_list"),
 
-  accountActive: () => invoke<AccountMeta | null>("account_active"),
-
   accountSwitch: (username: string, instanceUrl: string) =>
     invoke<AccountMeta>("account_switch", { username, instanceUrl }),
 

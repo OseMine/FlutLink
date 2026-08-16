@@ -276,11 +276,6 @@ pub async fn register_user(
 }
 
 #[tauri::command]
-pub async fn account_active(state: State<'_, AppState>) -> AppResult<Option<AccountMeta>> {
-    Ok(state.current().map(|a| a.meta))
-}
-
-#[tauri::command]
 pub async fn account_switch(
     app: AppHandle,
     state: State<'_, AppState>,
