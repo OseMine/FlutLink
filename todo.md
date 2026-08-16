@@ -68,11 +68,6 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       `theme = "system"` und dunkler OS-Präferenz sehen kurz das helle
       OperationFlut-Theme. Fix: `resolvedTheme` initial aus `ui.theme` +
       `matchMedia` ableiten.
-- [ ] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
-      falschen Default. `SettingsModal.vue` Z. 75/101: `ui.accentHue ?? 266` —
-      bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
-      Slider-Position und `resetAccent`-Ergebnis weichen ab. Fix:
-      `ui.accentHue ?? themeDefaultHue()`.
 - [ ] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
       versehentliches Anlegen von Ordnerketten. `FileExplorer.vue` `createFolder`
       (Z. 349-360) validiert den Namen nicht; Backend `webdav_mkdir` →
@@ -200,6 +195,14 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 8, Fokus UX)
+
+- [x] **U-R8-9 (UX, minor):** Accent-Slider in den Settings startet mit dem
+      falschen Default. `SettingsModal.vue` Z. 75/101: `ui.accentHue ?? 266` —
+      bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
+      Slider-Position und `resetAccent`-Ergebnis weichen ab. Fix:
+      `ui.accentHue ?? themeDefaultHue()`.
 
 ### Review 2026-08-16 (Android-Client)
 
