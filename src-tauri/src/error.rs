@@ -26,6 +26,9 @@ pub enum AppError {
         local_path: String,
         remote_path: String,
     },
+    /// Rename/move target already exists and the operation refused to
+    /// overwrite it (WebDAV `Overwrite: F` → 412).
+    TargetExists(String),
 }
 
 impl AppError {
@@ -46,6 +49,7 @@ impl AppError {
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
             AppError::Update(_) => "update",
             AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
+            AppError::TargetExists(_) => "target_exists",
         }
     }
 
@@ -78,6 +82,7 @@ impl AppError {
                 local_path,
                 remote_path,
             } => Some(format!("{local_path} ↔ {remote_path}")),
+            AppError::TargetExists(path) => Some(path.clone()),
         }
     }
 
@@ -126,6 +131,10 @@ impl AppError {
                 "The local folder '{}' is already connected to '{}'. Remove that sync folder first or choose a different local folder.",
                 local_path, remote_path
             ),
+            AppError::TargetExists(path) => format!(
+                "A file or folder named '{}' already exists. Choose a different name.",
+                path.rsplit('/').next().unwrap_or(path)
+            ),
         }
     }
 }
@@ -159,3 +168,23 @@ impl From<std::io::Error> for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn target_exists_serializes_with_code_and_name_detail() {
+        let err = AppError::TargetExists("/Documents/neu.txt".into());
+        assert_eq!(err.code(), "target_exists");
+        assert_eq!(err.detail().as_deref(), Some("/Documents/neu.txt"));
+        assert!(
+            err.message().contains("neu.txt"),
+            "message names the conflicting target"
+        );
+        assert!(
+            err.message().to_lowercase().contains("already exists"),
+            "message states the conflict"
+        );
+    }
+}

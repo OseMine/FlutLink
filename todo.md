@@ -233,7 +233,7 @@ bricht der Build vor den Tests ab (kein Codefehler).
 
 Neue Befunde (Lauf 4):
 
-- [ ] **N1 (Bug, Datenverlust, mittel/hoch):** `webdav_rename`
+- [x] **N1 (Bug, Datenverlust, mittel/hoch):** `webdav_rename`
       (`src-tauri/src/commands.rs:453-477`) delegiert an `webdav::rename_as`,
       das den MOVE mit `Overwrite: T` sendet (`nextcloud/webdav.rs:359`). Die
       UI (`FileExplorer.vue` `doRename`, Z. 162-177) prüft nicht, ob der
@@ -362,6 +362,20 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (N1)
+
+- [x] **N1 (Bug, Datenverlust, mittel/hoch):** `webdav_rename` delegierte an
+      `webdav::rename_as`, das den MOVE mit `Overwrite: T` sendete
+      (`nextcloud/webdav.rs:359`) → „a.txt" → „b.txt" überschrieb b.txt
+      stillschweigend. Fix: `rename_as` sendet jetzt `Overwrite: F` und mappt
+      den 412-Status auf einen neuen `AppError::TargetExists` (Code
+      `target_exists`, Meldung „Ziel existiert bereits"); Frontend rendert über
+      den neuen i18n-Schlüssel `errTargetExists` (en + de) den Hinweis per
+      Toast in `doRename` (`FileExplorer.vue`). Unit-Test
+      `target_exists_serializes_with_code_and_name_detail` in `error.rs`.
+      Verifikation: `cargo fmt --check`, `cargo clippy -D warnings`,
+      `cargo test` (50 passed), `npm run build` grün.
 
 ### Review 2026-08-15 (U8)
 

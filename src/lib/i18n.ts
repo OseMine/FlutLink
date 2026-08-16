@@ -235,6 +235,8 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
     errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
     errUpdate: "Update failed: {detail}",
+    errTargetExists:
+      "A file or folder named '{detail}' already exists. Choose a different name.",
     errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
@@ -474,6 +476,8 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
     errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
     errUpdate: "Update fehlgeschlagen: {detail}",
+    errTargetExists:
+      "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
     errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
@@ -516,6 +520,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   not_flutcloud: "errNotFlutCloud",
   flutcloud_app_missing: "errFlutcloudAppMissing",
   update: "errUpdate",
+  target_exists: "errTargetExists",
 };
 
 export function translateError(lang: Lang, code: string, detail?: string | null): string {

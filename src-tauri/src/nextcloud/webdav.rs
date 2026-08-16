@@ -413,8 +413,10 @@ pub async fn delete_as(
     }
 }
 
-/// Rename/move a remote resource via MOVE. Overwrites the destination if it
-/// already exists (WebDAV `Overwrite: T`).
+/// Rename/move a remote resource via MOVE. Refuses to overwrite an existing
+/// destination (WebDAV `Overwrite: F`): if the target already exists the
+/// server answers 412 Precondition Failed and [`AppError::TargetExists`] is
+/// returned instead of silently destroying the target.
 pub async fn rename(
     client: &Client,
     account: &Account,
@@ -440,12 +442,16 @@ pub async fn rename_as(
             .request(method, &url)
             .basic_auth(&account.meta.username, Some(&account.token))
             .header("Destination", dest)
-            .header("Overwrite", "T"),
+            .header("Overwrite", "F"),
         account,
         target_user,
     )
     .send()
     .await?;
+    let status = res.status();
+    if status.as_u16() == 412 {
+        return Err(AppError::TargetExists(new_rel.to_string()));
+    }
     status_check(res).await
 }
 
