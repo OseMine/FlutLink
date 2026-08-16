@@ -40,6 +40,15 @@ pub struct WebDavEntry {
     pub is_resource: bool,
     /// True when this entry lives under a folder named `parts` (write-enabled).
     pub is_part: bool,
+    /// Resolved counterpart of a virtual link: `resources/<name>` entries point
+    /// to their writable `parts/<name>` target and vice versa. `None` for
+    /// regular (non virtual) entries.
+    #[serde(default)]
+    pub link_target: Option<String>,
+    /// Path of the counterpart in the paired namespace: `/resources/…` entries
+    /// point at their writable `/parts/…` part and vice versa. `None` for
+    /// regular files/folders outside the FlutCloud virtual namespaces.
+    pub paired_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +66,26 @@ pub struct UserQuota {
     pub used: Option<u64>,
     pub free: Option<u64>,
     pub relative: Option<f64>,
+}
+
+/// A folder listing plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavListResult {
+    pub entries: Vec<WebDavEntry>,
+    /// True when the listing came from the offline cache because the server
+    /// could not be reached; the frontend shows an offline indicator then.
+    pub stale: bool,
+}
+
+/// A storage quota plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageResult {
+    pub quota: Option<UserQuota>,
+    /// True when the quota came from the offline cache because the server
+    /// could not be reached.
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +126,10 @@ pub struct SyncFolder {
     pub local_path: String,
     pub remote_path: String,
     pub paused: bool,
+    /// Follow symbolic links inside the local folder instead of skipping them
+    /// (defaults to false for existing sync folders).
+    #[serde(default)]
+    pub follow_symlinks: bool,
 }
 
 /// Progress of a file transfer (upload/download) or a bulk operation (delete),
@@ -129,6 +162,8 @@ pub struct SyncFolderStatus {
     pub local_path: String,
     pub remote_path: String,
     pub paused: bool,
+    /// Whether symbolic links in the local folder are followed during sync.
+    pub follow_symlinks: bool,
     /// "idle" | "syncing" | "paused" | "error"
     pub state: String,
     pub pending_uploads: u64,
@@ -240,5 +275,22 @@ impl AppState {
             .iter()
             .find(|a| a.meta.username == username && a.meta.instance_url == instance_url)
             .cloned()
+    }
+
+    /// Overwrite only the admin flag of a stored account (in place, keeping the
+    /// account order and every other field intact). Returns whether the flag
+    /// actually changed.
+    pub fn set_is_admin(&self, username: &str, instance_url: &str, is_admin: bool) -> bool {
+        let mut guard = self.accounts.write().expect("accounts lock poisoned");
+        for account in guard.iter_mut() {
+            if account.meta.username == username && account.meta.instance_url == instance_url {
+                if account.meta.is_admin == is_admin {
+                    return false;
+                }
+                account.meta.is_admin = is_admin;
+                return true;
+            }
+        }
+        false
     }
 }

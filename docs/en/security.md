@@ -10,6 +10,18 @@
   instance URL, display name, admin flag, active flag. Accounts whose keychain
   token is missing are skipped on startup.
 
+## Registration password = app password
+
+Accounts created through the **Register** flow sign in with the password chosen
+during registration: it is stored in the OS keychain and used as the app
+password for every request. There is no separate app password to create for a
+newly registered account.
+
+Because the stored token *is* the account password, changing the account
+password on the server invalidates the token. After a password change the
+account must be removed and re-added in FlutLink (see
+[Getting started](getting-started.md)).
+
 ## All HTTP traffic stays in Rust
 
 WebDAV and OCS requests are issued by the backend, which means:

@@ -11,6 +11,18 @@
   Benutzername, Instanz-URL, Anzeigename, Admin-Flag, Aktiv-Flag. Konten ohne
   Keyring-Token werden beim Start übersprungen.
 
+## Registrierungs-Passwort = App-Passwort
+
+Konten, die über den **Registrieren**-Flow erstellt wurden, melden sich mit dem
+bei der Registrierung gewählten Passwort an: Es wird im OS-Schlüsselbund
+gespeichert und als App-Passwort für jeden Request verwendet. Für ein frisch
+registriertes Konto muss kein separates App-Passwort angelegt werden.
+
+Da das gespeicherte Token *das* Kontopasswort ist, macht ein Passwortwechsel
+auf dem Server das Token ungültig. Nach einem Passwortwechsel muss das Konto in
+FlutLink entfernt und neu hinzugefügt werden (siehe
+[Erste Schritte](getting-started.md)).
+
 ## Der gesamte HTTP-Verkehr bleibt in Rust
 
 WebDAV- und OCS-Requests setzt das Backend ab, das bedeutet:

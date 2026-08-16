@@ -35,7 +35,7 @@ pub struct JournalEntry {
 /// rel path (relative to the sync root, `/`-separated) → last synced state.
 pub type Journal = BTreeMap<String, JournalEntry>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LocalEntry {
     is_dir: bool,
     size: u64,
@@ -180,30 +180,68 @@ fn should_skip_name(name: &str) -> bool {
     name.starts_with('.') || name.starts_with("~$") || name.ends_with('~') || lower == "thumbs.db"
 }
 
+/// Skip a rel path when its last segment is hidden (`should_skip_name`).
+/// Used for remote entries so both sync directions skip the same names.
+fn should_skip_rel(rel: &str) -> bool {
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    should_skip_name(name)
+}
+
 /// Recursively collect local files below `root` as rel → (size, mtime).
-async fn walk_local(root: &Path) -> BTreeMap<String, LocalEntry> {
+///
+/// Symbolic links are skipped by default. When `follow_symlinks` is enabled,
+/// links are dereferenced (like Dropbox) while symlink loops and repeated
+/// targets are skipped via canonical-path cycle protection.
+async fn walk_local(root: &Path, follow_symlinks: bool) -> BTreeMap<String, LocalEntry> {
     let mut map = BTreeMap::new();
     let mut stack = vec![root.to_path_buf()];
+    let mut visited_dirs: BTreeSet<std::path::PathBuf> = BTreeSet::new();
+    if follow_symlinks {
+        if let Ok(canon) = root.canonicalize() {
+            visited_dirs.insert(canon);
+        }
+    }
     while let Some(dir) = stack.pop() {
         let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
             continue;
         };
         while let Ok(Some(entry)) = entries.next_entry().await {
-            let meta = match entry.metadata().await {
-                Ok(meta) => meta,
-                Err(_) => continue,
-            };
-            if meta.file_type().is_symlink() {
-                continue;
-            }
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
             if should_skip_name(&name_str) {
                 continue;
             }
             let path = entry.path();
+            let is_link = entry
+                .metadata()
+                .await
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false);
+            if is_link && !follow_symlinks {
+                continue;
+            }
+            // Dereference symlinks to reach the target metadata.
+            let meta = if is_link {
+                match tokio::fs::metadata(&path).await {
+                    Ok(meta) => meta,
+                    Err(_) => continue,
+                }
+            } else {
+                match entry.metadata().await {
+                    Ok(meta) => meta,
+                    Err(_) => continue,
+                }
+            };
             let rel = rel_from(root, &path);
             if meta.is_dir() {
+                // Canonicalize every directory to stop symlink loops / dups.
+                if follow_symlinks {
+                    if let Ok(canon) = path.canonicalize() {
+                        if !visited_dirs.insert(canon) {
+                            continue;
+                        }
+                    }
+                }
                 stack.push(path);
                 map.insert(
                     rel,
@@ -262,6 +300,9 @@ async fn list_remote(
                 continue;
             };
             if rel.is_empty() {
+                continue;
+            }
+            if should_skip_rel(&rel) {
                 continue;
             }
             if entry.is_dir {
@@ -738,7 +779,7 @@ async fn run_pass(
     webdav::ensure_collection(client, account, &folder.remote_path).await?;
 
     let mut journal = load_journal(app, &folder.id)?;
-    let local = walk_local(&local_root).await;
+    let local = walk_local(&local_root, folder.follow_symlinks).await;
     let remote = list_remote(client, account, &folder.remote_path).await?;
     let ops = plan_ops(&local, &remote, &journal);
 
@@ -873,6 +914,7 @@ fn initial_status(folder: &SyncFolder) -> SyncFolderStatus {
         local_path: folder.local_path.clone(),
         remote_path: folder.remote_path.clone(),
         paused: folder.paused,
+        follow_symlinks: folder.follow_symlinks,
         state: if folder.paused {
             "paused".into()
         } else {
@@ -1070,6 +1112,7 @@ impl SyncEngine {
                 local_path: folder.local_path.clone(),
                 remote_path: folder.remote_path.clone(),
                 paused: folder.paused,
+                follow_symlinks: folder.follow_symlinks,
                 state: "idle".into(),
                 pending_uploads: 0,
                 pending_downloads: 0,
@@ -1101,11 +1144,6 @@ impl SyncEngine {
             };
 
             status.state = "syncing".into();
-            // Ensure the cloud root exists (including parent chain); harmless
-            // when it already does.
-            let _ =
-                webdav::ensure_collection(&state.http_client, &account, &folder.remote_path).await;
-
             match run_pass(app, &state.http_client, &account, &folder).await {
                 Ok(result) => {
                     status.pending_uploads = result.planned_uploads;
@@ -1341,6 +1379,54 @@ mod tests {
     }
 
     #[test]
+    fn should_skip_rel_filters_hidden_names_on_both_sides() {
+        for hidden in [
+            ".env",
+            ".gitignore",
+            ".env.example",
+            "sub/.env",
+            "sub/.gitignore",
+            "~$report.docx",
+            "sub/report~",
+            "Thumbs.db",
+            "sub/Thumbs.db",
+        ] {
+            assert!(should_skip_rel(hidden), "must skip: {}", hidden);
+        }
+        for visible in ["env", "sub/a.txt", "Report.docx", "thumbs.dbx"] {
+            assert!(!should_skip_rel(visible), "must not skip: {}", visible);
+        }
+    }
+
+    #[test]
+    fn hidden_files_are_skipped_in_both_sync_directions() {
+        let tmp = std::env::temp_dir().join(format!("flutlink-sync-test-{}", std::process::id()));
+        let sub = tmp.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(tmp.join(".env"), "secret").unwrap();
+        std::fs::write(tmp.join(".gitignore"), "*").unwrap();
+        std::fs::write(tmp.join("Thumbs.db"), "x").unwrap();
+        std::fs::write(sub.join(".hidden"), "x").unwrap();
+        std::fs::write(sub.join("ok.txt"), "x").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let local_map = rt.block_on(walk_local(&tmp, false));
+
+        for rel in local_map.keys() {
+            assert!(
+                !should_skip_rel(rel),
+                "walk_local leaked a hidden entry: {}",
+                rel
+            );
+        }
+        assert!(
+            local_map.keys().any(|k| k == "sub/ok.txt"),
+            "visible file must still be walked"
+        );
+        std::fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
     fn rel_below_strips_segment_boundaries() {
         assert_eq!(
             rel_below("FlutLink/MyFolder", "/FlutLink/MyFolder/sub/a.txt").as_deref(),
@@ -1499,5 +1585,85 @@ mod tests {
             targets
         );
         assert!(targets.contains(&&"b (conflict copy).txt".to_string()));
+    }
+
+    // --- walk_local symlink behaviour -------------------------------------
+
+    #[cfg(unix)]
+    fn unique_temp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "flutlink-test-{}-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn walk_local_skips_symlinks_by_default() {
+        let root = unique_temp_dir("walk-skip");
+        let outside = unique_temp_dir("walk-skip-target");
+        std::fs::write(outside.join("outside.txt"), b"target").unwrap();
+        std::os::unix::fs::symlink(outside.join("outside.txt"), root.join("link.txt")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("self-link")).unwrap();
+
+        let map = walk_local(&root, false).await;
+        assert!(
+            map.is_empty(),
+            "symlinks are skipped: {:?}",
+            map.keys().collect::<Vec<_>>()
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+        std::fs::remove_dir_all(&outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn walk_local_follows_symlinks_when_enabled() {
+        let root = unique_temp_dir("walk-follow");
+        let outside = unique_temp_dir("walk-follow-target");
+        let sub = root.join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("real.txt"), b"real").unwrap();
+        std::os::unix::fs::symlink(sub.join("real.txt"), root.join("alias.txt")).unwrap();
+
+        // A directory outside the root, reachable through a symlink.
+        std::fs::write(outside.join("out.txt"), b"out!").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("link-dir")).unwrap();
+
+        let map = walk_local(&root, true).await;
+        assert_eq!(map.get("sub"), Some(&local_dir()));
+        assert_eq!(map.get("sub/real.txt").map(|e| e.size), Some(4));
+        assert_eq!(map.get("alias.txt").map(|e| e.size), Some(4));
+        assert_eq!(map.get("link-dir"), Some(&local_dir()));
+        assert_eq!(map.get("link-dir/out.txt").map(|e| e.size), Some(4));
+        std::fs::remove_dir_all(&root).unwrap();
+        std::fs::remove_dir_all(&outside).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn walk_local_following_terminates_on_symlink_cycle() {
+        let root = unique_temp_dir("walk-cycle");
+        let sub = root.join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        // sub -> root forms a cycle; following it must terminate.
+        std::os::unix::fs::symlink(&root, sub.join("back")).unwrap();
+        std::fs::write(root.join("leaf.txt"), b"leaf").unwrap();
+
+        let map = walk_local(&root, true).await;
+        assert_eq!(map.get("leaf.txt").map(|e| e.size), Some(4));
+        assert_eq!(map.get("sub"), Some(&local_dir()));
+        assert!(
+            !map.contains_key("sub/back"),
+            "a symlink loop back to the root is skipped"
+        );
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

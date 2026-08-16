@@ -7,7 +7,12 @@ administration and two-way sync.
 
 - WebDAV browser with `PROPFIND` (Depth 1) listings.
 - Entries are flagged as **resource** or **part** (see the `resources`/`parts`
-  conventions used on the FlutCloud server side) and shown as badges.
+  conventions used on the FlutCloud server side) and shown as badges. Every
+  `resources` entry carries its writable `parts` counterpart (`pairedPath`);
+  a **pairing bar** lets you jump "virtual ↔ real" and a **split view** shows
+  both namespaces side by side. Virtual links are resolved: hovering the badge
+  reveals the writable `parts/…` counterpart of a `resources/…` entry (and
+  vice versa) via the `linkTarget` field.
 - One-click **link sharing** via the OCS share API — the public link is copied
   to the clipboard.
 - **Full share management** in the share dialog per file/folder: create public
@@ -36,6 +41,9 @@ Only visible/enabled for accounts that are members of an admin group.
 
 - Add any local folder; its content is mirrored to `/FlutLink/<folder>` on the
   active FlutCloud account.
+- Optionally **follow symlinks** inside the folder ("Follow symlinks" checkbox
+  when adding) — links are dereferenced with cycle protection instead of
+  skipped.
 - Per-folder status: `idle`, `syncing`, `paused`, `error` with pending upload /
   download / delete counters and failures.
 - Pause and resume individual folders; remove folders again.
