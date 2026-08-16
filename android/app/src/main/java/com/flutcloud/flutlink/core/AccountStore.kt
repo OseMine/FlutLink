@@ -1,6 +1,7 @@
 package com.flutcloud.flutlink.core
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.serialization.SerialName
@@ -26,21 +27,30 @@ private data class StoredAccounts(val accounts: List<AccountMeta> = emptyList())
 
 /**
  * Account persistence mirroring the desktop client: metadata lives in a
- * normal preferences/DataStore file, the token in EncryptedSharedPreferences
+ * normal preferences file, the token in EncryptedSharedPreferences
  * (Android Keystore-backed). The token never leaves the app sandbox.
+ *
+ * The primary constructor takes the two [SharedPreferences] instances so
+ * the roundtrip logic is unit-testable on the JVM; the [Context]
+ * constructor wires up the real (encrypted) backing stores.
  */
-class AccountStore(context: Context) {
+class AccountStore(
+    private val prefs: SharedPreferences,
+    private val securePrefs: SharedPreferences
+) {
+
+    constructor(context: Context) : this(
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+        EncryptedSharedPreferences.create(
+            context,
+            SECURE_PREFS_NAME,
+            MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    )
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    private val securePrefs = EncryptedSharedPreferences.create(
-        context,
-        SECURE_PREFS_NAME,
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
 
     fun saveAccounts(accounts: List<AccountMeta>) {
         prefs.edit().putString(ACCOUNTS_KEY, json.encodeToString(StoredAccounts(accounts))).apply()
