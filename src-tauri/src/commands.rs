@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
@@ -54,27 +54,36 @@ pub async fn account_add(
     crate::flutcloud::verify_server(&state.http_client, &account).await?;
 
     let user = ocs::get_current_user(&state.http_client, &account).await?;
-    let is_admin = ocs::is_admin(&state.http_client, &account)
-        .await
-        .unwrap_or(false);
     let snapshot = state.accounts_snapshot();
-    // Re-adding an already-known account keeps its active state instead of
-    // silently deactivating it.
-    let existing = snapshot
-        .iter()
-        .find(|a| {
-            a.meta.username == account.meta.username
-                && a.meta.instance_url == account.meta.instance_url
-        })
-        .map(|a| a.meta.is_active)
-        .unwrap_or(false);
+    // Re-adding an already-known account keeps its active and admin state
+    // (unless the server now reports otherwise) instead of silently resetting
+    // them.
+    let existing = snapshot.iter().find(|a| {
+        a.meta.username == account.meta.username && a.meta.instance_url == account.meta.instance_url
+    });
+    let is_admin = match ocs::is_admin(&state.http_client, &account).await {
+        Ok(is_admin) => is_admin,
+        Err(err) => {
+            // Transient probe failure: keep the previously stored flag so an
+            // admin account is not demoted; the startup re-check fixes it later.
+            eprintln!(
+                "warn: could not determine admin status for {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            );
+            existing.map(|a| a.meta.is_admin).unwrap_or(false)
+        }
+    };
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: existing || snapshot.is_empty(),
+        is_active: existing
+            .map(|a| a.meta.is_active)
+            .unwrap_or(snapshot.is_empty()),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -244,25 +253,33 @@ pub async fn register_user(
         token: input.password,
     };
     let user = ocs::get_current_user(&state.http_client, &account).await?;
-    let is_admin = ocs::is_admin(&state.http_client, &account)
-        .await
-        .unwrap_or(false);
     let snapshot = state.accounts_snapshot();
-    let existing = snapshot
-        .iter()
-        .find(|a| {
-            a.meta.username == account.meta.username
-                && a.meta.instance_url == account.meta.instance_url
-        })
-        .map(|a| a.meta.is_active)
-        .unwrap_or(false);
+    let existing = snapshot.iter().find(|a| {
+        a.meta.username == account.meta.username && a.meta.instance_url == account.meta.instance_url
+    });
+    let is_admin = match ocs::is_admin(&state.http_client, &account).await {
+        Ok(is_admin) => is_admin,
+        Err(err) => {
+            // Transient probe failure: keep the previously stored flag so an
+            // admin account is not demoted; the startup re-check fixes it later.
+            eprintln!(
+                "warn: could not determine admin status for {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            );
+            existing.map(|a| a.meta.is_admin).unwrap_or(false)
+        }
+    };
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: existing || snapshot.is_empty(),
+        is_active: existing
+            .map(|a| a.meta.is_active)
+            .unwrap_or(snapshot.is_empty()),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -315,6 +332,46 @@ pub async fn account_remove(
     accounts::persist_accounts(&app, &list)?;
     crate::refresh_tray_menu(&app)?;
     Ok(to_meta_list(&list))
+}
+
+/// Re-evaluate the admin flag of every stored account against the server.
+///
+/// Runs once at app start: the stored flag is only overwritten when the OCS
+/// probe succeeds, so a transient network error never demotes an admin account
+/// to a regular one (the previous flag is kept). Persists and notifies the
+/// frontend/tray only when something actually changed.
+pub async fn refresh_admin_flags(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut changed = false;
+    for account in state.accounts_snapshot() {
+        match ocs::is_admin(&state.http_client, &account).await {
+            Ok(is_admin) => {
+                changed |= state.set_is_admin(
+                    &account.meta.username,
+                    &account.meta.instance_url,
+                    is_admin,
+                );
+            }
+            Err(err) => eprintln!(
+                "warn: could not re-check admin status of {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            ),
+        }
+    }
+    if changed {
+        if let Err(err) = accounts::persist_accounts(app, &state.accounts_snapshot()) {
+            eprintln!(
+                "warn: could not persist refreshed admin flags: {}",
+                err.message()
+            );
+        }
+        if let Err(err) = crate::refresh_tray_menu(app) {
+            eprintln!("warn: could not refresh tray menu: {}", err.message());
+        }
+        let _ = app.emit("accounts-changed", ());
+    }
 }
 
 /// Offline-cache namespace: the browsed user + the server instance, so listings

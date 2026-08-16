@@ -58,18 +58,19 @@ pub async fn get_current_quota(client: &Client, account: &Account) -> AppResult<
 /// Probe whether the account has admin rights by attempting to list users.
 /// OCS v1 always responds with HTTP 200, so the success is judged from the
 /// response body (`meta.statuscode`), not the HTTP status code.
+///
+/// `Ok(false)` means the server answered and denied the request (the account
+/// is a regular user). Network/parse failures propagate as `Err` so callers can
+/// distinguish "not an admin" from "status unknown" and keep the previously
+/// stored flag instead of demoting an admin account on a transient error.
 pub async fn is_admin(client: &Client, account: &Account) -> AppResult<bool> {
     let url = format!(
         "{}/ocs/v1.php/cloud/users?format=json&limit=1",
         account.base_url()
     );
-    match request(client, account, Method::GET, &url, None).await {
-        Ok(res) => {
-            let json: Value = res.json().await?;
-            Ok(ocs_meta_error(&json).is_none())
-        }
-        Err(_) => Ok(false),
-    }
+    let res = request(client, account, Method::GET, &url, None).await?;
+    let json: Value = res.json().await?;
+    Ok(ocs_meta_error(&json).is_none())
 }
 
 /// List all users, paging through the OCS `offset`/`limit` parameters so the
