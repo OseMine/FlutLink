@@ -36,6 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -119,8 +120,8 @@ fun FilesScreen(container: AppContainer) {
     ) { uri: Uri? ->
         uri?.let {
             val name = context.displayName(it) ?: "upload.bin"
-            val bytes = context.readAllBytes(it)
-            vm.upload(path, name, bytes)
+            val mime = context.contentResolver.getType(it) ?: "application/octet-stream"
+            vm.uploadStream(path, name, it, mime)
         }
     }
 
@@ -166,6 +167,17 @@ fun FilesScreen(container: AppContainer) {
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding).fillMaxSize()) {
             QuotaBar(quota)
+            val progressState by vm.transferProgress.collectAsState()
+            val progress = progressState
+            if (progress != null) {
+                val total = progress.total.coerceAtLeast(1L)
+                LinearProgressIndicator(
+                    progress = {
+                        (progress.transferred.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             if (showSearch) {
                 SearchResults(
                     results = searchResults,
@@ -519,6 +531,3 @@ private fun Context.displayName(uri: Uri): String? =
         val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
         if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
     }
-
-private fun Context.readAllBytes(uri: Uri): ByteArray =
-    contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
