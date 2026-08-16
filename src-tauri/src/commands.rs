@@ -337,6 +337,27 @@ pub async fn webdav_list(
     webdav::list(&state.http_client, &account, &path, target.as_deref()).await
 }
 
+/// Search the active account's whole files tree for entries whose name
+/// contains `query` (WebDAV-SEARCH). Admins may search another user's files
+/// via `target_user`.
+#[tauri::command]
+pub async fn webdav_search(
+    state: State<'_, AppState>,
+    query: String,
+    target_user: Option<String>,
+) -> AppResult<Vec<WebDavEntry>> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    webdav::search(&state.http_client, &account, query, target.as_deref()).await
+}
+
 /// Storage quota of the currently active account (from the OCS v2 user endpoint).
 #[tauri::command]
 pub async fn account_storage(state: State<'_, AppState>) -> AppResult<Option<UserQuota>> {

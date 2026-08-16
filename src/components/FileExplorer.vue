@@ -28,7 +28,41 @@ const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
 const draggingOver = ref(false);
+const searchInput = ref("");
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let unlistenDragDrop: (() => void) | null = null;
+
+const isSearching = computed(() => files.searchQuery.length > 0);
+
+watch(searchInput, (value) => {
+  if (searchTimer) clearTimeout(searchTimer);
+  const q = value.trim();
+  if (!q) {
+    files.clearSearch();
+    return;
+  }
+  searchTimer = setTimeout(() => {
+    void runSearch();
+  }, 300);
+});
+
+async function runSearch() {
+  try {
+    await files.searchFiles(searchInput.value);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+function clearSearchInput() {
+  searchInput.value = "";
+  files.clearSearch();
+}
+
+function parentPath(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx > 0 ? path.slice(0, idx) : "/";
+}
 
 function formatMtime(mtime: string | null): string {
   if (!mtime) return "—";
@@ -37,8 +71,8 @@ function formatMtime(mtime: string | null): string {
 }
 
 const sortedEntries = computed(() => {
-  const dirs = files.entries.filter((e) => e.isDir);
-  const others = files.entries.filter((e) => !e.isDir);
+  const dirs = files.displayEntries.filter((e) => e.isDir);
+  const others = files.displayEntries.filter((e) => !e.isDir);
   const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
     if (sortKey.value === "size") {
       const av = a.size ?? 0;
@@ -72,13 +106,13 @@ function toggleSelect(path: string) {
 
 const allSelected = computed(
   () =>
-    files.entries.length > 0 &&
-    files.entries.every((e) => selected.value.has(e.path))
+    files.displayEntries.length > 0 &&
+    files.displayEntries.every((e) => selected.value.has(e.path))
 );
 
 function toggleSelectAll() {
   if (allSelected.value) clearSelection();
-  else selected.value = new Set(files.entries.map((e) => e.path));
+  else selected.value = new Set(files.displayEntries.map((e) => e.path));
 }
 
 function clearSelection() {
@@ -86,7 +120,7 @@ function clearSelection() {
 }
 
 const selectedTargets = computed<BulkTarget[]>(() =>
-  files.entries
+  files.displayEntries
     .filter((e) => selected.value.has(e.path))
     .map((e) => ({ path: e.path, isDir: e.isDir }))
 );
@@ -157,6 +191,7 @@ function closeCtx() {
 
 async function open(entry: WebDavEntry) {
   if (entry.isDir) {
+    if (isSearching.value) clearSearchInput();
     await files.navigate(entry.path);
     return;
   }
@@ -386,6 +421,7 @@ watch(
     shareState.clear();
     adminViewAll.value = true;
     selectedUser.value = "";
+    searchInput.value = "";
     await files.reset();
     void loadAdminUsers();
   }
@@ -420,6 +456,26 @@ watch(
       </nav>
 
       <div class="flex shrink-0 items-center gap-2">
+        <div class="relative">
+          <Icon
+            name="search"
+            :size="15"
+            class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant"
+          />
+          <input
+            v-model="searchInput"
+            :placeholder="t('searchPlaceholder')"
+            class="w-44 rounded-md border border-outline bg-surface-container-high py-1 pl-7 pr-7 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+          />
+          <button
+            v-if="searchInput"
+            class="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+            :title="t('clearSearch')"
+            @click="clearSearchInput"
+          >
+            <Icon name="close" :size="14" />
+          </button>
+        </div>
         <div class="flex overflow-hidden rounded-md border border-outline">
           <button
             class="flex items-center px-2.5 py-1 transition"
@@ -520,7 +576,20 @@ watch(
       {{ files.error }}
     </div>
 
-    <div v-if="selected.size > 0 || files.entries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
+    <div
+      v-if="isSearching"
+      class="flex items-center gap-2 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container"
+    >
+      <Icon name="search" :size="14" class="opacity-80" />
+      <span>{{ t("searchResults") }}</span>
+      <span v-if="!files.searching" class="font-semibold">{{ files.displayEntries.length }}</span>
+      <span v-else>{{ t("searching") }}</span>
+      <button class="ml-auto underline-offset-2 hover:underline" @click="clearSearchInput">
+        {{ t("clearSearch") }}
+      </button>
+    </div>
+
+    <div v-if="selected.size > 0 || files.displayEntries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
       <label class="flex cursor-pointer items-center gap-1.5 select-none">
         <input
           type="checkbox"
@@ -573,11 +642,25 @@ watch(
       <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
-    <div v-if="files.loading && files.entries.length === 0" class="m-auto text-on-surface-variant">
+    <div
+      v-if="isSearching && files.searching && files.displayEntries.length === 0"
+      class="m-auto text-on-surface-variant"
+    >
+      {{ t("searching") }}
+    </div>
+
+    <div
+      v-else-if="isSearching && files.displayEntries.length === 0"
+      class="m-auto text-center text-on-surface-variant"
+    >
+      <p class="text-lg">{{ t("noSearchResults").replace("{query}", searchInput.trim()) }}</p>
+    </div>
+
+    <div v-else-if="files.loading && files.displayEntries.length === 0" class="m-auto text-on-surface-variant">
       {{ t("connecting") }}
     </div>
 
-    <div v-else-if="files.entries.length === 0" class="m-auto text-center text-on-surface-variant">
+    <div v-else-if="files.displayEntries.length === 0" class="m-auto text-center text-on-surface-variant">
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
@@ -628,7 +711,12 @@ watch(
                   <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
                   <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
                 </span>
-                <span class="truncate">{{ entry.name }}</span>
+                <span class="flex min-w-0 flex-col">
+                  <span class="truncate">{{ entry.name }}</span>
+                  <span v-if="isSearching" class="truncate text-xs text-on-surface-variant">
+                    {{ parentPath(entry.path) }}
+                  </span>
+                </span>
               </button>
             </td>
             <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
@@ -702,6 +790,13 @@ watch(
           <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
           <p class="w-full truncate text-[10px] text-on-surface-variant">
             {{ entry.isDir ? "—" : formatBytes(entry.size) }}
+          </p>
+          <p
+            v-if="isSearching"
+            class="w-full truncate text-[10px] text-on-surface-variant"
+            :title="parentPath(entry.path)"
+          >
+            {{ parentPath(entry.path) }}
           </p>
           <div class="flex gap-1">
             <button

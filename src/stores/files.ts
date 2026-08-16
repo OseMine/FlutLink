@@ -16,9 +16,17 @@ export const useFilesStore = defineStore("files", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const transfer = ref<TransferProgress | null>(null);
+  const searchQuery = ref("");
+  const searchResults = ref<WebDavEntry[]>([]);
+  const searching = ref(false);
   let progressBound = false;
 
+  const displayEntries = computed(() =>
+    searchQuery.value ? searchResults.value : entries.value
+  );
+
   let refreshSeq = 0;
+  let searchSeq = 0;
 
   const crumbs = computed(() => {
     const parts = currentPath.value.split("/").filter(Boolean);
@@ -56,6 +64,7 @@ export const useFilesStore = defineStore("files", () => {
   function setTargetUser(username: string | null) {
     if (targetUser.value === username) return;
     targetUser.value = username;
+    clearSearch();
     currentPath.value = "/";
     void refresh();
   }
@@ -65,7 +74,39 @@ export const useFilesStore = defineStore("files", () => {
     targetUser.value = null;
     currentPath.value = "/";
     entries.value = [];
+    clearSearch();
     await refresh();
+  }
+
+  async function searchFiles(query: string) {
+    const q = query.trim();
+    if (!q) {
+      clearSearch();
+      return;
+    }
+    const seq = ++searchSeq;
+    searchQuery.value = q;
+    searching.value = true;
+    error.value = null;
+    try {
+      const results = await api.webdavSearch(
+        q,
+        targetUser.value ?? undefined
+      );
+      if (seq === searchSeq) searchResults.value = results;
+    } catch (e) {
+      if (seq === searchSeq) error.value = invokeError(e).message;
+      throw e;
+    } finally {
+      if (seq === searchSeq) searching.value = false;
+    }
+  }
+
+  function clearSearch() {
+    ++searchSeq;
+    searchQuery.value = "";
+    searchResults.value = [];
+    searching.value = false;
   }
 
   async function createShare(path: string): Promise<string> {
@@ -176,14 +217,20 @@ export const useFilesStore = defineStore("files", () => {
     currentPath,
     targetUser,
     entries,
+    displayEntries,
     loading,
     error,
     transfer,
+    searchQuery,
+    searchResults,
+    searching,
     crumbs,
     navigate,
     refresh,
     setTargetUser,
     reset,
+    searchFiles,
+    clearSearch,
     createShare,
     uploadFile,
     downloadFile,
