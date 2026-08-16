@@ -187,6 +187,9 @@ export const api = {
   webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
 
+  openRemoteFile: (remotePath: string, targetUser?: string) =>
+    invoke<void>("open_remote_file", { remotePath, targetUser }),
+
   webdavDownloadZip: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_download_zip", { remotePath, localPath, targetUser }),
 

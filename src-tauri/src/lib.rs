@@ -244,6 +244,7 @@ pub fn run() {
             commands::webdav_create_share,
             commands::webdav_upload_file,
             commands::webdav_download_file,
+            commands::open_remote_file,
             commands::webdav_download_zip,
             commands::webdav_thumbnail,
             commands::webdav_delete,
