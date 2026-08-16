@@ -35,7 +35,7 @@ const dict: Record<Lang, Record<string, string>> = {
     signIn: "Sign In",
     registerServer: "Register",
     initHint:
-      "App passwords are created under FlutCloud → Settings → Security → App passwords.",
+      "Sign in with an app password (FlutCloud → Settings → Security → App passwords). The password you set when registering a new account permanently becomes that account's app password — changing it on the server invalidates the stored token.",
     keychainSecured: "Your credentials are stored in your OS keychain.",
     signInTitle: "Sign in to FlutCloud",
     signInSubtitle: "Connect your FlutCloud account using an app password.",
@@ -273,7 +273,7 @@ const dict: Record<Lang, Record<string, string>> = {
     signIn: "Anmelden",
     registerServer: "Registrieren",
     initHint:
-      "App-Passwörter erstellt man unter FlutCloud → Einstellungen → Sicherheit → App-Passwörter.",
+      "Melde dich mit einem App-Passwort an (FlutCloud → Einstellungen → Sicherheit → App-Passwörter). Das Passwort, das du bei der Registrierung eines neuen Kontos setzt, bleibt dauerhaft dessen App-Passwort – ein Passwortwechsel auf dem Server macht das gespeicherte Token ungültig.",
     keychainSecured: "Deine Anmeldedaten werden im OS-Schlüsselbund gespeichert.",
     signInTitle: "Bei FlutCloud anmelden",
     signInSubtitle: "Verbinde dein FlutCloud-Konto mit einem App-Passwort.",

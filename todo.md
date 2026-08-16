@@ -271,7 +271,7 @@ Neue Befunde (Lauf 4):
 - [ ] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
       Pass aus: `run_all` (Z. 1079-1080) und nochmals `run_pass` (Z. 714) →
       unnötige MKCOL-Requests auf jedem Tick. Eine Stelle reicht.
-- [ ] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
+- [x] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
       das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
       der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
       ungültig; in `docs/` + i18n (`initHint`) klarstellen, dass das
@@ -362,6 +362,20 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (N9)
+
+- [x] **N9 (Doku/UX, minor):** `register_user` (`commands.rs:156-253`) speichert
+      das echte Kontopasswort als Keyring-Token (`save_token`, Z. 245), während
+      der Login-Flow ein App-Passwort erwartet. Passwortwechsel macht das Token
+      ungültig. Fix: `docs/en/getting-started.md` + `docs/de/getting-started.md`
+      (neuer Abschnitt „Registering a new account" / „Neues Konto registrieren"),
+      `docs/en/security.md` + `docs/de/security.md` (Abschnitt
+      „Registration password = app password" / „Registrierungs-Passwort =
+      App-Passwort") und der i18n-`initHint`-Text (en + de) stellen jetzt klar,
+      dass das Registrierungs-Passwort dauerhaft das App-Passwort ist und ein
+      Passwortwechsel das gespeicherte Token ungültig macht (Konto muss entfernt
+      und neu hinzugefügt werden).
 
 ### Review 2026-08-15 (U8)
 

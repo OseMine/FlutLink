@@ -87,6 +87,25 @@ anmelden oder erst einmal den Willkommensbildschirm erkunden.
 Das Konto wird gegen `ocs/v2.php/cloud/user` geprüft und als **Admin**
 markiert, wenn der Benutzer einer Admin-Gruppe angehört.
 
+### Neues Konto registrieren
+
+Statt dich mit einem bestehenden Konto anzumelden, kannst du in FlutLink auch
+ein neues Konto **registrieren** (ohne E-Mail). Dafür werden einmalig die
+FlutCloud-Admin-Zugangsdaten benötigt; das Konto wird über die
+OCS-Provisioning-API erstellt und anschließend automatisch angemeldet.
+
+Das **Passwort, das du bei der Registrierung wählst, wird dauerhaft zum
+App-Passwort dieses Kontos**: FlutLink speichert es im OS-Schlüsselbund und
+verwendet es für jeden Request — genau wie ein reguläres App-Passwort. Ein
+separates App-Passwort muss nicht angelegt werden — das
+Registrierungs-Passwort ist das App-Passwort.
+
+Da das gespeicherte Token *das* Kontopasswort ist, wird das Token ungültig,
+sobald das Kontopasswort später geändert wird (z. B. unter FlutCloud →
+Einstellungen → Sicherheit → Passwort). Nach einem Passwortwechsel musst du das
+Konto in FlutLink entfernen und neu hinzufügen (und dich mit dem neuen Passwort
+oder einem frischen App-Passwort anmelden).
+
 ## Was du als Nächstes ausprobieren kannst
 
 - Durchsuche deine Cloud-Dateien im **Dateien**-Tab.
