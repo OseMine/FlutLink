@@ -198,5 +198,5 @@ cargo test                 # Rust unit tests (incl. WebDAV XML parser)
 
 - **Phase 1 (done):** Tauri v2 + Vite + Tailwind scaffold; Rust backend with keychain auth, multi-account state, WebDAV listing, OCS admin endpoints; account switcher UI.
 - **Phase 2 (done):** Two-way sync engine with journal, background worker, sync panel; system tray + close-to-tray; CLI flags; official FlutLink/OperationFlut branding.
-- **Phase 3 (in progress):** Chunked uploads/downloads with progress events (`app.emit`), drag & drop upload, select-all and bulk download/delete in the file browser, symlink/virtual-link resolution (symlink-following sync option + `resources`/`parts` link targets). Remaining: `resources`/`parts` dual-pane workflows.
+- **Phase 3 (in progress):** Chunked uploads/downloads with progress events (`app.emit`), drag & drop upload, select-all and bulk download/delete in the file browser, `resources`/`parts` dual-pane workflows (pairing + split view), symlink-following sync option + `resources`/`parts` link targets.
 - **Phase 4:** Full provisioning UI (create/delete users, groups, impersonation) and quota presets, native notifications, offline cache.

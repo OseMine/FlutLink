@@ -45,6 +45,10 @@ pub struct WebDavEntry {
     /// regular (non virtual) entries.
     #[serde(default)]
     pub link_target: Option<String>,
+    /// Path of the counterpart in the paired namespace: `/resources/…` entries
+    /// point at their writable `/parts/…` part and vice versa. `None` for
+    /// regular files/folders outside the FlutCloud virtual namespaces.
+    pub paired_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +66,26 @@ pub struct UserQuota {
     pub used: Option<u64>,
     pub free: Option<u64>,
     pub relative: Option<f64>,
+}
+
+/// A folder listing plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavListResult {
+    pub entries: Vec<WebDavEntry>,
+    /// True when the listing came from the offline cache because the server
+    /// could not be reached; the frontend shows an offline indicator then.
+    pub stale: bool,
+}
+
+/// A storage quota plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageResult {
+    pub quota: Option<UserQuota>,
+    /// True when the quota came from the offline cache because the server
+    /// could not be reached.
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,5 +257,22 @@ impl AppState {
             .iter()
             .find(|a| a.meta.username == username && a.meta.instance_url == instance_url)
             .cloned()
+    }
+
+    /// Overwrite only the admin flag of a stored account (in place, keeping the
+    /// account order and every other field intact). Returns whether the flag
+    /// actually changed.
+    pub fn set_is_admin(&self, username: &str, instance_url: &str, is_admin: bool) -> bool {
+        let mut guard = self.accounts.write().expect("accounts lock poisoned");
+        for account in guard.iter_mut() {
+            if account.meta.username == username && account.meta.instance_url == instance_url {
+                if account.meta.is_admin == is_admin {
+                    return false;
+                }
+                account.meta.is_admin = is_admin;
+                return true;
+            }
+        }
+        false
     }
 }
