@@ -57,11 +57,11 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
       (Z. 439-441) wird nur bei Konto-Wechsel geleert → stale Einträge bleiben.
       Fix: Beim `watch(() => files.currentPath)` auf aktuelle Entries prunen.
-- [ ] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
+- [x] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzt hartkodierte
       Farben statt M3-Tokens. Z. 88: `border-amber-800 bg-amber-950/50 …
       text-amber-300` — U8 hat alle Komponenten auf Tokens umgestellt, dieser
       Hinweis ist die verbliebene Lücke (im hellen Theme schlechter Kontrast).
-      Fix: Token-Klassen/CSS-Variablen verwenden.
+      Fix: Token-Klassen/CSS-Variablen verwenden. → umgesetzt (siehe Archiv).
 - [ ] **U-R8-8 (UX, minor):** Theme-FOUC beim Start mit „System Default".
       `App.vue` initialisiert `resolvedTheme` mit `"operationflut"` (Z. 30) und
       ruft `resolveTheme()` erst in `onMounted` (Z. 102) auf → Nutzer mit
@@ -200,6 +200,18 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (U-R8-7)
+
+- [x] **U-R8-7 (UX, minor):** `AccountBar.vue` Filter-Hinweis nutzte
+      hartkodierte Farben (`border-amber-800 bg-amber-950/50 …
+      text-amber-300`) statt M3-Tokens — im hellen Theme schlechter Kontrast.
+      Fix: Der Hinweis nutzt jetzt die Token-Klassen `border-tertiary
+      bg-tertiary-container text-on-tertiary-container` (M3-Tertiär-Rolle als
+      Warn-Analog), konsistent zum Error-Banner (`border-error
+      bg-error-container text-on-error-container`) im selben Component; re-themt
+      sich damit über `[data-theme]` in allen Themes (inkl. Light). Verifikation:
+      `npm run build` grün (vue-tsc + vite).
 
 ### Review 2026-08-16 (Android-Client)
 
