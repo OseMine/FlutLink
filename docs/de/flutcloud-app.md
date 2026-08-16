@@ -15,7 +15,7 @@ ausführen. Vor jedem Konto-Login fragt der Client den OCS-Capabilities-Endpoint
 
 | Voraussetzung | Version |
 | --- | --- |
-| Nextcloud-Server | 28 – 31 |
+| Nextcloud-Server | 28 – 37 |
 | PHP | 8.1+ |
 | Composer | optional — nur für den OCA-Autoloader |
 

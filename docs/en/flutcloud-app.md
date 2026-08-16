@@ -16,7 +16,7 @@ otherwise).
 
 | Requirement | Version |
 | --- | --- |
-| Nextcloud server | 28 – 31 |
+| Nextcloud server | 28 – 37 |
 | PHP | 8.1+ |
 | Composer | optional — only to generate the OCA autoloader |
 

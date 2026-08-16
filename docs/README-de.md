@@ -1,6 +1,7 @@
 # FlutLink-Dokumentation
 
 [Englische Doku](README.md)
+
 Willkommen zur FlutLink-Dokumentation. FlutLink ist ein Tauri-v2-Desktop-Client
 für den FlutCloud-Server — Dateibrowser, Freigaben, Administration und
 Zwei-Wege-Sync, wobei der komplette HTTP-Stack (WebDAV + OCS) im Rust-Backend
@@ -14,7 +15,7 @@ Jede Seite existiert in beiden Varianten und muss synchron bleiben.
 
 ```
 docs/
-├── README.md               # dieser Index
+├── README.md               # englischer Index
 ├── README-de.md            # deutscher Index
 ├── en/                     # English
 │   ├── getting-started.md  # Voraussetzungen, Dev-Setup, erster Start

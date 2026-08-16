@@ -1,6 +1,7 @@
 # FlutLink Documentation
 
 [German docs](README-de.md)
+
 Welcome to the FlutLink documentation. FlutLink is a Tauri v2 desktop client
 for the FlutCloud server — file browsing, sharing, administration and two-way
 sync, with the entire HTTP stack (WebDAV + OCS) living in the Rust backend.

@@ -11,17 +11,20 @@ like `PROPFIND`, and keeps credentials out of the renderer.
 src/                              # Vue 3 + TypeScript + Tailwind v4
 ├── components/
 │   ├── AccountBar.vue            # account switcher, storage widget, add/remove
-│   ├── FileExplorer.vue          # WebDAV browser, resources/parts, link sharing
-│   ├── AdminPanel.vue            # OCS user provisioning + impersonation
+│   ├── FileExplorer.vue          # WebDAV browser, search, sharing, resources/parts
+│   ├── EntryList.vue             # shared list/grid rendering incl. pairing button
+│   ├── AdminPanel.vue            # OCS user + group provisioning, impersonation
 │   ├── SyncPanel.vue             # sync folder management + live status
 │   ├── LoginModal.vue            # keychain-backed sign-in
-│   ├── SettingsModal.vue         # language, theme, about
+│   ├── SettingsModal.vue         # language, theme, about, updates
 │   ├── AppLogo.vue / WelcomeScreen.vue  # FlutLink/OperationFlut branding
-│   └── ToastStack.vue            # toast notifications
+│   ├── ToastStack.vue            # toast notifications
+│   └── Icon.vue                  # Material icon set (replaces emoji glyphs)
 ├── lib/
 │   ├── ipc.ts                    # typed invoke() wrappers for every command
-│   ├── i18n.ts                   # EN/DE dictionaries, translate()
-│   └── format.ts                 # byte formatting helpers
+│   ├── i18n.ts                   # EN/DE dictionaries, translate(), error keys
+│   ├── format.ts                 # byte formatting helpers
+│   └── ripple.ts                 # Material 3 ripple feedback
 ├── stores/
 │   ├── accounts.ts               # account list, active account, storage quota
 │   ├── files.ts                  # WebDAV listing state
@@ -35,9 +38,11 @@ src-tauri/                        # Rust backend
 │   ├── state.rs                  # AppState: reqwest client, accounts, sync engine
 │   ├── error.rs                  # AppError/AppResult (JSON-serialized)
 │   ├── accounts.rs               # accounts.json metadata + keyring tokens
+│   ├── cache.rs                  # offline cache for listings + quota
 │   ├── commands.rs               # all #[tauri::command] handlers
 │   ├── flutcloud.rs              # FlutCloud-only enforcement (fixed server URL + capability probe)
 │   ├── sync.rs                   # two-way sync engine (journal/planner/worker)
+│   ├── updater.rs                # update check, SHA-256 download, install
 │   └── nextcloud/
 │       ├── mod.rs                # auth request helper, URL/encoding utils
 │       ├── webdav.rs             # PROPFIND + multistatus parsing, transfers
@@ -76,6 +81,10 @@ account is created.
 | `sync-status` | `SyncFolderStatus[]` | push updated sync statuses to `stores/sync.ts` |
 | `flutlink:cli-open` | `string` | open the login dialog with a server URL |
 | `sync-folders-changed` | `()` | folder added via CLI → refresh sync panel |
+| `accounts-changed` | `()` | account switched/removed → refresh account list |
+| `file://progress` | `TransferProgress` | per-file upload/download progress |
+| `update://progress` | `DownloadProgress` | update download progress |
+| `update://status` | `string` | update lifecycle status messages |
 
 ## State model (`state.rs`)
 

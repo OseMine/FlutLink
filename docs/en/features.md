@@ -24,6 +24,19 @@ administration and two-way sync.
   opens it with the default app), new folder, rename, delete — via the toolbar,
   the context menu and multi-selection.
 - View toggle (grid / list), sortable columns and multi-select.
+- **Global search** via WebDAV `SEARCH` (debounced input): results show their
+  location and jump to the folder on click.
+- **Bulk actions**: select-all checkbox plus bulk download and delete.
+- **Drag & drop upload** of files and folders with per-file overwrite
+  confirmation.
+- **Progress**: uploads and downloads emit `file://progress` events shown as
+  progress indicators.
+- **Folder ZIP download** and lazy-loaded **image thumbnails** in list and grid
+  views.
+- **Offline mode**: listings and quota are cached; on network failure the
+  cached data is shown with an "offline" banner.
+- Back button and full keyboard navigation (arrow keys move the focus, Enter
+  opens, Delete removes).
 - Multi-account support: switch accounts from the sidebar or the avatar menu.
 
 ## Admin tab
@@ -32,7 +45,9 @@ Only visible/enabled for accounts that are members of an admin group.
 
 - List all users (OCS Provisioning API).
 - Inspect user details and quota.
-- Set user quotas and edit user attributes.
+- Set user quotas (with **presets** like 1/5/10 GB, unlimited or custom) and
+  edit user attributes.
+- **Group management**: list and create groups, add and remove group members.
 - Browse a user's files through **admin impersonation**: `webdav_list`
   accepts an optional `target_user`; the backend refuses the call for
   non-admins and sets the `Impersonate-User` header.
@@ -61,3 +76,12 @@ See [Sync engine](sync.md) for the details.
   `--sync`, `--path <dir>`, `--tray`.
 
 See [Tray & CLI](tray-and-cli.md).
+
+## Updates & notifications
+
+- **Auto-update check** at startup: when a new release is available an update
+  banner appears, and the settings dialog offers a manual check and install.
+  Downloads are verified against the SHA-256 digest published in the release.
+- **Native OS notifications** after a sync pass (errors or synced file counts,
+  aggregated across folders, no spam on idle passes) and when an update is
+  available.

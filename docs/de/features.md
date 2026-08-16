@@ -25,6 +25,20 @@ Freigaben, Administration und Zwei-Wege-Sync.
   Tempdatei und öffnet sie mit der Standard-App), Neuer Ordner, Umbenennen,
   Löschen — über die Symbolleiste, das Kontextmenü und Mehrfachauswahl.
 - Umschalter Raster/Liste, sortierbare Spalten und Mehrfachauswahl.
+- **Globale Suche** über WebDAV `SEARCH` (Debounce-Eingabe): Treffer zeigen
+  ihren Speicherort und springen per Klick in den Ordner.
+- **Bulk-Aktionen**: Select-All-Checkbox sowie Bulk-Download und -Löschen.
+- **Drag-&-Drop-Upload** von Dateien und Ordnern mit Bestätigung pro Datei bei
+  Überschreiben.
+- **Fortschritt**: Uploads und Downloads emittieren `file://progress`-Events
+  und werden als Fortschrittsindikatoren angezeigt.
+- **Ordner-ZIP-Download** und lazy-geladene **Bild-Thumbnails** in Listen- und
+  Rasteransicht.
+- **Offline-Modus**: Listings und Kontingente werden gecacht; bei
+  Netzwerkfehlern werden die gecachten Daten mit einem „Offline"-Banner
+  angezeigt.
+- „Zurück"-Button und vollständige Tastatur-Navigation (Pfeiltasten bewegen den
+  Fokus, Enter öffnet, Entf löscht).
 - Mehrere Konten: Kontowechsel über die Seitenleiste oder das
   Avatar-Menü.
 
@@ -34,7 +48,10 @@ Nur für Konten sichtbar/aktiv, die Mitglied einer Admin-Gruppe sind.
 
 - Alle Benutzer auflisten (OCS Provisioning API).
 - Benutzerdetails und Kontingente ansehen.
-- Kontingente setzen und Benutzerattribute bearbeiten.
+- Kontingente setzen (mit **Presets** wie 1/5/10 GB, unbegrenzt oder
+  benutzerdefiniert) und Benutzerattribute bearbeiten.
+- **Gruppenverwaltung**: Gruppen auflisten und anlegen, Mitglieder hinzufügen
+  und entfernen.
 - Dateien von Benutzern per **Admin-Impersonation** durchsuchen:
   `webdav_list` akzeptiert optional `target_user`; das Backend verweigert den
   Aufruf für Nicht-Admins und setzt den `Impersonate-User`-Header.
@@ -64,3 +81,13 @@ Details siehe [Sync-Engine](sync.md).
   `--sync`, `--path <Ordner>`, `--tray`.
 
 Siehe [Tray & CLI](tray-and-cli.md).
+
+## Updates & Benachrichtigungen
+
+- **Auto-Update-Check** beim Start: Ist ein neues Release verfügbar, erscheint
+  ein Update-Banner, und die Einstellungen bieten manuelle Prüfung und
+  Installation. Downloads werden gegen den im Release veröffentlichten
+  SHA-256-Digest verifiziert.
+- **Native OS-Benachrichtigungen** nach einem Sync-Pass (Fehler bzw.
+  synchronisierte Dateien, über alle Ordner aggregiert, kein Spam bei
+  Leerläufen) und wenn ein Update verfügbar ist.

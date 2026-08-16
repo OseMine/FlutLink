@@ -97,11 +97,14 @@ flutlink/
 ├── src/                        # Vue 3 + TypeScript + Tailwind v4 frontend
 │   ├── components/
 │   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
-│   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, sort, multi-select, file ops, link sharing
-│   │   ├── AdminPanel.vue      # OCS user provisioning (list, create, edit, delete, quota)
-│   │   └── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
-│   ├── lib/ipc.ts              # Typed invoke() wrappers for every Rust command
-│   ├── stores/                 # Pinia: accounts + files + sync state
+│   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, search, sort, multi-select, file ops, sharing
+│   │   ├── EntryList.vue       # Shared list/grid rendering + pairing button
+│   │   ├── AdminPanel.vue      # OCS user & group provisioning (list, create, edit, delete, quota)
+│   │   ├── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
+│   │   ├── LoginModal.vue / SettingsModal.vue  # Sign-in dialog + settings/updates
+│   │   └── ToastStack.vue / Icon.vue / AppLogo.vue / WelcomeScreen.vue  # UI primitives
+│   ├── lib/                    # ipc.ts (typed invoke wrappers), i18n.ts, format.ts, ripple.ts
+│   ├── stores/                 # Pinia: accounts + files + sync + ui state
 │   └── App.vue                 # Shell: sidebar + Files/Sync/Admin tabs
 ├── src-tauri/                  # Rust backend
 │   ├── src/
@@ -109,9 +112,11 @@ flutlink/
 │   │   ├── state.rs            # AppState: shared reqwest client + account + sync engine
 │   │   ├── error.rs            # Serializable AppError (code + message) for the frontend
 │   │   ├── accounts.rs         # OS keychain (keyring) + accounts.json persistence
+│   │   ├── cache.rs            # Offline cache for file listings + quota
 │   │   ├── commands.rs         # All #[tauri::command] IPC endpoints
 │   │   ├── flutcloud.rs        # FlutCloud-only enforcement (URL check + capability probe)
 │   │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
+│   │   ├── updater.rs          # Update check, SHA-256 download, install
 │   │   └── nextcloud/
 │   │       ├── mod.rs          # Shared auth request helper + URL/encoding utils
 │   │       ├── webdav.rs       # PROPFIND, multistatus XML parsing, transfer helpers
@@ -149,13 +154,21 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 | Command | Backend | Purpose |
 | --- | --- | --- |
 | `account_add` | OCS `/cloud/user` + admin probe | Verify credentials, store token in keychain, add/activate account |
-| `account_switch` / `account_remove` / `account_list` | state | Multi-account lifecycle |
-| `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart` |
-| `webdav_create_share` | OCS share API | Generate a public link, URL returned to frontend |
-| `webdav_upload_file` / `webdav_download_file` / `webdav_delete` / `webdav_mkdir` / `webdav_rename` | WebDAV | File operations in the browser (admins may target another user) |
+| `account_switch` / `account_remove` / `account_list` | state | Multi-account lifecycle (switch emits `accounts-changed`) |
+| `account_storage` | WebDAV quota | Quota info (offline-cached via `cache.rs`) |
+| `refresh_admin_flags` | OCS | Re-evaluate stored admin flags at startup |
+| `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart`; offline cache fallback |
+| `webdav_search` | WebDAV `SEARCH` | Global file search across the server |
+| `webdav_create_share` / `webdav_list_shares` / `webdav_delete_share` | OCS share API | Create public/user/group shares; list and revoke shares |
+| `webdav_upload_file` / `webdav_download_file` / `open_remote_file` | WebDAV | Upload / download / open via cache dir (admins may target another user) |
+| `webdav_mkdir` / `webdav_rename` / `webdav_delete` | WebDAV | Create folder, rename and delete (rename validated, overwrite guarded) |
+| `webdav_upload_local_paths` / `webdav_bulk_delete` / `webdav_bulk_download` | WebDAV | Drag & drop upload + bulk operations (`file://progress` events) |
+| `webdav_download_zip` / `webdav_thumbnail` | WebDAV | Folder ZIP download / image thumbnails |
 | `admin_list_users` / `admin_get_user` / `admin_set_user_quota` / `admin_edit_user` / `admin_create_user` / `admin_delete_user` | OCS Provisioning API | Admin panel (admin accounts only) |
+| `admin_list_groups` / `admin_create_group` / `admin_add_group_member` / `admin_remove_group_member` | OCS Groups API | Group management (admin accounts only) |
 | `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
 | `sync_trigger` | `sync.rs` | Kick off a sync pass immediately |
+| `check_update` / `download_and_install_update` | `updater.rs` | Update check (SHA-256 verified) and install |
 
 ### Two-way sync
 
@@ -198,5 +211,6 @@ cargo test                 # Rust unit tests (incl. WebDAV XML parser)
 
 - **Phase 1 (done):** Tauri v2 + Vite + Tailwind scaffold; Rust backend with keychain auth, multi-account state, WebDAV listing, OCS admin endpoints; account switcher UI.
 - **Phase 2 (done):** Two-way sync engine with journal, background worker, sync panel; system tray + close-to-tray; CLI flags; official FlutLink/OperationFlut branding.
-- **Phase 3 (in progress):** Chunked uploads/downloads with progress events (`app.emit`), drag & drop upload, select-all and bulk download/delete in the file browser, `resources`/`parts` dual-pane workflows (pairing + split view), symlink-following sync option + `resources`/`parts` link targets.
-- **Phase 4:** Full provisioning UI (create/delete users, groups, impersonation) and quota presets, native notifications, offline cache.
+- **Phase 3 (done):** Chunked uploads/downloads with progress events (`file://progress`), drag & drop upload, select-all and bulk download/delete, global file search, folder ZIP downloads + thumbnails, back button + keyboard navigation, `resources`/`parts` dual-pane workflows (pairing + split view), symlink-following sync option + link targets.
+- **Phase 4 (done):** Full provisioning UI (users, groups, impersonation) with quota presets, native OS notifications, offline cache, startup update check + banner.
+- **Next:** Android client (`android/`), code-signing/notarization automation.

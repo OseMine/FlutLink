@@ -1,5 +1,7 @@
 # FlutCloud — Nextcloud App
 
+## English
+
 The **FlutCloud** Nextcloud app is the server-side companion of the
 [FlutLink](../README.md) desktop client. It provides the **non-standard
 features** of the FlutCloud server — the parts that vanilla Nextcloud does not
@@ -10,6 +12,16 @@ FlutLink connects **exclusively** to servers that run this app. Before any
 account is added it queries the OCS capabilities endpoint
 (`/ocs/v2.php/cloud/capabilities?format=json`) and refuses to continue unless
 the `flutcloud` capability is announced.
+
+## Requirements
+
+| Requirement | Version |
+| --- | --- |
+| Nextcloud server | 28 – 37 |
+| PHP | 8.1+ |
+
+The app itself has no runtime PHP dependencies; the Composer autoloader is
+only needed for the `OCA\FlutCloud\` namespace (PSR-4 → `lib/`).
 
 ## Features
 
@@ -65,7 +77,7 @@ in sync when bumping the version.
 
 ---
 
-# FlutCloud — Nextcloud-App
+## Deutsch
 
 Die **FlutCloud**-Nextcloud-App ist die serverseitige Ergänzung des
 [FlutLink](../README.md)-Desktop-Clients. Sie liefert die
@@ -77,6 +89,16 @@ FlutLink verbindet sich **ausschließlich** mit Servern, die diese App
 ausführen. Vor jedem Konto-Login fragt der Client den OCS-Capabilities-Endpoint
 (`/ocs/v2.php/cloud/capabilities?format=json`) ab und bricht ab, wenn die
 `flutcloud`-Capability nicht angekündigt wird.
+
+## Voraussetzungen
+
+| Voraussetzung | Version |
+| --- | --- |
+| Nextcloud-Server | 28 – 37 |
+| PHP | 8.1+ |
+
+Die App selbst hat keine Laufzeit-PHP-Abhängigkeiten; der Composer-Autoloader
+wird nur für den `OCA\FlutCloud`-Namespace gebraucht (PSR-4 → `lib/`).
 
 ## Funktionen
 

@@ -45,7 +45,7 @@ unverändert ist — das verhindert versehentlichen Datenverlust. Übersprungene
 Muster: Dotfiles, `~$*`, nachgestelltes `~`, `Thumbs.db`. Symbolische Links
 werden standardmäßig übersprungen; wird ein Sync-Ordner mit der Option
 „Symlinks folgen“ angelegt, werden Links in `walk_local` aufgelöst (mit
-Kanonal-Pfad-Zyklusschutz), sodass ihre Ziele synchronisiert werden.
+Kanonikal-Pfad-Zyklusschutz), sodass ihre Ziele synchronisiert werden.
 
 ## Verzeichnisse & Typkonflikte
 

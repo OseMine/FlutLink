@@ -12,17 +12,20 @@ dem Renderer heraus.
 src/                              # Vue 3 + TypeScript + Tailwind v4
 ├── components/
 │   ├── AccountBar.vue            # Kontowechsel, Speicher-Widget, hinzufügen/entfernen
-│   ├── FileExplorer.vue          # WebDAV-Browser, resources/parts, Link-Freigabe
-│   ├── AdminPanel.vue            # OCS-Benutzerverwaltung + Impersonation
+│   ├── FileExplorer.vue          # WebDAV-Browser, Suche, Freigaben, resources/parts
+│   ├── EntryList.vue             # gemeinsame Listen-/Grid-Darstellung inkl. Pairing-Button
+│   ├── AdminPanel.vue            # OCS-Benutzer- + Gruppenverwaltung, Impersonation
 │   ├── SyncPanel.vue             # Sync-Ordner verwalten + Live-Status
 │   ├── LoginModal.vue            # Anmeldung über Schlüsselbund
-│   ├── SettingsModal.vue         # Sprache, Design, Über
+│   ├── SettingsModal.vue         # Sprache, Design, Über, Updates
 │   ├── AppLogo.vue / WelcomeScreen.vue  # FlutLink/OperationFlut-Branding
-│   └── ToastStack.vue            # Toast-Benachrichtigungen
+│   ├── ToastStack.vue            # Toast-Benachrichtigungen
+│   └── Icon.vue                  # Material-Icon-Set (ersetzt Emoji-Glyphen)
 ├── lib/
 │   ├── ipc.ts                    # typisierte invoke()-Wrapper für alle Commands
-│   ├── i18n.ts                   # EN/DE-Wörterbücher, translate()
-│   └── format.ts                 # Byte-Formatierung
+│   ├── i18n.ts                   # EN/DE-Wörterbücher, translate(), Fehler-Keys
+│   ├── format.ts                 # Byte-Formatierung
+│   └── ripple.ts                 # Material-3-Ripple-Feedback
 ├── stores/
 │   ├── accounts.ts               # Kontenliste, aktives Konto, Speicherkontingent
 │   ├── files.ts                  # WebDAV-Listing-Zustand
@@ -36,9 +39,11 @@ src-tauri/                        # Rust-Backend
 │   ├── state.rs                  # AppState: reqwest-Client, Konten, Sync-Engine
 │   ├── error.rs                  # AppError/AppResult (als JSON serialisiert)
 │   ├── accounts.rs               # accounts.json-Metadaten + Keyring-Tokens
+│   ├── cache.rs                  # Offline-Cache für Listings + Kontingente
 │   ├── commands.rs               # alle #[tauri::command]-Handler
 │   ├── flutcloud.rs              # FlutCloud-only-Durchsetzung (fester Server-URL + Capability-Probe)
 │   ├── sync.rs                   # Zwei-Wege-Sync-Engine (Journal/Planner/Worker)
+│   ├── updater.rs                # Update-Check, SHA-256-Download, Installation
 │   └── nextcloud/
 │       ├── mod.rs                # Auth-Request-Helper, URL/Encoding-Utilities
 │       ├── webdav.rs             # PROPFIND + multistatus-Parsing, Transfers
@@ -77,6 +82,10 @@ jeder Konto-Erstellung den OCS-Capabilities-Endpoint auf die
 | `sync-status` | `SyncFolderStatus[]` | aktualisierte Sync-Status an `stores/sync.ts` |
 | `flutlink:cli-open` | `string` | Login-Dialog mit Server-URL öffnen |
 | `sync-folders-changed` | `()` | Ordner per CLI hinzugefügt → Sync-Panel aktualisieren |
+| `accounts-changed` | `()` | Konto gewechselt/entfernt → Kontenliste aktualisieren |
+| `file://progress` | `TransferProgress` | Fortschritt pro Upload/Download |
+| `update://progress` | `DownloadProgress` | Fortschritt des Update-Downloads |
+| `update://status` | `string` | Statusmeldungen des Update-Lebenszyklus |
 
 ## Zustandsmodell (`state.rs`)
 
