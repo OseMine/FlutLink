@@ -1162,7 +1162,10 @@ fn count_files(path: &Path) -> u64 {
     count
 }
 
-/// Create a cloud folder (with all missing parents).
+/// Create a single cloud folder at `path`. Only the leaf collection is
+/// created: the leaf name is validated like [`validate_rename_name`], so a
+/// name like `a/b` cannot silently materialize parent folders along the way
+/// (the parent of `path` is expected to already exist).
 #[tauri::command]
 pub async fn webdav_mkdir(
     state: State<'_, AppState>,
@@ -1171,11 +1174,19 @@ pub async fn webdav_mkdir(
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&path)?;
+    validate_rename_name(mkdir_leaf_name(&path))?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    webdav::ensure_collection_as(&state.http_client, &account, &path, target.as_deref()).await
+    webdav::make_collection_as(&state.http_client, &account, &path, target.as_deref()).await
+}
+
+/// Leaf segment of an absolute path, e.g. `/Documents/neu` → `neu`. Used by
+/// [`webdav_mkdir`] so the created name is validated as a single plain
+/// segment instead of being treated as a chain of folders.
+fn mkdir_leaf_name(path: &str) -> &str {
+    path.rsplit('/').find(|s| !s.is_empty()).unwrap_or_default()
 }
 
 /// Rename/move a cloud file or folder.
@@ -1518,5 +1529,14 @@ mod tests {
         assert!(validate_rename_name("..").is_err(), "must not be '..'");
         assert!(validate_rename_name(".").is_err(), "must not be '.'");
         assert!(validate_rename_name("").is_err(), "must not be empty");
+    }
+
+    #[test]
+    fn mkdir_leaf_name_extracts_last_segment() {
+        assert_eq!(mkdir_leaf_name("/Documents/neu"), "neu");
+        assert_eq!(mkdir_leaf_name("/neu"), "neu");
+        assert_eq!(mkdir_leaf_name("/Documents/sub/neu"), "neu");
+        assert_eq!(mkdir_leaf_name("/"), "");
+        assert_eq!(mkdir_leaf_name("/Documents/"), "Documents");
     }
 }

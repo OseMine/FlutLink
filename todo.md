@@ -73,14 +73,14 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       bei Theme „midnight" wäre der Theme-Default 220 (`themeDefaultHue`, Z. 84);
       Slider-Position und `resetAccent`-Ergebnis weichen ab. Fix:
       `ui.accentHue ?? themeDefaultHue()`.
-- [ ] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
+- [x] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubt `/` im Namen →
       versehentliches Anlegen von Ordnerketten. `FileExplorer.vue` `createFolder`
       (Z. 349-360) validiert den Namen nicht; Backend `webdav_mkdir` →
       `ensure_collection_as` (`webdav.rs` Z. 772-785) iteriert über alle
       Pfadsegmente und erstellt jede Ebene → Eingabe „a/b" legt `a` **und** `a/b`
       an. Fix: Namen in `createFolder` wie `validate_rename_name`
       (`commands.rs` Z. 621-628) prüfen oder `webdav_mkdir` auf ein einzelnes
-      Segment validieren.
+      Segment validieren. → umgesetzt (siehe Archiv).
 - [ ] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wird nach Erfolg bzw.
       Schließen nicht geleert. `LoginModal.vue` `form` (Z. 55-61) bleibt gefüllt
       (inkl. Token); beim nächsten Öffnen sind die Felder vorausgefüllt — auf
@@ -188,6 +188,7 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
+- Review 2026-08-16 (Lauf 8, Fokus UX) — U-R8-10 umgesetzt.
 - Review 2026-08-16 (Lauf 7, Release-Review v1) — R7-1 bis R7-6 umgesetzt,
   R7-7 als Hinweis dokumentiert.
 - Review 2026-08-15 (Lauf 6, Fokus Phase 3 & 4) — Q2, Q3, Q5–Q9, P1–P17,
@@ -222,6 +223,21 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       `cargo fmt --check`/`cargo clippy -D warnings`/`cargo test`
       (72 passed)/`npm run build` grün; README-Strukturbaum aktualisiert,
       `android/README.md` ergänzt.
+
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-10)
+
+- [x] **U-R8-10 (UX/Validierung, mittel):** „Neuer Ordner" erlaubte `/` im Namen
+      → versehentliches Anlegen von Ordnerketten: `webdav_mkdir` →
+      `ensure_collection_as` iterierte über alle Pfadsegmente und legte für
+      „a/b" `a` **und** `a/b` an. Fix: Frontend-`createFolder`
+      (`FileExplorer.vue`) weist Namen mit `/`, `.`, `..` oder leer über den
+      neuen i18n-Key `invalidFolderName` ab (analog `validate_rename_name`).
+      Backend `webdav_mkdir` validiert das Blattsegment über die neue pure
+      Funktion `mkdir_leaf_name` + `validate_rename_name` und erstellt über
+      `make_collection_as` nur noch die letzte Ebene statt der ganzen Kette
+      (`ensure_collection_as`) — fehlende Eltern führen jetzt zu einem Fehler
+      statt zum stillen Anlegen von Ordnerketten. Neue Unit-Tests
+      `mkdir_leaf_name_extracts_last_segment`.
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — R7-1 bis R7-6)
 

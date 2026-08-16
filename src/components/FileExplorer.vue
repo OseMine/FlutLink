@@ -348,7 +348,10 @@ async function uploadFiles() {
 
 async function createFolder() {
   const name = nameInput.value.trim();
-  if (!name) return;
+  if (!name || name === "." || name === ".." || name.includes("/")) {
+    ui.toast(t("invalidFolderName"), "error");
+    return;
+  }
   try {
     await files.createFolder(name);
     ui.toast(t("folderCreated"), "success");
