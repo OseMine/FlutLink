@@ -35,6 +35,7 @@ export const useFilesStore = defineStore("files", () => {
   const entries = ref<WebDavEntry[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const offline = ref(false);
   const transfer = ref<TransferProgress | null>(null);
   const splitView = ref(false);
   const pairedEntries = ref<WebDavEntry[]>([]);
@@ -74,7 +75,10 @@ export const useFilesStore = defineStore("files", () => {
         currentPath.value,
         targetUser.value ?? undefined
       );
-      if (seq === refreshSeq) entries.value = result;
+      if (seq === refreshSeq) {
+        entries.value = result.entries;
+        offline.value = result.stale;
+      }
     } catch (e) {
       if (seq === refreshSeq) error.value = invokeError(e).message;
     } finally {
@@ -97,7 +101,7 @@ export const useFilesStore = defineStore("files", () => {
         pair,
         targetUser.value ?? undefined
       );
-      if (seq === pairedSeq) pairedEntries.value = result;
+      if (seq === pairedSeq) pairedEntries.value = result.entries;
     } catch (e) {
       if (seq === pairedSeq) pairedError.value = invokeError(e).message;
     } finally {
@@ -141,9 +145,14 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
-  async function uploadFile(localPath: string, remotePath: string) {
+  async function uploadFile(localPath: string, remotePath: string, overwrite = false) {
     try {
-      await api.webdavUploadFile(remotePath, localPath, targetUser.value ?? undefined);
+      await api.webdavUploadFile(
+        remotePath,
+        localPath,
+        targetUser.value ?? undefined,
+        overwrite
+      );
       await refresh();
     } catch (e) {
       error.value = invokeError(e).message;
@@ -189,12 +198,13 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
-  async function uploadLocalPaths(localPaths: string[]) {
+  async function uploadLocalPaths(localPaths: string[], overwrite = false) {
     try {
       await api.webdavUploadLocalPaths(
         localPaths,
         currentPath.value,
-        targetUser.value ?? undefined
+        targetUser.value ?? undefined,
+        overwrite
       );
       await refresh();
     } catch (e) {
@@ -242,6 +252,7 @@ export const useFilesStore = defineStore("files", () => {
     entries,
     loading,
     error,
+    offline,
     transfer,
     crumbs,
     splitView,

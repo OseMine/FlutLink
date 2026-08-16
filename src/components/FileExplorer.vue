@@ -7,7 +7,7 @@ import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type AppErrorLike, type BulkTarget, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import Icon from "./Icon.vue";
 import EntryList from "./EntryList.vue";
@@ -98,6 +98,20 @@ async function dropUpload(paths: string[]) {
     files.clearTransfer();
     ui.toast(t("fileUploaded"), "success");
   } catch (e) {
+    if ((e as AppErrorLike)?.code === "target_exists") {
+      // Q9: never silently overwrite an existing remote file. Ask first and
+      // only retry the whole batch with overwrite once the user agrees.
+      if (window.confirm(t("uploadOverwriteAllConfirm"))) {
+        try {
+          await files.uploadLocalPaths(paths, true);
+          files.clearTransfer();
+          ui.toast(t("fileUploaded"), "success");
+        } catch (e2) {
+          ui.toast(invokeError(e2).message, "error");
+        }
+      }
+      return;
+    }
     ui.toast(invokeError(e).message, "error");
   } finally {
     busyPath.value = null;
@@ -192,6 +206,25 @@ async function uploadFiles() {
       try {
         await files.uploadFile(local, remote);
       } catch (e) {
+        if ((e as AppErrorLike)?.code === "target_exists") {
+          // Q9: never silently overwrite an existing remote file. Ask first,
+          // retry this single file with overwrite if the user agrees.
+          if (
+            window.confirm(t("uploadOverwriteConfirm").replace("{name}", name))
+          ) {
+            try {
+              await files.uploadFile(local, remote, true);
+              continue;
+            } catch (e2) {
+              failed += 1;
+              ui.toast(`${name}: ${invokeError(e2).message}`, "error");
+              continue;
+            }
+          }
+          failed += 1;
+          ui.toast(`${name}: ${t("uploadSkipped")}`, "error");
+          continue;
+        }
         failed += 1;
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
@@ -525,6 +558,15 @@ watch(
       <span class="truncate rounded bg-success-container px-2 py-0.5 text-on-success-container">
         {{ paneLabel(paneKind(files.pairedPath)) }}: {{ files.pairedPath }}
       </span>
+    </div>
+
+    <div
+      v-if="files.offline"
+      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+    >
+      <Icon name="cloud_off" :size="14" class="shrink-0" />
+      <span class="shrink-0 font-semibold">{{ t("offline") }}</span>
+      <span class="truncate opacity-80">{{ t("offlineHint") }}</span>
     </div>
 
     <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
