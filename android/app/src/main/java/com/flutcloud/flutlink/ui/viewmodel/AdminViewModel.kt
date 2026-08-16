@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.ApiException
+import com.flutcloud.flutlink.data.AuthSession
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.dto.ManagedUser
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,10 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     val loading = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
     val search = MutableStateFlow("")
+    val hasMore = MutableStateFlow(false)
+
+    private var offset = 0
+    private var searchTerm = ""
 
     fun refresh() = loadUsers()
 
@@ -27,13 +32,12 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             loading.value = true
             error.value = null
+            users.value = emptyList()
+            hasMore.value = false
+            searchTerm = search.value.trim()
+            offset = 0
             try {
-                val ids = container.ocsApi.listUsers(s, search.value.trim())
-                val result = ids.map { id ->
-                    runCatching { container.ocsApi.getUser(s, id) }
-                        .getOrElse { ManagedUser(id = id, displayName = null, email = null, quota = null, groups = emptyList(), enabled = true) }
-                }
-                users.value = result
+                loadPage(s, append = false)
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
             } catch (e: ApiException) {
@@ -42,6 +46,35 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 loading.value = false
             }
         }
+    }
+
+    fun loadMore() {
+        val s = session ?: return
+        if (loading.value) return
+        viewModelScope.launch {
+            loading.value = true
+            error.value = null
+            try {
+                loadPage(s, append = true)
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            } finally {
+                loading.value = false
+            }
+        }
+    }
+
+    private suspend fun loadPage(s: AuthSession, append: Boolean) {
+        val page = container.ocsApi.listUsersPage(s, searchTerm, offset)
+        val managed = page.map { id ->
+            runCatching { container.ocsApi.getUser(s, id) }
+                .getOrElse { ManagedUser(id = id, displayName = null, email = null, quota = null, groups = emptyList(), enabled = true) }
+        }
+        users.value = if (append) users.value + managed else managed
+        hasMore.value = page.size == 200
+        offset += page.size
     }
 
     fun createUser(userId: String, password: String, displayName: String?) {

@@ -10,8 +10,8 @@ use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, Share, StorageResult, SyncFolder, SyncFolderStatus,
-    TransferProgress, UserDetails, WebDavEntry, WebDavListResult,
+    Account, AccountMeta, AdminUsersResult, AppState, Share, StorageResult, SyncFolder,
+    SyncFolderStatus, TransferProgress, UserDetails, WebDavEntry, WebDavListResult,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -1209,17 +1209,22 @@ pub async fn webdav_rename(
 pub async fn admin_list_users(
     state: State<'_, AppState>,
     search: Option<String>,
-) -> AppResult<Vec<String>> {
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> AppResult<AdminUsersResult> {
     let account = current_account(&state)?;
     if !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    ocs::list_users(
+    let (users, has_more) = ocs::list_users(
         &state.http_client,
         &account,
         search.as_deref().unwrap_or(""),
+        limit,
+        offset.unwrap_or(0),
     )
-    .await
+    .await?;
+    Ok(AdminUsersResult { users, has_more })
 }
 
 #[tauri::command]

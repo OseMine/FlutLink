@@ -87,13 +87,13 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       geteilten Geräten droht versehentliches Wiederverbinden mit dem alten
       Token. Fix: `form` + `showPassword`/`showAdminPassword` beim `close`/`done`
       zurücksetzen.
-- [ ] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
+- [x] **U-R8-12 (UX, minor):** AdminPanel lädt beim „Benutzer auflisten" ohne
       Suchbegriff alle Benutzer (keine UI-Pagination). `AdminPanel.vue`
       `listUsers` (Z. 159-171) ruft `adminListUsers("")`; `ocs::list_users`
       (Z. 78-129) holt alle Seiten sequenziell (N/200 Requests). Bei großen
       Instanzen (1000+ Nutzer) lange Wartezeit ohne Fortschritt. Fix:
       Suchbegriff verpflichten (wie Nextcloud-Web) oder Server-Pagination in die
-      UI bringen (Limit + „Mehr laden").
+      UI bringen (Limit + „Mehr laden"). → umgesetzt (siehe Archiv).
 - [ ] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
       gleichnamige Dateien aus verschiedenen Ordnern. `commands.rs` Z. 988-995:
       `local = dest.join(t.path.rsplit('/').next()…)` — zwei selektierte Dateien
@@ -200,6 +200,30 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (U-R8-12 — AdminPanel-Pagination)
+
+- [x] **U-R8-12 (UX, minor):** AdminPanel lud beim „Benutzer auflisten" ohne
+      Suchbegriff alle Benutzer — `ocs::list_users` holte alle Seiten
+      sequenziell (N/200 Requests), bei großen Instanzen lange Wartezeit ohne
+      Fortschritt. Fix umgesetzt: **Server-Pagination in der UI (Limit +
+      „Mehr laden")**.
+      Backend: `ocs::list_users` (`nextcloud/ocs.rs`) akzeptiert jetzt
+      `limit: Option<usize>`/`offset` und liefert `(Vec<String>, has_more)`;
+      mit `limit = Some(n)` wird nur eine Seite geholt, ohne Limit bleibt das
+      bisherige Fetch-All-Verhalten für Aufrufer, die die vollständige Liste
+      brauchen (Impersonation-Dropdown, Settings-Admin-Tab). Neuer
+      Serde-Model `AdminUsersResult { users, has_more }` in `state.rs`;
+      `admin_list_users` (`commands.rs`) reicht `limit`/`offset` durch und
+      verweigert weiterhin für Nicht-Admins.
+      Frontend: `ipc.ts`-Wrapper `adminListUsers(search, limit?, offset?)`
+      liefert `AdminUsersResult`; `AdminPanel.vue` paginiert in 200er-Seiten
+      (erste Seite sofort, „Mehr laden"-Button bei `has_more`, Duplikat-Guard
+      gegen `offset`-ignorierende Server); neue i18n-Keys `loadMore`
+      (en/de). `FileExplorer.vue`/`SettingsModal.vue` lesen `res.users`
+      weiterhin vollständig (Verhalten unverändert). Verifikation:
+      `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+      `cargo test` (76 passed), `npm run build` — alles grün.
 
 ### Review 2026-08-16 (Android-Client)
 

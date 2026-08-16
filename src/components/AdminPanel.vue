@@ -30,6 +30,13 @@ const editMsg = ref<string | null>(null);
 const showPassword = ref(false);
 const showCreate = ref(false);
 
+// Server-side pagination: the OCS API caps each request at 200 users, so on
+// large instances the list is fetched page by page via "load more" instead of
+// one blocking, unbounded request sequence (U-R8-12).
+const PAGE = 200;
+const offset = ref(0);
+const hasMore = ref(false);
+
 const edits = reactive({
   displayName: "",
   email: "",
@@ -157,12 +164,38 @@ watch(
 );
 
 async function listUsers() {
+  offset.value = 0;
+  hasMore.value = true;
+  selected.value = null;
+  await loadPage(false);
+}
+
+async function loadMore() {
+  await loadPage(true);
+}
+
+async function loadPage(append: boolean) {
   loading.value = true;
   error.value = null;
   editMsg.value = null;
-  selected.value = null;
+  if (!append) users.value = [];
   try {
-    users.value = await api.adminListUsers(search.value.trim());
+    const { users: page, hasMore: more } = await api.adminListUsers(
+      search.value.trim(),
+      PAGE,
+      append ? offset.value : 0
+    );
+    if (append) {
+      // Guard against servers that ignore `offset` and repeat a page.
+      const known = new Set(users.value);
+      const fresh = page.filter((u) => !known.has(u));
+      users.value = [...users.value, ...fresh];
+      hasMore.value = more && fresh.length > 0;
+    } else {
+      users.value = page;
+      hasMore.value = more;
+    }
+    offset.value = (append ? offset.value : 0) + PAGE;
   } catch (e) {
     error.value = invokeError(e).message;
   } finally {
@@ -391,7 +424,15 @@ function quotaFree(q: UserQuota | null): string {
             </button>
           </li>
         </ul>
-        <p v-else class="p-4 text-sm text-on-surface-variant">
+        <button
+          v-if="hasMore && users.length"
+          class="w-full border-t border-outline-variant px-4 py-2 text-sm font-medium text-primary hover:bg-surface-container-high"
+          :disabled="loading"
+          @click="loadMore"
+        >
+          {{ loading ? t("loading") : t("loadMore") }}
+        </button>
+        <p v-if="!users.length" class="p-4 text-sm text-on-surface-variant">
           {{ loading ? t("loading") : t("noUsersYet") }}
         </p>
       </div>

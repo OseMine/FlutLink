@@ -73,42 +73,33 @@ pub async fn is_admin(client: &Client, account: &Account) -> AppResult<bool> {
     Ok(ocs_meta_error(&json).is_none())
 }
 
-/// List all users, paging through the OCS `offset`/`limit` parameters so the
+/// List users, paging through the OCS `offset`/`limit` parameters so the
 /// result is not truncated at the server's hard limit of 200 per request.
+///
+/// With `limit = Some(n)` only a single page starting at `offset` is fetched
+/// and the second return value reports whether a full page came back (so the
+/// caller can fetch the next one). Without a limit every page is fetched, which
+/// is used by callers that need the complete list.
 pub async fn list_users(
     client: &Client,
     account: &Account,
     search: &str,
-) -> AppResult<Vec<String>> {
-    const LIMIT: usize = 200;
+    limit: Option<usize>,
+    offset: usize,
+) -> AppResult<(Vec<String>, bool)> {
+    const PAGE: usize = 200;
+    if let Some(limit) = limit {
+        if limit == 0 {
+            return Ok((Vec::new(), false));
+        }
+        let page = list_users_page(client, account, search, offset, limit).await?;
+        return Ok((page.clone(), page.len() == limit));
+    }
     let mut all: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut offset = 0usize;
     loop {
-        let mut url = format!(
-            "{}/ocs/v1.php/cloud/users?format=json&limit={}&offset={}",
-            account.base_url(),
-            LIMIT,
-            offset
-        );
-        if !search.is_empty() {
-            url.push_str("&search=");
-            url.push_str(&urlencoding::encode(search));
-        }
-        let res = request(client, account, Method::GET, &url, None).await?;
-        let json: Value = res.json().await?;
-        if let Some(msg) = ocs_meta_error(&json) {
-            return Err(AppError::Ocs(msg));
-        }
-        let users: Vec<String> = json
-            .pointer("/ocs/data/users")
-            .and_then(|u| u.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let users = list_users_page(client, account, search, offset, PAGE).await?;
         if users.is_empty() {
             break;
         }
@@ -120,12 +111,46 @@ pub async fn list_users(
             break;
         }
         all.extend(users);
-        if count < LIMIT {
+        if count < PAGE {
             break;
         }
-        offset += LIMIT;
+        offset += PAGE;
     }
-    Ok(all)
+    Ok((all, false))
+}
+
+/// Fetch a single page of users via the OCS `offset`/`limit` parameters.
+async fn list_users_page(
+    client: &Client,
+    account: &Account,
+    search: &str,
+    offset: usize,
+    limit: usize,
+) -> AppResult<Vec<String>> {
+    let mut url = format!(
+        "{}/ocs/v1.php/cloud/users?format=json&limit={}&offset={}",
+        account.base_url(),
+        limit,
+        offset
+    );
+    if !search.is_empty() {
+        url.push_str("&search=");
+        url.push_str(&urlencoding::encode(search));
+    }
+    let res = request(client, account, Method::GET, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/data/users")
+        .and_then(|u| u.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default())
 }
 
 /// Progress guard for the offset pagination in [`list_users`]. Inserts every

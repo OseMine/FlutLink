@@ -151,25 +151,18 @@ class FlutCloudApi(private val client: OkHttpClient) {
 
     // --- OCS Provisioning API ---------------------------------------------
 
-    suspend fun listUsers(session: AuthSession, search: String = ""): List<String> {
-        val limit = 200
-        val all = mutableListOf<String>()
-        val seen = mutableSetOf<String>()
-        var offset = 0
-        while (true) {
-            var url = "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=$limit&offset=$offset"
-            if (search.isNotEmpty()) url += "&search=${search.encoded()}"
-            val data = execute(session, "GET", url) ?: break
-            val users = data.jsonObject["users"]?.jsonArray
-                ?.mapNotNull { it.jsonPrimitive.contentOrNull }
-                ?.filter { seen.add(it) }
-                .orEmpty()
-            if (users.isEmpty()) break
-            all += users
-            if (users.size < limit) break
-            offset += limit
-        }
-        return all
+    /**
+     * Fetch a single page of users via the OCS `offset`/`limit` parameters.
+     * The admin screen pages through large instances with "load more" instead
+     * of fetching every user up front (mirrors the desktop AdminPanel).
+     */
+    suspend fun listUsersPage(session: AuthSession, search: String, offset: Int, limit: Int = 200): List<String> {
+        var url = "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=$limit&offset=$offset"
+        if (search.isNotEmpty()) url += "&search=${search.encoded()}"
+        val data = execute(session, "GET", url) ?: return emptyList()
+        return data.jsonObject["users"]?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+            .orEmpty()
     }
 
     suspend fun getUser(session: AuthSession, userId: String): ManagedUser {

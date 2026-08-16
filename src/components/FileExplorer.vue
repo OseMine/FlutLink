@@ -583,7 +583,8 @@ const selectedUser = ref<string>("");
 async function loadAdminUsers() {
   if (!accounts.active?.isAdmin) return;
   try {
-    adminUsers.value = await api.adminListUsers("");
+    const res = await api.adminListUsers("");
+    adminUsers.value = res.users;
     if (adminViewAll.value) {
       if (files.targetUser) {
         selectedUser.value = files.targetUser;
