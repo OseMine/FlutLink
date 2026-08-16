@@ -1,6 +1,7 @@
 package com.flutcloud.flutlink.core
 
 import com.flutcloud.flutlink.data.AuthSession
+import com.flutcloud.flutlink.data.FlutCloudApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,10 +18,33 @@ class SessionManager(private val accountStore: AccountStore) {
     private val _accounts = MutableStateFlow<List<AccountMeta>>(emptyList())
     val accounts: StateFlow<List<AccountMeta>> = _accounts.asStateFlow()
 
-    suspend fun init() {
+    suspend fun init(ocsApi: FlutCloudApi) {
         val accounts = accountStore.loadAccounts()
         _accounts.value = accounts
         restoreSession()
+        refreshAdminFlags(ocsApi)
+    }
+
+    /**
+     * Re-evaluate the admin flag of every stored account against the server.
+     * Mirrors the desktop client's `refresh_admin_flags`: the stored flag is
+     * only overwritten when the OCS probe succeeds, so a transient network
+     * error never demotes an admin account to a regular one. Persists and
+     * emits only when something actually changed.
+     */
+    suspend fun refreshAdminFlags(ocsApi: FlutCloudApi) {
+        val updated = _accounts.value.map { account ->
+            val token = accountStore.tokenFor(account) ?: return@map account
+            val session = AuthSession(account.instanceUrl, account.username, token)
+            runCatching { ocsApi.isAdmin(session) }
+                .fold(
+                    onSuccess = { isAdmin -> account.copy(isAdmin = isAdmin) },
+                    onFailure = { account }
+                )
+        }
+        if (updated != _accounts.value) {
+            updateAccounts(updated)
+        }
     }
 
     private suspend fun restoreSession() {
