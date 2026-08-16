@@ -94,12 +94,13 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       Instanzen (1000+ Nutzer) lange Wartezeit ohne Fortschritt. Fix:
       Suchbegriff verpflichten (wie Nextcloud-Web) oder Server-Pagination in die
       UI bringen (Limit + „Mehr laden").
-- [ ] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
+- [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
       gleichnamige Dateien aus verschiedenen Ordnern. `commands.rs` Z. 988-995:
       `local = dest.join(t.path.rsplit('/').next()…)` — zwei selektierte Dateien
       mit gleichem Namen aus unterschiedlichen Ordnern kollidieren in `dest_dir`;
       die zweite überschreibt die erste ohne Warnung. Fix: relative
       Verzeichnisstruktur unter `dest_dir` erhalten oder Kollisionen erkennen.
+      → umgesetzt (siehe Archiv).
 - [ ] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
       nur auf `@v1` (bewegliches Tag). Für Supply-Chain-Härtung auf einen
       vollständigen Commit-SHA pinnen (wie bei den übrigen Drittanbieter-Actions).
@@ -200,6 +201,23 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (R8-B1)
+
+- [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschrieb
+      gleichnamige Dateien aus verschiedenen Ordnern: Der lokale Zielpfad wurde
+      nur aus dem letzten Pfadsegment gebildet
+      (`dest.join(t.path.rsplit('/').next()…)`) → `/a/report.pdf` und
+      `/b/report.pdf` kollidierten in `dest_dir` und die zweite Datei
+      überschrieb die erste ohne Warnung (Datenverlust-Risiko). Fix in
+      `commands.rs`: `local = dest.join(t.path.trim_start_matches('/'))`
+      erhält jetzt die relative Verzeichnisstruktur unter `dest_dir`; für
+      Datei-Targets wird der Parent von `local` statt nur `dest` angelegt
+      (`create_dir_all(local.parent())`). Verzeichnis-Targets nutzten bereits
+      `download_tree`, das die Struktur erhält — jetzt konsistent für alle
+      selektierten Einträge. Verifikation: `cargo fmt --check` grün,
+      `cargo clippy --all-targets -- -D warnings` grün, `cargo test`
+      (76 passed / 0 failed).
 
 ### Review 2026-08-16 (Android-Client)
 

@@ -986,17 +986,13 @@ pub async fn webdav_bulk_download(
         total_files,
     };
     for t in &targets {
-        let local = dest.join(
-            t.path
-                .rsplit('/')
-                .next()
-                .unwrap_or_default()
-                .trim_matches('/'),
-        );
+        let local = dest.join(t.path.trim_start_matches('/'));
         if t.is_dir {
             download_tree(ctx.clone(), &t.path, &local).await?;
         } else {
-            std::fs::create_dir_all(&dest)?;
+            if let Some(parent) = local.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
             let progress =
                 transfer_progress(app.clone(), "download", &t.path, ctx.index, total_files);
             webdav::get_file_as_progress(
