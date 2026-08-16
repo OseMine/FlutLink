@@ -226,4 +226,5 @@ cargo test                 # Rust unit tests (incl. WebDAV XML parser)
 - **Phase 2 (done):** Two-way sync engine with journal, background worker, sync panel; system tray + close-to-tray; CLI flags; official FlutLink/OperationFlut branding.
 - **Phase 3 (done):** Chunked uploads/downloads with progress events (`file://progress`), drag & drop upload, select-all and bulk download/delete, global file search, folder ZIP downloads + thumbnails, back button + keyboard navigation, `resources`/`parts` dual-pane workflows (pairing + split view), symlink-following sync option + link targets.
 - **Phase 4 (done):** Full provisioning UI (users, groups, impersonation) with quota presets, native OS notifications, offline cache, startup update check + banner.
-- **Next:** Android client (`android/`), code-signing/notarization automation.
+- **Phase 5 (done):** Android client (`android/`) — Kotlin + Jetpack Compose port of the desktop app (files, sharing, admin, FlutCloud-only policy); see [`android/README.md`](android/README.md).
+- **Next:** Code-signing/notarization automation.

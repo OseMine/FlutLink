@@ -134,9 +134,9 @@ const FLUTCLOUD_README: &str = r#"# FlutCloud — Nextcloud App
 Shared project space of the **FlutCloud Nextcloud app**.
 
 ## Purpose
-- Feature requests for the FlutCloud app and the FlutLink desktop client
-- Connection notes between FlutCloud, FlutLink (desktop) and the upcoming
-  FlutLink mobile app (not yet in development)
+- Feature requests for the FlutCloud app and the FlutLink desktop and Android client
+- Connection notes between FlutCloud, FlutLink (desktop) and the FlutLink
+  Android client
 
 ## Feature requests
 Create one folder per request, e.g. `FR-001-share-links/`, containing a note
@@ -144,7 +144,7 @@ describing: what it should do, why (use case) and the expected behaviour.
 
 ## Connecting FlutLink
 - Desktop client: https://github.com/OseMine/FlutLink
-- Mobile app: not yet in development
+- Android client (Kotlin port, `android/`): https://github.com/OseMine/FlutLink
 
 ---
 
@@ -153,9 +153,9 @@ describing: what it should do, why (use case) and the expected behaviour.
 Gemeinsamer Projektbereich der **FlutCloud-Nextcloud-App**.
 
 ## Zweck
-- Feature-Requests für die FlutCloud-App und den FlutLink-Desktop-Client
-- Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und der geplanten
-  FlutLink-Mobile-App (noch nicht in Entwicklung)
+- Feature-Requests für die FlutCloud-App sowie den FlutLink-Desktop- und Android-Client
+- Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und dem
+  FlutLink-Android-Client
 
 ## Feature-Requests
 Lege pro Request einen Ordner an, z. B. `FR-001-share-links/`, mit einer
@@ -164,7 +164,7 @@ erwartete Verhalten.
 
 ## FlutLink verbinden
 - Desktop-Client: https://github.com/OseMine/FlutLink
-- Mobile-App: noch nicht in Entwicklung
+- Android-Client (Kotlin-Port, `android/`): https://github.com/OseMine/FlutLink
 "#;
 
 /// Input for creating a real account via the register page.
