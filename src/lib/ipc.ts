@@ -207,6 +207,18 @@ export const api = {
   adminDeleteUser: (userId: string) =>
     invoke<string>("admin_delete_user", { userId }),
 
+  adminListGroups: (search: string) =>
+    invoke<string[]>("admin_list_groups", { search }),
+
+  adminCreateGroup: (groupId: string) =>
+    invoke<string>("admin_create_group", { groupId }),
+
+  adminAddGroupMember: (groupId: string, userId: string) =>
+    invoke<string>("admin_add_group_member", { groupId, userId }),
+
+  adminRemoveGroupMember: (groupId: string, userId: string) =>
+    invoke<string>("admin_remove_group_member", { groupId, userId }),
+
   syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
 
   syncAdd: (localPath: string) =>

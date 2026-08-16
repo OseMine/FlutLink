@@ -891,6 +891,58 @@ pub async fn admin_delete_user(state: State<'_, AppState>, user_id: String) -> A
     ocs::delete_user(&state.http_client, &account, &user_id).await
 }
 
+#[tauri::command]
+pub async fn admin_list_groups(
+    state: State<'_, AppState>,
+    search: Option<String>,
+) -> AppResult<Vec<String>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::list_groups(
+        &state.http_client,
+        &account,
+        search.as_deref().unwrap_or(""),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn admin_create_group(state: State<'_, AppState>, group_id: String) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::create_group(&state.http_client, &account, &group_id).await
+}
+
+#[tauri::command]
+pub async fn admin_add_group_member(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_id: String,
+) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::add_group_member(&state.http_client, &account, &group_id, &user_id).await
+}
+
+#[tauri::command]
+pub async fn admin_remove_group_member(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_id: String,
+) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::remove_group_member(&state.http_client, &account, &group_id, &user_id).await
+}
+
 /// Allowed attribute keys for `admin_edit_user`. Anything else is refused so
 /// the admin UI cannot accidentally corrupt server-side settings.
 const ADMIN_EDIT_KEYS: &[&str] = &[
