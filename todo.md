@@ -156,9 +156,16 @@ public + private link sharing"):
 - [ ] **P13 (CI, bestätigt N4):** `build.yml` (Z. 6-9): `paths-ignore:
       ['.github/**']` auf PRs → Workflow-/Action-Änderungen lösen keine CI
       aus und werden nie getestet. `.github/**` aus paths-ignore nehmen.
-- [ ] **P14 (Feature, minor):** Keine Dateisuche: Es gibt keinen
+- [x] **P14 (Feature, minor):** Keine Dateisuche: Es gab keinen
       WebDAV-SEARCH-Command (weder `commands.rs` noch `src/lib/ipc.ts`;
       „search" aus B9 wurde nie umgesetzt — nur die OCS-Benutzersuche in
+      `ocs.rs:78-92` existierte). Für Google-Drive-ähnliches Browsing fehlte
+      die globale Dateisuche. Fix: `webdav::search` (SEARCH auf
+      `/remote.php/dav/`, `displayname`-„contains" über `depth: infinity`,
+      `Impersonate-User`-Support) + Command `webdav_search` (commands.rs, in
+      `lib.rs` registriert) + Wrapper `webdavSearch` (`src/lib/ipc.ts`) +
+      UI-Suchfeld im `FileExplorer.vue` (Debounce, Suchergebnis-Liste mit
+      Speicherort, Navigieren ins Ergebnis) umgesetzt (Issue #73).
       `ocs.rs:78-92` existiert). Für Google-Drive-ähnliches Browsing fehlt
       die globale Dateisuche. Fix: SEARCH-Command + UI-Suchfeld.
 - [ ] **P15 (Bug/Robustheit, minor):** *(erledigt — siehe Archiv)*
@@ -193,6 +200,9 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       (`webdav_bulk_delete`/`webdav_bulk_download`) + Drag & Drop-Upload
       (`webdav_upload_local_paths`, Webview-DragDrop-Event) +
       `file://progress`-Progress-Events in `FileExplorer.vue`/`ipc.ts`/
+      `commands.rs` umgesetzt. **Suche war offen** (getrackt unter Issue #73,
+      jetzt umgesetzt — siehe P14).
+- [ ] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
       `commands.rs` umgesetzt. **Suche bleibt offen** (getrackt unter Issue #73).
 - [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
       auf eine Kachel wählt nichts aus (nur die Checkbox), Download/Link/
@@ -369,6 +379,21 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (P14)
+
+- [x] **P14 (Feature, minor):** Globale Dateisuche fehlte (WebDAV-SEARCH).
+      Fix umgesetzt: `webdav::search` in `nextcloud/webdav.rs` (SEARCH auf
+      `/remote.php/dav/` mit `displayname`-„contains" über `depth: infinity`,
+      XML-Escaping der Suchterme, `Impersonate-User`-Support + Namespace-Guard,
+      Unit-Tests) + `webdav_search`-Command in `commands.rs` (in `lib.rs`
+      registriert, Admin-Check für `target_user`) + `webdavSearch`-Wrapper in
+      `src/lib/ipc.ts` + `searchFiles`/`clearSearch`/`displayEntries` im
+      `files`-Store + UI-Suchfeld mit 300-ms-Debounce im `FileExplorer.vue`
+      (Suchergebnis-Banner, Speicherort-Anzeige, Navigieren in Treffer).
+      i18n-Keys `searchPlaceholder`/`searchResults`/`searching`/
+      `noSearchResults`/`clearSearch` (en + de). Verifikation: `cargo fmt`
+      grün, `cargo clippy -D warnings` grün, `cargo test` 51 passed,
+      `npm run build` grün.
 ### Review 2026-08-16 (P15)
 
 - [x] **P15 (Bug/Robustheit, minor):** `is_admin` wurde nur beim

@@ -171,6 +171,9 @@ export const api = {
   webdavList: (path: string, targetUser?: string) =>
     invoke<WebDavListResult>("webdav_list", { path, targetUser }),
 
+  webdavSearch: (query: string, targetUser?: string) =>
+    invoke<WebDavEntry[]>("webdav_search", { query, targetUser }),
+
   webdavCreateShare: (path: string, targetUser?: string) =>
     invoke<string>("webdav_create_share", { path, targetUser }),
 

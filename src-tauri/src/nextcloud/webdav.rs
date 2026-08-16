@@ -123,6 +123,103 @@ pub async fn list(
     }
 }
 
+/// Search the whole files tree of `account` (or `target_user`) for entries
+/// whose name contains `query`, via the WebDAV-SEARCH extension (RFC 5323)
+/// that Nextcloud exposes on `/remote.php/dav/`.
+///
+/// Returns the same structured entries as [`list`], with `path` relative to
+/// the user's files root.
+pub async fn search(
+    client: &Client,
+    account: &Account,
+    query: &str,
+    target_user: Option<&str>,
+) -> AppResult<Vec<WebDavEntry>> {
+    let effective_user = target_user.unwrap_or(&account.meta.username);
+    let url = format!("{}/remote.php/dav/", account.base_url());
+    let body = search_request_body(effective_user, query);
+    let method = Method::from_bytes(b"SEARCH").expect("valid HTTP method");
+    let mut req = client
+        .request(method, &url)
+        .basic_auth(&account.meta.username, Some(&account.token))
+        .header("Content-Type", "application/xml")
+        .header("Depth", "0")
+        .body(body);
+    if effective_user != account.meta.username {
+        req = req.header("Impersonate-User", effective_user);
+    }
+    let res = req.send().await?;
+    let status = res.status();
+    if status.is_success() || status.as_u16() == 207 {
+        let body = res.text().await?;
+        let base_path = format!(
+            "/remote.php/dav/files/{}",
+            urlencoding::encode(effective_user)
+        );
+        let entries = parse_multistatus(&body, &base_path)?;
+        // Namespace guard (same as `list`): a server that ignored
+        // `Impersonate-User` would answer with hrefs in the admin namespace.
+        if entries.iter().any(|e| e.path.starts_with("/remote.php/")) {
+            return Err(AppError::App(format!(
+                "Server did not honor the impersonated namespace for '{}'.",
+                effective_user
+            )));
+        }
+        Ok(entries)
+    } else {
+        let body = res.text().await.unwrap_or_default();
+        Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        })
+    }
+}
+
+/// Build the WebDAV-SEARCH body searching `displayname` (which Nextcloud
+/// interprets as a case-insensitive "contains" on the file name) over the
+/// whole `depth: infinity` tree of `user`.
+fn search_request_body(user: &str, query: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<d:searchrequest xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+  <d:basicsearch>
+    <d:select>
+      <d:prop>
+        <d:displayname/>
+        <d:getcontentlength/>
+        <d:getlastmodified/>
+        <d:getetag/>
+        <d:getcontenttype/>
+      </d:prop>
+    </d:select>
+    <d:from>
+      <d:scope>
+        <d:href>/files/{}</d:href>
+        <d:depth>infinity</d:depth>
+      </d:scope>
+    </d:from>
+    <d:where>
+      <d:eq>
+        <d:prop><d:displayname/></d:prop>
+        <d:literal>{}</d:literal>
+      </d:eq>
+    </d:where>
+    <d:orderby/>
+  </d:basicsearch>
+</d:searchrequest>
+"#,
+        escape_xml(user),
+        escape_xml(query)
+    )
+}
+
+/// Escape a string for use as XML element text content.
+fn escape_xml(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Field {
     Href,
@@ -1118,5 +1215,28 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "My Folder");
         assert_eq!(entries[0].path, "/My Folder");
+    }
+
+    #[test]
+    fn escapes_search_terms() {
+        assert_eq!(escape_xml("a&b<c>d"), "a&amp;b&lt;c&gt;d");
+        assert_eq!(escape_xml("plain"), "plain");
+    }
+
+    #[test]
+    fn builds_search_request_body() {
+        let body = search_request_body("admin", "report & final<1>");
+        assert!(
+            body.contains("<d:scope>\n        <d:href>/files/admin</d:href>"),
+            "scope points at the user's files root"
+        );
+        assert!(
+            body.contains("<d:depth>infinity</d:depth>"),
+            "search spans the whole tree"
+        );
+        assert!(
+            body.contains("<d:literal>report &amp; final&lt;1&gt;</d:literal>"),
+            "search term is XML-escaped"
+        );
     }
 }

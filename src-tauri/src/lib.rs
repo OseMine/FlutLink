@@ -240,6 +240,7 @@ pub fn run() {
             commands::account_storage,
             commands::register_user,
             commands::webdav_list,
+            commands::webdav_search,
             commands::webdav_create_share,
             commands::webdav_upload_file,
             commands::webdav_download_file,

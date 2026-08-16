@@ -16,6 +16,7 @@ const props = withDefaults(
       { status: "loading" | "done" | "error"; value?: string }
     >;
     selectable?: boolean;
+    searching?: boolean;
   }>(),
   { selectable: true }
 );
@@ -88,6 +89,11 @@ function entryPreview(entry: WebDavEntry): string {
   else if (entry.isPart) parts.push(t("part"));
   return parts.join(" — ");
 }
+
+function parentPath(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx > 0 ? path.slice(0, idx) : "/";
+}
 </script>
 
 <template>
@@ -139,6 +145,9 @@ function entryPreview(entry: WebDavEntry): string {
                 <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
               </span>
               <span class="truncate">{{ entry.name }}</span>
+              <span v-if="props.searching" class="truncate text-xs text-on-surface-variant">
+                {{ parentPath(entry.path) }}
+              </span>
             </button>
           </td>
           <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
@@ -223,6 +232,13 @@ function entryPreview(entry: WebDavEntry): string {
         <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
         <p class="w-full truncate text-[10px] text-on-surface-variant">
           {{ entry.isDir ? "—" : formatBytes(entry.size) }}
+        </p>
+        <p
+          v-if="props.searching"
+          class="w-full truncate text-[10px] text-on-surface-variant"
+          :title="parentPath(entry.path)"
+        >
+          {{ parentPath(entry.path) }}
         </p>
         <div
           class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-black/50 group-hover:flex"
