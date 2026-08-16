@@ -15,6 +15,11 @@ administration and two-way sync.
   vice versa) via the `linkTarget` field.
 - One-click **link sharing** via the OCS share API — the public link is copied
   to the clipboard.
+- **Full share management** in the share dialog per file/folder: create public
+  links (with optional password, expiry date and public upload), share with a
+  user or a group (OCS `shareType` 0/1 + `shareWith`), list existing shares,
+  copy link URLs and revoke shares. Entries show a badge with their share
+  count.
 - **File operations**: upload, download / open (downloads to a temp file and
   opens it with the default app), new folder, rename, delete — via the toolbar,
   the context menu and multi-selection.

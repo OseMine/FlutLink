@@ -10,8 +10,8 @@ use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, StorageResult, SyncFolder, SyncFolderStatus, TransferProgress,
-    UserDetails, WebDavEntry, WebDavListResult,
+    Account, AccountMeta, AppState, Share, StorageResult, SyncFolder, SyncFolderStatus,
+    TransferProgress, UserDetails, WebDavEntry, WebDavListResult,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -479,23 +479,102 @@ pub async fn account_storage(
     }
 }
 
-/// Create a public link share for the given file/folder and return the URL.
+/// Create a share for the given file/folder and return the created share.
+///
+/// Defaults to a read-only public link. Passing `options.share_type`
+/// (0 = user, 1 = group, 3 = link) together with `options.share_with` creates
+/// a private share; `password`/`expire_date`/`public_upload` configure link
+/// options.
 ///
 /// Admins may share files of another user by passing `target_user`; the
-/// `Impersonate-User` header is used so the share is attributed to the admin.
+/// `Impersonate-User` header is used so the share is attributed to that user.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareInput {
+    /// OCS shareType: 0 = user, 1 = group, 3 = link. Defaults to 3.
+    pub share_type: Option<u32>,
+    /// Recipient for user/group shares (username or group name).
+    pub share_with: Option<String>,
+    /// Password protecting a public link.
+    pub password: Option<String>,
+    /// Expiry date as `YYYY-MM-DD`.
+    pub expire_date: Option<String>,
+    /// Allow uploads to a public link.
+    pub public_upload: Option<bool>,
+}
+
 #[tauri::command]
 pub async fn webdav_create_share(
     state: State<'_, AppState>,
     path: String,
     target_user: Option<String>,
-) -> AppResult<String> {
+    options: Option<ShareInput>,
+) -> AppResult<Share> {
     let account = current_account(&state)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
     validate_dav_path(&path)?;
-    ocs::create_share(&state.http_client, &account, &path, target.as_deref()).await
+    let options = options.unwrap_or_default();
+    let share_type = options.share_type.unwrap_or(3);
+    let share_with = options.share_with.filter(|s| !s.trim().is_empty());
+    if share_type < 3 && share_with.is_none() {
+        return Err(AppError::App(
+            "A user or group share requires a recipient (shareWith).".into(),
+        ));
+    }
+    let password = options.password.filter(|p| !p.is_empty());
+    let expire_date = options.expire_date.filter(|d| !d.is_empty());
+    let opts = ocs::ShareOptions {
+        share_type,
+        share_with: share_with.as_deref(),
+        password: password.as_deref(),
+        expire_date: expire_date.as_deref(),
+        permissions: None,
+        public_upload: options.public_upload.unwrap_or(false),
+    };
+    ocs::create_share(&state.http_client, &account, &path, target.as_deref(), opts).await
+}
+
+/// List the shares of the active account. With `path` only the shares of that
+/// path are returned, otherwise all shares.
+#[tauri::command]
+pub async fn webdav_list_shares(
+    state: State<'_, AppState>,
+    path: Option<String>,
+    target_user: Option<String>,
+) -> AppResult<Vec<Share>> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    if let Some(p) = &path {
+        validate_dav_path(p)?;
+    }
+    ocs::list_shares(
+        &state.http_client,
+        &account,
+        path.as_deref(),
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Revoke a share by id.
+#[tauri::command]
+pub async fn webdav_delete_share(
+    state: State<'_, AppState>,
+    share_id: u64,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::delete_share(&state.http_client, &account, share_id, target.as_deref()).await
 }
 
 /// Reject paths that are not absolute, escape the user's home (`..`) or target

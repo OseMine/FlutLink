@@ -5,6 +5,8 @@ import {
   api,
   invokeError,
   type BulkTarget,
+  type CreateShareOptions,
+  type Share,
   type TransferProgress,
   type WebDavEntry,
 } from "../lib/ipc";
@@ -177,9 +179,37 @@ export const useFilesStore = defineStore("files", () => {
     searching.value = false;
   }
 
-  async function createShare(path: string): Promise<string> {
+  async function createShare(
+    path: string,
+    options: CreateShareOptions
+  ): Promise<Share> {
     try {
-      return await api.webdavCreateShare(path, targetUser.value ?? undefined);
+      return await api.webdavCreateShare(
+        path,
+        options,
+        targetUser.value ?? undefined
+      );
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function listShares(path?: string): Promise<Share[]> {
+    try {
+      return await api.webdavListShares(
+        path,
+        targetUser.value ?? undefined
+      );
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function deleteShare(shareId: number) {
+    try {
+      await api.webdavDeleteShare(shareId, targetUser.value ?? undefined);
     } catch (e) {
       error.value = invokeError(e).message;
       throw e;
@@ -330,6 +360,8 @@ export const useFilesStore = defineStore("files", () => {
     searchFiles,
     clearSearch,
     createShare,
+    listShares,
+    deleteShare,
     uploadFile,
     downloadFile,
     downloadZip,

@@ -99,6 +99,24 @@ pub struct UserDetails {
     pub enabled: bool,
 }
 
+/// A share (public link or user/group share) as returned by the OCS files
+/// sharing API (`/apps/files_sharing/api/v1/shares`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Share {
+    pub id: u64,
+    /// OCS shareType: 0 = user, 1 = group, 3 = public link.
+    pub share_type: u32,
+    pub path: Option<String>,
+    /// Username/group name for user/group shares; empty for links.
+    pub share_with: Option<String>,
+    pub share_with_displayname: Option<String>,
+    pub permissions: Option<u32>,
+    pub url: Option<String>,
+    pub has_password: Option<bool>,
+    pub expiration: Option<String>,
+}
+
 /// A persisted bidirectional sync between a local folder and a cloud folder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

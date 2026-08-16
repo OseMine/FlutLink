@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useUiStore } from "../stores/ui";
-import type { WebDavEntry } from "../lib/ipc";
+import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 import Icon from "./Icon.vue";
@@ -18,6 +18,7 @@ const props = withDefaults(
     selectable?: boolean;
     searching?: boolean;
     thumbs?: Map<string, string>;
+    sharesByPath?: Map<string, Share[]>;
   }>(),
   { selectable: true }
 );
@@ -32,6 +33,7 @@ const emit = defineEmits<{
   pair: [entry: WebDavEntry];
   download: [entry: WebDavEntry];
   delete: [entry: WebDavEntry];
+  share: [entry: WebDavEntry];
 }>();
 
 const ui = useUiStore();
@@ -211,6 +213,20 @@ function parentPath(path: string): string {
             >
               {{ t("link") }}
             </button>
+            <span
+              v-if="props.sharesByPath?.get(entry.path)?.length"
+              class="mr-1 inline-flex rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+              :title="t('sharesCount').replace('{count}', String(props.sharesByPath?.get(entry.path)?.length ?? 0))"
+            >
+              {{ props.sharesByPath?.get(entry.path)?.length }}
+            </span>
+            <button
+              class="inline-flex items-center gap-1 rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+              @click.stop="emit('share', entry)"
+            >
+              <Icon name="share" :size="14" />
+              {{ t("share") }}
+            </button>
           </td>
         </tr>
       </tbody>
@@ -283,6 +299,13 @@ function parentPath(path: string): string {
             @click="shareStatus(entry.path)?.status === 'done' ? emit('copyLink', entry.path) : emit('createLink', entry)"
           >
             <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="16" />
+          </button>
+          <button
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            :title="t('share')"
+            @click="emit('share', entry)"
+          >
+            <Icon name="share" :size="16" />
           </button>
           <button
             class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"

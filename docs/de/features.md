@@ -16,6 +16,11 @@ Freigaben, Administration und Zwei-Wege-Sync.
   `resources/…`-Eintrags (und umgekehrt) über das `linkTarget`-Feld.
 - **Link-Freigabe** per Klick über die OCS-Share-API — der öffentliche Link
   wird in die Zwischenablage kopiert.
+- **Volle Freigabe-Verwaltung** im Teilen-Dialog pro Datei/Ordner: öffentliche
+  Links erstellen (optional mit Passwort, Ablaufdatum und öffentlichem Upload),
+  mit einem Benutzer oder einer Gruppe teilen (OCS `shareType` 0/1 +
+  `shareWith`), bestehende Freigaben auflisten, Link-URLs kopieren und
+  Freigaben widerrufen. Einträge zeigen ein Badge mit ihrer Freigabe-Anzahl.
 - **Dateioperationen**: Hochladen, Herunterladen / Öffnen (lädt in eine
   Tempdatei und öffnet sie mit der Standard-App), Neuer Ordner, Umbenennen,
   Löschen — über die Symbolleiste, das Kontextmenü und Mehrfachauswahl.
