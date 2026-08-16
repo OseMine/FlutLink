@@ -1536,6 +1536,7 @@ mod tests {
 
     // --- walk_local symlink behaviour -------------------------------------
 
+    #[cfg(unix)]
     fn unique_temp_dir(tag: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "flutlink-test-{}-{}-{}",
