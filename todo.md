@@ -328,6 +328,34 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       (72 passed)/`npm run build` grün; README-Strukturbaum aktualisiert,
       `android/README.md` ergänzt.
 
+### Review 2026-08-16 (Android-Unit-Tests)
+
+- [x] **AT1 (Feature, neu):** Unit-Tests für die kritischen Android-Module
+      ergänzt (`android/app/src/test/`; vorher gab es keinerlei Tests). Abgedeckt:
+      `WebDavApi.parseMultistatus` (absolute/relative hrefs, Namespace-Grenzen
+      `admin` vs. `admin2`, Default-/präfix-Namespace, `resources`/`parts`-
+      Klassifikation inkl. case-insensitive, URL-Decoding inkl. `+`-Erhaltung —
+      Spiegel der Desktop-Tests in `src-tauri/src/nextcloud/webdav.rs`),
+      `AccountStore`-Roundtrip (Metadaten, Tokens, Löschen, Key-Normalisierung,
+      korruptes JSON), `SessionManager` (init/restore, add/switch/remove,
+      Sign-out, Token-Wechsel) und `FlutCloudApi.parseOcs` (Meta-OK/Fehler,
+      generische Fehlermeldung, invalid JSON).
+- [x] **AT2 (Testbarkeit):** `AccountStore` akzeptiert die `SharedPreferences`-
+      Instanzen jetzt per Primär-Konstruktor (Metadata-Prefs + Secure-Prefs);
+      der `Context`-Konstruktor baut unverändert die echte
+      `EncryptedSharedPreferences`-Ablage. Ein In-Memory-`SharedPreferences`-
+      Fake (`InMemorySharedPreferences.kt`) macht Roundtrip + SessionManager
+      ohne Robolectric auf der JVM testbar. `FlutCloudApi.parseOcs` von
+      `private` auf `internal` gestellt. Produktionsverhalten unverändert.
+- [x] **AT3 (Build/CI):** Test-Dependencies `junit` (4.13.2) und `xpp3`
+      (1.1.4c, bringt die `org.xmlpull.v1`-API + MXParser für die JVM) in
+      `android/gradle/libs.versions.toml` + `android/app/build.gradle.kts`
+      ergänzt. Verifikation: `./gradlew :app:testDebugUnitTest` → 30 passed /
+      0 failed; `assembleDebug` und `lintDebug` grün (0 errors). Der
+      CI-Workflow `.github/workflows/android.yml` wurde bewusst nicht
+      angefasst (Workflows sind tabu); `:app:testDebugUnitTest` lässt sich
+      dort als zusätzlicher Schritt nachziehen.
+
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — R7-1 bis R7-6)
 
 - [x] **R7-1 (Bug, mittel):** `assert_flutcloud_url` verglich die normalisierte

@@ -11,6 +11,7 @@ okhttp = "5.4.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 securityCrypto = "1.1.0"
+junit = "4.13.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -32,6 +33,9 @@ compose-material-icons = { group = "androidx.compose.material", name = "material
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+xpp3 = { group = "xpp3", name = "xpp3", version = "1.1.4c" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

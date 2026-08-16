@@ -57,6 +57,15 @@ cd android
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Tests
+
+JVM unit tests live in `app/src/test/` (WebDAV multistatus parsing, OCS meta
+parsing, `AccountStore` roundtrip, `SessionManager` account switching/removal):
+
+```
+./gradlew :app:testDebugUnitTest
+```
+
 The FlutCloud server URL is compiled into `BuildConfig.FLUTCLOUD_URL`. Override
 it for local development with:
 
