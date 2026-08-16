@@ -109,19 +109,19 @@ eine Datei herunter und führe es dann aus:
 
 ```powershell
 irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v0.1.0 -NoRun
+./install-flutlink.ps1 -Tag v1.0.0 -NoRun
 ```
 
 ```bash
 curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v0.1.0 --no-run
+./install-flutlink.sh --tag v1.0.0 --no-run
 ```
 
 ### `install-flutlink.*`
 
 | PowerShell | bash | Bedeutung |
 | --- | --- | --- |
-| `-Tag v0.1.0` | `--tag v0.1.0` | Bestimmtes Release statt des letzten installieren |
+| `-Tag v1.0.0` | `--tag v1.0.0` | Bestimmtes Release statt des letzten installieren |
 | `-DownloadDir <dir>` | `--dir <dir>` | Verzeichnis für den heruntergeladenen Installer |
 | `-NoRun` | `--no-run` | Nur herunterladen (und prüfen), nicht installieren |
 | `-NoVerify` | `--no-verify` | SHA-256-Prüfung überspringen (nicht empfohlen) |
