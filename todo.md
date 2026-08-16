@@ -144,7 +144,7 @@ public + private link sharing"):
       Pagination ohne Fortschritts-Guard → Endlosschleife, wenn der Server
       `offset` ignoriert (gleiche Seite erneut, `count == LIMIT`). Fix:
       Duplikat-Erkennung als Abbruchbedingung.
-- [ ] **P10 (Bug, bestätigt N6):** `should_skip_name` (`sync.rs:172-175`)
+- [x] **P10 (Bug, bestätigt N6):** `should_skip_name` (`sync.rs:172-175`)
       asymmetrisch: lokale versteckte Dateien (`.env`, `.gitignore`) werden
       nie hochgeladen, remote vorhandene versteckte Dateien werden beim
       Erst-Sync heruntergeladen. Beide Richtungen einheitlich skippen.
@@ -260,7 +260,7 @@ Neue Befunde (Lauf 4):
       Datei-Download in `tempDir()` bleibt dauerhaft liegen (kein Cleanup) —
       jedes Öffnen einer Datei füllt das Temp-Verzeichnis. Fix: Datei nach
       `openPath` löschen oder eigenes Cache-Verzeichnis mit Cleanup.
-- [ ] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
+- [x] **N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name` (`sync.rs:172-175`)
       ist asymmetrisch: Lokale versteckte Dateien (`.env`, `.gitignore`) werden
       nie hochgeladen, aber remote vorhandene versteckte Dateien werden beim
       Erst-Sync heruntergeladen. Entweder beide Richtungen einheitlich skippen
@@ -362,6 +362,20 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-15 (P10/N6)
+
+- [x] **P10/N6 (Bug, minor):** Sync-Skip-Regel `should_skip_name`
+      (`sync.rs:172-175`) war asymmetrisch: Lokale versteckte Dateien
+      (`.env`, `.gitignore`) wurden nie hochgeladen, remote vorhandene
+      versteckte Dateien wurden beim Erst-Sync heruntergeladen. Fix:
+      `list_remote` skippt Einträge jetzt über das gemeinsame Prädikat
+      `should_skip_rel` (letztes Pfadsegment gegen `should_skip_name`) —
+      beide Sync-Richtungen behandeln versteckte Namen einheitlich. Neue
+      Unit-Tests: `should_skip_rel_filters_hidden_names_on_both_sides` und
+      `hidden_files_are_skipped_in_both_sync_directions` (walk_local-Integrität).
+      Verifikation: `cargo fmt --check` grün, `cargo clippy --all-targets
+      -- -D warnings` grün, `cargo test` → 51 passed / 0 failed.
 
 ### Review 2026-08-15 (U8)
 
