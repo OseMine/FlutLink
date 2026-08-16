@@ -28,6 +28,8 @@ const emit = defineEmits<{
   createLink: [entry: WebDavEntry];
   copyLink: [path: string];
   pair: [entry: WebDavEntry];
+  download: [entry: WebDavEntry];
+  delete: [entry: WebDavEntry];
 }>();
 
 const ui = useUiStore();
@@ -75,6 +77,16 @@ function toggleSort(key: "name" | "size" | "mtime") {
 
 function shareStatus(path: string) {
   return props.shareState.get(path);
+}
+
+function entryPreview(entry: WebDavEntry): string {
+  const parts = [entry.name];
+  if (!entry.isDir) parts.push(formatBytes(entry.size));
+  const mtime = formatMtime(entry.mtime);
+  if (mtime !== "—") parts.push(mtime);
+  if (entry.isResource) parts.push(t("resource"));
+  else if (entry.isPart) parts.push(t("part"));
+  return parts.join(" — ");
 }
 </script>
 
@@ -193,45 +205,75 @@ function shareStatus(path: string) {
       <div
         v-for="entry in sortedEntries"
         :key="entry.path"
-        class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
+        class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
         :class="selectable && selected.has(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
-        @contextmenu="emit('contextmenu', $event, entry)"
+        @click="selectable && emit('toggleSelect', entry.path)"
         @dblclick="emit('open', entry)"
+        @contextmenu="emit('contextmenu', $event, entry)"
       >
         <input
           v-if="selectable"
           type="checkbox"
-          class="accent-primary"
+          class="accent-primary absolute right-1.5 top-1.5"
           :checked="selected.has(entry.path)"
+          @click.stop
           @change="emit('toggleSelect', entry.path)"
         />
-        <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
-        <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
+        <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
+        <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
         <p class="w-full truncate text-[10px] text-on-surface-variant">
           {{ entry.isDir ? "—" : formatBytes(entry.size) }}
         </p>
-        <div class="flex gap-1">
+        <div
+          class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-black/50 group-hover:flex"
+          @click.stop
+          @dblclick.stop
+        >
           <button
-            class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-            @click.stop="emit('open', entry)"
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            :title="t('open')"
+            @click="emit('open', entry)"
           >
-            {{ t("open") }}
+            <Icon name="open" :size="16" />
           </button>
           <button
-            v-if="entry.pairedPath"
-            class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-            :title="t('openPaired') + ' ' + entry.pairedPath"
-            @click.stop="emit('pair', entry)"
+            v-if="!entry.isDir"
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            :title="t('download')"
+            @click="emit('download', entry)"
           >
-            ↔
+            <Icon name="download" :size="16" />
           </button>
           <button
-            class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-            @click.stop="emit('rename', entry)"
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            :title="shareStatus(entry.path)?.status === 'done' ? t('linkCopied') : t('link')"
+            @click="shareStatus(entry.path)?.status === 'done' ? emit('copyLink', entry.path) : emit('createLink', entry)"
           >
-            {{ t("rename") }}
+            <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="16" />
+          </button>
+          <button
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            :title="t('rename')"
+            @click="emit('rename', entry)"
+          >
+            <Icon name="edit" :size="16" />
+          </button>
+          <button
+            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-error shadow-m3-1 transition hover:bg-error hover:text-on-error"
+            :title="t('delete')"
+            @click="emit('delete', entry)"
+          >
+            <Icon name="delete" :size="16" />
           </button>
         </div>
+        <button
+          v-if="entry.pairedPath"
+          class="absolute bottom-1 right-1 rounded border border-outline px-1 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+          :title="t('openPaired') + ' ' + entry.pairedPath"
+          @click.stop="emit('pair', entry)"
+        >
+          ↔
+        </button>
       </div>
     </div>
   </div>

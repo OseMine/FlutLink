@@ -106,6 +106,9 @@ async function dropUpload(paths: string[]) {
 
 function openCtx(e: MouseEvent, entry: WebDavEntry) {
   e.preventDefault();
+  if (!selected.value.has(entry.path)) {
+    selected.value = new Set([entry.path]);
+  }
   ctxMenu.value = { x: e.clientX, y: e.clientY, entry };
 }
 
@@ -687,6 +690,8 @@ watch(
         @create-link="createLink"
         @copy-link="copyLink"
         @pair="goToPaired"
+        @download="download"
+        @delete="removeEntry"
       />
     </div>
 
