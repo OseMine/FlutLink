@@ -6,6 +6,51 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-16 (Lauf 7, Release-Review v1 — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt und grün: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 69 passed / 0 failed; `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --check` grün;
+`npm run build` (vue-tsc + vite) grün. i18n-Keys aller Komponenten gegen `src/lib/i18n.ts`
+geprüft (vollständig), keyring-Nutzung (`accounts.rs`, Linux-Secret-Service-Hints),
+CSP und Capabilities (`capabilities/default.json`) sind sauber. Neu gefunden:
+
+- [x] **R7-1 (Bug, mittel):** `assert_flutcloud_url` normalisiert die `.env`-URL nicht —
+      `src-tauri/src/flutcloud.rs:43` vergleicht `normalized` mit dem **rohen**
+      `flutcloud_url()?`-Wert (`eq_ignore_ascii_case`). Enthält `FLUTCLOUD_URL` ein
+      nachgestelltes `/` (z. B. `https://flutcloud.de/`), schlägt jeder `account_add`/
+      `register_user`/`load_accounts` mit `NotFlutCloud` fehl — Login komplett unmöglich.
+      Fix: `normalize_url(&flutcloud_url()?)` auf der env-Seite anwenden; der bestehende
+      Test `accepts_the_flutcloud_url_with_and_without_slash` (`flutcloud.rs:81-88`)
+      deckt nur den Instanz-Slash ab, nicht den env-Slash. → umgesetzt (siehe Archiv).
+- [x] **R7-2 (Security-Hardening, minor):** `updater.rs:256` übernimmt den `asset_name` aus
+      der GitHub-API-Antwort ungeprüft als lokalen Dateinamen (`tmp_dir.join(&info.asset_name)`).
+      GitHub verhindert `/` in Asset-Namen praktisch, aber Pfadtrenner (Windows `\`) oder `..`
+      könnten die Download-Datei außerhalb von `flutlink_update/` ablegen. Fix: Trenner im
+      Namen ablehnen bzw. mit `Path::file_name()` vergleichen. → umgesetzt (siehe Archiv).
+- [x] **R7-3 (Robustheit, minor):** `updater.rs` `install_update` ruft `path.to_str().unwrap()`
+      auf (Z. 368, 398, 400, 430, 440, 452) — Panic, falls der remote kommende Asset-Name
+      nicht UTF-8 ist. `unwrap_or("")` verwenden (konsistent zum `extension()`-Handling
+      direkt darüber). → umgesetzt (siehe Archiv).
+- [x] **R7-4 (UX-Regression-Risiko, minor):** `src/lib/ripple.ts:25-26` setzt bei jedem
+      `pointerdown` inline `position: relative; overflow: hidden` auf dem Host und
+      überschreibt damit bewusst gesetzte Styles (z. B. `position: fixed` bzw. Dropdown-/
+      Sticky-Kontexte) → Tooltips/Menüs können abgeschnitten werden. Stattdessen die Regeln
+      global per CSS-Klasse am Ripple-Span anwenden oder nur setzen, wenn noch kein
+      Inline-Style existiert. → umgesetzt (siehe Archiv).
+- [x] **R7-5 (Release-Prozess):** Version steht überall auf `0.1.0` (`package.json`,
+      `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`). Für ein „v1"-Release auf `1.0.0`
+      anheben, sonst heißen die Assets `FlutLink_0.1.0_…` und der Tag `v0.1.0` (`release.yml`
+      leitet `tagName: v__VERSION__` aus `tauri.conf.json` ab). → umgesetzt (siehe Archiv).
+- [x] **R7-6 (Release-Prozess):** Working Tree enthält uncommittete Änderungen
+      (`docs/README.md`, `docs/README-de.md`, `docs/de/flutcloud-app.md`, `docs/de/sync.md`,
+      `docs/en/flutcloud-app.md`, `flutcloud-app/appinfo/info.xml` — Author-E-Mail,
+      Nextcloud 28–31 → 28–37). Vor dem Tag/Release committen. → umgesetzt (siehe Archiv).
+- [ ] **R7-7 (Hinweis):** `release.yml` veröffentlicht als Draft (`releaseDraft: true`);
+      `check_for_update` überspringt Drafts und Prereleases (`updater.rs:204-206`). Nach dem
+      Build muss der Draft manuell publiziert werden, sonst erhalten Bestandskunden das
+      v1-Update nicht. → beim Release manuell beachten (kein Code-Fix).
+
 ### Aktueller Stand (2026-08-16)
 
 Alle in den Review-Läufen 2–6 (2026-08-13 bis 2026-08-15) erfassten Punkte
@@ -22,6 +67,17 @@ F9 (SHA-Warnung bei fehlendem Digest), N16 (= F5/F7), P12/N3 (`release.yml`
 Prompt-Injection-Schutz), P13/N4 (`build.yml` paths-ignore ohne `.github/**`)
 und Q1 (native OS-Notifications).
 
+Im Review 2026-08-16 (Lauf 7, Release-Review v1) gefundene Punkte
+R7-1 bis R7-6 sind umgesetzt (Details im [Archiv](#archiv-erledigt)):
+R7-1 (env-URL mit Trailing-Slash → `NotFlutCloud`, Login unmöglich) ist als
+Bug behoben und mit Test abgesichert; R7-2 (Asset-Name aus der GitHub-API
+wird gegen Pfadtraversal gehärtet) und R7-3 (`to_str().unwrap()` durch
+`unwrap_or("")`) sind im Updater behoben; R7-4 (Ripple überschrieb per Inline-
+Style `position`/`overflow` und schnitt Tooltips/Menüs ab) ist entschärft;
+R7-5 (Version auf `1.0.0` angehoben) und R7-6 (Docs + `info.xml` committet)
+sind erledigt. R7-7 (Release läuft als Draft) ist ein Hinweis für den
+Release-Vorgang, kein Code-Fix.
+
 Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 69 passed /
 0 failed; `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
 -- -D warnings` grün; `cargo fmt --check` grün; `npm run build` grün.
@@ -30,6 +86,8 @@ Keine offenen Punkte mehr.
 
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
+- Review 2026-08-16 (Lauf 7, Release-Review v1) — R7-1 bis R7-6 umgesetzt,
+  R7-7 als Hinweis dokumentiert.
 - Review 2026-08-15 (Lauf 6, Fokus Phase 3 & 4) — Q2, Q3, Q5–Q9, P1–P17,
   U9–U11, N1–N16 umgesetzt.
 - Review 2026-08-14 (Lauf 5, Fokus Browsing & Link-Sharing) — P1–P17, U9–U11,
@@ -40,6 +98,52 @@ Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Lauf 7, Release-Review v1 — R7-1 bis R7-6)
+
+- [x] **R7-1 (Bug, mittel):** `assert_flutcloud_url` verglich die normalisierte
+      Instanz-URL nur mit dem **rohen** `.env`-Wert (`flutcloud_url()?`); ein
+      Trailing-Slash in `FLUTCLOUD_URL` (z. B. `https://flutcloud.de/`) ließ
+      jeden `account_add`/`register_user`/`load_accounts` mit `NotFlutCloud`
+      fehlschlagen — Login komplett unmöglich. Fix in `src-tauri/src/flutcloud.rs`:
+      neue pure Helper-Funktion `urls_equal(a, b)` normalisiert beide Seiten
+      (`strip_suffix('/')` + `to_ascii_lowercase`); `assert_flutcloud_url`
+      wendet sie jetzt auf `flutcloud_url()?` an. Neuer Test
+      `trailing_slash_on_env_side_still_matches`; der bestehende Test
+      `accepts_the_flutcloud_url_with_and_without_slash` bleibt grün.
+- [x] **R7-2 (Security-Hardening, minor):** `updater.rs` übernahm den
+      `asset_name` aus der GitHub-API-Antwort ungeprüft als lokalen Dateinamen
+      (`tmp_dir.join(&info.asset_name)`). Fix: neue pure Funktion
+      `is_safe_asset_name(name)` akzeptiert nur leere-Pfad-freie Namen (nicht
+      leer, kein `/` oder `\`, kein `..`, `Path::file_name()` muss den ganzen
+      Namen ergeben); `download_update` weist Namen zurück, die außerhalb von
+      `flutlink_update/` landen würden. Neue Unit-Tests `plain_asset_names_are_safe`
+      und `path_like_asset_names_are_rejected`.
+- [x] **R7-3 (Robustheit, minor):** Alle `path.to_str().unwrap()` im
+      Updater-Installpfad (`install_update`) durch `unwrap_or("")` ersetzt
+      (Zeilen ~368, 398, 400, 430 inkl. ditto-Argumente, 440 `detach`, 452
+      Linux-`path_str`) — konsistent zum `extension()`-Handling; kein Panic
+      mehr bei nicht-UTF-8-Pfaden.
+- [x] **R7-4 (UX-Regression-Risiko, minor):** `src/lib/ripple.ts` setzte bei
+      jedem `pointerdown` blind inline `position: relative; overflow: hidden`
+      auf dem Host und überschrieb damit bewusst gesetzte Styles (`position:
+      fixed`/`absolute`/`sticky`, Dropdown-/Sticky-Kontexte) → Tooltips/Menüs
+      konnten abgeschnitten werden. Fix: Die Regeln werden nur noch gesetzt,
+      wenn der Host sie nicht selbst etabliert (Computed-Style-Guard:
+      `position === "static"` bzw. `overflow === "visible"`).
+- [x] **R7-5 (Release-Prozess):** Version auf `1.0.0` angehoben
+      (`package.json`, `src-tauri/Cargo.toml` + `Cargo.lock`,
+      `src-tauri/tauri.conf.json`), damit die Assets `FlutLink_1.0.0_…`
+      heißen und der Tag `v1.0.0` wird.
+- [x] **R7-6 (Release-Prozess):** Working-Tree-Änderungen committet
+      (`docs/README.md`, `docs/README-de.md`, `docs/de/flutcloud-app.md`,
+      `docs/de/sync.md`, `docs/en/flutcloud-app.md`,
+      `flutcloud-app/appinfo/info.xml` — Author-E-Mail, Nextcloud 28–31 →
+      28–37).
+- [x] **R7-7 (Hinweis, kein Fix):** `release.yml` veröffentlicht als Draft;
+      `check_for_update` überspringt Drafts/Prereleases. Nach dem Build muss
+      der Draft manuell publiziert werden, sonst erhalten Bestandskunden das
+      v1-Update nicht — beim Release-Vorgang beachten.
 
 ### Review 2026-08-16 (Q1 / P12 / P13 / N3 / N4)
 

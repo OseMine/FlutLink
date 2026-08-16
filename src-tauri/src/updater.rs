@@ -150,6 +150,19 @@ fn pick_asset(assets: &[GithubAsset]) -> Option<&GithubAsset> {
     None
 }
 
+/// Returns `true` when a GitHub asset name is safe to use as a plain file name.
+///
+/// R7-2: the name comes from the GitHub API and must never influence the
+/// download target path. Reject empty names, path separators (`/`, `\`) and
+/// `..` so the file always lands inside the dedicated temp directory.
+fn is_safe_asset_name(name: &str) -> bool {
+    let asset = Path::new(name);
+    !name.is_empty()
+        && name != ".."
+        && !name.contains(['/', '\\'])
+        && asset.file_name().is_some_and(|f| f == asset.as_os_str())
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Version comparison
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,6 +266,15 @@ pub async fn download_update(
         .await
         .map_err(|e| format!("Cannot create temp dir: {e}"))?;
 
+    // R7-2: the asset name comes from the GitHub API and must never influence
+    // the target path. Accept only a plain file name (no `/`, `\`, `..`, empty);
+    // otherwise the download would be written outside the temp directory.
+    if !is_safe_asset_name(&info.asset_name) {
+        return Err(format!(
+            "Invalid asset name from release: {:?}",
+            info.asset_name
+        ));
+    }
     let dest = tmp_dir.join(&info.asset_name);
 
     let mut resp = client
@@ -365,7 +387,7 @@ pub fn install_update(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        let path_str = path.to_str().unwrap();
+        let path_str = path.to_str().unwrap_or("");
 
         let mut cmd = if ext == "msi" {
             let mut c = Command::new("msiexec");
@@ -395,9 +417,9 @@ pub fn install_update(path: &Path) -> Result<(), String> {
         let status = Command::new("hdiutil")
             .args([
                 "attach",
-                path.to_str().unwrap(),
+                path.to_str().unwrap_or(""),
                 "-mountpoint",
-                mount_point.to_str().unwrap(),
+                mount_point.to_str().unwrap_or(""),
                 "-quiet",
                 "-nobrowse",
                 "-noverify",
@@ -427,7 +449,10 @@ pub fn install_update(path: &Path) -> Result<(), String> {
 
         // `ditto` preserves resource forks and extended attributes.
         let copy_status = Command::new("ditto")
-            .args([app_bundle.to_str().unwrap(), target.to_str().unwrap()])
+            .args([
+                app_bundle.to_str().unwrap_or(""),
+                target.to_str().unwrap_or(""),
+            ])
             .status()
             .map_err(|e| format!("ditto failed: {e}"))?;
 
@@ -437,7 +462,7 @@ pub fn install_update(path: &Path) -> Result<(), String> {
 
         // Detach the DMG (best effort – don't fail the update if this errors).
         let _ = Command::new("hdiutil")
-            .args(["detach", mount_point.to_str().unwrap(), "-quiet"])
+            .args(["detach", mount_point.to_str().unwrap_or(""), "-quiet"])
             .status();
 
         // Re-launch the freshly installed app and quit this process.
@@ -449,7 +474,7 @@ pub fn install_update(path: &Path) -> Result<(), String> {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let path_str = path.to_str().unwrap();
+        let path_str = path.to_str().unwrap_or("");
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         if ext == "deb" {
@@ -707,6 +732,23 @@ mod tests {
             asset_sha256: Some("sha256:abcd".trim_start_matches("sha256:").into()),
         };
         assert_eq!(info.asset_sha256.as_deref(), Some("abcd"));
+    }
+
+    // --- is_safe_asset_name (R7-2) -------------------------------------------
+
+    #[test]
+    fn plain_asset_names_are_safe() {
+        assert!(is_safe_asset_name("FlutLink_1.0.0_x64-setup.exe"));
+        assert!(is_safe_asset_name("FlutLink_1.0.0.dmg"));
+    }
+
+    #[test]
+    fn path_like_asset_names_are_rejected() {
+        assert!(!is_safe_asset_name("../evil.exe"));
+        assert!(!is_safe_asset_name("sub/dir/file.exe"));
+        assert!(!is_safe_asset_name("sub\\dir\\file.exe"));
+        assert!(!is_safe_asset_name(".."));
+        assert!(!is_safe_asset_name(""));
     }
 }
 

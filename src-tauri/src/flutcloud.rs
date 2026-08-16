@@ -40,11 +40,20 @@ fn normalize_url(url: &str) -> String {
 /// server is rejected with `AppError::NotFlutCloud`.
 pub fn assert_flutcloud_url(instance_url: &str) -> AppResult<String> {
     let normalized = normalize_url(instance_url);
-    if normalized.eq_ignore_ascii_case(&flutcloud_url()?) {
+    // R7-1: normalize the env value too, so a trailing slash in `.env`
+    // (`https://flutcloud.de/`) still matches the instance URL.
+    if urls_equal(instance_url, &flutcloud_url()?) {
         Ok(normalized)
     } else {
         Err(AppError::NotFlutCloud(normalized))
     }
+}
+
+/// Compare two URLs for equality, ignoring trailing slashes and case. Used by
+/// [`assert_flutcloud_url`] and covered directly in tests so both the instance
+/// side and the `.env` side get slash handling.
+fn urls_equal(a: &str, b: &str) -> bool {
+    normalize_url(a).eq_ignore_ascii_case(&normalize_url(b))
 }
 
 /// Verify that the server is a real FlutCloud server by querying the OCS
@@ -85,6 +94,21 @@ mod tests {
         };
         assert_eq!(assert_flutcloud_url(&url).unwrap(), url);
         assert_eq!(assert_flutcloud_url(&format!("{url}/")).unwrap(), url);
+    }
+
+    #[test]
+    fn trailing_slash_on_env_side_still_matches() {
+        // R7-1: a trailing slash in `.env` (`FLUTCLOUD_URL=https://…/`) must not
+        // break account_add/register_user. urls_equal normalizes both sides, so
+        // this holds regardless of which side carries the slash.
+        assert!(urls_equal("https://flutcloud.de", "https://flutcloud.de/"));
+        assert!(urls_equal("https://flutcloud.de/", "https://flutcloud.de"));
+        assert!(urls_equal(
+            "https://flutcloud.de///",
+            "https://flutcloud.de"
+        ));
+        assert!(urls_equal("https://flutcloud.de", "HTTPS://FLUTCLOUD.DE"));
+        assert!(!urls_equal("https://flutcloud.de", "https://other.example"));
     }
 
     #[test]

@@ -21,9 +21,16 @@ export function initRipple() {
     if (!(e.target instanceof Element)) return;
     const host = e.target.closest<HTMLElement>(RIPPLE_SELECTOR);
     if (!host) return;
-    // The ripple is clipped to the host (like an M3 state layer).
-    host.style.position = "relative";
-    host.style.overflow = "hidden";
+    // The ripple is clipped to the host (like an M3 state layer). Only touch
+    // positioning/clipping when the host does not already establish its own
+    // box — never override `position: fixed` / `absolute` / `sticky` or an
+    // existing `overflow` (R7-4), which could clip dropdowns and tooltips.
+    if (getComputedStyle(host).position === "static") {
+      host.style.position = "relative";
+    }
+    if (getComputedStyle(host).overflow === "visible") {
+      host.style.overflow = "hidden";
+    }
     spawnRipple(host, e.clientX, e.clientY);
   });
 }
