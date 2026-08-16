@@ -71,6 +71,22 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       Link-Target-Feld in `WebDavEntry`). README Phase 3 „symlink/virtual-link
       resolution". Fix: Symlink-Following-Option bzw. Link-Auflösung im
       Backend.
+- [ ] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlen: `AdminPanel.vue`
+      (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
+      Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
+      unlimited) + benutzerdefiniert.
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
+      `webdav_upload_file` sendete einen ungeprüften PUT (`put_file_as`,
+      `webdav.rs:135-146`) — existierte die Zieldatei, wurde sie ohne Rückfrage
+      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüfte nicht
+      und meldete nur „Uploaded.". N1 deckte nur das Rename-Overwrite ab
+      (`Overwrite: T`, `webdav.rs:359`). Fix umgesetzt: Existenz-Check
+      (PROPFIND, `webdav::exists`) vor dem PUT in `webdav_upload_file`,
+      `upload_tree` und `webdav_upload_local_paths`; klarer
+      `AppError::TargetExists` (Code `target_exists`); UI-Confirm in
+      `uploadFiles`/`dropUpload` (i18n `uploadOverwriteConfirm`/
+      `uploadOverwriteAllConfirm`/`uploadSkipped`), Überschreiben nur nach
+      Bestätigung über den neuen `overwrite`-Parameter.
 - [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
       `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
       `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
@@ -365,6 +381,25 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 
 ## Archiv (erledigt)
 
+### Review 2026-08-16 (Q9)
+
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschrieb eine
+      existierende Zieldatei still: `webdav_upload_file` sendete einen
+      ungeprüften PUT (`put_file_as`, `webdav.rs:135-146`), `uploadFiles`
+      (`FileExplorer.vue:123-142`) prüfte nicht und meldete nur „Uploaded.".
+      Fix: Neuer Existenz-Check `webdav::exists` (PROPFIND, Depth 0) in
+      `nextcloud/webdav.rs`; `webdav_upload_file`, `upload_tree` und
+      `webdav_upload_local_paths` in `commands.rs` prüfen vor dem PUT und
+      liefern den neuen `AppError::TargetExists` (Code `target_exists`,
+      Serialize-Test in `error.rs`). `overwrite`-Parameter (Tauri-Command +
+      `src/lib/ipc.ts` + `src/stores/files.ts`) erlaubt bewusstes Ersetzen.
+      UI-Confirm in `FileExplorer.vue` (`uploadFiles` pro Datei mit
+      `uploadOverwriteConfirm`, `dropUpload` pauschal mit
+      `uploadOverwriteAllConfirm`; `uploadSkipped` beim Ablehnen). i18n
+      en/de ergänzt (`errTargetExists` in `ERROR_CODE_KEYS`). Sync-Engine
+      bleibt unverändert (darf weiter überschreiben). Verifikation:
+      `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+      (50 passed), `npm run build` grün.
 ### Review 2026-08-16 (N11)
 
 - [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:819-842`) akzeptierte
