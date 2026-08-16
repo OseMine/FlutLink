@@ -7,7 +7,10 @@ administration and two-way sync.
 
 - WebDAV browser with `PROPFIND` (Depth 1) listings.
 - Entries are flagged as **resource** or **part** (see the `resources`/`parts`
-  conventions used on the FlutCloud server side) and shown as badges.
+  conventions used on the FlutCloud server side) and shown as badges. Every
+  `resources` entry carries its writable `parts` counterpart (`pairedPath`);
+  a **pairing bar** lets you jump "virtual ↔ real" and a **split view** shows
+  both namespaces side by side.
 - One-click **link sharing** via the OCS share API — the public link is copied
   to the clipboard.
 - **File operations**: upload, download / open (downloads to a temp file and

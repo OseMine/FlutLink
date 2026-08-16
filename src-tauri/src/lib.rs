@@ -1,4 +1,5 @@
 mod accounts;
+mod cache;
 mod commands;
 mod error;
 mod flutcloud;
@@ -234,7 +235,6 @@ pub fn run() {
             commands::get_flutcloud_url,
             commands::account_add,
             commands::account_list,
-            commands::account_active,
             commands::account_switch,
             commands::account_remove,
             commands::account_storage,
@@ -255,6 +255,10 @@ pub fn run() {
             commands::admin_edit_user,
             commands::admin_create_user,
             commands::admin_delete_user,
+            commands::admin_list_groups,
+            commands::admin_create_group,
+            commands::admin_add_group_member,
+            commands::admin_remove_group_member,
             commands::sync_list,
             commands::sync_add,
             commands::sync_remove,

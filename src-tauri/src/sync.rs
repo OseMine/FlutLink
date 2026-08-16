@@ -180,6 +180,13 @@ fn should_skip_name(name: &str) -> bool {
     name.starts_with('.') || name.starts_with("~$") || name.ends_with('~') || lower == "thumbs.db"
 }
 
+/// Skip a rel path when its last segment is hidden (`should_skip_name`).
+/// Used for remote entries so both sync directions skip the same names.
+fn should_skip_rel(rel: &str) -> bool {
+    let name = rel.rsplit('/').next().unwrap_or(rel);
+    should_skip_name(name)
+}
+
 /// Recursively collect local files below `root` as rel → (size, mtime).
 async fn walk_local(root: &Path) -> BTreeMap<String, LocalEntry> {
     let mut map = BTreeMap::new();
@@ -262,6 +269,9 @@ async fn list_remote(
                 continue;
             };
             if rel.is_empty() {
+                continue;
+            }
+            if should_skip_rel(&rel) {
                 continue;
             }
             if entry.is_dir {
@@ -1101,11 +1111,6 @@ impl SyncEngine {
             };
 
             status.state = "syncing".into();
-            // Ensure the cloud root exists (including parent chain); harmless
-            // when it already does.
-            let _ =
-                webdav::ensure_collection(&state.http_client, &account, &folder.remote_path).await;
-
             match run_pass(app, &state.http_client, &account, &folder).await {
                 Ok(result) => {
                     status.pending_uploads = result.planned_uploads;
@@ -1338,6 +1343,54 @@ mod tests {
     #[test]
     fn conflict_name_without_extension() {
         assert_eq!(conflict_name("README"), "README (conflict copy)");
+    }
+
+    #[test]
+    fn should_skip_rel_filters_hidden_names_on_both_sides() {
+        for hidden in [
+            ".env",
+            ".gitignore",
+            ".env.example",
+            "sub/.env",
+            "sub/.gitignore",
+            "~$report.docx",
+            "sub/report~",
+            "Thumbs.db",
+            "sub/Thumbs.db",
+        ] {
+            assert!(should_skip_rel(hidden), "must skip: {}", hidden);
+        }
+        for visible in ["env", "sub/a.txt", "Report.docx", "thumbs.dbx"] {
+            assert!(!should_skip_rel(visible), "must not skip: {}", visible);
+        }
+    }
+
+    #[test]
+    fn hidden_files_are_skipped_in_both_sync_directions() {
+        let tmp = std::env::temp_dir().join(format!("flutlink-sync-test-{}", std::process::id()));
+        let sub = tmp.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(tmp.join(".env"), "secret").unwrap();
+        std::fs::write(tmp.join(".gitignore"), "*").unwrap();
+        std::fs::write(tmp.join("Thumbs.db"), "x").unwrap();
+        std::fs::write(sub.join(".hidden"), "x").unwrap();
+        std::fs::write(sub.join("ok.txt"), "x").unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let local_map = rt.block_on(walk_local(&tmp));
+
+        for rel in local_map.keys() {
+            assert!(
+                !should_skip_rel(rel),
+                "walk_local leaked a hidden entry: {}",
+                rel
+            );
+        }
+        assert!(
+            local_map.keys().any(|k| k == "sub/ok.txt"),
+            "visible file must still be walked"
+        );
+        std::fs::remove_dir_all(&tmp).unwrap();
     }
 
     #[test]

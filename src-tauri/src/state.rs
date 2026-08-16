@@ -40,6 +40,10 @@ pub struct WebDavEntry {
     pub is_resource: bool,
     /// True when this entry lives under a folder named `parts` (write-enabled).
     pub is_part: bool,
+    /// Path of the counterpart in the paired namespace: `/resources/…` entries
+    /// point at their writable `/parts/…` part and vice versa. `None` for
+    /// regular files/folders outside the FlutCloud virtual namespaces.
+    pub paired_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +61,26 @@ pub struct UserQuota {
     pub used: Option<u64>,
     pub free: Option<u64>,
     pub relative: Option<f64>,
+}
+
+/// A folder listing plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebDavListResult {
+    pub entries: Vec<WebDavEntry>,
+    /// True when the listing came from the offline cache because the server
+    /// could not be reached; the frontend shows an offline indicator then.
+    pub stale: bool,
+}
+
+/// A storage quota plus whether it was served from the local offline cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageResult {
+    pub quota: Option<UserQuota>,
+    /// True when the quota came from the offline cache because the server
+    /// could not be reached.
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

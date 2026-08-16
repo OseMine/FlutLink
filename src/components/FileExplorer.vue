@@ -7,10 +7,10 @@ import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type AppErrorLike, type BulkTarget, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
-import { formatBytes } from "../lib/format";
 import Icon from "./Icon.vue";
+import EntryList from "./EntryList.vue";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -18,8 +18,6 @@ const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
 const viewMode = ref<"list" | "grid">("list");
-const sortKey = ref<"name" | "size" | "mtime">("name");
-const sortAsc = ref(true);
 const selected = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
 const busyPath = ref<string | null>(null);
@@ -28,50 +26,8 @@ const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
 const draggingOver = ref(false);
+const emptySelection = new Set<string>();
 let unlistenDragDrop: (() => void) | null = null;
-
-function formatMtime(mtime: string | null): string {
-  if (!mtime) return "—";
-  const date = new Date(mtime);
-  return isNaN(date.getTime()) ? mtime : date.toLocaleString();
-}
-
-function entryPreview(entry: WebDavEntry): string {
-  const parts = [entry.name];
-  if (!entry.isDir) parts.push(formatBytes(entry.size));
-  const mtime = formatMtime(entry.mtime);
-  if (mtime !== "—") parts.push(mtime);
-  if (entry.isResource) parts.push(t("resource"));
-  else if (entry.isPart) parts.push(t("part"));
-  return parts.join(" — ");
-}
-
-const sortedEntries = computed(() => {
-  const dirs = files.entries.filter((e) => e.isDir);
-  const others = files.entries.filter((e) => !e.isDir);
-  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey.value === "size") {
-      const av = a.size ?? 0;
-      const bv = b.size ?? 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    if (sortKey.value === "mtime") {
-      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
-      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    const av = a.name.toLowerCase();
-    const bv = b.name.toLowerCase();
-    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  dirs.sort(cmp);
-  others.sort(cmp);
-  return [...dirs, ...others];
-});
-
-function isSelected(path: string): boolean {
-  return selected.value.has(path);
-}
 
 function toggleSelect(path: string) {
   const next = new Set(selected.value);
@@ -142,17 +98,23 @@ async function dropUpload(paths: string[]) {
     files.clearTransfer();
     ui.toast(t("fileUploaded"), "success");
   } catch (e) {
+    if ((e as AppErrorLike)?.code === "target_exists") {
+      // Q9: never silently overwrite an existing remote file. Ask first and
+      // only retry the whole batch with overwrite once the user agrees.
+      if (window.confirm(t("uploadOverwriteAllConfirm"))) {
+        try {
+          await files.uploadLocalPaths(paths, true);
+          files.clearTransfer();
+          ui.toast(t("fileUploaded"), "success");
+        } catch (e2) {
+          ui.toast(invokeError(e2).message, "error");
+        }
+      }
+      return;
+    }
     ui.toast(invokeError(e).message, "error");
   } finally {
     busyPath.value = null;
-  }
-}
-
-function toggleSort(key: "name" | "size" | "mtime") {
-  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
-  else {
-    sortKey.value = key;
-    sortAsc.value = true;
   }
 }
 
@@ -187,6 +149,31 @@ async function open(entry: WebDavEntry) {
   }
 }
 
+/// Jump to the counterpart of a single entry (`/resources/…` ↔ `/parts/…`).
+function goToPaired(entry: WebDavEntry) {
+  if (entry.pairedPath) void files.navigate(entry.pairedPath);
+}
+
+/// Jump to an arbitrary path (used by the pairing bar / split-view swap).
+function goToPath(path: string | null) {
+  if (path) void files.navigate(path);
+}
+
+/// "virtual" (read-only `resources`) or "real" (write-enabled `parts`) pane
+/// label for a path inside the FlutCloud virtual namespaces, else `null`.
+function paneKind(path: string | null): "virtual" | "real" | null {
+  if (!path) return null;
+  for (const seg of path.split("/")) {
+    if (seg.toLowerCase() === "resources") return "virtual";
+    if (seg.toLowerCase() === "parts") return "real";
+  }
+  return null;
+}
+
+function paneLabel(kind: "virtual" | "real" | null): string {
+  return kind === "virtual" ? t("virtualPane") : t("realPane");
+}
+
 async function download(entry: WebDavEntry) {
   if (busyPath.value) return;
   busyPath.value = entry.path;
@@ -219,6 +206,25 @@ async function uploadFiles() {
       try {
         await files.uploadFile(local, remote);
       } catch (e) {
+        if ((e as AppErrorLike)?.code === "target_exists") {
+          // Q9: never silently overwrite an existing remote file. Ask first,
+          // retry this single file with overwrite if the user agrees.
+          if (
+            window.confirm(t("uploadOverwriteConfirm").replace("{name}", name))
+          ) {
+            try {
+              await files.uploadFile(local, remote, true);
+              continue;
+            } catch (e2) {
+              failed += 1;
+              ui.toast(`${name}: ${invokeError(e2).message}`, "error");
+              continue;
+            }
+          }
+          failed += 1;
+          ui.toast(`${name}: ${t("uploadSkipped")}`, "error");
+          continue;
+        }
         failed += 1;
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
@@ -288,10 +294,6 @@ async function removeEntry(entry: WebDavEntry) {
 const shareState = reactive(
   new Map<string, { status: "loading" | "done" | "error"; value?: string }>()
 );
-
-function shareStatus(path: string) {
-  return shareState.get(path);
-}
 
 async function createLink(entry: WebDavEntry) {
   shareState.set(entry.path, { status: "loading" });
@@ -452,6 +454,16 @@ watch(
           </button>
         </div>
         <button
+          v-if="files.pairedPath"
+          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
+          :class="files.splitView ? 'bg-primary text-on-primary hover:bg-primary-hover' : ''"
+          :title="t('splitViewHint')"
+          @click="files.toggleSplitView"
+        >
+          <Icon name="columns" :size="15" />
+          {{ t("splitView") }}
+        </button>
+        <button
           class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
           @click="files.refresh"
         >
@@ -529,6 +541,34 @@ watch(
       <span class="truncate font-semibold">{{ files.targetUser }}</span>
     </div>
 
+    <div
+      v-if="files.pairedPath"
+      class="flex items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-6 py-1.5 text-xs text-on-surface-variant"
+    >
+      <span class="truncate rounded bg-info-container px-2 py-0.5 text-on-info-container">
+        {{ paneLabel(paneKind(files.currentPath)) }}: {{ files.currentPath }}
+      </span>
+      <button
+        class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
+        :title="t('openPaired')"
+        @click="goToPath(files.pairedPath)"
+      >
+        ↔
+      </button>
+      <span class="truncate rounded bg-success-container px-2 py-0.5 text-on-success-container">
+        {{ paneLabel(paneKind(files.pairedPath)) }}: {{ files.pairedPath }}
+      </span>
+    </div>
+
+    <div
+      v-if="files.offline"
+      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+    >
+      <Icon name="cloud_off" :size="14" class="shrink-0" />
+      <span class="shrink-0 font-semibold">{{ t("offline") }}</span>
+      <span class="truncate opacity-80">{{ t("offlineHint") }}</span>
+    </div>
+
     <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
       {{ files.error }}
     </div>
@@ -594,174 +634,107 @@ watch(
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
+    <!-- Split view: virtual resources ↔ real parts, side by side -->
+    <div v-else-if="files.splitView" class="flex flex-1 overflow-hidden">
+      <div class="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-outline-variant">
+        <div class="flex shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
+          <span class="truncate font-semibold text-on-surface">{{ files.currentPath }}</span>
+          <span class="flex shrink-0 items-center gap-2">
+            <span class="rounded bg-info-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-info-container">
+              {{ paneLabel(paneKind(files.currentPath)) }}
+            </span>
+            <button
+              class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 hover:bg-surface-container-high"
+              :title="t('openPaired')"
+              @click="goToPath(files.pairedPath)"
+            >
+              ↔
+            </button>
+          </span>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <EntryList
+            :entries="files.entries"
+            :view-mode="viewMode"
+            :selected="selected"
+            :share-state="shareState"
+            @open="open"
+            @toggle-select="toggleSelect"
+            @contextmenu="openCtx"
+            @rename="startRename"
+            @create-link="createLink"
+            @copy-link="copyLink"
+            @pair="goToPaired"
+          />
+        </div>
+      </div>
+      <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div class="flex shrink-0 items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
+          <span class="truncate font-semibold text-on-surface">{{ files.pairedPath }}</span>
+          <span class="shrink-0 rounded bg-success-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-success-container">
+            {{ paneLabel(paneKind(files.pairedPath)) }}
+          </span>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <div v-if="files.pairedLoading && files.pairedEntries.length === 0" class="p-4 text-on-surface-variant">
+            {{ t("connecting") }}
+          </div>
+          <div v-else-if="files.pairedError" class="p-4 text-error">{{ files.pairedError }}</div>
+          <div v-else-if="files.pairedEntries.length === 0" class="p-4 text-center text-on-surface-variant">
+            <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
+          </div>
+          <EntryList
+            v-else
+            :entries="files.pairedEntries"
+            :view-mode="viewMode"
+            :selected="emptySelection"
+            :share-state="shareState"
+            :selectable="false"
+            @open="open"
+            @contextmenu="openCtx"
+            @rename="startRename"
+            @create-link="createLink"
+            @copy-link="copyLink"
+            @pair="goToPaired"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- List view -->
-    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto px-4 py-2">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-on-surface-variant">
-            <th class="w-8 px-3 py-2"></th>
-            <th class="px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('name')">
-                {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-28 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('size')">
-                {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-44 px-3 py-2 font-medium">
-              <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('mtime')">
-                {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
-              </button>
-            </th>
-            <th class="w-24 px-3 py-2 font-medium">{{ t("kind") }}</th>
-            <th class="w-32 px-3 py-2 font-medium"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="entry in sortedEntries"
-            :key="entry.path"
-            class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
-            :class="isSelected(entry.path) ? 'bg-primary-container/40' : ''"
-            @contextmenu="openCtx($event, entry)"
-          >
-            <td class="px-3 py-2">
-              <input
-                type="checkbox"
-                class="accent-primary"
-                :checked="isSelected(entry.path)"
-                @change="toggleSelect(entry.path)"
-              />
-            </td>
-            <td class="px-3 py-2">
-              <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="open(entry)">
-                <span class="flex w-5 justify-center">
-                  <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
-                  <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
-                </span>
-                <span class="truncate">{{ entry.name }}</span>
-              </button>
-            </td>
-            <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
-            <td class="px-3 py-2 text-on-surface-variant">{{ formatMtime(entry.mtime) }}</td>
-            <td class="px-3 py-2">
-              <span
-                v-if="entry.isResource"
-                class="rounded bg-info-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-info-container"
-              >
-                {{ t("resource") }}
-              </span>
-              <span
-                v-else-if="entry.isPart"
-                class="rounded bg-success-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-success-container"
-              >
-                {{ t("part") }}
-              </span>
-              <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
-            </td>
-            <td class="px-3 py-2 text-right">
-              <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
-              <span
-                v-else-if="shareStatus(entry.path)?.status === 'done'"
-                class="flex justify-end text-success"
-                :title="t('linkCopied')"
-              >
-                <Icon name="check" :size="16" />
-              </span>
-              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
-                <Icon name="close" :size="16" />
-              </span>
-              <button
-                v-if="shareStatus(entry.path)?.status === 'done'"
-                class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-                :title="shareStatus(entry.path)?.value ?? ''"
-                @click.stop="copyLink(entry.path)"
-              >
-                ⧉
-              </button>
-              <button
-                v-else-if="!shareStatus(entry.path)"
-                class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
-                @click.stop="createLink(entry)"
-              >
-                {{ t("link") }}
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto">
+      <EntryList
+        :entries="files.entries"
+        :view-mode="viewMode"
+        :selected="selected"
+        :share-state="shareState"
+        @open="open"
+        @toggle-select="toggleSelect"
+        @contextmenu="openCtx"
+        @rename="startRename"
+        @create-link="createLink"
+        @copy-link="copyLink"
+        @pair="goToPaired"
+      />
     </div>
 
     <!-- Grid view -->
-    <div v-else class="flex-1 overflow-y-auto p-4">
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-        <div
-          v-for="entry in sortedEntries"
-          :key="entry.path"
-          class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-          :class="isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
-          @click="toggleSelect(entry.path)"
-          @dblclick="open(entry)"
-          @contextmenu="openCtx($event, entry)"
-        >
-          <input
-            type="checkbox"
-            class="accent-primary absolute right-1.5 top-1.5"
-            :checked="isSelected(entry.path)"
-            @click.stop
-            @change="toggleSelect(entry.path)"
-          />
-          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
-          <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
-          <p class="w-full truncate text-[10px] text-on-surface-variant">
-            {{ entry.isDir ? "—" : formatBytes(entry.size) }}
-          </p>
-          <div
-            class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-black/50 group-hover:flex"
-            @click.stop
-            @dblclick.stop
-          >
-            <button
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
-              :title="t('open')"
-              @click="open(entry)"
-            >
-              <Icon name="open" :size="16" />
-            </button>
-            <button
-              v-if="!entry.isDir"
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
-              :title="t('download')"
-              @click="download(entry)"
-            >
-              <Icon name="download" :size="16" />
-            </button>
-            <button
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
-              :title="shareStatus(entry.path)?.status === 'done' ? t('linkCopied') : t('link')"
-              @click="shareStatus(entry.path)?.status === 'done' ? copyLink(entry.path) : createLink(entry)"
-            >
-              <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="16" />
-            </button>
-            <button
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
-              :title="t('rename')"
-              @click="startRename(entry)"
-            >
-              <Icon name="edit" :size="16" />
-            </button>
-            <button
-              class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-error shadow-m3-1 transition hover:bg-error hover:text-on-error"
-              :title="t('delete')"
-              @click="removeEntry(entry)"
-            >
-              <Icon name="delete" :size="16" />
-            </button>
-          </div>
-        </div>
-      </div>
+    <div v-else class="flex-1 overflow-y-auto">
+      <EntryList
+        :entries="files.entries"
+        :view-mode="viewMode"
+        :selected="selected"
+        :share-state="shareState"
+        @open="open"
+        @toggle-select="toggleSelect"
+        @contextmenu="openCtx"
+        @rename="startRename"
+        @create-link="createLink"
+        @copy-link="copyLink"
+        @pair="goToPaired"
+        @download="download"
+        @delete="removeEntry"
+      />
     </div>
 
     <!-- Context menu -->
