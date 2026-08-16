@@ -57,6 +57,60 @@ jobs:
       - name: Run rust checks
         uses: ./.github/actions/checks
 
+  artifacts:
+    name: Build artifacts (${{ matrix.name }})
+    if: github.event_name == 'push'
+    needs: [frontend, rust]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            name: macos-aarch64
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            name: macos-x86_64
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-latest
+            name: linux
+            args: --bundles deb,appimage
+          - platform: windows-latest
+            name: windows
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust toolchain and Tauri deps
+        uses: ./.github/actions/setup
+
+      - name: Add Rust targets (macOS)
+        if: contains(matrix.platform, 'macos')
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri bundles
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutlink-${{ matrix.name }}
+          path: src-tauri/target/**/bundle
+          if-no-files-found: error
+          retention-days: 14
+
   complete:
     name: CI complete
     needs: [frontend, rust]
