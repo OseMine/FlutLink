@@ -46,8 +46,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.ui.components.SectionHeader
 import com.flutcloud.flutlink.ui.flutLinkViewModel
@@ -57,6 +61,7 @@ import com.flutcloud.flutlink.ui.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     val vm = flutLinkViewModel { SettingsViewModel(it) }
+    val context = LocalContext.current
     val accounts by vm.accounts.collectAsState()
     val themePreference by vm.themePreference.collectAsState()
     val dynamicColor by vm.dynamicColor.collectAsState()
@@ -72,13 +77,13 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     LaunchedEffect(Unit) { vm.loadServerInfo() }
     LaunchedEffect(toast) {
         toast?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.resolve(context))
             vm.consumeToast()
         }
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Settings") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings)) }) },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { innerPadding ->
         Column(
@@ -89,10 +94,10 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 .padding(horizontal = 16.dp)
         ) {
             // Account
-            SectionHeader("Account")
+            SectionHeader(stringResource(R.string.account))
             ListItem(
                 headlineContent = {
-                    Text(session?.username ?: "Not signed in", style = MaterialTheme.typography.titleMedium)
+                    Text(session?.username ?: stringResource(R.string.not_signed_in), style = MaterialTheme.typography.titleMedium)
                 },
                 supportingContent = {
                     Text(session?.normalizedBaseUrl ?: "")
@@ -103,10 +108,14 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             )
             serverInfo?.let { info ->
                 ListItem(
-                    headlineContent = { Text(info.name ?: "FlutCloud app") },
+                    headlineContent = { Text(info.name ?: stringResource(R.string.flut_cloud_app)) },
                     supportingContent = {
                         Text(
-                            listOfNotNull(info.version, info.user, info.features?.size?.let { "$it features" }).joinToString(" · ")
+                            listOfNotNull(
+                                info.version,
+                                info.user,
+                                info.features?.size?.let { stringResource(R.string.feature_count, it) }
+                            ).joinToString(" · ")
                         )
                     },
                     leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
@@ -116,28 +125,33 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // Theme
-            SectionHeader("Appearance")
+            SectionHeader(stringResource(R.string.appearance))
             ListItem(
-                headlineContent = { Text("Theme") },
-                supportingContent = { Text("Pick light, dark or follow the system.") },
+                headlineContent = { Text(stringResource(R.string.theme)) },
+                supportingContent = { Text(stringResource(R.string.theme_hint)) },
                 leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
                 trailingContent = {
+                    val themeOptions = listOf(
+                        "system" to R.string.theme_system,
+                        "light" to R.string.theme_light,
+                        "dark" to R.string.theme_dark
+                    )
                     SingleChoiceSegmentedButtonRow {
-                        listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEachIndexed { index, (value, label) ->
+                        themeOptions.forEachIndexed { index, (value, labelRes) ->
                             SegmentedButton(
                                 selected = themePreference == value,
                                 onClick = { vm.setThemePreference(value) },
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size)
                             ) {
-                                Text(label)
+                                Text(stringResource(labelRes))
                             }
                         }
                     }
                 }
             )
             ListItem(
-                headlineContent = { Text("Dynamic color") },
-                supportingContent = { Text("Use the Android 12+ Material You palette from your wallpaper.") },
+                headlineContent = { Text(stringResource(R.string.dynamic_color)) },
+                supportingContent = { Text(stringResource(R.string.dynamic_color_hint)) },
                 leadingContent = { Icon(Icons.Default.Palette, contentDescription = null) },
                 trailingContent = {
                     Switch(checked = dynamicColor, onCheckedChange = { vm.setDynamicColor(it) })
@@ -147,14 +161,17 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // Updates
-            SectionHeader("Updates")
+            SectionHeader(stringResource(R.string.updates))
             ListItem(
-                headlineContent = { Text("FlutLink for Android") },
-                supportingContent = { Text("Version ${vm.appVersion}") },
+                headlineContent = { Text(stringResource(R.string.flutlink_for_android)) },
+                supportingContent = { Text(stringResource(R.string.version_format, vm.appVersion)) },
                 leadingContent = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
                 trailingContent = {
                     TextButton(onClick = { vm.checkForUpdate() }, enabled = !checkingUpdate && !installingUpdate) {
-                        Text(if (checkingUpdate) "Checking…" else "Check for updates")
+                        Text(
+                            if (checkingUpdate) stringResource(R.string.checking)
+                            else stringResource(R.string.check_for_updates)
+                        )
                     }
                 }
             )
@@ -162,7 +179,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // Accounts
-            SectionHeader("Accounts")
+            SectionHeader(stringResource(R.string.accounts))
             accounts.forEach { meta ->
                 AccountRow(
                     meta = meta,
@@ -178,7 +195,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 Icon(Icons.Default.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "FlutCloud-only: servers without the FlutCloud app are rejected.",
+                    stringResource(R.string.flutcloud_only_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -194,7 +211,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             ) {
                 Icon(Icons.Default.Logout, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Sign out")
+                Text(stringResource(R.string.sign_out))
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -203,13 +220,13 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     update?.let { found ->
         AlertDialog(
             onDismissRequest = { vm.dismissUpdate() },
-            title = { Text("Update available") },
+            title = { Text(stringResource(R.string.update_available)) },
             text = {
                 Text(
                     if (installingUpdate) {
-                        "Downloading FlutLink ${found.version}…"
+                        stringResource(R.string.update_downloading_name, found.version)
                     } else {
-                        "FlutLink ${found.version} is available. Download and install it now?"
+                        stringResource(R.string.update_available_text, found.version)
                     }
                 )
             },
@@ -217,13 +234,13 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 TextButton(
                     onClick = { vm.installUpdate() },
                     enabled = !installingUpdate
-                ) { Text(if (installingUpdate) "Downloading…" else "Update") }
+                ) { Text(if (installingUpdate) stringResource(R.string.downloading) else stringResource(R.string.update)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { vm.dismissUpdate() },
                     enabled = !installingUpdate
-                ) { Text("Cancel") }
+                ) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -240,7 +257,7 @@ private fun AccountRow(
     ListItem(
         headlineContent = {
             Text(
-                if (isActive) "${meta.username} (active)" else meta.username,
+                if (isActive) stringResource(R.string.account_active, meta.username) else meta.username,
                 style = MaterialTheme.typography.titleMedium
             )
         },
@@ -248,10 +265,10 @@ private fun AccountRow(
         leadingContent = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
         trailingContent = {
             if (!isActive) {
-                TextButton(onClick = onSwitch) { Text("Switch") }
+                TextButton(onClick = onSwitch) { Text(stringResource(R.string.switch_account)) }
             } else {
                 IconButton(onClick = { confirmRemove = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Remove account")
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.remove_account))
                 }
             }
         },
@@ -260,16 +277,16 @@ private fun AccountRow(
     if (confirmRemove) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmRemove = false },
-            title = { Text("Remove ${meta.username}?") },
-            text = { Text("The stored token for this account will be deleted from the secure store.") },
+            title = { Text(stringResource(R.string.remove_account_confirm, meta.username)) },
+            text = { Text(stringResource(R.string.remove_account_confirm_text)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemove = false
                     onRemove()
-                }) { Text("Remove") }
+                }) { Text(stringResource(R.string.remove)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRemove = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

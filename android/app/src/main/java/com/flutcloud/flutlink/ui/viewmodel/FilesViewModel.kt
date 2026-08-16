@@ -8,6 +8,9 @@ import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.dto.Quota
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
+import com.flutcloud.flutlink.ui.UiMessage
+import com.flutcloud.flutlink.ui.networkUiMessage
+import com.flutcloud.flutlink.ui.toUiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +23,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     val path = MutableStateFlow("/")
     val entries = MutableStateFlow<List<WebDavEntry>>(emptyList())
     val loading = MutableStateFlow(false)
-    val error = MutableStateFlow<String?>(null)
+    val error = MutableStateFlow<UiMessage?>(null)
     val quota = MutableStateFlow<Quota?>(null)
 
     val searchQuery = MutableStateFlow("")
@@ -51,9 +54,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     .sortedWith(compareByDescending<WebDavEntry> { it.isDir }.thenBy { it.name.lowercase() })
                 path.value = folderPath
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } finally {
                 loading.value = false
             }
@@ -84,9 +87,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 val bytes = container.webDavApi.download(s, entry.path)
                 _downloaded.value = saveToAppStorage(entry.name, bytes)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } finally {
                 loading.value = false
             }
@@ -111,9 +114,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 listFolder(path.value)
                 onDone()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -128,9 +131,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 container.webDavApi.rename(s, entry.path, newPath)
                 listFolder(path.value)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -143,9 +146,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 container.webDavApi.delete(s, entry.path)
                 entries.value = entries.value.filterNot { it.path == entry.path }
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -163,9 +166,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     expireDate = expireDate?.ifBlank { null }
                 )
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -179,9 +182,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 container.webDavApi.upload(s, remotePath, bytes)
                 listFolder(path.value)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -200,9 +203,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 searchResults.value = container.webDavApi.search(s, query.trim())
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } finally {
                 searching.value = false
             }

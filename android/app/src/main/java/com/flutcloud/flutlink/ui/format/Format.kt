@@ -1,5 +1,7 @@
 package com.flutcloud.flutlink.ui.format
 
+import android.content.res.Resources
+import com.flutcloud.flutlink.R
 import java.util.Locale
 
 fun formatBytes(bytes: Long?): String {
@@ -16,14 +18,19 @@ fun formatBytes(bytes: Long?): String {
 }
 
 /** "1.2 GB of 5.0 GB (24%)" style quota label. */
-fun formatQuota(used: Long?, total: Long?): String {
-    if (used == null) return "Quota unknown"
+fun formatQuota(used: Long?, total: Long?, resources: Resources): String {
+    if (used == null) return resources.getString(R.string.quota_unknown)
     val usedText = formatBytes(used)
     return if (total == null || total <= 0) {
-        "$usedText used"
+        resources.getString(R.string.quota_used, usedText)
     } else {
         val percent = (used.toDouble() / total.toDouble() * 100.0).toInt()
-        "$usedText of ${formatBytes(total)} ($percent%)"
+        resources.getString(
+            R.string.quota_of,
+            usedText,
+            formatBytes(total),
+            percent
+        )
     }
 }
 

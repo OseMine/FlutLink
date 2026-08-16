@@ -186,6 +186,11 @@ Komponente hinzugekommen: `android/` ist ein Kotlin/Jetpack-Compose-
 Mirror des Desktop-Clients (FlutCloud-only-Policy, WebDAV/OCS, M3-Expressive-
 Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
+Ebenfalls am 2026-08-16 umgesetzt: **Android-i18n** (AC2, siehe Archiv) —
+alle UI-Texte liegen in `res/values/strings.xml` (en) + `res/values-de/`
+(de) und werden über die Gerätesprache (Ressourcen-Qualifier) aufgelöst;
+ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
+
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
 - Review 2026-08-16 (Lauf 7, Release-Review v1) — R7-1 bis R7-6 umgesetzt,
@@ -200,6 +205,37 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Android i18n)
+
+- [x] **AC2 (Feature, neu):** Android-i18n eingeführt — **Spracherkennung über
+      die Android-Ressourcen-Infrastruktur** statt hartkodierter englischer
+      Strings. `res/values/strings.xml` (Englisch = Default) und
+      `res/values-de/strings.xml` (Deutsch) enthalten jetzt alle UI-Texte;
+      Android wählt die Sprache automatisch anhand der Gerätesprache
+      (Ressourcen-Qualifier). Umsetzung:
+  - Alle `@Composable`-Funktionen nutzen `stringResource(R.string.…)` (inkl.
+    Format-Argumente wie `delete_confirm`/`remove_account_confirm`/
+    `update_available_text`); keine hartkodierten User-Strings mehr.
+  - Neue `ui/UiMessage.kt`: `UiMessage(resId, vararg args)` mit
+    `resolve(context)` plus Helper `networkUiMessage`, `ApiException.toUiMessage`
+    (Code-Mapping analog zum Desktop-`ERROR_CODE_KEYS`: `flutcloud_app_missing`,
+    `not_flutcloud`, `target_exists`, `ocs_error`, `http_*`) und
+    `unexpectedUiMessage`.
+  - ViewModels (`LoginViewModel`, `FilesViewModel`, `AdminViewModel`,
+    `SettingsViewModel`) emittieren jetzt Ressourcen-IDs statt englischer
+    Fehler-/Toast-Texte (z. B. `error_network_reach[_detail]`,
+    `account_switched_to`, `update_up_to_date`, `update_check_failed[_detail]`,
+    `update_download_failed[_detail]`).
+  - `ui/format/Format.kt`: `formatQuota` nimmt `Resources` entgegen und nutzt
+    die Schlüssel `quota_unknown`/`quota_used`/`quota_of` (deutsche Wörter wie
+    „belegt/von" lokalisiert); `formatBytes` behält SI-Einheiten (KB/MB/GB/TB
+    sind sprachneutral), `formatMtime` nutzt bereits das Geräte-Locale.
+  - `HomeScreen.kt`: Tab-Labels (`Files`/`Admin`/`Settings`) über
+    `@param:StringRes`-Ressourcen.
+  - Verifikation: `./gradlew :app:assembleDebug` grün, `./gradlew
+    :app:lintDebug` grün (keine Missing/ExtraTranslation, keine ungenutzten
+    String-Ressourcen); `cargo fmt --check` grün.
 
 ### Review 2026-08-16 (Android-Client)
 

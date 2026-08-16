@@ -44,9 +44,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.data.dto.ManagedUser
 import com.flutcloud.flutlink.ui.components.EmptyState
 import com.flutcloud.flutlink.ui.flutLinkViewModel
@@ -59,6 +62,7 @@ private const val GB = 1024L * 1024 * 1024
 @Composable
 fun AdminScreen(container: AppContainer) {
     val vm = flutLinkViewModel { AdminViewModel(it) }
+    val context = LocalContext.current
     val users by vm.users.collectAsState()
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
@@ -70,19 +74,19 @@ fun AdminScreen(container: AppContainer) {
     LaunchedEffect(Unit) { vm.loadUsers() }
     LaunchedEffect(error) {
         error?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.resolve(context))
             vm.clearError()
         }
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("User administration") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.user_administration)) }) },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showCreate = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Add user") }
+                text = { Text(stringResource(R.string.add_user)) }
             )
         }
     ) { innerPadding ->
@@ -90,7 +94,7 @@ fun AdminScreen(container: AppContainer) {
             TextField(
                 value = search,
                 onValueChange = { vm.search.value = it },
-                placeholder = { Text("Search users…") },
+                placeholder = { Text(stringResource(R.string.search_users)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             )
@@ -100,8 +104,8 @@ fun AdminScreen(container: AppContainer) {
                 }
                 users.isEmpty() -> EmptyState(
                     icon = Icons.Default.Person,
-                    title = "No users found",
-                    hint = "Create a user or clear the search."
+                    title = stringResource(R.string.no_users_found),
+                    hint = stringResource(R.string.no_users_hint)
                 )
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(users, key = { it.id }) { user ->
@@ -136,6 +140,7 @@ private fun UserRow(
     onQuota: (Long?) -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val resources = LocalContext.current.resources
     ListItem(
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,7 +154,7 @@ private fun UserRow(
                 if (!user.enabled) {
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "disabled",
+                        stringResource(R.string.disabled),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -166,11 +171,11 @@ private fun UserRow(
                         when {
                             used != null && total != null && total > 0 ->
                                 "${formatBytes(used)} / ${formatBytes(total)}"
-                            total == null || total <= 0 -> "unlimited"
+                            total == null || total <= 0 -> resources.getString(R.string.unlimited)
                             else -> formatBytes(total)
                         }
-                    } ?: "quota unknown",
-                    user.email?.takeIf { it.isNotBlank() } ?: "no email"
+                    } ?: resources.getString(R.string.quota_unknown),
+                    user.email?.takeIf { it.isNotBlank() } ?: resources.getString(R.string.no_email)
                 ).joinToString(" · ")
             )
         },
@@ -182,11 +187,11 @@ private fun UserRow(
                 Switch(checked = user.enabled, onCheckedChange = { onToggleEnabled() })
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Actions")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.actions))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("Quota: unlimited") },
+                            text = { Text(stringResource(R.string.quota_unlimited)) },
                             leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -194,7 +199,7 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Quota: 1 GB") },
+                            text = { Text(stringResource(R.string.quota_1gb)) },
                             leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -202,7 +207,7 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Quota: 5 GB") },
+                            text = { Text(stringResource(R.string.quota_5gb)) },
                             leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -210,7 +215,7 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Quota: 10 GB") },
+                            text = { Text(stringResource(R.string.quota_10gb)) },
                             leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -218,7 +223,7 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete user") },
+                            text = { Text(stringResource(R.string.delete_user)) },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -242,24 +247,24 @@ private fun CreateUserDialog(
     var displayName by remember { mutableStateOf("") }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create user") },
+        title = { Text(stringResource(R.string.create_user)) },
         text = {
             Column {
-                TextField(value = userId, onValueChange = { userId = it }, singleLine = true, label = { Text("User ID") })
+                TextField(value = userId, onValueChange = { userId = it }, singleLine = true, label = { Text(stringResource(R.string.user_id)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text("Password") })
+                TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text(stringResource(R.string.password)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(value = displayName, onValueChange = { displayName = it }, singleLine = true, label = { Text("Display name (optional)") })
+                TextField(value = displayName, onValueChange = { displayName = it }, singleLine = true, label = { Text(stringResource(R.string.display_name_optional)) })
             }
         },
         confirmButton = {
             TextButton(
                 onClick = { onCreate(userId.trim(), password, displayName.trim().ifBlank { null }) },
                 enabled = userId.isNotBlank() && password.isNotBlank()
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
