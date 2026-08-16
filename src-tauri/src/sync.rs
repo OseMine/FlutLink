@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Notify;
 
 use crate::error::{AppError, AppResult};
@@ -1104,6 +1105,10 @@ impl SyncEngine {
         let state = app.state::<AppState>();
         let accounts = state.accounts_snapshot();
         let mut statuses: Vec<SyncFolderStatus> = Vec::new();
+        // Totals across all folders, used to decide whether a native
+        // notification is warranted (Q1: no spam on every idle tick).
+        let mut files_done: u64 = 0;
+        let mut files_failed: u64 = 0;
 
         for folder in self.folders_snapshot() {
             let mut status = SyncFolderStatus {
@@ -1146,6 +1151,8 @@ impl SyncEngine {
             status.state = "syncing".into();
             match run_pass(app, &state.http_client, &account, &folder).await {
                 Ok(result) => {
+                    files_done += result.done as u64;
+                    files_failed += result.failures;
                     status.pending_uploads = result.planned_uploads;
                     status.pending_downloads = result.planned_downloads;
                     status.pending_deletes = result.planned_deletes;
@@ -1169,6 +1176,7 @@ impl SyncEngine {
                 Err(err) => {
                     status.state = "error".into();
                     status.failures = 1;
+                    files_failed += 1;
                     status.last_error = Some(PassError::from_app_error(&err));
                 }
             }
@@ -1178,7 +1186,29 @@ impl SyncEngine {
         if self.upsert_statuses(statuses) {
             let _ = app.emit("sync-status", self.statuses());
         }
+
+        // Q1: native OS notification — only when a pass actually did work, so
+        // the 10 s worker tick never spams idle notifications.
+        if files_failed > 0 {
+            notify(
+                app,
+                "FlutLink Sync",
+                &format!("{files_failed} Datei(en) konnten nicht synchronisiert werden."),
+            );
+        } else if files_done > 0 {
+            notify(
+                app,
+                "FlutLink Sync",
+                &format!("{files_done} Datei(en) erfolgreich synchronisiert."),
+            );
+        }
     }
+}
+
+/// Show a native OS notification via `tauri-plugin-notification` (Q1).
+/// Best-effort: platform notification errors are deliberately ignored.
+fn notify(app: &AppHandle, title: &str, body: &str) {
+    let _ = app.notification().builder().title(title).body(body).show();
 }
 
 /// Background loop: wakes on notify or the interval, then runs all folders.

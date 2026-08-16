@@ -198,6 +198,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_cli::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::new())
         .on_window_event(move |window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

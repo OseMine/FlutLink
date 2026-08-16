@@ -35,6 +35,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_notification::NotificationExt;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
@@ -497,9 +498,22 @@ pub fn install_update(path: &Path) -> Result<(), String> {
 pub async fn check_update(app: AppHandle) -> AppResult<Option<ReleaseInfo>> {
     let current = app.package_info().version.to_string();
     let client = build_client().map_err(AppError::Update)?;
-    check_for_update(&client, &current)
+    let info = check_for_update(&client, &current)
         .await
-        .map_err(AppError::Update)
+        .map_err(AppError::Update)?;
+    if let Some(release) = &info {
+        // Q1: notify the user that a new version is available. Best-effort.
+        let _ = app
+            .notification()
+            .builder()
+            .title("FlutLink Update")
+            .body(format!(
+                "Version {} ist verfügbar (aktuell: {}).",
+                release.version, current
+            ))
+            .show();
+    }
+    Ok(info)
 }
 
 /// **Tauri command** — Download the latest release and install it.
