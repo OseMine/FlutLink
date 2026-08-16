@@ -260,19 +260,60 @@ pub async fn get_file_as_progress(
     target_user: Option<&str>,
     on_progress: Option<ProgressFn>,
 ) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
+    stream_to_file(client, account, &url, dest, target_user, on_progress, None).await
+}
+
+/// Download a remote folder as a ZIP archive (Nextcloud WebDAV extension).
+///
+/// A GET request on the folder's DAV URL with `Accept: application/zip`
+/// streams an archive of the folder contents. Reports transfer progress like
+/// [`get_file_as_progress`] and writes atomically (temp file + rename).
+pub async fn download_zip_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    dest: &std::path::Path,
+    target_user: Option<&str>,
+    on_progress: Option<ProgressFn>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
+    stream_to_file(
+        client,
+        account,
+        &url,
+        dest,
+        target_user,
+        on_progress,
+        Some("application/zip"),
+    )
+    .await
+}
+
+/// Shared GET + stream-to-file helper used by [`get_file_as_progress`] and
+/// [`download_zip_as`]. Writes to a temp file first so the destination is only
+/// replaced once the transfer fully succeeded.
+async fn stream_to_file(
+    client: &Client,
+    account: &Account,
+    url: &str,
+    dest: &std::path::Path,
+    target_user: Option<&str>,
+    on_progress: Option<ProgressFn>,
+    accept: Option<&str>,
+) -> AppResult<()> {
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
 
-    let url = remote_url(account, remote_rel, target_user);
-    let res = impersonation_header(
-        client
-            .get(&url)
-            .basic_auth(&account.meta.username, Some(&account.token)),
-        account,
-        target_user,
-    )
-    .send()
-    .await?;
+    let mut req = client
+        .get(url)
+        .basic_auth(&account.meta.username, Some(&account.token));
+    if let Some(accept) = accept {
+        req = req.header("Accept", accept);
+    }
+    let res = impersonation_header(req, account, target_user)
+        .send()
+        .await?;
     let status = res.status();
     if !status.is_success() {
         let body = res.text().await.unwrap_or_default();
@@ -307,6 +348,62 @@ pub async fn get_file_as_progress(
         return Err(AppError::App(format!("download failed: {}", e)));
     }
     Ok(())
+}
+
+/// Fetched preview/thumbnail bytes for a file.
+pub struct Preview {
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+/// Fetch a preview thumbnail for a file from the Nextcloud `/core/preview.png`
+/// endpoint. Returns `None` when the server has no preview for the file.
+pub async fn preview(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    size: u32,
+    target_user: Option<&str>,
+) -> AppResult<Option<Preview>> {
+    let url = format!(
+        "{}/index.php/core/preview.png?file={}&x={}&y={}",
+        account.base_url(),
+        urlencoding::encode(remote_rel),
+        size,
+        size
+    );
+    let res = impersonation_header(
+        client
+            .get(&url)
+            .basic_auth(&account.meta.username, Some(&account.token)),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    // 404/400 = no preview available (unknown file, no provider, disabled).
+    if status.as_u16() == 404 || status.as_u16() == 400 {
+        return Ok(None);
+    }
+    if !status.is_success() {
+        let body = res.text().await.unwrap_or_default();
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        });
+    }
+    let content_type = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|ct| ct.split(';').next().unwrap_or(ct).trim().to_string())
+        .unwrap_or_else(|| "image/png".to_string());
+    let bytes = res.bytes().await?.to_vec();
+    Ok(Some(Preview {
+        content_type,
+        bytes,
+    }))
 }
 
 /// Create a remote collection (directory) via MKCOL.

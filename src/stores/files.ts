@@ -96,6 +96,23 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
+  async function downloadZip(remotePath: string, localPath: string) {
+    try {
+      await api.webdavDownloadZip(remotePath, localPath, targetUser.value ?? undefined);
+    } catch (e) {
+      error.value = invokeError(e).message;
+      throw e;
+    }
+  }
+
+  async function getThumbnail(path: string): Promise<string | null> {
+    try {
+      return await api.webdavThumbnail(path, 256, targetUser.value ?? undefined);
+    } catch {
+      return null;
+    }
+  }
+
   async function deleteEntry(path: string) {
     try {
       await api.webdavDelete(path, targetUser.value ?? undefined);
@@ -187,6 +204,8 @@ export const useFilesStore = defineStore("files", () => {
     createShare,
     uploadFile,
     downloadFile,
+    downloadZip,
+    getThumbnail,
     deleteEntry,
     bulkDelete,
     bulkDownload,

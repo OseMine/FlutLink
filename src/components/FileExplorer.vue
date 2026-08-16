@@ -28,6 +28,9 @@ const showNewFolder = ref(false);
 const renameTarget = ref<WebDavEntry | null>(null);
 const nameInput = ref("");
 const draggingOver = ref(false);
+const kbdIndex = ref(-1);
+const thumbs = reactive(new Map<string, string>());
+const thumbLoading = new Set<string>();
 let unlistenDragDrop: (() => void) | null = null;
 
 function formatMtime(mtime: string | null): string {
@@ -186,6 +189,82 @@ async function download(entry: WebDavEntry) {
     ui.toast(invokeError(e).message, "error");
   } finally {
     busyPath.value = null;
+  }
+}
+
+/// Download a folder as a ZIP archive (Nextcloud `Accept: application/zip`
+/// WebDAV extension).
+async function downloadZip(entry: WebDavEntry) {
+  if (busyPath.value) return;
+  busyPath.value = entry.path;
+  try {
+    const dest = await save({ defaultPath: entry.name + ".zip" });
+    if (typeof dest !== "string") return;
+    await files.downloadZip(entry.path, dest);
+    ui.toast(t("fileDownloaded"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    busyPath.value = null;
+  }
+}
+
+function thumbSrc(entry: WebDavEntry): string | undefined {
+  return thumbs.get(entry.path);
+}
+
+/// Best-effort thumbnail fetch for image entries (Nextcloud
+/// `/core/preview.png`). Failures fall back to the generic file icon.
+async function loadThumb(entry: WebDavEntry) {
+  if (entry.isDir || !entry.contentType?.startsWith("image/")) return;
+  if (thumbs.has(entry.path) || thumbLoading.has(entry.path)) return;
+  thumbLoading.add(entry.path);
+  const dataUrl = await files.getThumbnail(entry.path);
+  thumbLoading.delete(entry.path);
+  if (dataUrl) thumbs.set(entry.path, dataUrl);
+}
+
+function goBack() {
+  const crumbs = files.crumbs;
+  if (crumbs.length <= 1) return;
+  const parent = crumbs[crumbs.length - 2].path;
+  void files.navigate(parent);
+}
+
+/// Keyboard navigation over the entry list: arrows move the focus, Enter opens
+/// the focused entry, Delete/Backspace removes it (or the selection).
+function onKeydown(e: KeyboardEvent) {
+  const entries = sortedEntries.value;
+  if (!entries.length) return;
+  const target = e.target as HTMLElement | null;
+  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  if (typing) return;
+  switch (e.key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      e.preventDefault();
+      kbdIndex.value = (kbdIndex.value + 1) % entries.length;
+      break;
+    case "ArrowUp":
+    case "ArrowLeft":
+      e.preventDefault();
+      kbdIndex.value = kbdIndex.value <= 0 ? entries.length - 1 : kbdIndex.value - 1;
+      break;
+    case "Enter":
+      if (e.target !== e.currentTarget || kbdIndex.value < 0) return;
+      e.preventDefault();
+      void open(entries[kbdIndex.value]);
+      break;
+    case "Delete":
+    case "Backspace":
+      if (e.target !== e.currentTarget) return;
+      e.preventDefault();
+      if (kbdIndex.value >= 0) {
+        void removeEntry(entries[kbdIndex.value]);
+      } else if (selected.value.size > 0) {
+        void bulkDelete();
+      }
+      break;
   }
 }
 
@@ -355,6 +434,22 @@ watch(
   () => clearSelection()
 );
 
+watch(
+  () => files.entries,
+  () => {
+    for (const entry of files.entries) void loadThumb(entry);
+    if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
+  }
+);
+
+watch(
+  () => files.targetUser,
+  () => {
+    thumbs.clear();
+    thumbLoading.clear();
+  }
+);
+
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
@@ -384,6 +479,9 @@ watch(
   () => accounts.active?.username,
   async () => {
     shareState.clear();
+    thumbs.clear();
+    thumbLoading.clear();
+    kbdIndex.value = -1;
     adminViewAll.value = true;
     selectedUser.value = "";
     await files.reset();
@@ -394,7 +492,10 @@ watch(
 
 <template>
   <div
-    class="relative flex h-full flex-col"
+    class="relative flex h-full flex-col outline-none"
+    tabindex="0"
+    @keydown="onKeydown"
+    @blur="kbdIndex = -1"
     @click="closeCtx"
     @dragover.prevent
     @drop.prevent
@@ -407,6 +508,14 @@ watch(
     </div>
     <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
+        <button
+          class="rounded p-1 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface disabled:opacity-40"
+          :disabled="files.crumbs.length <= 1"
+          :title="t('back')"
+          @click="goBack"
+        >
+          <Icon name="back" :size="16" />
+        </button>
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
             class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
@@ -603,15 +712,18 @@ watch(
               </button>
             </th>
             <th class="w-24 px-3 py-2 font-medium">{{ t("kind") }}</th>
-            <th class="w-32 px-3 py-2 font-medium"></th>
+            <th class="w-40 px-3 py-2 font-medium"></th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="entry in sortedEntries"
+            v-for="(entry, i) in sortedEntries"
             :key="entry.path"
             class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
-            :class="isSelected(entry.path) ? 'bg-primary-container/40' : ''"
+            :class="[
+              isSelected(entry.path) ? 'bg-primary-container/40' : '',
+              i === kbdIndex ? 'ring-1 ring-primary/60' : '',
+            ]"
             @contextmenu="openCtx($event, entry)"
           >
             <td class="px-3 py-2">
@@ -625,7 +737,13 @@ watch(
             <td class="px-3 py-2">
               <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="open(entry)">
                 <span class="flex w-5 justify-center">
-                  <Icon v-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
+                  <img
+                    v-if="thumbSrc(entry)"
+                    :src="thumbSrc(entry)"
+                    class="h-5 w-5 rounded object-cover"
+                    alt=""
+                  />
+                  <Icon v-else-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
                   <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
                 </span>
                 <span class="truncate">{{ entry.name }}</span>
@@ -649,6 +767,13 @@ watch(
               <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
             </td>
             <td class="px-3 py-2 text-right">
+              <button
+                class="mr-1 rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+                :title="entry.isDir ? t('downloadZip') : t('download')"
+                @click.stop="entry.isDir ? downloadZip(entry) : download(entry)"
+              >
+                <Icon name="download" :size="14" />
+              </button>
               <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
               <span
                 v-else-if="shareStatus(entry.path)?.status === 'done'"
@@ -656,9 +781,6 @@ watch(
                 :title="t('linkCopied')"
               >
                 <Icon name="check" :size="16" />
-              </span>
-              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
-                <Icon name="close" :size="16" />
               </span>
               <button
                 v-if="shareStatus(entry.path)?.status === 'done'"
@@ -669,7 +791,7 @@ watch(
                 ⧉
               </button>
               <button
-                v-else-if="!shareStatus(entry.path)"
+                v-else-if="shareStatus(entry.path)?.status !== 'loading'"
                 class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
                 @click.stop="createLink(entry)"
               >
@@ -685,30 +807,64 @@ watch(
     <div v-else class="flex-1 overflow-y-auto p-4">
       <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         <div
-          v-for="entry in sortedEntries"
+          v-for="(entry, i) in sortedEntries"
           :key="entry.path"
           class="flex cursor-default flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
-          :class="isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60'"
+          :class="[
+            isSelected(entry.path) ? 'border-primary bg-primary-container/40' : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60',
+            i === kbdIndex ? 'ring-1 ring-primary/60' : '',
+          ]"
           @contextmenu="openCtx($event, entry)"
+          @click="toggleSelect(entry.path)"
           @dblclick="open(entry)"
         >
           <input
             type="checkbox"
             class="accent-primary"
             :checked="isSelected(entry.path)"
+            @click.stop
+            @dblclick.stop
             @change="toggleSelect(entry.path)"
           />
-          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
+          <img
+            v-if="thumbSrc(entry)"
+            :src="thumbSrc(entry)"
+            class="h-16 w-16 rounded object-cover"
+            alt=""
+          />
+          <Icon v-else :name="entry.isDir ? 'folder' : 'file'" :size="36" class="text-on-surface-variant" />
           <p class="w-full truncate text-xs text-on-surface" :title="entry.name">{{ entry.name }}</p>
           <p class="w-full truncate text-[10px] text-on-surface-variant">
             {{ entry.isDir ? "—" : formatBytes(entry.size) }}
           </p>
-          <div class="flex gap-1">
+          <div class="flex flex-wrap justify-center gap-1">
             <button
               class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
               @click.stop="open(entry)"
             >
               {{ t("open") }}
+            </button>
+            <button
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+              :title="entry.isDir ? t('downloadZip') : t('download')"
+              @click.stop="entry.isDir ? downloadZip(entry) : download(entry)"
+            >
+              <Icon name="download" :size="11" />
+            </button>
+            <button
+              v-if="shareStatus(entry.path)?.status === 'done'"
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-success hover:bg-surface-container-high"
+              :title="shareStatus(entry.path)?.value ?? ''"
+              @click.stop="copyLink(entry.path)"
+            >
+              <Icon name="link" :size="11" />
+            </button>
+            <button
+              v-else-if="shareStatus(entry.path)?.status !== 'loading'"
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+              @click.stop="createLink(entry)"
+            >
+              {{ t("link") }}
             </button>
             <button
               class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
@@ -735,11 +891,10 @@ watch(
         {{ t("open") }}
       </button>
       <button
-        v-if="!ctxMenu.entry.isDir"
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
-        @click="download(ctxMenu.entry); ctxMenu = null"
+        @click="ctxMenu.entry.isDir ? downloadZip(ctxMenu.entry) : download(ctxMenu.entry); ctxMenu = null"
       >
-        {{ t("download") }}
+        {{ ctxMenu.entry.isDir ? t("downloadZip") : t("download") }}
       </button>
       <button
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"

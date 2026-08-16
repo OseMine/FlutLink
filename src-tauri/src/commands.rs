@@ -465,6 +465,68 @@ pub async fn webdav_download_file(
     .await
 }
 
+/// Download a cloud folder as a ZIP archive (Nextcloud WebDAV extension) to
+/// `local_path`.
+#[tauri::command]
+pub async fn webdav_download_zip(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    remote_path: String,
+    local_path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_dav_path(&remote_path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    if let Some(parent) = std::path::Path::new(&local_path).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let progress = transfer_progress(app, "download", &remote_path, 0, 1);
+    webdav::download_zip_as(
+        &state.http_client,
+        &account,
+        &remote_path,
+        std::path::Path::new(&local_path),
+        target.as_deref(),
+        Some(progress),
+    )
+    .await
+}
+
+/// Fetch a preview thumbnail for a file as a base64 `data:` URL (Nextcloud
+/// `/core/preview.png`). Returns `None` when the server has no preview.
+#[tauri::command]
+pub async fn webdav_thumbnail(
+    state: State<'_, AppState>,
+    path: String,
+    size: Option<u32>,
+    target_user: Option<String>,
+) -> AppResult<Option<String>> {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine as _;
+
+    let account = current_account(&state)?;
+    validate_dav_path(&path)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let size = size.unwrap_or(256).clamp(16, 1024);
+    let Some(preview) =
+        webdav::preview(&state.http_client, &account, &path, size, target.as_deref()).await?
+    else {
+        return Ok(None);
+    };
+    let data = STANDARD.encode(preview.bytes);
+    Ok(Some(format!(
+        "data:{};base64,{}",
+        preview.content_type, data
+    )))
+}
+
 /// Delete a cloud file or folder.
 #[tauri::command]
 pub async fn webdav_delete(

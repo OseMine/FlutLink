@@ -169,6 +169,12 @@ export const api = {
   webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
 
+  webdavDownloadZip: (remotePath: string, localPath: string, targetUser?: string) =>
+    invoke<void>("webdav_download_zip", { remotePath, localPath, targetUser }),
+
+  webdavThumbnail: (path: string, size?: number, targetUser?: string) =>
+    invoke<string | null>("webdav_thumbnail", { path, size, targetUser }),
+
   webdavDelete: (path: string, targetUser?: string) =>
     invoke<void>("webdav_delete", { path, targetUser }),
 
