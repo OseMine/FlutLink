@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use super::*;
 use crate::error::{AppError, AppResult};
-use crate::state::{Account, OcsUser, UserDetails, UserQuota};
+use crate::state::{Account, OcsUser, Share, UserDetails, UserQuota};
 
 pub async fn get_current_user(client: &Client, account: &Account) -> AppResult<OcsUser> {
     let url = format!("{}/ocs/v2.php/cloud/user?format=json", account.base_url());
@@ -245,7 +245,12 @@ pub async fn update_user(
     Ok(message)
 }
 
-/// Create a public link share for a path relative to the user's files root.
+/// Create a share for a path relative to the user's files root.
+///
+/// `opts` controls the share kind (public link vs. user/group), the recipient
+/// (`share_with`) and link options (password, expiry, public upload). By
+/// default a read-only public link is created (OCS `shareType=3` +
+/// `permissions=1`), preserving the pre-existing behaviour.
 ///
 /// `target_user` switches the share to another user's files (admin
 /// impersonation); the share is then attributed to that user's namespace.
@@ -254,23 +259,23 @@ pub async fn create_share(
     account: &Account,
     rel_path: &str,
     target_user: Option<&str>,
-) -> AppResult<String> {
+    opts: ShareOptions<'_>,
+) -> AppResult<Share> {
     let url = format!(
         "{}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
         account.base_url()
     );
-    // F4: the path goes into the form UNENCODED. `req.form()` applies a single
-    // form-url-encoding pass; PHP decodes it once, so the server receives the
-    // raw path ("My Folder"). Encoding here a second time (encode_segments)
-    // would produce "%2520" → "path not found" for any path with spaces,
-    // umlauts or `#`/`&`/`+`/`?`.
-    let form = [("path", rel_path), ("shareType", "3"), ("permissions", "1")];
+    let form = build_share_form(rel_path, &opts);
+    let fields: Vec<(&str, &str)> = form
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
     let res = request_as(
         client,
         account,
         Method::POST,
         &url,
-        Some(&form),
+        Some(&fields),
         target_user,
     )
     .await?;
@@ -278,10 +283,160 @@ pub async fn create_share(
     if let Some(msg) = ocs_meta_error(&json) {
         return Err(AppError::Ocs(msg));
     }
-    json.pointer("/ocs/data/url")
-        .and_then(|u| u.as_str())
-        .map(String::from)
-        .ok_or_else(|| AppError::Parse("share endpoint returned no url".into()))
+    json.pointer("/ocs/data")
+        .and_then(parse_share)
+        .ok_or_else(|| AppError::Parse("share endpoint returned no share data".into()))
+}
+
+/// Options controlling `create_share`. The defaults (read-only public link)
+/// keep the original behaviour when no option is provided.
+#[derive(Debug, Clone)]
+pub struct ShareOptions<'a> {
+    /// OCS shareType: 0 = user, 1 = group, 3 = public link.
+    pub share_type: u32,
+    /// Recipient for user/group shares (username or group name).
+    pub share_with: Option<&'a str>,
+    /// Password protecting a public link.
+    pub password: Option<&'a str>,
+    /// Expiry date as `YYYY-MM-DD`.
+    pub expire_date: Option<&'a str>,
+    /// Explicit OCS permission bits. Takes precedence over `public_upload`.
+    pub permissions: Option<u32>,
+    /// Allow uploads to a public link (maps to permissions 15).
+    pub public_upload: bool,
+}
+
+impl Default for ShareOptions<'_> {
+    fn default() -> Self {
+        Self {
+            share_type: 3,
+            share_with: None,
+            password: None,
+            expire_date: None,
+            permissions: None,
+            public_upload: false,
+        }
+    }
+}
+
+/// Build the OCS share form. The `path` goes in RAW: `req.form()` applies a
+/// single form-url-encoding pass and PHP decodes it once, so the server
+/// receives the raw path ("My Folder"). Encoding here a second time
+/// (`encode_segments`) would produce "%2520" → "path not found" for any path
+/// with spaces, umlauts or `#`/`&`/`+`/`?` (F4).
+fn build_share_form(rel_path: &str, opts: &ShareOptions<'_>) -> Vec<(String, String)> {
+    let mut form = vec![
+        ("path".to_string(), rel_path.to_string()),
+        ("shareType".to_string(), opts.share_type.to_string()),
+    ];
+    if let Some(with) = opts.share_with {
+        form.push(("shareWith".to_string(), with.to_string()));
+    }
+    if let Some(password) = opts.password {
+        form.push(("password".to_string(), password.to_string()));
+    }
+    if let Some(expire) = opts.expire_date {
+        form.push(("expireDate".to_string(), expire.to_string()));
+    }
+    let permissions = opts.permissions.or({
+        if opts.public_upload {
+            Some(15)
+        } else if opts.share_type == 3 {
+            Some(1)
+        } else {
+            None
+        }
+    });
+    if let Some(p) = permissions {
+        form.push(("permissions".to_string(), p.to_string()));
+    }
+    form
+}
+/// List the shares for a path (or all shares of the account when `path` is
+/// `None`).
+pub async fn list_shares(
+    client: &Client,
+    account: &Account,
+    path: Option<&str>,
+    target_user: Option<&str>,
+) -> AppResult<Vec<Share>> {
+    let mut url = format!(
+        "{}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
+        account.base_url()
+    );
+    if let Some(p) = path {
+        url.push_str("&path=");
+        url.push_str(&urlencoding::encode(p));
+    }
+    let res = request_as(client, account, Method::GET, &url, None, target_user).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/data")
+        .and_then(|data| data.as_array())
+        .map(|arr| arr.iter().filter_map(parse_share).collect())
+        .unwrap_or_default())
+}
+
+/// Revoke a share by id.
+pub async fn delete_share(
+    client: &Client,
+    account: &Account,
+    share_id: u64,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = format!(
+        "{}/ocs/v2.php/apps/files_sharing/api/v1/shares/{}?format=json",
+        account.base_url(),
+        share_id
+    );
+    let res = request_as(client, account, Method::DELETE, &url, None, target_user).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
+/// Parse a share object from the OCS `data` payload. Unknown/falsy fields are
+/// mapped to `None` so a partially malformed response does not break the whole
+/// listing.
+fn parse_share(value: &Value) -> Option<Share> {
+    let id = value.get("id").and_then(|v| v.as_u64())?;
+    Some(Share {
+        id,
+        share_type: value
+            .get("share_type")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32)
+            .unwrap_or(0),
+        path: value.get("path").and_then(|v| v.as_str()).map(String::from),
+        share_with: value
+            .get("share_with")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        share_with_displayname: value
+            .get("share_with_displayname")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        permissions: value
+            .get("permissions")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32),
+        url: value.get("url").and_then(|v| v.as_str()).map(String::from),
+        has_password: match value.get("password") {
+            Some(v) if v.is_boolean() => v.as_bool(),
+            Some(v) if v.is_string() => Some(!v.as_str().unwrap_or_default().is_empty()),
+            Some(v) if v.is_null() => Some(false),
+            _ => None,
+        },
+        expiration: value
+            .get("expiration")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    })
 }
 
 fn parse_u64(value: Option<&Value>) -> Option<u64> {
@@ -314,5 +469,105 @@ mod tests {
         let after_server_decode = urlencoding::decode(&wire).unwrap();
         assert_ne!(after_server_decode.as_ref(), raw);
         assert_eq!(after_server_decode.as_ref(), "My%20Folder");
+    }
+
+    fn form_map(form: &[(String, String)]) -> std::collections::HashMap<&str, &str> {
+        form.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+    }
+
+    #[test]
+    fn share_form_keeps_path_raw_for_roundtrip() {
+        // The path must survive a single form-url-encoding pass intact (F4).
+        let raw = "/My Folder/#test&more+file?.txt";
+        let opts = ShareOptions::default();
+        let form = build_share_form(raw, &opts);
+        let map = form_map(&form);
+        assert_eq!(map.get("path"), Some(&raw));
+        assert_eq!(map.get("shareType"), Some(&"3"));
+        assert_eq!(map.get("permissions"), Some(&"1"));
+    }
+
+    #[test]
+    fn share_form_supports_private_user_and_group_shares() {
+        let user = ShareOptions {
+            share_type: 0,
+            share_with: Some("alice"),
+            ..ShareOptions::default()
+        };
+        let form = build_share_form("/Documents/report.pdf", &user);
+        let map = form_map(&form);
+        assert_eq!(map.get("shareType"), Some(&"0"));
+        assert_eq!(map.get("shareWith"), Some(&"alice"));
+        // user/group shares keep the server default permissions (no override)
+        assert!(!map.contains_key("permissions"));
+
+        let group = ShareOptions {
+            share_type: 1,
+            share_with: Some("team"),
+            ..ShareOptions::default()
+        };
+        let form = build_share_form("/Team", &group);
+        let map = form_map(&form);
+        assert_eq!(map.get("shareType"), Some(&"1"));
+        assert_eq!(map.get("shareWith"), Some(&"team"));
+    }
+
+    #[test]
+    fn share_form_supports_link_options() {
+        let link = ShareOptions {
+            share_type: 3,
+            password: Some("secret"),
+            expire_date: Some("2026-12-31"),
+            public_upload: true,
+            ..ShareOptions::default()
+        };
+        let form = build_share_form("/Album", &link);
+        let map = form_map(&form);
+        assert_eq!(map.get("password"), Some(&"secret"));
+        assert_eq!(map.get("expireDate"), Some(&"2026-12-31"));
+        // publicUpload → permissions 15 (read + write + create + delete)
+        assert_eq!(map.get("permissions"), Some(&"15"));
+
+        // explicit permissions take precedence over public_upload
+        let explicit = ShareOptions {
+            permissions: Some(1),
+            public_upload: true,
+            ..ShareOptions::default()
+        };
+        let form = build_share_form("/X", &explicit);
+        let map = form_map(&form);
+        assert_eq!(map.get("permissions"), Some(&"1"));
+    }
+
+    #[test]
+    fn parse_share_maps_ocs_payload() {
+        let value = serde_json::json!({
+            "id": 42,
+            "share_type": 3,
+            "path": "/Album",
+            "share_with": null,
+            "permissions": 15,
+            "url": "https://cloud.example/s/abc123",
+            "password": null,
+            "expiration": "2026-12-31T00:00:00+00:00"
+        });
+        let share = parse_share(&value).expect("share parses");
+        assert_eq!(share.id, 42);
+        assert_eq!(share.share_type, 3);
+        assert_eq!(share.url.as_deref(), Some("https://cloud.example/s/abc123"));
+        assert_eq!(share.has_password, Some(false));
+        assert_eq!(share.permissions, Some(15));
+
+        let user = serde_json::json!({
+            "id": 7,
+            "share_type": 0,
+            "share_with": "alice",
+            "share_with_displayname": "Alice",
+            "password": ""
+        });
+        let share = parse_share(&user).expect("share parses");
+        assert_eq!(share.share_with.as_deref(), Some("alice"));
+        assert_eq!(share.has_password, Some(false));
+        assert!(share.url.is_none());
     }
 }

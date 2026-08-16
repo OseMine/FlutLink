@@ -21,6 +21,26 @@ export interface WebDavEntry {
   isPart: boolean;
 }
 
+export interface Share {
+  id: number;
+  shareType: number;
+  path: string | null;
+  shareWith: string | null;
+  shareWithDisplayname: string | null;
+  permissions: number | null;
+  url: string | null;
+  hasPassword: boolean | null;
+  expiration: string | null;
+}
+
+export interface CreateShareOptions {
+  shareType?: number;
+  shareWith?: string;
+  password?: string;
+  expireDate?: string;
+  publicUpload?: boolean;
+}
+
 export interface OcsUser {
   id: string;
   displayName: string | null;
@@ -160,8 +180,28 @@ export const api = {
   webdavList: (path: string, targetUser?: string) =>
     invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),
 
-  webdavCreateShare: (path: string, targetUser?: string) =>
-    invoke<string>("webdav_create_share", { path, targetUser }),
+  webdavCreateShare: (
+    path: string,
+    options: CreateShareOptions,
+    targetUser?: string
+  ) =>
+    invoke<Share>("webdav_create_share", {
+      path,
+      targetUser,
+      options: {
+        shareType: options.shareType,
+        shareWith: options.shareWith,
+        password: options.password,
+        expireDate: options.expireDate,
+        publicUpload: options.publicUpload,
+      },
+    }),
+
+  webdavListShares: (path?: string, targetUser?: string) =>
+    invoke<Share[]>("webdav_list_shares", { path, targetUser }),
+
+  webdavDeleteShare: (shareId: number, targetUser?: string) =>
+    invoke<void>("webdav_delete_share", { shareId, targetUser }),
 
   webdavUploadFile: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser }),

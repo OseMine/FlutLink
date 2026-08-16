@@ -232,6 +232,8 @@ pub fn run() {
             commands::register_user,
             commands::webdav_list,
             commands::webdav_create_share,
+            commands::webdav_list_shares,
+            commands::webdav_delete_share,
             commands::webdav_upload_file,
             commands::webdav_download_file,
             commands::webdav_delete,

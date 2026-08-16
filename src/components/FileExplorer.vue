@@ -7,7 +7,7 @@ import { join, tempDir } from "@tauri-apps/api/path";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
-import { api, invokeError, type BulkTarget, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 import Icon from "./Icon.vue";
@@ -272,37 +272,146 @@ async function removeEntry(entry: WebDavEntry) {
   }
 }
 
-const shareState = reactive(
-  new Map<string, { status: "loading" | "done" | "error"; value?: string }>()
-);
+const sharesByPath = ref<Map<string, Share[]>>(new Map());
+const shareDialog = ref<{ entry: WebDavEntry; shares: Share[]; loading: boolean } | null>(null);
+const submitting = ref(false);
+const shareForm = reactive({
+  type: "link" as "link" | "user" | "group",
+  shareWith: "",
+  password: "",
+  expireDate: "",
+  publicUpload: false,
+});
 
-function shareStatus(path: string) {
-  return shareState.get(path);
+const shareTypes = computed<{ value: "link" | "user" | "group"; label: string }[]>(() => [
+  { value: "link", label: t("shareTypeLink") },
+  { value: "user", label: t("shareTypeUser") },
+  { value: "group", label: t("shareTypeGroup") },
+]);
+
+function entryShares(path: string): Share[] {
+  return sharesByPath.value.get(path) ?? [];
 }
 
-async function createLink(entry: WebDavEntry) {
-  shareState.set(entry.path, { status: "loading" });
+function shareLabel(share: Share): string {
+  if (share.shareType === 3) return t("shareTypeLink");
+  if (share.shareType === 1) return t("shareTypeGroup");
+  return t("shareTypeUser");
+}
+
+function shareTarget(share: Share): string {
+  if (share.shareType === 3) return share.url ?? "";
+  return share.shareWithDisplayname || share.shareWith || "";
+}
+
+function resetShareForm() {
+  shareForm.type = "link";
+  shareForm.shareWith = "";
+  shareForm.password = "";
+  shareForm.expireDate = "";
+  shareForm.publicUpload = false;
+}
+
+async function loadAllShares() {
   try {
-    const url = await files.createShare(entry.path);
-    shareState.set(entry.path, { status: "done", value: url });
-    try {
-      await navigator.clipboard.writeText(url);
-      ui.toast(t("linkCopied"), "success");
-    } catch {
-      // F1: a clipboard failure must not destroy the freshly created link.
-      // The URL stays visible in the entry state and can be copied again.
-      ui.toast(t("linkCopyFailed"), "error");
+    const shares = await files.listShares();
+    const map = new Map<string, Share[]>();
+    for (const share of shares) {
+      const key = share.path ?? "";
+      const list = map.get(key);
+      if (list) list.push(share);
+      else map.set(key, [share]);
     }
+    sharesByPath.value = map;
   } catch {
-    shareState.set(entry.path, { status: "error" });
+    // badge indicators are best-effort; the share dialog shows real errors
   }
 }
 
-async function copyLink(path: string) {
-  const state = shareState.get(path);
-  if (!state?.value) return;
+async function refreshShares(entry: WebDavEntry) {
   try {
-    await navigator.clipboard.writeText(state.value);
+    const shares = await files.listShares(entry.path);
+    if (shareDialog.value?.entry.path === entry.path) {
+      shareDialog.value.shares = shares;
+    }
+    const map = new Map(sharesByPath.value);
+    map.set(entry.path, shares);
+    sharesByPath.value = map;
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+async function openShareDialog(entry: WebDavEntry) {
+  shareDialog.value = { entry, shares: [], loading: true };
+  resetShareForm();
+  try {
+    const shares = await files.listShares(entry.path);
+    if (shareDialog.value?.entry.path === entry.path) {
+      shareDialog.value.shares = shares;
+    }
+    const map = new Map(sharesByPath.value);
+    map.set(entry.path, shares);
+    sharesByPath.value = map;
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    if (shareDialog.value?.entry.path === entry.path) {
+      shareDialog.value.loading = false;
+    }
+  }
+}
+
+function closeShareDialog() {
+  shareDialog.value = null;
+}
+
+async function createShare() {
+  const entry = shareDialog.value?.entry;
+  if (!entry || submitting.value) return;
+  const options: CreateShareOptions = {};
+  if (shareForm.type === "link") {
+    options.shareType = 3;
+    if (shareForm.password.trim()) options.password = shareForm.password.trim();
+    if (shareForm.expireDate) options.expireDate = shareForm.expireDate;
+    if (shareForm.publicUpload) options.publicUpload = true;
+  } else {
+    options.shareType = shareForm.type === "user" ? 0 : 1;
+    const recipient = shareForm.shareWith.trim();
+    if (!recipient) {
+      ui.toast(t("shareRecipientRequired"), "error");
+      return;
+    }
+    options.shareWith = recipient;
+  }
+  submitting.value = true;
+  try {
+    await files.createShare(entry.path, options);
+    ui.toast(t("shareCreated"), "success");
+    resetShareForm();
+    await refreshShares(entry);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function revokeShare(share: Share) {
+  if (!shareDialog.value) return;
+  if (!window.confirm(t("shareRevokeConfirm").replace("{recipient}", shareTarget(share) || share.id.toString()))) return;
+  try {
+    await files.deleteShare(share.id);
+    ui.toast(t("shareDeleted"), "success");
+    await refreshShares(shareDialog.value.entry);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+async function copyShareUrl(url: string) {
+  try {
+    await navigator.clipboard.writeText(url);
     ui.toast(t("linkCopied"), "success");
   } catch {
     ui.toast(t("linkCopyFailed"), "error");
@@ -355,10 +464,16 @@ watch(
   () => clearSelection()
 );
 
+watch(
+  () => files.entries,
+  () => void loadAllShares()
+);
+
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
     void loadAdminUsers();
+    void loadAllShares();
   }
   void files.bindProgress();
   unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
@@ -383,7 +498,8 @@ onUnmounted(() => {
 watch(
   () => accounts.active?.username,
   async () => {
-    shareState.clear();
+    sharesByPath.value = new Map();
+    shareDialog.value = null;
     adminViewAll.value = true;
     selectedUser.value = "";
     await files.reset();
@@ -649,31 +765,19 @@ watch(
               <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
             </td>
             <td class="px-3 py-2 text-right">
-              <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
               <span
-                v-else-if="shareStatus(entry.path)?.status === 'done'"
-                class="flex justify-end text-success"
-                :title="t('linkCopied')"
+                v-if="entryShares(entry.path).length"
+                class="mr-1 rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+                :title="t('sharesCount').replace('{count}', String(entryShares(entry.path).length))"
               >
-                <Icon name="check" :size="16" />
-              </span>
-              <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
-                <Icon name="close" :size="16" />
+                {{ entryShares(entry.path).length }}
               </span>
               <button
-                v-if="shareStatus(entry.path)?.status === 'done'"
-                class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
-                :title="shareStatus(entry.path)?.value ?? ''"
-                @click.stop="copyLink(entry.path)"
+                class="inline-flex items-center gap-1 rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+                @click.stop="openShareDialog(entry)"
               >
-                ⧉
-              </button>
-              <button
-                v-else-if="!shareStatus(entry.path)"
-                class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
-                @click.stop="createLink(entry)"
-              >
-                {{ t("link") }}
+                <Icon name="share" :size="14" />
+                {{ t("share") }}
               </button>
             </td>
           </tr>
@@ -716,6 +820,13 @@ watch(
             >
               {{ t("rename") }}
             </button>
+            <button
+              class="rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+              @click.stop="openShareDialog(entry)"
+            >
+              <Icon name="share" :size="12" class="mr-0.5 inline" />
+              {{ t("share") }}
+            </button>
           </div>
         </div>
       </div>
@@ -749,9 +860,9 @@ watch(
       </button>
       <button
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
-        @click="createLink(ctxMenu.entry); ctxMenu = null"
+        @click="openShareDialog(ctxMenu.entry); ctxMenu = null"
       >
-        {{ t("link") }}
+        {{ t("share") }}
       </button>
       <div class="my-1 border-t border-outline-variant"></div>
       <button
@@ -829,6 +940,115 @@ watch(
           </button>
         </div>
       </form>
+    </div>
+
+    <!-- Share dialog -->
+    <div
+      v-if="shareDialog"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      @click.self="closeShareDialog"
+    >
+      <div
+        class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-outline bg-surface-container shadow-m3-3"
+      >
+        <div class="flex items-center justify-between border-b border-outline-variant px-5 py-3">
+          <h3 class="min-w-0 truncate text-base font-semibold text-on-surface">
+            {{ t("share") }} — {{ shareDialog.entry.name }}
+          </h3>
+          <button class="shrink-0 text-on-surface-variant hover:text-on-surface" @click="closeShareDialog">
+            <Icon name="close" :size="18" />
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+            {{ t("existingShares") }}
+          </p>
+          <div v-if="shareDialog.loading" class="mb-4 text-sm text-on-surface-variant">{{ t("loading") }}</div>
+          <div v-else-if="!shareDialog.shares.length" class="mb-4 text-sm text-on-surface-variant">
+            {{ t("noShares") }}
+          </div>
+          <ul v-else class="mb-4 space-y-2">
+            <li
+              v-for="share in shareDialog.shares"
+              :key="share.id"
+              class="flex items-center gap-2 rounded-md border border-outline-variant bg-surface-container-high px-3 py-2"
+            >
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm text-on-surface">{{ shareLabel(share) }}</span>
+                <span class="block truncate text-xs text-on-surface-variant">{{ shareTarget(share) }}</span>
+                <span
+                  v-if="share.hasPassword || share.expiration"
+                  class="block truncate text-[10px] text-on-surface-variant"
+                >
+                  {{ share.hasPassword ? t("sharePasswordSet") : "" }}{{ share.hasPassword && share.expiration ? " · " : "" }}{{ share.expiration ? t("shareExpires").replace("{date}", share.expiration) : "" }}
+                </span>
+              </span>
+              <button
+                v-if="share.shareType === 3 && share.url"
+                class="shrink-0 rounded border border-outline px-1.5 py-1 text-[10px] text-on-surface-variant hover:bg-surface-container-highest"
+                :title="t('copyLinkTitle')"
+                @click="copyShareUrl(share.url)"
+              >
+                ⧉
+              </button>
+              <button
+                class="shrink-0 rounded border border-error px-1.5 py-1 text-[10px] text-error hover:bg-error-container/40"
+                @click="revokeShare(share)"
+              >
+                {{ t("revoke") }}
+              </button>
+            </li>
+          </ul>
+
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+            {{ t("newShare") }}
+          </p>
+          <div class="space-y-3">
+            <div class="flex gap-2">
+              <button
+                v-for="type in shareTypes"
+                :key="type.value"
+                type="button"
+                class="flex-1 rounded-md border px-3 py-1.5 text-sm transition"
+                :class="shareForm.type === type.value ? 'border-primary bg-primary text-on-primary' : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
+                @click="shareForm.type = type.value"
+              >
+                {{ type.label }}
+              </button>
+            </div>
+            <input
+              v-if="shareForm.type !== 'link'"
+              v-model="shareForm.shareWith"
+              :placeholder="t('shareRecipient')"
+              class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+            />
+            <template v-else>
+              <input
+                v-model="shareForm.password"
+                :placeholder="t('sharePasswordPlaceholder')"
+                class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+              />
+              <input
+                v-model="shareForm.expireDate"
+                type="date"
+                class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
+              />
+              <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant select-none">
+                <input v-model="shareForm.publicUpload" type="checkbox" class="accent-primary" />
+                {{ t("publicUpload") }}
+              </label>
+            </template>
+            <button
+              class="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+              :disabled="submitting"
+              @click="createShare"
+            >
+              {{ t("createShare") }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

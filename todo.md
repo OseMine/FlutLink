@@ -96,7 +96,7 @@ erneut gegen den aktuellen Stand geprüft und bestätigt). Checks ausgeführt:
 Neue Befunde (Lauf 5, Fokus „real browsing like Nextcloud UI/Google Drive,
 public + private link sharing"):
 
-- [ ] **P1 (Feature, mittel/hoch — Kern-Fokus):** Nur öffentliche
+- [x] **P1 (Feature, mittel/hoch — Kern-Fokus):** Nur öffentliche
       Read-Only-Links, kein privates Sharing. `ocs::create_share`
       (`src-tauri/src/nextcloud/ocs.rs:252-285`) sendet hartkodiert
       `shareType=3` (öffentlicher Link) + `permissions=1`. Private Freigaben
@@ -106,18 +106,18 @@ public + private link sharing"):
       (`webdavCreateShare`, Z. 124-125) und `FileExplorer.vue` (`createLink`,
       Z. 198-208) bieten nur „Link". Fix: Parameter durchreichen + UI-Dialog
       („Mit Benutzer teilen" / „Link mit Passwort").
-- [ ] **P2 (Feature, mittel):** Kein Share-Management: Es gibt weder
+- [x] **P2 (Feature, mittel):** Kein Share-Management: Es gibt weder
       `list_shares` noch `delete_share` (OCS `GET /shares` bzw.
       `DELETE /shares/{id}` unter `apps/files_sharing/api/v1/shares`). Ein
       erstellter Link ist nach dem Kopieren weder erneut abrufbar noch
       widerrufbar (`FileExplorer.vue` zeigt nur ein ✓-Icon) — für
       Nextcloud-UI-Niveau unverzichtbar. Fix: `list_shares`/`delete_share` als
       Commands (commands.rs + ipc.ts) + Share-Status pro Eintrag in der UI.
-- [ ] **P3 (Feature, mittel):** Link-Optionen fehlen: `create_share`
+- [x] **P3 (Feature, mittel):** Link-Optionen fehlen: `create_share`
       (ocs.rs:262-267) unterstützt kein `password`, `expireDate` oder
       `publicUpload` (permissions 15). Öffentliches Link-Sharing ist damit auf
       „read-only, ewig gültig, ohne Passwort" reduziert.
-- [ ] **P4 (Bug, bestätigt F4, hier gegen Stand verifiziert):** Doppel-Encoding
+- [x] **P4 (Bug, bestätigt F4, hier gegen Stand verifiziert):** Doppel-Encoding
       in `create_share`: `encode_segments(rel_path)` (ocs.rs:262) + `req.form()`
       (`nextcloud/mod.rs:57-59`, url-encodiert erneut) → `%20` wird `%2520` →
       Share-Erstellung für Pfade mit Leerzeichen/Umlauten schlägt fehl. Fix:
@@ -127,7 +127,7 @@ public + private link sharing"):
       `validate_dav_path` (commands.rs:342-359) lehnt ab. Umbenennen in
       Unterordnern schlägt immer fehl, nur Root-Rename funktioniert. Fix:
       `rsplit_once('/')` + Test.
-- [ ] **P6 (Bug, bestätigt U3/N7):** `createLink` (`FileExplorer.vue:198-208`)
+- [x] **P6 (Bug, bestätigt U3/N7):** `createLink` (`FileExplorer.vue:198-208`)
       verschluckt den Backend-Fehler (nur ✗-Icon) und verliert die Share-URL,
       wenn `navigator.clipboard.writeText` fehlschlägt (häufig WebKitGTK/
       Linux). Fix: URL auch bei Clipboard-Fehler anzeigen (Toast/
@@ -265,7 +265,7 @@ Neue Befunde (Lauf 4):
       nie hochgeladen, aber remote vorhandene versteckte Dateien werden beim
       Erst-Sync heruntergeladen. Entweder beide Richtungen einheitlich skippen
       oder in der Doku dokumentieren.
-- [ ] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
+- [x] **N7 (Bug, minor):** `FileExplorer.vue` `createLink` (Z. 198-208): Der
       `catch`-Block verschluckt die Backend-Fehlermeldung (nur ✗-Icon, kein
       Toast/kein Grund) — Fehlermeldung per `invokeError` anzeigen (ergänzt U3).
 - [ ] **N8 (Perf, minor):** `sync.rs` führt `ensure_collection` doppelt pro
@@ -302,7 +302,7 @@ Lauf 2). Details zu den Befunden: datierter Review-Abschnitt Lauf 3 (vormals
       (`src-tauri/src/commands.rs:260-273`) emittiert kein `accounts-changed`
       (nur der Tray-Pfad `lib.rs:115-128`). Fix: `await load()` oder Event
       emittieren.
-- [ ] **U3 (Bug/UX, mittel):** Share-Link — bei `navigator.clipboard.writeText`
+- [x] **U3 (Bug/UX, mittel):** Share-Link — bei `navigator.clipboard.writeText`
       -Fehler (v. a. Linux/WebKitGTK) zeigt `FileExplorer.vue:198-208`
       (`createLink`) ein ✗, obwohl der Share erstellt wurde; die URL ist dann
       verloren. Fix: URL bei Clipboard-Fehler trotzdem anzeigen (Toast/
@@ -362,6 +362,37 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Sharing vervollständigen)
+
+- [x] **P1 (Feature, mittel/hoch — Kern-Fokus):** Private Freigaben fehlten
+      durchgängig (nur `shareType=3` + `permissions=1` hartkodiert). Fix:
+      `ocs::create_share` akzeptiert jetzt `ShareOptions` (`share_type`,
+      `share_with`, `password`, `expire_date`, `permissions`, `public_upload`);
+      `webdav_create_share` reicht die Optionen per `ShareInput`-Parameter
+      durch und verweigert User-/Gruppen-Shares ohne `share_with`; der
+      FileExplorer-Dialog bietet „Mit Benutzer teilen" / „Mit Gruppe teilen".
+- [x] **P2 (Feature, mittel):** Kein Share-Management. Fix: `list_shares`
+      (OCS `GET /shares`, optional mit `path`) und `delete_share`
+      (OCS `DELETE /shares/{id}`) als `ocs`-Funktionen + Commands
+      `webdav_list_shares`/`webdav_delete_share` (commands.rs, in lib.rs
+      registriert) + IPC-Wrapper. Die UI zeigt pro Eintrag ein
+      Freigabe-Badge, und der Share-Dialog listet alle Shares des Eintrags
+      mit Widerruf-Button und Copy-Link-Button.
+- [x] **P3 (Feature, mittel):** Link-Optionen fehlten. Fix: `create_share`
+      unterstützt `password`, `expireDate` und `publicUpload` (permissions 15,
+      explizite `permissions` haben Vorrang). UI-Formular im Share-Dialog
+      (Passwort, Ablaufdatum, öffentlicher Upload).
+- [x] **P4 (Bug, bestätigt F4):** Doppel-Encoding bestätigt und abgesichert:
+      Der Raw-Pfad geht in `build_share_form` unencodiert ins Formular
+      (Roundtrip-Test `share_form_keeps_path_raw_for_roundtrip`).
+- [x] **P6 / U3 / N7:** Der alte `createLink` ist durch den Share-Dialog
+      ersetzt: Die URL bleibt nach dem Erstellen sichtbar (Klick-zum-Kopieren),
+      Clipboard-Fehler toasten, Backend-Fehler werden per `invokeError` toastet.
+- [x] **Tests:** Neue OCS-Unit-Tests für Share-Form (Raw-Pfad, User/Gruppen-
+      Parameter, Link-Optionen inkl. permissions-Vorrang) und `parse_share`-Mapping.
+      Verifikation: `cargo fmt --check`, `cargo clippy -D warnings`,
+      `cargo test` (53 passed), `npm run build` — alles grün.
 
 ### Review 2026-08-15 (U8)
 
