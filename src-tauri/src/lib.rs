@@ -1,4 +1,5 @@
 mod accounts;
+mod cache;
 mod commands;
 mod error;
 mod flutcloud;
@@ -218,6 +219,15 @@ pub fn run() {
 
             setup_tray(app, quit_flag.clone())?;
             sync::spawn_worker(&handle);
+
+            // P15: the stored admin flag is re-evaluated once at startup so a
+            // transient network failure at sign-in can never permanently demote
+            // an admin account to a regular one.
+            let refresh_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                commands::refresh_admin_flags(&refresh_handle).await;
+            });
+
             handle_cli(app);
             Ok(())
         })
@@ -225,7 +235,6 @@ pub fn run() {
             commands::get_flutcloud_url,
             commands::account_add,
             commands::account_list,
-            commands::account_active,
             commands::account_switch,
             commands::account_remove,
             commands::account_storage,
@@ -247,6 +256,10 @@ pub fn run() {
             commands::admin_edit_user,
             commands::admin_create_user,
             commands::admin_delete_user,
+            commands::admin_list_groups,
+            commands::admin_create_group,
+            commands::admin_add_group_member,
+            commands::admin_remove_group_member,
             commands::sync_list,
             commands::sync_add,
             commands::sync_remove,

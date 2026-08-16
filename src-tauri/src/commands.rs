@@ -3,14 +3,14 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AppState, SyncFolder, SyncFolderStatus, TransferProgress, UserDetails,
-    UserQuota, WebDavEntry,
+    Account, AccountMeta, AppState, StorageResult, SyncFolder, SyncFolderStatus, TransferProgress,
+    UserDetails, WebDavEntry, WebDavListResult,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -54,27 +54,36 @@ pub async fn account_add(
     crate::flutcloud::verify_server(&state.http_client, &account).await?;
 
     let user = ocs::get_current_user(&state.http_client, &account).await?;
-    let is_admin = ocs::is_admin(&state.http_client, &account)
-        .await
-        .unwrap_or(false);
     let snapshot = state.accounts_snapshot();
-    // Re-adding an already-known account keeps its active state instead of
-    // silently deactivating it.
-    let existing = snapshot
-        .iter()
-        .find(|a| {
-            a.meta.username == account.meta.username
-                && a.meta.instance_url == account.meta.instance_url
-        })
-        .map(|a| a.meta.is_active)
-        .unwrap_or(false);
+    // Re-adding an already-known account keeps its active and admin state
+    // (unless the server now reports otherwise) instead of silently resetting
+    // them.
+    let existing = snapshot.iter().find(|a| {
+        a.meta.username == account.meta.username && a.meta.instance_url == account.meta.instance_url
+    });
+    let is_admin = match ocs::is_admin(&state.http_client, &account).await {
+        Ok(is_admin) => is_admin,
+        Err(err) => {
+            // Transient probe failure: keep the previously stored flag so an
+            // admin account is not demoted; the startup re-check fixes it later.
+            eprintln!(
+                "warn: could not determine admin status for {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            );
+            existing.map(|a| a.meta.is_admin).unwrap_or(false)
+        }
+    };
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: existing || snapshot.is_empty(),
+        is_active: existing
+            .map(|a| a.meta.is_active)
+            .unwrap_or(snapshot.is_empty()),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -244,25 +253,33 @@ pub async fn register_user(
         token: input.password,
     };
     let user = ocs::get_current_user(&state.http_client, &account).await?;
-    let is_admin = ocs::is_admin(&state.http_client, &account)
-        .await
-        .unwrap_or(false);
     let snapshot = state.accounts_snapshot();
-    let existing = snapshot
-        .iter()
-        .find(|a| {
-            a.meta.username == account.meta.username
-                && a.meta.instance_url == account.meta.instance_url
-        })
-        .map(|a| a.meta.is_active)
-        .unwrap_or(false);
+    let existing = snapshot.iter().find(|a| {
+        a.meta.username == account.meta.username && a.meta.instance_url == account.meta.instance_url
+    });
+    let is_admin = match ocs::is_admin(&state.http_client, &account).await {
+        Ok(is_admin) => is_admin,
+        Err(err) => {
+            // Transient probe failure: keep the previously stored flag so an
+            // admin account is not demoted; the startup re-check fixes it later.
+            eprintln!(
+                "warn: could not determine admin status for {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            );
+            existing.map(|a| a.meta.is_admin).unwrap_or(false)
+        }
+    };
 
     let meta = AccountMeta {
         username: account.meta.username,
         instance_url: account.meta.instance_url,
         display_name: user.display_name,
         is_admin,
-        is_active: existing || snapshot.is_empty(),
+        is_active: existing
+            .map(|a| a.meta.is_active)
+            .unwrap_or(snapshot.is_empty()),
     };
 
     accounts::save_token(&meta, &account.token)?;
@@ -273,11 +290,6 @@ pub async fn register_user(
     accounts::persist_accounts(&app, &list)?;
     crate::refresh_tray_menu(&app)?;
     Ok(meta)
-}
-
-#[tauri::command]
-pub async fn account_active(state: State<'_, AppState>) -> AppResult<Option<AccountMeta>> {
-    Ok(state.current().map(|a| a.meta))
 }
 
 #[tauri::command]
@@ -322,19 +334,96 @@ pub async fn account_remove(
     Ok(to_meta_list(&list))
 }
 
+/// Re-evaluate the admin flag of every stored account against the server.
+///
+/// Runs once at app start: the stored flag is only overwritten when the OCS
+/// probe succeeds, so a transient network error never demotes an admin account
+/// to a regular one (the previous flag is kept). Persists and notifies the
+/// frontend/tray only when something actually changed.
+pub async fn refresh_admin_flags(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut changed = false;
+    for account in state.accounts_snapshot() {
+        match ocs::is_admin(&state.http_client, &account).await {
+            Ok(is_admin) => {
+                changed |= state.set_is_admin(
+                    &account.meta.username,
+                    &account.meta.instance_url,
+                    is_admin,
+                );
+            }
+            Err(err) => eprintln!(
+                "warn: could not re-check admin status of {}@{}: {}",
+                account.meta.username,
+                account.meta.instance_url,
+                err.message()
+            ),
+        }
+    }
+    if changed {
+        if let Err(err) = accounts::persist_accounts(app, &state.accounts_snapshot()) {
+            eprintln!(
+                "warn: could not persist refreshed admin flags: {}",
+                err.message()
+            );
+        }
+        if let Err(err) = crate::refresh_tray_menu(app) {
+            eprintln!("warn: could not refresh tray menu: {}", err.message());
+        }
+        let _ = app.emit("accounts-changed", ());
+    }
+}
+
+/// Offline-cache namespace: the browsed user + the server instance, so listings
+/// and quotas of different accounts/users never collide.
+fn cache_namespace(account: &Account, target_user: Option<&str>) -> String {
+    format!(
+        "{}@{}",
+        target_user.unwrap_or(&account.meta.username),
+        account.meta.instance_url
+    )
+}
+
 #[tauri::command]
 pub async fn webdav_list(
+    app: AppHandle,
     state: State<'_, AppState>,
     path: Option<String>,
     target_user: Option<String>,
-) -> AppResult<Vec<WebDavEntry>> {
+) -> AppResult<WebDavListResult> {
     let account = current_account(&state)?;
     let path = path.unwrap_or_else(|| "/".into());
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    webdav::list(&state.http_client, &account, &path, target.as_deref()).await
+    let namespace = cache_namespace(&account, target.as_deref());
+    match webdav::list(&state.http_client, &account, &path, target.as_deref()).await {
+        Ok(entries) => {
+            // Refresh the offline cache so the browser can show the latest
+            // listing when the server becomes unreachable later.
+            if let Err(err) = crate::cache::save_listing(&app, &namespace, &path, &entries) {
+                eprintln!("warn: could not cache listing {}: {}", path, err.message());
+            }
+            Ok(WebDavListResult {
+                entries,
+                stale: false,
+            })
+        }
+        Err(err) if err.is_network() => {
+            // Server unreachable: serve the last cached listing instead of an
+            // empty folder/error. Only report the error when nothing was cached.
+            if let Some(entries) = crate::cache::load_listing(&app, &namespace, &path)? {
+                Ok(WebDavListResult {
+                    entries,
+                    stale: true,
+                })
+            } else {
+                Err(err)
+            }
+        }
+        Err(err) => Err(err),
+    }
 }
 
 /// Search the active account's whole files tree for entries whose name
@@ -359,10 +448,34 @@ pub async fn webdav_search(
 }
 
 /// Storage quota of the currently active account (from the OCS v2 user endpoint).
+///
+/// The quota is persisted in the offline cache and served from there when the
+/// server is unreachable (instead of failing or showing "unavailable").
 #[tauri::command]
-pub async fn account_storage(state: State<'_, AppState>) -> AppResult<Option<UserQuota>> {
+pub async fn account_storage(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<StorageResult> {
     let account = current_account(&state)?;
-    ocs::get_current_quota(&state.http_client, &account).await
+    let namespace = cache_namespace(&account, None);
+    match ocs::get_current_quota(&state.http_client, &account).await {
+        Ok(quota) => {
+            if let Some(quota) = &quota {
+                if let Err(err) = crate::cache::save_quota(&app, &namespace, quota) {
+                    eprintln!("warn: could not cache quota: {}", err.message());
+                }
+            }
+            Ok(StorageResult {
+                quota,
+                stale: false,
+            })
+        }
+        Err(err) if err.is_network() => Ok(StorageResult {
+            quota: crate::cache::load_quota(&app, &namespace)?,
+            stale: true,
+        }),
+        Err(err) => Err(err),
+    }
 }
 
 /// Create a public link share for the given file/folder and return the URL.
@@ -421,8 +534,24 @@ fn rename_new_path(path: &str, new_name: &str) -> String {
     }
 }
 
+/// Reject rename targets that would silently turn a rename into a move or a
+/// path traversal: the new name must be a single name (no `/`) and must not be
+/// `.`, `..` or empty. Validated directly on the name, not on the composed
+/// path, so `/` cannot slip through as a subfolder separator.
+fn validate_rename_name(new_name: &str) -> AppResult<()> {
+    if new_name.is_empty() || new_name == "." || new_name == ".." || new_name.contains('/') {
+        return Err(AppError::App(
+            "The new name must be a plain name without '/', '.' or '..'.".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Upload a local file to the cloud at `remote_path` (absolute, decoded path
 /// relative to the user's files root, e.g. `/Documents/report.pdf`).
+///
+/// Without `overwrite`, an existing destination is refused with
+/// [`AppError::TargetExists`] instead of being silently replaced.
 #[tauri::command]
 pub async fn webdav_upload_file(
     app: AppHandle,
@@ -430,12 +559,24 @@ pub async fn webdav_upload_file(
     remote_path: String,
     local_path: String,
     target_user: Option<String>,
+    overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&remote_path)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
+    }
+    if !overwrite
+        && webdav::exists(
+            &state.http_client,
+            &account,
+            &remote_path,
+            target.as_deref(),
+        )
+        .await?
+    {
+        return Err(AppError::TargetExists(remote_path.clone()));
     }
     let mtime = std::fs::metadata(&local_path)
         .ok()
@@ -679,8 +820,14 @@ pub async fn webdav_bulk_download(
 }
 
 /// Recursively upload a local tree into a remote folder, returning the number
-/// of files uploaded.
-async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> AppResult<u64> {
+/// of files uploaded. Without `overwrite`, existing remote files abort the
+/// upload with [`AppError::TargetExists`] instead of being silently replaced.
+async fn upload_tree(
+    ctx: TransferCtx<'_>,
+    local: &Path,
+    remote_rel: &str,
+    overwrite: bool,
+) -> AppResult<u64> {
     let mut files_written = 0u64;
     let mut entries = tokio::fs::read_dir(local).await?;
     while let Some(entry) = entries.next_entry().await? {
@@ -690,8 +837,13 @@ async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> Ap
         if path.is_dir() {
             webdav::ensure_collection_as(&ctx.state.http_client, ctx.account, &remote, ctx.target)
                 .await?;
-            files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote)).await?;
+            files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote, overwrite)).await?;
         } else {
+            if !overwrite
+                && webdav::exists(&ctx.state.http_client, ctx.account, &remote, ctx.target).await?
+            {
+                return Err(AppError::TargetExists(remote));
+            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -724,6 +876,9 @@ async fn upload_tree(ctx: TransferCtx<'_>, local: &Path, remote_rel: &str) -> Ap
 /// Upload multiple local files/folders (e.g. from drag & drop) into the given
 /// remote directory, recursively for local subfolders. Emits
 /// `file://progress` events per file.
+///
+/// Without `overwrite`, existing remote files abort the upload with
+/// [`AppError::TargetExists`] instead of being silently replaced.
 #[tauri::command]
 pub async fn webdav_upload_local_paths(
     app: AppHandle,
@@ -731,6 +886,7 @@ pub async fn webdav_upload_local_paths(
     local_paths: Vec<String>,
     remote_dir: String,
     target_user: Option<String>,
+    overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&remote_dir)?;
@@ -765,8 +921,13 @@ pub async fn webdav_upload_local_paths(
         if path.is_dir() {
             webdav::ensure_collection_as(&state.http_client, &account, &remote, target.as_deref())
                 .await?;
-            upload_tree(ctx.clone(), &path, &remote).await?;
+            upload_tree(ctx.clone(), &path, &remote, overwrite).await?;
         } else if path.is_file() {
+            if !overwrite
+                && webdav::exists(&state.http_client, &account, &remote, target.as_deref()).await?
+            {
+                return Err(AppError::TargetExists(remote));
+            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -832,6 +993,7 @@ pub async fn webdav_rename(
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     validate_dav_path(&path)?;
+    validate_rename_name(&new_name)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -915,6 +1077,58 @@ pub async fn admin_delete_user(state: State<'_, AppState>, user_id: String) -> A
         return Err(AppError::Forbidden);
     }
     ocs::delete_user(&state.http_client, &account, &user_id).await
+}
+
+#[tauri::command]
+pub async fn admin_list_groups(
+    state: State<'_, AppState>,
+    search: Option<String>,
+) -> AppResult<Vec<String>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::list_groups(
+        &state.http_client,
+        &account,
+        search.as_deref().unwrap_or(""),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn admin_create_group(state: State<'_, AppState>, group_id: String) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::create_group(&state.http_client, &account, &group_id).await
+}
+
+#[tauri::command]
+pub async fn admin_add_group_member(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_id: String,
+) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::add_group_member(&state.http_client, &account, &group_id, &user_id).await
+}
+
+#[tauri::command]
+pub async fn admin_remove_group_member(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_id: String,
+) -> AppResult<String> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::remove_group_member(&state.http_client, &account, &group_id, &user_id).await
 }
 
 /// Allowed attribute keys for `admin_edit_user`. Anything else is refused so
@@ -1085,5 +1299,27 @@ mod tests {
     #[test]
     fn rename_new_path_keeps_root_slash() {
         assert_eq!(rename_new_path("/report.pdf", "neu.pdf"), "/neu.pdf");
+    }
+
+    #[test]
+    fn validate_rename_name_accepts_plain_names() {
+        assert!(validate_rename_name("neu.pdf").is_ok());
+        assert!(validate_rename_name("bericht 2024.txt").is_ok());
+        assert!(validate_rename_name("_unterordner").is_ok());
+    }
+
+    #[test]
+    fn validate_rename_name_rejects_slashes_and_dots() {
+        assert!(
+            validate_rename_name("sub/neu.pdf").is_err(),
+            "must not contain '/'"
+        );
+        assert!(
+            validate_rename_name("../neu.pdf").is_err(),
+            "must not contain '/'"
+        );
+        assert!(validate_rename_name("..").is_err(), "must not be '..'");
+        assert!(validate_rename_name(".").is_err(), "must not be '.'");
+        assert!(validate_rename_name("").is_err(), "must not be empty");
     }
 }

@@ -19,6 +19,19 @@ export interface WebDavEntry {
   contentType: string | null;
   isResource: boolean;
   isPart: boolean;
+  pairedPath: string | null;
+}
+
+export interface WebDavListResult {
+  entries: WebDavEntry[];
+  /** True when the listing was served from the offline cache (server unreachable). */
+  stale: boolean;
+}
+
+export interface StorageResult {
+  quota: UserQuota | null;
+  /** True when the quota was served from the offline cache (server unreachable). */
+  stale: boolean;
 }
 
 export interface OcsUser {
@@ -144,21 +157,19 @@ export const api = {
 
   accountList: () => invoke<AccountMeta[]>("account_list"),
 
-  accountActive: () => invoke<AccountMeta | null>("account_active"),
-
   accountSwitch: (username: string, instanceUrl: string) =>
     invoke<AccountMeta>("account_switch", { username, instanceUrl }),
 
   accountRemove: (username: string, instanceUrl: string) =>
     invoke<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
-  accountStorage: () => invoke<UserQuota | null>("account_storage"),
+  accountStorage: () => invoke<StorageResult>("account_storage"),
 
   accountFilterInfo: () =>
     invoke<AccountFilterInfo | null>("account_filter_info"),
 
   webdavList: (path: string, targetUser?: string) =>
-    invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),
+    invoke<WebDavListResult>("webdav_list", { path, targetUser }),
 
   webdavSearch: (query: string, targetUser?: string) =>
     invoke<WebDavEntry[]>("webdav_search", { query, targetUser }),
@@ -166,8 +177,12 @@ export const api = {
   webdavCreateShare: (path: string, targetUser?: string) =>
     invoke<string>("webdav_create_share", { path, targetUser }),
 
-  webdavUploadFile: (remotePath: string, localPath: string, targetUser?: string) =>
-    invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser }),
+  webdavUploadFile: (
+    remotePath: string,
+    localPath: string,
+    targetUser?: string,
+    overwrite = false
+  ) => invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser, overwrite }),
 
   webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
     invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
@@ -181,11 +196,17 @@ export const api = {
   webdavBulkDownload: (targets: BulkTarget[], destDir: string, targetUser?: string) =>
     invoke<void>("webdav_bulk_download", { targets, destDir, targetUser }),
 
-  webdavUploadLocalPaths: (localPaths: string[], remoteDir: string, targetUser?: string) =>
+  webdavUploadLocalPaths: (
+    localPaths: string[],
+    remoteDir: string,
+    targetUser?: string,
+    overwrite = false
+  ) =>
     invoke<void>("webdav_upload_local_paths", {
       localPaths,
       remoteDir,
       targetUser,
+      overwrite,
     }),
 
   webdavMkdir: (path: string, targetUser?: string) =>
@@ -211,6 +232,18 @@ export const api = {
 
   adminDeleteUser: (userId: string) =>
     invoke<string>("admin_delete_user", { userId }),
+
+  adminListGroups: (search: string) =>
+    invoke<string[]>("admin_list_groups", { search }),
+
+  adminCreateGroup: (groupId: string) =>
+    invoke<string>("admin_create_group", { groupId }),
+
+  adminAddGroupMember: (groupId: string, userId: string) =>
+    invoke<string>("admin_add_group_member", { groupId, userId }),
+
+  adminRemoveGroupMember: (groupId: string, userId: string) =>
+    invoke<string>("admin_remove_group_member", { groupId, userId }),
 
   syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
 

@@ -15,6 +15,21 @@ use crate::state::{Account, WebDavEntry};
 /// progresses. Total is `0` when the remote did not advertise a size.
 pub type ProgressFn = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
+/// Files larger than this many bytes are uploaded via the WebDAV chunked
+/// upload v2 protocol instead of a single PUT. The server enforces a minimum
+/// chunk size of 5 MiB (last chunk excluded), so chunking only pays off for
+/// files that exceed the chunk size itself.
+const CHUNK_UPLOAD_MIN_BYTES: u64 = 10 * 1024 * 1024;
+/// Bytes per chunk of the v2 protocol. The server accepts chunks between
+/// 5 MiB and 5 GiB (the last chunk may be smaller); 10 MiB stays within range.
+const CHUNK_UPLOAD_CHUNK_BYTES: u64 = 10 * 1024 * 1024;
+
+// Compile-time guards so future size changes cannot silently violate the
+// server-side v2 constraints (intermediate chunks 5 MiB..5 GiB).
+const _: () = assert!(CHUNK_UPLOAD_CHUNK_BYTES >= 5 * 1024 * 1024);
+const _: () = assert!(CHUNK_UPLOAD_CHUNK_BYTES <= 5 * 1024 * 1024 * 1024);
+const _: () = assert!(CHUNK_UPLOAD_MIN_BYTES == CHUNK_UPLOAD_CHUNK_BYTES);
+
 /// Wraps a byte stream and reports `(transferred, total)` for every chunk.
 struct ProgressStream<S> {
     inner: S,
@@ -86,10 +101,13 @@ pub async fn list(
         );
         let entries = parse_multistatus(&body, &base_path)?;
         // Namespace guard: if the server silently ignored `Impersonate-User`,
-        // the hrefs point at the *admin's* namespace and every rel would start
-        // with "/remote.php/...". Refuse the mismatched listing instead of
-        // feeding garbage paths to the caller.
-        if entries.iter().any(|e| e.path.starts_with("/remote.php/")) {
+        // the hrefs point at the *admin's* namespace. `relative_path` strips
+        // scheme + host from absolute hrefs, so a leftover "/remote.php/..."
+        // path signals the mismatch for both the relative and the absolute
+        // href form (a leaked URL like "/https:/host/..." is caught too).
+        // Refuse the mismatched listing instead of feeding garbage paths to
+        // the caller.
+        if entries.iter().any(|e| is_namespace_mismatch(&e.path)) {
             return Err(AppError::App(format!(
                 "Server did not honor the impersonated namespace for '{}'.",
                 effective_user
@@ -273,6 +291,12 @@ pub async fn put_file_as(
 }
 
 /// Like [`put_file_as`], but reports `(transferred, total)` per uploaded chunk.
+///
+/// Files above [`CHUNK_UPLOAD_MIN_BYTES`] are uploaded through the WebDAV
+/// chunked upload v2 protocol: a session folder under
+/// `/remote.php/dav/uploads/` receives the file in numbered chunks which the
+/// server assembles on a final MOVE. Each chunk is an independent request, so
+/// no single transfer can run into the client's read timeout.
 pub async fn put_file_as_progress(
     client: &Client,
     account: &Account,
@@ -285,26 +309,215 @@ pub async fn put_file_as_progress(
     let url = remote_url(account, remote_rel, target_user);
     let file = tokio::fs::File::open(local_path).await?;
     let total = file.metadata().await.map(|m| m.len()).unwrap_or(0);
-    let stream = ProgressStream {
-        inner: tokio_util::io::ReaderStream::new(file),
-        total,
-        transferred: 0,
-        on_progress: on_progress.unwrap_or_else(|| Arc::new(|_, _| {})),
-    };
-    let body = reqwest::Body::wrap_stream(stream);
+    let on_progress = on_progress.unwrap_or_else(|| Arc::new(|_, _| {}));
+    if total > CHUNK_UPLOAD_MIN_BYTES {
+        chunked_put_v2(
+            client,
+            account,
+            &url,
+            file,
+            mtime_secs,
+            target_user,
+            &on_progress,
+        )
+        .await
+    } else {
+        let stream = ProgressStream {
+            inner: tokio_util::io::ReaderStream::new(file),
+            total,
+            transferred: 0,
+            on_progress,
+        };
+        let body = reqwest::Body::wrap_stream(stream);
+        let res = impersonation_header(
+            client
+                .put(&url)
+                .basic_auth(&account.meta.username, Some(&account.token))
+                .header("X-OC-MTime", mtime_secs.to_string())
+                .header("Content-Type", "application/octet-stream")
+                .body(body),
+            account,
+            target_user,
+        )
+        .send()
+        .await?;
+        status_check(res).await
+    }
+}
+
+/// Upload `file` (of `total` bytes) via the WebDAV chunked upload v2 protocol
+/// (Nextcloud):
+///
+/// 1. A MKCOL creates a uniquely named session folder under
+///    `/remote.php/dav/uploads/{user}/{transferId}`.
+/// 2. The file is read in [`CHUNK_UPLOAD_CHUNK_BYTES`] blocks and each block is
+///    PUT to the session folder under a running number (1..=10000).
+/// 3. A final MOVE of the `.file` pseudo-entry assembles the chunks into the
+///    destination file.
+///
+/// `Destination` (the final file URL) and `OC-Total-Length` are sent on every
+/// request so the server checks the quota while the chunks arrive. On failure
+/// the session folder is removed again to not leak uploaded chunks.
+async fn chunked_put_v2(
+    client: &Client,
+    account: &Account,
+    dest_url: &str,
+    mut file: tokio::fs::File,
+    mtime_secs: i64,
+    target_user: Option<&str>,
+    on_progress: &ProgressFn,
+) -> AppResult<()> {
+    use tokio::io::AsyncReadExt;
+
+    let total = file.metadata().await.map(|m| m.len()).unwrap_or(0);
+    let effective_user = target_user.unwrap_or(&account.meta.username);
+    let upload_dir = format!(
+        "{}/remote.php/dav/uploads/{}/{}",
+        account.base_url(),
+        urlencoding::encode(effective_user),
+        transfer_id()
+    );
+
+    let method = Method::from_bytes(b"MKCOL").expect("valid HTTP method");
     let res = impersonation_header(
         client
-            .put(&url)
+            .request(method, &upload_dir)
             .basic_auth(&account.meta.username, Some(&account.token))
-            .header("X-OC-MTime", mtime_secs.to_string())
-            .header("Content-Type", "application/octet-stream")
-            .body(body),
+            .header("Destination", dest_url)
+            .header("OC-Total-Length", total.to_string()),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    // 405 = session already exists; with a unique transfer id this only happens
+    // when a previous attempt left a folder behind, which is fine to reuse.
+    if !(status.is_success() || status.as_u16() == 405) {
+        let body = res.text().await.unwrap_or_default();
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        });
+    }
+
+    let result: AppResult<()> = async {
+        let mut transferred = 0u64;
+        let mut number = 1u64;
+        let mut buffer = vec![0u8; CHUNK_UPLOAD_CHUNK_BYTES as usize];
+        loop {
+            let read = file.read(&mut buffer).await?;
+            if read == 0 {
+                break;
+            }
+            let res = impersonation_header(
+                client
+                    .put(format!("{}/{}", upload_dir, number))
+                    .basic_auth(&account.meta.username, Some(&account.token))
+                    .header("Destination", dest_url)
+                    .header("OC-Total-Length", total.to_string())
+                    .body(buffer[..read].to_vec()),
+                account,
+                target_user,
+            )
+            .send()
+            .await?;
+            status_check(res).await?;
+            transferred += read as u64;
+            on_progress(transferred, total);
+            number += 1;
+        }
+        // Assembling the chunks is a MOVE of the `.file` pseudo-entry; the
+        // modification time is forwarded so change detection stays stable.
+        let method = Method::from_bytes(b"MOVE").expect("valid HTTP method");
+        let res = impersonation_header(
+            client
+                .request(method, format!("{}/.file", upload_dir))
+                .basic_auth(&account.meta.username, Some(&account.token))
+                .header("Destination", dest_url)
+                .header("OC-Total-Length", total.to_string())
+                .header("X-OC-MTime", mtime_secs.to_string()),
+            account,
+            target_user,
+        )
+        .send()
+        .await?;
+        status_check(res).await
+    }
+    .await;
+    if result.is_err() {
+        // Never leave an orphaned chunk session behind: the server would only
+        // expire it after 24 h and it would keep occupying storage quota.
+        let _ = delete_upload_session(client, account, &upload_dir, target_user).await;
+    }
+    result
+}
+
+/// Best-effort removal of a chunked-upload session folder after a failure.
+async fn delete_upload_session(
+    client: &Client,
+    account: &Account,
+    upload_dir: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let method = Method::from_bytes(b"DELETE").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, upload_dir)
+            .basic_auth(&account.meta.username, Some(&account.token)),
         account,
         target_user,
     )
     .send()
     .await?;
     status_check(res).await
+}
+
+/// Unique session id for a chunked upload (e.g. `flutlink-1234-1f6c2a...-0`).
+/// Process id + nanosecond timestamp + counter keep collisions negligible even
+/// for concurrent uploads of the same file.
+fn transfer_id() -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    format!("flutlink-{:x}-{:x}-{}", std::process::id(), nanos, n)
+}
+
+/// Check whether a remote resource exists via a WebDAV PROPFIND (Depth: 0).
+/// Used to refuse silent overwrites on upload.
+pub async fn exists(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<bool> {
+    let url = remote_url(account, remote_rel, target_user);
+    let method = Method::from_bytes(b"PROPFIND").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Depth", "0"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    if status.is_success() || status.as_u16() == 207 {
+        Ok(true)
+    } else if status.as_u16() == 404 {
+        Ok(false)
+    } else {
+        let body = res.text().await.unwrap_or_default();
+        Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        })
+    }
 }
 
 /// Upload a small UTF-8 string (e.g. a README) via PUT. The server sets the
@@ -510,8 +723,10 @@ pub async fn delete_as(
     }
 }
 
-/// Rename/move a remote resource via MOVE. Overwrites the destination if it
-/// already exists (WebDAV `Overwrite: T`).
+/// Rename/move a remote resource via MOVE. Refuses to overwrite an existing
+/// destination (WebDAV `Overwrite: F`): if the target already exists the
+/// server answers 412 Precondition Failed and [`AppError::TargetExists`] is
+/// returned instead of silently destroying the target.
 pub async fn rename(
     client: &Client,
     account: &Account,
@@ -537,12 +752,16 @@ pub async fn rename_as(
             .request(method, &url)
             .basic_auth(&account.meta.username, Some(&account.token))
             .header("Destination", dest)
-            .header("Overwrite", "T"),
+            .header("Overwrite", "F"),
         account,
         target_user,
     )
     .send()
     .await?;
+    let status = res.status();
+    if status.as_u16() == 412 {
+        return Err(AppError::TargetExists(new_rel.to_string()));
+    }
     status_check(res).await
 }
 
@@ -683,7 +902,7 @@ fn to_entry(
     let (is_resource, is_part) = classify(&rel);
     Some(WebDavEntry {
         name,
-        path: rel,
+        path: rel.clone(),
         is_dir,
         size,
         mtime,
@@ -691,14 +910,53 @@ fn to_entry(
         content_type,
         is_resource,
         is_part,
+        paired_path: paired_path(&rel),
     })
+}
+
+/// Path portion of a WebDAV href. Servers may return relative
+/// (`/remote.php/dav/files/…`) or absolute (`https://host/remote.php/…`)
+/// hrefs; for absolute hrefs the scheme + host are stripped so the path can
+/// be matched against `base_path`.
+fn href_path(href: &str) -> &str {
+    match href.find("://") {
+        Some(idx) => match href[idx + 3..].find('/') {
+            Some(slash) => &href[idx + 3 + slash..],
+            None => "/",
+        },
+        None => href,
+    }
+}
+
+/// Index right after the first `base_path` occurrence in `path` that ends on
+/// a path boundary, so e.g. `/remote.php/dav/files/admin` never matches inside
+/// `/remote.php/dav/files/admin2`. Returns `None` when not found.
+fn find_base_path(path: &str, base_path: &str) -> Option<usize> {
+    let mut start = 0;
+    while let Some(idx) = path[start..].find(base_path) {
+        let abs = start + idx;
+        let end = abs + base_path.len();
+        if path[end..].starts_with('/') || path[end..].is_empty() {
+            return Some(end);
+        }
+        start = abs + 1;
+    }
+    None
+}
+
+/// True if a normalized path still points into a foreign WebDAV namespace —
+/// either the relative form (`/remote.php/…`) or an absolute URL that leaked
+/// into the path (`/https:/host/…`, http/https schemes).
+fn is_namespace_mismatch(path: &str) -> bool {
+    path.starts_with("/remote.php/") || path.starts_with("/http:/") || path.starts_with("/https:/")
 }
 
 /// Convert a WebDAV href into a decoded logical path relative to the files root.
 fn relative_path(href: &str, base_path: &str) -> String {
-    let after = match href.find(base_path) {
-        Some(idx) => &href[idx + base_path.len()..],
-        None => href,
+    let path = href_path(href);
+    let after = match find_base_path(path, base_path) {
+        Some(end) => &path[end..],
+        None => path,
     };
     let trimmed = after.trim_matches('/');
     if trimmed.is_empty() {
@@ -720,6 +978,28 @@ fn classify(rel: &str) -> (bool, bool) {
         }
     }
     (is_resource, is_part)
+}
+
+/// Compute the counterpart of a path in the FlutCloud virtual namespaces:
+/// `/resources/…` (read-only virtual links) pair with the matching `/parts/…`
+/// (write-enabled) and vice versa. The first segment matching either name is
+/// swapped; the remainder of the path is preserved. Returns `None` for paths
+/// outside both namespaces.
+fn paired_path(rel: &str) -> Option<String> {
+    let segments: Vec<&str> = rel.split('/').collect();
+    for (i, segment) in segments.iter().enumerate() {
+        if segment.eq_ignore_ascii_case("resources") {
+            let mut paired = segments.clone();
+            paired[i] = "parts";
+            return Some(paired.join("/"));
+        }
+        if segment.eq_ignore_ascii_case("parts") {
+            let mut paired = segments.clone();
+            paired[i] = "resources";
+            return Some(paired.join("/"));
+        }
+    }
+    None
 }
 
 fn decode_segment(segment: &str) -> String {
@@ -801,6 +1081,7 @@ mod tests {
             .expect("resources");
         assert!(resources.is_resource);
         assert!(!resources.is_part);
+        assert_eq!(resources.paired_path.as_deref(), Some("/parts"));
 
         let data = entries
             .iter()
@@ -811,6 +1092,11 @@ mod tests {
         assert!(
             data.is_part,
             "folder 'Parts' is case-insensitively detected"
+        );
+        assert_eq!(
+            data.paired_path.as_deref(),
+            Some("/resources/Data.bin"),
+            "an entry under 'Parts' pairs with the 'resources' namespace"
         );
         assert_eq!(
             data.content_type.as_deref(),
@@ -825,6 +1111,93 @@ mod tests {
         assert_eq!(classify("/resources/virtual/link.txt"), (true, false));
         assert_eq!(classify("/Parts"), (false, true));
         assert_eq!(classify("/parts/write/me.txt"), (false, true));
+    }
+
+    #[test]
+    fn pairs_virtual_and_real_paths() {
+        assert_eq!(paired_path("/foo"), None);
+        assert_eq!(paired_path("/Photos"), None);
+        assert_eq!(paired_path("/resources"), Some("/parts".to_string()));
+        assert_eq!(
+            paired_path("/resources/link"),
+            Some("/parts/link".to_string())
+        );
+        assert_eq!(
+            paired_path("/resources/link/file.txt"),
+            Some("/parts/link/file.txt".to_string())
+        );
+        assert_eq!(paired_path("/Parts"), Some("/resources".to_string()));
+        assert_eq!(
+            paired_path("/parts/write/me.txt"),
+            Some("/resources/write/me.txt".to_string())
+        );
+    }
+
+    #[test]
+    fn handles_absolute_hrefs() {
+        assert_eq!(
+            relative_path(
+                "https://host/remote.php/dav/files/admin/Photos/",
+                "/remote.php/dav/files/admin"
+            ),
+            "/Photos"
+        );
+        assert_eq!(
+            relative_path(
+                "http://host:8080/remote.php/dav/files/admin/Data.bin",
+                "/remote.php/dav/files/admin"
+            ),
+            "/Data.bin"
+        );
+    }
+
+    #[test]
+    fn relative_path_keeps_base_path_boundaries() {
+        assert_eq!(
+            relative_path(
+                "/remote.php/dav/files/admin2/foo.txt",
+                "/remote.php/dav/files/admin"
+            ),
+            "/remote.php/dav/files/admin2/foo.txt"
+        );
+    }
+
+    #[test]
+    fn detects_namespace_mismatch_for_both_href_forms() {
+        assert!(is_namespace_mismatch("/remote.php/dav/files/admin/Photos"));
+        assert!(is_namespace_mismatch(
+            "/https:/host/remote.php/dav/files/admin/Photos"
+        ));
+        assert!(is_namespace_mismatch(
+            "/http:/host/remote.php/dav/files/admin/Photos"
+        ));
+        assert!(!is_namespace_mismatch("/Photos"));
+    }
+
+    #[test]
+    fn parses_absolute_hrefs() {
+        let entries = parse_multistatus(
+            r#"<d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>https://host/remote.php/dav/files/admin/My%20Folder/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+              </d:response>
+            </d:multistatus>"#,
+            "/remote.php/dav/files/admin",
+        )
+        .expect("parse ok");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "My Folder");
+        assert_eq!(entries[0].path, "/My Folder");
+    }
+
+    #[test]
+    fn transfer_ids_are_unique() {
+        let first = transfer_id();
+        let second = transfer_id();
+        assert_ne!(first, second);
+        assert!(first.starts_with("flutlink-"));
+        assert!(second.starts_with("flutlink-"));
     }
 
     #[test]
