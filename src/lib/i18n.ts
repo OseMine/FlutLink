@@ -158,6 +158,14 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteUserConfirm: "Delete user {name}? This cannot be undone.",
     groups: "Groups",
     noGroups: "No groups",
+    groupName: "Group name",
+    addToGroup: "Add to group",
+    createGroup: "New group",
+    removeFromGroup: "Remove from group",
+    groupNameEmpty: "Enter a group name.",
+    groupCreated: "Group created.",
+    groupMemberAdded: "User added to group.",
+    groupMemberRemoved: "User removed from group.",
     enabled: "Enabled",
     disabled: "Disabled",
     enableAccount: "Enable account",
@@ -168,6 +176,7 @@ const dict: Record<Lang, Record<string, string>> = {
     quotaUnit: "Unit",
     mb: "MB",
     gb: "GB",
+    custom: "Custom",
     save: "Save",
     browseFiles: "Browse files",
     userCreated: "User created.",
@@ -218,6 +227,11 @@ const dict: Record<Lang, Record<string, string>> = {
     folderCreated: "Folder created.",
     fileRenamed: "Renamed.",
     deleteConfirm: "Delete {name}? This cannot be undone.",
+    uploadOverwriteConfirm:
+      "A file named '{name}' already exists on the server. Overwrite it?",
+    uploadOverwriteAllConfirm:
+      "One or more files already exist on the server. Overwrite them?",
+    uploadSkipped: "Skipped.",
     quotaInvalid: "Quota must be greater than 0.",
     userFieldsRequired: "User ID and password are required.",
     errNoActiveAccount: "No active account. Please add an account first.",
@@ -235,6 +249,7 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
     errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
     errUpdate: "Update failed: {detail}",
+    errTargetExists: "A file named '{detail}' already exists on the server.",
     errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
@@ -397,6 +412,14 @@ const dict: Record<Lang, Record<string, string>> = {
     deleteUserConfirm: "Benutzer {name} löschen? Dies kann nicht rückgängig gemacht werden.",
     groups: "Gruppen",
     noGroups: "Keine Gruppen",
+    groupName: "Gruppenname",
+    addToGroup: "Zur Gruppe hinzufügen",
+    createGroup: "Neue Gruppe",
+    removeFromGroup: "Aus Gruppe entfernen",
+    groupNameEmpty: "Bitte einen Gruppennamen eingeben.",
+    groupCreated: "Gruppe erstellt.",
+    groupMemberAdded: "Benutzer zur Gruppe hinzugefügt.",
+    groupMemberRemoved: "Benutzer aus Gruppe entfernt.",
     enabled: "Aktiviert",
     disabled: "Deaktiviert",
     enableAccount: "Konto aktivieren",
@@ -407,6 +430,7 @@ const dict: Record<Lang, Record<string, string>> = {
     quotaUnit: "Einheit",
     mb: "MB",
     gb: "GB",
+    custom: "Benutzerdefiniert",
     save: "Speichern",
     browseFiles: "Dateien ansehen",
     userCreated: "Benutzer erstellt.",
@@ -457,6 +481,11 @@ const dict: Record<Lang, Record<string, string>> = {
     folderCreated: "Ordner erstellt.",
     fileRenamed: "Umbenannt.",
     deleteConfirm: "{name} löschen? Dies kann nicht rückgängig gemacht werden.",
+    uploadOverwriteConfirm:
+      "Eine Datei namens '{name}' existiert bereits auf dem Server. Überschreiben?",
+    uploadOverwriteAllConfirm:
+      "Eine oder mehrere Dateien existieren bereits auf dem Server. Überschreiben?",
+    uploadSkipped: "Übersprungen.",
     quotaInvalid: "Das Kontingent muss größer als 0 sein.",
     userFieldsRequired: "Benutzer-ID und Passwort sind erforderlich.",
     errNoActiveAccount: "Kein aktives Konto. Bitte füge zuerst ein Konto hinzu.",
@@ -474,6 +503,7 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
     errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
     errUpdate: "Update fehlgeschlagen: {detail}",
+    errTargetExists: "Eine Datei namens '{detail}' existiert bereits auf dem Server.",
     errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
@@ -516,6 +546,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   not_flutcloud: "errNotFlutCloud",
   flutcloud_app_missing: "errFlutcloudAppMissing",
   update: "errUpdate",
+  target_exists: "errTargetExists",
 };
 
 export function translateError(lang: Lang, code: string, detail?: string | null): string {

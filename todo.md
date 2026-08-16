@@ -36,8 +36,8 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
       Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
       `FileExplorer.vue`.
-- [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
-      zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlte: `AdminPanel.vue`
+      zeigte `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kannte keine
       Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
       `commands.rs`, kein Wrapper in `src/lib/ipc.ts`. README Phase 4 listet
       „groups". Fix: OCS-Gruppen-Commands (create/add-member/remove-member)
@@ -75,6 +75,18 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       (Z. 431-447) bietet nur freie MB/GB-Eingabe + „Unlimited"; README
       Phase 4 „quota presets". Fix: Preset-Select (z. B. 1/5/10 GB,
       unlimited) + benutzerdefiniert.
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
+      `webdav_upload_file` sendete einen ungeprüften PUT (`put_file_as`,
+      `webdav.rs:135-146`) — existierte die Zieldatei, wurde sie ohne Rückfrage
+      überschrieben. `uploadFiles` (`FileExplorer.vue:123-142`) prüfte nicht
+      und meldete nur „Uploaded.". N1 deckte nur das Rename-Overwrite ab
+      (`Overwrite: T`, `webdav.rs:359`). Fix umgesetzt: Existenz-Check
+      (PROPFIND, `webdav::exists`) vor dem PUT in `webdav_upload_file`,
+      `upload_tree` und `webdav_upload_local_paths`; klarer
+      `AppError::TargetExists` (Code `target_exists`); UI-Confirm in
+      `uploadFiles`/`dropUpload` (i18n `uploadOverwriteConfirm`/
+      `uploadOverwriteAllConfirm`/`uploadSkipped`), Überschreiben nur nach
+      Bestätigung über den neuen `overwrite`-Parameter.
 - [ ] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschreibt still:
       `webdav_upload_file` sendet einen ungeprüften PUT (`put_file_as`,
       `webdav.rs:135-146`) — existiert die Zieldatei, wird sie ohne Rückfrage
@@ -207,13 +219,19 @@ Neue Befunde (Lauf 5, Fokus Material-3-Expressive-UI / neue Features):
       ruft im Gegensatz zu allen anderen `webdav_*`-Commands **kein**
       `validate_dav_path` auf → Shares auf `resources`/`parts`-Virtual-Pfaden
       oder mit `..` sind möglich. Fix: `validate_dav_path(&path)?` ergänzt.
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (commands.rs:403-414) lehnt
+      `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht erst am
+      zusammengesetzten Pfad); `webdav_rename` ruft sie vor `rename_new_path`
+      auf. Unit-Tests ergänzt.
+- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
+      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
+      `accounts`-Store nutzen.
 - [ ] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:466-467`) akzeptiert
       `/` im `new_name` → „Rename" wird still zu einem Move in einen
       Unterordner. Fix: `/` und `..` im neuen Namen ablehnen (validieren,
       nicht nur auf den zusammengesetzten Pfad).
-- [ ] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hat
-      keinen Frontend-Aufrufer (Dead Code). Entfernen oder im
-      `accounts`-Store nutzen.
 - [ ] **N16 (Feature, minor):** Auto-Update-Check beim App-Start fehlt weiterhin
       (F7 offen) und die About-Version ist hartkodiert (F5 offen,
       `SettingsModal.vue:237`) — beides für die „neue Features"-Roadmap mit
@@ -372,6 +390,72 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
       übernimmt das `ensure_collection` weiterhin vor dem Pass. Verifikation:
       `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` grün,
       `cargo test` 49 passed.
+### Review 2026-08-16 (Q9)
+
+- [x] **Q9 (Bug, Datenverlust-Risiko, mittel):** Upload überschrieb eine
+      existierende Zieldatei still: `webdav_upload_file` sendete einen
+      ungeprüften PUT (`put_file_as`, `webdav.rs:135-146`), `uploadFiles`
+      (`FileExplorer.vue:123-142`) prüfte nicht und meldete nur „Uploaded.".
+      Fix: Neuer Existenz-Check `webdav::exists` (PROPFIND, Depth 0) in
+      `nextcloud/webdav.rs`; `webdav_upload_file`, `upload_tree` und
+      `webdav_upload_local_paths` in `commands.rs` prüfen vor dem PUT und
+      liefern den neuen `AppError::TargetExists` (Code `target_exists`,
+      Serialize-Test in `error.rs`). `overwrite`-Parameter (Tauri-Command +
+      `src/lib/ipc.ts` + `src/stores/files.ts`) erlaubt bewusstes Ersetzen.
+      UI-Confirm in `FileExplorer.vue` (`uploadFiles` pro Datei mit
+      `uploadOverwriteConfirm`, `dropUpload` pauschal mit
+      `uploadOverwriteAllConfirm`; `uploadSkipped` beim Ablehnen). i18n
+      en/de ergänzt (`errTargetExists` in `ERROR_CODE_KEYS`). Sync-Engine
+      bleibt unverändert (darf weiter überschreiben). Verifikation:
+      `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`
+      (50 passed), `npm run build` grün.
+### Review 2026-08-16 (N11)
+
+- [x] **N11 (Bug, minor):** `webdav_rename` (`commands.rs:819-842`) akzeptierte
+      `/` im `new_name` → „Rename" wurde still zu einem Move in einen
+      Unterordner. Fix: neue `validate_rename_name` (`commands.rs:403-414`)
+      lehnt `/`, `.`, `..` und leere Namen direkt am `new_name` ab (nicht nur
+      am zusammengesetzten Pfad, den `validate_dav_path` bereits prüfte);
+      `webdav_rename` ruft sie vor `rename_new_path` auf. Unit-Tests
+      `validate_rename_name_accepts_plain_names` /
+      `validate_rename_name_rejects_slashes_and_dots` ergänzt. Verifikation:
+      `cargo fmt --check` grün, `cargo clippy --all-targets -D warnings` grün,
+      `cargo test` 51 passed / 0 failed.
+### Review 2026-08-16 (N13)
+
+- [x] **N13 (Cleanup, minor):** `api.accountActive` in `src/lib/ipc.ts:111` hatte
+      keinen Frontend-Aufrufer (Dead Code). Fix: Komplette Kette entfernt —
+      `accountActive`-Wrapper aus `src/lib/ipc.ts` (Z. 147) gestrichen,
+      Backend-Command `account_active` (`commands.rs:278-281`) entfernt und
+      aus der Command-Registry (`lib.rs:228`) deregistriert. Der
+      `accounts`-Store leitet `active` bereits aus `accountList()` ab
+      (`src/stores/accounts.ts:34`) und braucht den separaten Call nicht.
+### Review 2026-08-16 (Q8)
+
+- [x] **Q8 (Phase 4, Feature, minor):** Quota-Presets fehlten in
+      `AdminPanel.vue` (nur freie MB/GB-Eingabe + „Unlimited"). Fix:
+      Preset-Select (1/5/10 GB, unlimited, benutzerdefiniert) in der
+      Quota-Verwaltung; Auswahl eines Presets setzt Wert/Einheit, manuelle
+      Eingabe bleibt möglich und wechselt zurück auf „custom"; beim Laden
+      eines Benutzers wird das passende Preset vorausgewählt. Verifikation:
+      `npm run build` grün (vue-tsc + vite), `cargo fmt --check`, `cargo
+      clippy --all-targets -- -D warnings` und `cargo test` grün.
+### Review 2026-08-16 (Q3)
+
+- [x] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung umgesetzt.
+      `ocs.rs` kennt jetzt die OCS-Gruppen-Endpunkte (`list_groups` mit
+      Duplikat-Guard gegen Offset-ignorierende Server, `create_group` über
+      `POST /cloud/groups`, `add_group_member` über
+      `POST /cloud/groups/{id}/users`, `remove_group_member` über
+      `DELETE /cloud/groups/{id}/users/{uid}`). In `commands.rs` sind
+      `admin_list_groups`/`admin_create_group`/`admin_add_group_member`/
+      `admin_remove_group_member` (alle mit Admin-Check) hinzugekommen und in
+      `lib.rs` registriert; `src/lib/ipc.ts` hat die passenden Wrapper.
+      `AdminPanel.vue` verwaltet Gruppen jetzt interaktiv: Gruppen der
+      ausgewählten Person mit Entfernen-Button, Eingabefeld zum Hinzufügen in
+      eine Gruppe und Button zum Anlegen einer neuen Gruppe (Toast-Feedback,
+      i18n en/de).
+
 ### Review 2026-08-16 (U10)
 
 - [x] **U10 (UX, minor):** Grid-View (`FileExplorer.vue:495-532`): Single-Click
