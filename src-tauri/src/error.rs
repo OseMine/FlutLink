@@ -20,8 +20,9 @@ pub enum AppError {
     NotFlutCloud(String),
     FlutCloudAppMissing,
     Update(String),
-    /// The upload destination already exists on the server and the caller did
-    /// not opt into overwriting it (refuses silent data loss).
+    /// The destination already exists on the server and the operation refused
+    /// to overwrite it — either an upload without an `overwrite` opt-in or a
+    /// rename/move rejected via WebDAV `Overwrite: F` → 412.
     TargetExists(String),
     /// Two sync folders of one account target the same remote folder, which
     /// would overwrite each other's data.
@@ -131,8 +132,8 @@ impl AppError {
             }
             AppError::Update(msg) => format!("Update error: {}", msg),
             AppError::TargetExists(path) => format!(
-                "The destination '{}' already exists on the server. Overwrite it?",
-                path
+                "A file or folder named '{}' already exists on the server. Choose a different name.",
+                path.rsplit('/').next().unwrap_or(path)
             ),
             AppError::SyncFolderConflict {
                 local_path,
@@ -178,6 +179,21 @@ pub type AppResult<T> = Result<T, AppError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn target_exists_serializes_with_code_and_name_detail() {
+        let err = AppError::TargetExists("/Documents/neu.txt".into());
+        assert_eq!(err.code(), "target_exists");
+        assert_eq!(err.detail().as_deref(), Some("/Documents/neu.txt"));
+        assert!(
+            err.message().contains("neu.txt"),
+            "message names the conflicting target"
+        );
+        assert!(
+            err.message().to_lowercase().contains("already exists"),
+            "message states the conflict"
+        );
+    }
 
     #[test]
     fn target_exists_serializes_with_code() {
