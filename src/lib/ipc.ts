@@ -21,6 +21,18 @@ export interface WebDavEntry {
   isPart: boolean;
 }
 
+export interface WebDavListResult {
+  entries: WebDavEntry[];
+  /** True when the listing was served from the offline cache (server unreachable). */
+  stale: boolean;
+}
+
+export interface StorageResult {
+  quota: UserQuota | null;
+  /** True when the quota was served from the offline cache (server unreachable). */
+  stale: boolean;
+}
+
 export interface OcsUser {
   id: string;
   displayName: string | null;
@@ -152,13 +164,13 @@ export const api = {
   accountRemove: (username: string, instanceUrl: string) =>
     invoke<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
-  accountStorage: () => invoke<UserQuota | null>("account_storage"),
+  accountStorage: () => invoke<StorageResult>("account_storage"),
 
   accountFilterInfo: () =>
     invoke<AccountFilterInfo | null>("account_filter_info"),
 
   webdavList: (path: string, targetUser?: string) =>
-    invoke<WebDavEntry[]>("webdav_list", { path, targetUser }),
+    invoke<WebDavListResult>("webdav_list", { path, targetUser }),
 
   webdavCreateShare: (path: string, targetUser?: string) =>
     invoke<string>("webdav_create_share", { path, targetUser }),

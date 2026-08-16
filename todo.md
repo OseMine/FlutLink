@@ -30,12 +30,12 @@ Neue Befunde (Lauf 6, Fokus Phase 3 & 4):
       OS-Notification. README Phase 4 verspricht „native notifications".
       Fix: Plugin registrieren + Emission aus `sync.rs::run_all` (Z. 1119-1121)
       und `updater.rs::check_update`.
-- [ ] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
+- [x] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache: `src/stores/files.ts`
       hält nur das aktuelle Listing in Memory; ohne Netz zeigt der Browser
       leere Ordner/Fehler statt gecachter Daten. README Phase 4 „offline cache"
       ist nicht umgesetzt (kein Cache-Code in `src/`, verifiziert). Fix:
       Listing-/Quota-Cache im AppData-Dir + „Offline"-Indikator im
-      `FileExplorer.vue`.
+      `FileExplorer.vue`. → umgesetzt (siehe Archiv).
 - [ ] **Q3 (Phase 4, Feature, mittel):** Gruppen-Verwaltung fehlt: `AdminPanel.vue`
       zeigt `selected.groups` nur read-only (Z. 400-410); `ocs.rs` kennt keine
       Gruppen-Endpunkte (nur Lesen in `get_user`, Z. 151-169), kein Command in
@@ -362,6 +362,26 @@ F7, F8, F9. Kein Blocker — F10. Verifikation Stand 2026-08-14:
 `cargo test` 41 passed, `cargo clippy -D warnings` grün, `npm run build` ok.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-16 (Q2)
+
+- [x] **Q2 (Phase 4, Feature, mittel):** Kein Offline-Cache im Dateibrowser.
+      Fix umgesetzt: Neues Backend-Modul `src-tauri/src/cache.rs` persistiert
+      Listing- und Quota-Daten im AppData-Verzeichnis (Unterordner `cache/`,
+      Dateinamen aus namespace+path gehasht → kein Pfad-Escape). `webdav_list`
+      (`commands.rs`) schreibt jedes erfolgreiche Listing in den Cache und
+      liefert bei Netzwerkfehlern (`AppError::is_network()`, nur
+      `AppError::Http`) das zuletzt gecachte Listing statt eines Fehlers/leeren
+      Ordners zurück — als `WebDavListResult { entries, stale }`.
+      `account_storage` speichert/liest analog die Quota
+      (`StorageResult { quota, stale }`). Frontend: `src/stores/files.ts`
+      hält jetzt ein `offline`-Flag (aus `stale`), `FileExplorer.vue` zeigt
+      bei Offline einen Indikator-Banner („Offline – zeige
+      zwischengespeicherte Daten", Icon `cloud_off`, i18n `offline`/
+      `offlineHint` en+de). Cache-Namespace inkludiert Account + gebrowsten
+      Benutzer (kein Kollidieren zwischen Konten/Impersonation).
+      Verifikation: `cargo fmt --check`, `cargo clippy -D warnings`,
+      `cargo test`, `npm run build` grün.
 
 ### Review 2026-08-15 (U8)
 
