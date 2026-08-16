@@ -386,6 +386,40 @@ fn transfer_id() -> String {
     format!("flutlink-{:x}-{:x}-{}", std::process::id(), nanos, n)
 }
 
+/// Check whether a remote resource exists via a WebDAV PROPFIND (Depth: 0).
+/// Used to refuse silent overwrites on upload.
+pub async fn exists(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<bool> {
+    let url = remote_url(account, remote_rel, target_user);
+    let method = Method::from_bytes(b"PROPFIND").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Depth", "0"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    if status.is_success() || status.as_u16() == 207 {
+        Ok(true)
+    } else if status.as_u16() == 404 {
+        Ok(false)
+    } else {
+        let body = res.text().await.unwrap_or_default();
+        Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        })
+    }
+}
+
 /// Upload a small UTF-8 string (e.g. a README) via PUT. The server sets the
 /// modification time itself.
 pub async fn put_text(

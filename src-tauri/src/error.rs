@@ -20,6 +20,9 @@ pub enum AppError {
     NotFlutCloud(String),
     FlutCloudAppMissing,
     Update(String),
+    /// The upload destination already exists on the server and the caller did
+    /// not opt into overwriting it (refuses silent data loss).
+    TargetExists(String),
     /// Two sync folders of one account target the same remote folder, which
     /// would overwrite each other's data.
     SyncFolderConflict {
@@ -45,6 +48,7 @@ impl AppError {
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
             AppError::Update(_) => "update",
+            AppError::TargetExists(_) => "target_exists",
             AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
         }
     }
@@ -74,11 +78,18 @@ impl AppError {
             AppError::NotFlutCloud(url) => Some(url.clone()),
             AppError::FlutCloudAppMissing => crate::flutcloud::flutcloud_url().ok(),
             AppError::Update(msg) => Some(msg.clone()),
+            AppError::TargetExists(path) => Some(path.clone()),
             AppError::SyncFolderConflict {
                 local_path,
                 remote_path,
             } => Some(format!("{local_path} ↔ {remote_path}")),
         }
+    }
+
+    /// True when the failure is a network-level error (server unreachable),
+    /// used to decide whether the caller may fall back to the offline cache.
+    pub fn is_network(&self) -> bool {
+        matches!(self, AppError::Http(_))
     }
 
     pub fn message(&self) -> String {
@@ -119,6 +130,10 @@ impl AppError {
                 )
             }
             AppError::Update(msg) => format!("Update error: {}", msg),
+            AppError::TargetExists(path) => format!(
+                "The destination '{}' already exists on the server. Overwrite it?",
+                path
+            ),
             AppError::SyncFolderConflict {
                 local_path,
                 remote_path,
@@ -159,3 +174,18 @@ impl From<std::io::Error> for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn target_exists_serializes_with_code() {
+        let err = AppError::TargetExists("/Documents/report.pdf".into());
+        assert_eq!(err.code(), "target_exists");
+        assert_eq!(err.detail().as_deref(), Some("/Documents/report.pdf"));
+        let json = serde_json::to_string(&err).expect("serializable");
+        assert!(json.contains("\"code\":\"target_exists\""));
+        assert!(json.contains("\"detail\":\"/Documents/report.pdf\""));
+    }
+}

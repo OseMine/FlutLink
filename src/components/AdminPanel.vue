@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { reactive, ref, watch } from "vue";
 import { api, invokeError, type UserDetails, type UserQuota } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
@@ -12,6 +12,13 @@ const t = (key: string) => translate(ui.lang, key);
 
 const MB = 1024 * 1024;
 const GB = 1024 * 1024 * 1024;
+
+type QuotaPresetId = "1gb" | "5gb" | "10gb" | "unlimited" | "custom";
+const QUOTA_PRESETS: { id: Exclude<QuotaPresetId, "unlimited" | "custom">; value: number; unit: "gb" }[] = [
+  { id: "1gb", value: 1, unit: "gb" },
+  { id: "5gb", value: 5, unit: "gb" },
+  { id: "10gb", value: 10, unit: "gb" },
+];
 
 const search = ref("");
 const users = ref<string[]>([]);
@@ -29,6 +36,7 @@ const edits = reactive({
   password: "",
   quotaValue: null as number | null,
   quotaUnit: "gb" as "gb" | "mb" | "unlimited",
+  quotaPreset: "custom" as QuotaPresetId,
 });
 
 const newUser = reactive({
@@ -37,20 +45,116 @@ const newUser = reactive({
   displayName: "",
 });
 
+const groupInput = ref("");
+
+async function addToGroup() {
+  if (!selected.value) return;
+  const group = groupInput.value.trim();
+  if (!group) {
+    error.value = t("groupNameEmpty");
+    return;
+  }
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminAddGroupMember(group, selected.value.id);
+    groupInput.value = "";
+    await selectUser(selected.value.id);
+    ui.toast(t("groupMemberAdded"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
+async function removeFromGroup(group: string) {
+  if (!selected.value) return;
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminRemoveGroupMember(group, selected.value.id);
+    await selectUser(selected.value.id);
+    ui.toast(t("groupMemberRemoved"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
+async function createGroup() {
+  const group = groupInput.value.trim();
+  if (!group) {
+    error.value = t("groupNameEmpty");
+    return;
+  }
+  error.value = null;
+  editMsg.value = null;
+  try {
+    editMsg.value = await api.adminCreateGroup(group);
+    groupInput.value = "";
+    ui.toast(t("groupCreated"), "success");
+  } catch (e) {
+    error.value = invokeError(e).message;
+  }
+}
+
 function setQuotaFromTotal(total: number | null) {
   if (total === null || total < 0) {
     edits.quotaValue = null;
     edits.quotaUnit = "unlimited";
+    edits.quotaPreset = "unlimited";
+    return;
+  }
+  const gbValue = Math.round((total / GB) * 10) / 10;
+  const preset = QUOTA_PRESETS.find(
+    (p) => p.value === gbValue && p.unit === "gb"
+  );
+  if (preset) {
+    edits.quotaValue = gbValue;
+    edits.quotaUnit = "gb";
+    edits.quotaPreset = preset.id;
     return;
   }
   if (total >= GB) {
     edits.quotaUnit = "gb";
-    edits.quotaValue = Math.round((total / GB) * 10) / 10;
+    edits.quotaValue = gbValue;
   } else {
     edits.quotaUnit = "mb";
     edits.quotaValue = Math.round((total / MB) * 10) / 10;
   }
+  edits.quotaPreset = "custom";
 }
+
+watch(
+  () => edits.quotaPreset,
+  (preset) => {
+    if (preset === "unlimited") {
+      edits.quotaValue = null;
+      edits.quotaUnit = "unlimited";
+      return;
+    }
+    if (preset === "custom") return;
+    const found = QUOTA_PRESETS.find((p) => p.id === preset);
+    if (found) {
+      edits.quotaValue = found.value;
+      edits.quotaUnit = found.unit;
+    }
+  }
+);
+
+watch(
+  () => [edits.quotaValue, edits.quotaUnit] as const,
+  ([value, unit]) => {
+    if (edits.quotaPreset === "unlimited") return;
+    if (unit === "unlimited") {
+      edits.quotaPreset = "unlimited";
+      return;
+    }
+    if (edits.quotaPreset === "custom") return;
+    const matches = QUOTA_PRESETS.some(
+      (p) => p.value === value && p.unit === unit
+    );
+    if (!matches) edits.quotaPreset = "custom";
+  }
+);
 
 async function listUsers() {
   loading.value = true;
@@ -402,12 +506,39 @@ function quotaFree(q: UserQuota | null): string {
                 <span
                   v-for="group in selected.groups"
                   :key="group"
-                  class="rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
+                  class="flex items-center gap-1 rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
                 >
                   {{ group }}
+                  <button
+                    class="leading-none text-on-surface-variant hover:text-error"
+                    :title="t('removeFromGroup')"
+                    @click="removeFromGroup(group)"
+                  >
+                    ×
+                  </button>
                 </span>
               </div>
               <p v-else class="text-xs text-outline">{{ t("noGroups") }}</p>
+              <div class="mt-2 flex gap-2">
+                <input
+                  v-model="groupInput"
+                  :placeholder="t('groupName')"
+                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+                  @keyup.enter="addToGroup"
+                />
+                <button
+                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                  @click="addToGroup"
+                >
+                  {{ t("addToGroup") }}
+                </button>
+                <button
+                  class="rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
+                  @click="createGroup"
+                >
+                  {{ t("createGroup") }}
+                </button>
+              </div>
             </div>
 
             <div class="rounded-md bg-surface-container-high/60 p-3 text-sm text-on-surface-variant">
@@ -430,6 +561,16 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("setQuota") }}
               </label>
               <div class="flex gap-2">
+                <select
+                  v-model="edits.quotaPreset"
+                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
+                >
+                  <option value="1gb">1 GB</option>
+                  <option value="5gb">5 GB</option>
+                  <option value="10gb">10 GB</option>
+                  <option value="unlimited">{{ t("unlimited") }}</option>
+                  <option value="custom">{{ t("custom") }}</option>
+                </select>
                 <input
                   v-model.number="edits.quotaValue"
                   type="number"
@@ -440,7 +581,8 @@ function quotaFree(q: UserQuota | null): string {
                 />
                 <select
                   v-model="edits.quotaUnit"
-                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
+                  :disabled="edits.quotaUnit === 'unlimited'"
+                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary disabled:opacity-40"
                 >
                   <option value="gb">{{ t("gb") }}</option>
                   <option value="mb">{{ t("mb") }}</option>
