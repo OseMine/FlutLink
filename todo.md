@@ -6,6 +6,65 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-17 (Lauf 10, automatisierter Review — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 78 passed / 0 failed; `npm run build` (vue-tsc +
+vite) grün (Frontend-Deps per `npm ci` nachinstalliert; die Tauri-Linux-
+Systemdeps `libwebkit2gtk-4.1-dev`/`libgtk-3-dev`/… wurden für den Testlauf
+nachinstalliert — ohne sie bricht `cargo test` mit „glib-2.0 not found" ab).
+Fokus: IPC-Commands, Updater-/Sync-Notifications, Admin-UI, CI-Workflows.
+Alle 16 offenen Android-Befunde (A9-1 … A9-16) sowie R8-C1 und R7-7 sind
+unverändert offen (keine Commits seit Lauf 9, `git status` sauber). Neu
+gefunden:
+
+- [ ] **D1 (Bug, minor):** `update://status`-Payload ist typinkonsistent —
+      `updater.rs:360` (`download_update`) emittiert bei fehlender GitHub-
+      Checksumme einen plain `String` („checksum unavailable, skipping
+      verification"), `download_and_install_update` (`updater.rs:567-598`)
+      emittiert dagegen `UpdateStatus { code, asset_name }`-Objekte. Die
+      Listener sind auf genau eine der beiden Formen getypt und rendern die
+      jeweils andere falsch: `src/App.vue:159-160` lauscht `listen<string>`
+      → Objekt wird zu „[object Object]" im Update-Banner;
+      `SettingsModal.vue:163-165` lauscht `listen<UpdateStatus>` → beim
+      String-Event ist `e.payload.code` `undefined`, die Warnung wird still
+      verschluckt. Die sicherheitsrelevante Meldung „Checksumme nicht
+      verifizierbar" erreicht damit nie die UI (nur `eprintln!`). Fix: in
+      `download_update` ein `UpdateStatus { code: "checksum_unavailable",
+      asset_name: None }`-Objekt emittieren und in `App.vue` den String-Cast
+      auf das Objekt-Schema umstellen.
+- [ ] **D2 (i18n, minor):** Native OS-Notifications im Backend sind hartkodiert
+      deutsch, obwohl die UI seit N14 über Codes/`translateError` lokalisiert:
+      `sync.rs:1192-1204` (`notify(…, "FlutLink Sync", "{files_done} Datei(en)
+      erfolgreich synchronisiert.")` bzw. „konnten nicht synchronisiert
+      werden.") und `updater.rs:534-539` (`check_update`, „Version {} ist
+      verfügbar (aktuell: {})."). Bei englischer UI erscheinen deutsche
+      System-Notifications. Fix: Sprache der aktiven UI ins Backend spiegeln
+      (persistierte `lang` aus `src/stores/ui.ts` → `AppState`) oder Codes
+      statt Freitext emittieren und das Frontend übersetzen lassen.
+- [ ] **D3 (Perf, mittel):** `SettingsModal.vue:112` (`loadUsers`) ruft
+      `api.adminListUsers("")` — beim Öffnen des Admin-Tabs werden ALLE
+      Benutzer der Instanz geladen (`ocs.rs::list_users` paginiert mit
+      Offset durch alle Seiten; `admin_list_users`, commands.rs:1226-1240
+      reicht `""` ungefiltert durch). Das widerspricht direkt U-R8-12, das
+      `AdminPanel.vue` auf Suchpflicht (`searchUsersRequired`) umgestellt
+      hat — auf großen Instanzen hängt der Admin-Tab minutenlang. Fix:
+      Suchbegriff verlangen (wie in `AdminPanel.vue`) oder die Liste in der
+      UI paginieren.
+- [ ] **D4 (Konsistenz, minor):** Workflow-Prompts referenzieren
+      `archived-todo.md` (`opencode.yml:120`, `opencode-review.yml:66`),
+      die Aufgabe/dieser Lauf sagt `archived-todos.md`, während der
+      `todo.md`-Kopf erklärt, es ersetze `archived-todo.md` und das Archiv
+      liege im selben Dokument (Abschnitt „## Archiv (erledigt)"). Drei
+      verschiedene Namen für denselben Zweck — Reviews archivieren dadurch
+      inkonsistent. Fix: eine Konvention festlegen (Archiv-Sektion in
+      `todo.md` beibehalten) und die Prompt-Texte anpassen.
+
+Keine neuen Befunde in den Workflows/Actions über die bekannten Punkte
+R8-C1 (tauri-action nur auf `@v1` gepinnt, `release.yml:135`) und R7-7
+(Release-Draft muss manuell publiziert werden) hinaus. Keine Code-Änderungen
+in diesem Lauf; `cargo fmt`/`cargo clippy`-Stand unverändert.
+
 ### Review 2026-08-16 (Lauf 9, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
 
 Fokus dieses Laufs: Parität zwischen Desktop-UI (Vue/`FileExplorer.vue`,
