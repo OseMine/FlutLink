@@ -192,10 +192,11 @@ CSP und Capabilities (`capabilities/default.json`) sind sauber. Neu gefunden:
       (`docs/README.md`, `docs/README-de.md`, `docs/de/flutcloud-app.md`, `docs/de/sync.md`,
       `docs/en/flutcloud-app.md`, `flutcloud-app/appinfo/info.xml` — Author-E-Mail,
       Nextcloud 28–31 → 28–37). Vor dem Tag/Release committen. → umgesetzt (siehe Archiv).
-- [ ] **R7-7 (Hinweis):** `release.yml` veröffentlicht als Draft (`releaseDraft: true`);
+- [x] **R7-7 (Hinweis):** `release.yml` veröffentlicht als Draft (`releaseDraft: true`);
       `check_for_update` überspringt Drafts und Prereleases (`updater.rs:204-206`). Nach dem
       Build muss der Draft manuell publiziert werden, sonst erhalten Bestandskunden das
-      v1-Update nicht. → beim Release manuell beachten (kein Code-Fix).
+      v1-Update nicht. → als Schritt 3 im Release-Vorgang dokumentiert
+      (`docs/de/development.md` + `docs/en/development.md`), siehe Archiv.
 
 ### Aktueller Stand (2026-08-16)
 
@@ -633,10 +634,11 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
       `docs/de/sync.md`, `docs/en/flutcloud-app.md`,
       `flutcloud-app/appinfo/info.xml` — Author-E-Mail, Nextcloud 28–31 →
       28–37).
-- [x] **R7-7 (Hinweis, kein Fix):** `release.yml` veröffentlicht als Draft;
+- [x] **R7-7 (Hinweis, Dokumentation):** `release.yml` veröffentlicht als Draft;
       `check_for_update` überspringt Drafts/Prereleases. Nach dem Build muss
       der Draft manuell publiziert werden, sonst erhalten Bestandskunden das
-      v1-Update nicht — beim Release-Vorgang beachten.
+      v1-Update nicht — als Schritt 3 im Release-Vorgang dokumentiert
+      (`docs/de/development.md` + `docs/en/development.md`).
 
 ### Review 2026-08-16 (Q1 / P12 / P13 / N3 / N4)
 
