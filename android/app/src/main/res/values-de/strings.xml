@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlutLink</string>
+
+    <!-- Common -->
+    <string name="cancel">Abbrechen</string>
+    <string name="create">Erstellen</string>
+    <string name="remove">Entfernen</string>
+    <string name="delete">Löschen</string>
+    <string name="rename">Umbenennen</string>
+    <string name="upload">Hochladen</string>
+    <string name="search">Suchen</string>
+    <string name="back">Zurück</string>
+    <string name="actions">Aktionen</string>
+    <string name="password">Passwort</string>
+    <string name="unlimited">Unbegrenzt</string>
+    <string name="disabled">Deaktiviert</string>
+    <string name="virtual">virtuell</string>
+
+    <!-- Navigation -->
+    <string name="tab_files">Dateien</string>
+    <string name="tab_admin">Admin</string>
+    <string name="tab_settings">Einstellungen</string>
+    <string name="settings">Einstellungen</string>
+
+    <!-- Login -->
+    <string name="login_tagline">FlutCloud-Client für Android</string>
+    <string name="server_url">Server-URL</string>
+    <string name="server_url_placeholder">https://cloud.example.com</string>
+    <string name="username">Benutzername</string>
+    <string name="app_token">App-Passwort / Token</string>
+    <string name="sign_in">Anmelden</string>
+    <string name="signing_in">Melde an…</string>
+    <string name="verifying_server">Prüfe FlutCloud-Server…</string>
+    <string name="error_fill_fields">Bitte Server-URL, Benutzername und App-Token ausfüllen.</string>
+    <string name="error_fill_fields_register">Bitte alle Felder ausfüllen: Server-URL, Benutzername, Passwort und Admin-Zugangsdaten.</string>
+    <string name="register">Registrieren</string>
+    <string name="new_username">Neuer Benutzername</string>
+    <string name="admin_credentials">Admin-Zugangsdaten</string>
+    <string name="admin_username">Admin-Benutzername</string>
+    <string name="admin_password">Admin-Passwort</string>
+    <string name="register_description">Das Admin-Konto erstellt den neuen Benutzer über die Provisioning-API des Servers. Das Registrierungspasswort wird zum App-Passwort.</string>
+    <string name="step_verifying_server">Prüfe FlutCloud-Server…</string>
+    <string name="step_creating_account">Erstelle Konto…</string>
+    <string name="step_setting_up_folder">Richte Projektordner ein…</string>
+    <string name="error_registration_failed">Registrierung fehlgeschlagen</string>
+
+    <!-- Files -->
+    <string name="folder">Ordner</string>
+    <string name="folder_empty_title">Dieser Ordner ist leer.</string>
+    <string name="folder_empty_hint">Nutze Hochladen oder den Ordner-Button, um Dateien hinzuzufügen.</string>
+    <string name="close_search">Suche schließen</string>
+    <string name="search_placeholder">Alle Dateien durchsuchen…</string>
+    <string name="no_matches">Keine Treffer</string>
+    <string name="no_matches_hint">Versuche einen anderen Suchbegriff.</string>
+    <string name="jump_to_writable_part">Zum beschreibbaren Teil springen</string>
+    <string name="share_link">Link teilen</string>
+    <string name="new_folder">Neuer Ordner</string>
+    <string name="folder_name">Ordnername</string>
+    <string name="new_name">Neuer Name</string>
+    <string name="share_password_optional">Passwort (optional)</string>
+    <string name="share_expiry_optional">Ablauf YYYY-MM-DD (optional)</string>
+    <string name="delete_confirm">%1$s löschen?</string>
+    <string name="delete_folder_confirm">Der Ordner und sein gesamter Inhalt werden vom Server gelöscht.</string>
+    <string name="delete_file_confirm">Die Datei wird vom Server gelöscht.</string>
+    <string name="downloaded_to_app_files">In App-Dateien heruntergeladen: %1$s</string>
+    <string name="link_created">Link erstellt: %1$s</string>
+    <string name="no_url">keine URL</string>
+
+    <!-- Admin -->
+    <string name="user_administration">Benutzerverwaltung</string>
+    <string name="add_user">Benutzer hinzufügen</string>
+    <string name="search_users">Benutzer suchen…</string>
+    <string name="no_users_found">Keine Benutzer gefunden</string>
+    <string name="no_users_hint">Erstelle einen Benutzer oder leere die Suche.</string>
+    <string name="quota_unknown">Kontingent unbekannt</string>
+    <string name="no_email">keine E-Mail</string>
+    <string name="quota_unlimited">Kontingent: unbegrenzt</string>
+    <string name="quota_1gb">Kontingent: 1 GB</string>
+    <string name="quota_5gb">Kontingent: 5 GB</string>
+    <string name="quota_10gb">Kontingent: 10 GB</string>
+    <string name="delete_user">Benutzer löschen</string>
+    <string name="create_user">Benutzer erstellen</string>
+    <string name="user_id">Benutzer-ID</string>
+    <string name="display_name_optional">Anzeigename (optional)</string>
+
+    <!-- Settings -->
+    <string name="account">Konto</string>
+    <string name="not_signed_in">Nicht angemeldet</string>
+    <string name="flut_cloud_app">FlutCloud-App</string>
+    <string name="feature_count">%1$d Features</string>
+    <string name="appearance">Darstellung</string>
+    <string name="theme">Design</string>
+    <string name="theme_hint">Wähle hell, dunkel oder System.</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="dynamic_color">Dynamische Farbe</string>
+    <string name="dynamic_color_hint">Nutze die Material-You-Palette (Android 12+) deines Hintergrundbilds.</string>
+    <string name="updates">Updates</string>
+    <string name="flutlink_for_android">FlutLink für Android</string>
+    <string name="version_format">Version %1$s</string>
+    <string name="checking">Prüfe…</string>
+    <string name="check_for_updates">Nach Updates suchen</string>
+    <string name="accounts">Konten</string>
+    <string name="flutcloud_only_note">Nur FlutCloud: Server ohne die FlutCloud-App werden abgelehnt.</string>
+    <string name="sign_out">Abmelden</string>
+    <string name="update_available">Update verfügbar</string>
+    <string name="update_downloading_name">Lade FlutLink %1$s herunter…</string>
+    <string name="update_available_text">FlutLink %1$s ist verfügbar. Jetzt herunterladen und installieren?</string>
+    <string name="downloading">Lade herunter…</string>
+    <string name="update">Update</string>
+    <string name="account_active">%1$s (aktiv)</string>
+    <string name="remove_account">Konto entfernen</string>
+    <string name="switch_account">Wechseln</string>
+    <string name="remove_account_confirm">%1$s entfernen?</string>
+    <string name="remove_account_confirm_text">Das gespeicherte Token dieses Kontos wird aus dem sicheren Speicher gelöscht.</string>
+
+    <!-- Errors & messages (ViewModels) -->
+    <string name="error_network_reach">Server nicht erreichbar.</string>
+    <string name="error_network_reach_detail">Server nicht erreichbar: %1$s</string>
+    <string name="error_api">Anwendungsfehler: %1$s</string>
+    <string name="error_ocs">Nextcloud-API-Fehler: %1$s</string>
+    <string name="error_http">Serverfehler: %1$s</string>
+    <string name="error_flutcloud_app_missing">Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.</string>
+    <string name="error_not_flutcloud">FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit \'%1$s\' verbinden.</string>
+    <string name="error_target_exists">Eine Datei oder ein Ordner namens \'%1$s\' existiert bereits. Bitte wähle einen anderen Namen.</string>
+    <string name="error_generic">Ein unerwarteter Fehler ist aufgetreten.</string>
+    <string name="error_generic_detail">Ein unerwarteter Fehler ist aufgetreten: %1$s</string>
+    <string name="account_switched_to">Zu %1$s gewechselt</string>
+    <string name="update_up_to_date">Du bist auf dem neuesten Stand (%1$s).</string>
+    <string name="update_check_failed">Update-Check fehlgeschlagen.</string>
+    <string name="update_check_failed_detail">Update-Check fehlgeschlagen: %1$s</string>
+    <string name="update_download_failed">Download fehlgeschlagen.</string>
+    <string name="update_download_failed_detail">Download fehlgeschlagen: %1$s</string>
+
+    <!-- Quota formatting -->
+    <string name="quota_used">%1$s belegt</string>
+    <string name="quota_of">%1$s von %2$s (%3$d%%)</string>
+</resources>

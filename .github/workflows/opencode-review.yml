@@ -8,9 +8,8 @@ on:
         required: false
         type: string
   schedule:
-    - cron: "0 6 * * 1" # Montag 06:00 UTC
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
 
-# Guard gegen parallele Läufe (Review-PRs kollidierten auf todo.md).
 concurrency:
   group: opencode-review
   cancel-in-progress: true
@@ -26,22 +25,28 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Install opencode (pinned)
+      - name: Configure git identity
         shell: bash
-        run: npm install --global opencode-ai@1.18.18
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run OpenCode review
-        shell: bash
+        uses: anomalyco/opencode/github@latest
         id: review
-        continue-on-error: true
         env:
-          # OpenCode Zen API-Key als Secret anlegen:
-          # GitHub → Settings → Secrets and variables → Actions → OPENCODE_API_KEY
-          # (Key unter https://opencode.ai/auth abrufen; Free-Modelle kosten nichts)
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          PROMPT: |
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: GitHub Actions
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: GitHub Actions
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
             Automatisiertes Code-Review des FlutLink-Projekts (Tauri v2 Desktop-App:
             Nextcloud-Sync-Client mit Rust-Backend und Vue 3 + TypeScript + Tailwind-Frontend).
             Fokusbereich: ${{ github.event.inputs.focus || 'das gesamte Projekt' }}
@@ -58,7 +63,7 @@ jobs:
                Verdachtsfälle, indem du Tests ausführst (cargo test --manifest-path
                src-tauri/Cargo.toml bzw. npm run build).
             3. Schreibe den Review SOFRÜH WIE MÖGLICH als datierten Abschnitt
-               („## Review YYYY-MM-DD …") in todo.md und fülle ihn während des
+               („## Review YYYY-MM-DD …") in todo.md und füllle ihn während des
                Reviews schrittweise. Schreibe das Review nicht erst ganz am Ende.
             4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
                vorhanden), bestehende Einträge unangetastet lassen.
@@ -74,15 +79,6 @@ jobs:
 
             Regeln: Keine Findings ohne konkrete Datei-/Funktionsnamen. Wenn keine
             neuen Befunde vorhanden sind, vermerke das ausdrücklich im Review-Bericht.
-        run: |
-          # Zeitlimit (25 min) schützt vor hängenden Läufen; der PR-Step läuft
-          # trotzdem und committet auch Teilergebnisse.
-          timeout 1500 opencode run \
-            --model opencode/deepseek-v4-flash-free \
-            --agent reviewer \
-            --auto \
-            --title "Weekly review $(date -u +%Y-%m-%d)" \
-            "$PROMPT" || echo "opencode beendet mit Fehler/Timeout"
 
       - name: Create pull request with review results
         if: always()

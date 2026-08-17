@@ -238,18 +238,21 @@ Komponente hinzugekommen: `android/` ist ein Kotlin/Jetpack-Compose-
 Mirror des Desktop-Clients (FlutCloud-only-Policy, WebDAV/OCS, M3-Expressive-
 Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
-<<<<<<< HEAD
 Ebenfalls am 2026-08-16 umgesetzt: der Offline-Cache (`cache.rs`) wächst nicht
 mehr unbegrenzt — Maximalbestand (`MAX_CACHE_ENTRIES = 500`) mit
 LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
-=======
+
 Am 2026-08-16 ist die **Android-Feature-Parität (Issue #136)** umgesetzt
 (siehe Archiv): Share-Liste + Widerruf in der Datei-UI, Gruppenverwaltung im
 Admin-Bereich, Offline-Cache für Ordner-Listings, Registrierungs-Flow und
 „Öffnen mit externer App". Zwei-Wege-Sync ist eine **bewusste
 Produktentscheidung** (mobile bleibt Desktop-Feature, dokumentiert in
 `android/README.md`).
->>>>>>> opencode/issue136-20260816133705
+
+Ebenfalls am 2026-08-16 umgesetzt: **Android-i18n** (AC2, siehe Archiv) —
+alle UI-Texte liegen in `res/values/strings.xml` (en) + `res/values-de/`
+(de) und werden über die Gerätesprache (Ressourcen-Qualifier) aufgelöst;
+ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
@@ -268,7 +271,6 @@ Produktentscheidung** (mobile bleibt Desktop-Feature, dokumentiert in
 
 ## Archiv (erledigt)
 
-<<<<<<< HEAD
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
@@ -419,7 +421,7 @@ Produktentscheidung** (mobile bleibt Desktop-Feature, dokumentiert in
       VM statt `readAllBytes`. Verifikation: `./gradlew :app:assembleDebug`
       grün, `./gradlew :app:lintDebug` grün (keine Android-Änderung an
       Rust/Frontend).
-=======
+
 ### Review 2026-08-16 (Android-Feature-Parität, Issue #136)
 
 - [x] **Share-Liste + Widerruf in der Datei-UI (analog Desktop):** Der
@@ -469,7 +471,37 @@ Produktentscheidung** (mobile bleibt Desktop-Feature, dokumentiert in
       `./gradlew :app:lintDebug` grün; `cargo fmt --check`, `cargo clippy
       --all-targets -- -D warnings`, `cargo test` (76 passed) und
       `npm run build` unverändert grün (nur Android-Code geändert).
->>>>>>> opencode/issue136-20260816133705
+
+### Review 2026-08-16 (Android i18n)
+
+- [x] **AC2 (Feature, neu):** Android-i18n eingeführt — **Spracherkennung über
+      die Android-Ressourcen-Infrastruktur** statt hartkodierter englischer
+      Strings. `res/values/strings.xml` (Englisch = Default) und
+      `res/values-de/strings.xml` (Deutsch) enthalten jetzt alle UI-Texte;
+      Android wählt die Sprache automatisch anhand der Gerätesprache
+      (Ressourcen-Qualifier). Umsetzung:
+  - Alle `@Composable`-Funktionen nutzen `stringResource(R.string.…)` (inkl.
+    Format-Argumente wie `delete_confirm`/`remove_account_confirm`/
+    `update_available_text`); keine hartkodierten User-Strings mehr.
+  - Neue `ui/UiMessage.kt`: `UiMessage(resId, vararg args)` mit
+    `resolve(context)` plus Helper `networkUiMessage`, `ApiException.toUiMessage`
+    (Code-Mapping analog zum Desktop-`ERROR_CODE_KEYS`: `flutcloud_app_missing`,
+    `not_flutcloud`, `target_exists`, `ocs_error`, `http_*`) und
+    `unexpectedUiMessage`.
+  - ViewModels (`LoginViewModel`, `FilesViewModel`, `AdminViewModel`,
+    `SettingsViewModel`) emittieren jetzt Ressourcen-IDs statt englischer
+    Fehler-/Toast-Texte (z. B. `error_network_reach[_detail]`,
+    `account_switched_to`, `update_up_to_date`, `update_check_failed[_detail]`,
+    `update_download_failed[_detail]`).
+  - `ui/format/Format.kt`: `formatQuota` nimmt `Resources` entgegen und nutzt
+    die Schlüssel `quota_unknown`/`quota_used`/`quota_of` (deutsche Wörter wie
+    „belegt/von" lokalisiert); `formatBytes` behält SI-Einheiten (KB/MB/GB/TB
+    sind sprachneutral), `formatMtime` nutzt bereits das Geräte-Locale.
+  - `HomeScreen.kt`: Tab-Labels (`Files`/`Admin`/`Settings`) über
+    `@param:StringRes`-Ressourcen.
+  - Verifikation: `./gradlew :app:assembleDebug` grün, `./gradlew
+    :app:lintDebug` grün (keine Missing/ExtraTranslation, keine ungenutzten
+    String-Ressourcen); `cargo fmt --check` grün.
 
 ### Review 2026-08-16 (Android-Client)
 

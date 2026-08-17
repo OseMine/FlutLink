@@ -1,0 +1,259 @@
+name: Cleanup
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: cleanup
+  cancel-in-progress: true
+
+jobs:
+  review-prs:
+    name: Review & merge PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: List open PRs
+        id: prs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRS=$(gh pr list --state open --json number,title,headRefName --jq '.[] | "\(.number)\t\(.title)\t\(.headRefName)"')
+          echo "prs<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PRS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Review and merge PRs
+        if: steps.prs.outputs.prs != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: GitHub Actions
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: GitHub Actions
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        run: |
+          while IFS=$'\t' read -r number title head_ref; do
+            [ -z "$number" ] && continue
+            echo "=== Reviewing PR #$number: $title ==="
+
+            # Checkout the PR branch
+            git fetch origin "pull/$number/head:pr-$number" 2>/dev/null || continue
+            git checkout "pr-$number" 2>/dev/null || continue
+
+            # Use opencode to review the PR
+            REVIEW_PROMPT="Du bist ein Code-Reviewer für das FlutLink-Projekt (Tauri v2 Desktop-App + Android-Port).
+
+            Lies den Code in diesem PR und bewerte ihn anhand dieser Kriterien:
+            1. Ist der Code korrekt und frei von Bugs?
+            2. Passt er zum Projekt (Code-Style, Architektur, Konventionen)?
+            3. Ist er sicher (keine Secrets, keine Sicherheitslücken)?
+
+            Antworte AUSSCHLIESSLICH mit einer der drei Zeilen (ohne Anführungszeichen):
+            - MERGE (wenn alles in Ordnung ist, der Code passt und sicher ist)
+            - APPROVE (wenn der Code akzeptabel ist, aber kleinere Verbesserungen vorschlägt)
+            - REJECT (wenn es Probleme gibt, die vor einem Merge behoben werden müssen)
+
+            Danach gib eine einzeilige Begründung an."
+
+            # Save the prompt to a file
+            echo "$REVIEW_PROMPT" > /tmp/review-prompt.txt
+
+            # Run opencode via the action's npm package
+            npx opencode-ai@latest run \
+              --model opencode/deepseek-v4-flash-free \
+              --auto \
+              "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
+
+            RESULT=$(head -1 /tmp/review-result.txt 2>/dev/null || echo "REJECT")
+            RATIONALE=$(tail -n +2 /tmp/review-result.txt 2>/dev/null || echo "Review failed")
+
+            echo "Result: $RESULT"
+            echo "Rationale: $RATIONALE"
+
+            git checkout main 2>/dev/null || git checkout master 2>/dev/null
+
+            case "$RESULT" in
+              MERGE)
+                echo "Merging PR #$number"
+                gh pr merge "$number" --squash --delete-branch 2>&1 || echo "Failed to merge PR #$number"
+                ;;
+              APPROVE)
+                echo "Approving PR #$number"
+                gh pr review "$number" --approve --body "$RATIONALE" 2>&1 || echo "Failed to approve PR #$number"
+                ;;
+              *)
+                echo "Rejecting PR #$number"
+                gh pr comment "$number" --body "Automated review: $RATIONALE" 2>&1 || echo "Failed to comment on PR #$number"
+                ;;
+            esac
+
+            echo ""
+          done <<< "${{ steps.prs.outputs.prs }}"
+
+  issues-to-todo:
+    name: Write issues to todo.md
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch open issues
+        id: issues
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUES=$(gh issue list --state open --json number,title,labels --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name] | join(","))"')
+          echo "issues<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$ISSUES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Write issues to todo.md
+        if: steps.issues.outputs.issues != ''
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: GitHub Actions
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: GitHub Actions
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        run: |
+          # Save issues to a temp file
+          echo "${{ steps.issues.outputs.issues }}" > /tmp/issues.txt
+
+          # Check if todo.md exists, create if not
+          if [ ! -f todo.md ]; then
+            echo "# Todo" > todo.md
+            echo "" >> todo.md
+          fi
+
+          # Use opencode to append issues to todo.md (deduplicating)
+          PROMPT="Lies todo.md und füge offene GitHub-Issues hinzu.
+
+          Offene Issues (aus der GitHub API):
+          $(cat /tmp/issues.txt)
+
+          Regeln:
+          1. Lies todo.md vollständig
+          2. Füge jedes Issue als '- [ ] #<number> <title> [<labels>]' hinzu
+          3. Überspringe Issues, die bereits in todo.md existieren (gleiche Nummer)
+          4. Behalte die bestehende Struktur bei
+          5. Speichere die Änderungen in todo.md
+          6. Committen Sie die Datei"
+
+          npx opencode-ai@latest run \
+            --model opencode/deepseek-v4-flash-free \
+            --auto \
+            "$PROMPT" 2>&1 || echo "opencode finished with error"
+
+  branch-cleanup:
+    name: Delete stale branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Delete merged branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Deleting merged branches ==="
+          git fetch --prune 2>/dev/null || true
+
+          # Get branches merged into main
+          MERGED=$(git branch -r --merged origin/main 2>/dev/null | grep -v 'origin/main' | grep -v 'origin/master' | sed 's|origin/||' || true)
+
+          for branch in $MERGED; do
+            # Skip protected branches
+            case "$branch" in
+              main|master|develop|dev|staging|production) continue ;;
+            esac
+            echo "Deleting merged branch: $branch"
+            git push origin --delete "$branch" 2>&1 || echo "Failed to delete $branch"
+          done
+
+      - name: Delete duplicate branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Deleting duplicate branches ==="
+          # Find branches with -1, -2, -3 suffixes (likely duplicates)
+          BRANCHES=$(gh api repos/{owner}/{repo}/branches --paginate --jq '.[].name' 2>/dev/null || true)
+
+          for branch in $BRANCHES; do
+            case "$branch" in
+              main|master|develop|dev|staging|production) continue ;;
+            esac
+            # Check if branch ends with -N (duplicate suffix)
+            if [[ "$branch" =~ ^(.+)-[0-9]+$ ]]; then
+              BASE="${BASH_REMATCH[1]}"
+              # Check if the base branch exists
+              if echo "$BRANCHES" | grep -qx "$BASE"; then
+                echo "Deleting duplicate branch: $branch (base: $BASE)"
+                git push origin --delete "$branch" 2>&1 || echo "Failed to delete $branch"
+              fi
+            fi
+          done
+
+      - name: Delete stale branches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Deleting stale branches (>90 days) ==="
+          BRANCHES=$(gh api repos/{owner}/{repo}/branches --paginate --jq '.[].name' 2>/dev/null || true)
+          CUTOFF=$(date -d "90 days ago" --utc +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -v-90d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
+
+          for branch in $BRANCHES; do
+            case "$branch" in
+              main|master|develop|dev|staging|production) continue ;;
+            esac
+
+            # Get the last commit date
+            LAST_COMMIT=$(gh api "repos/{owner}/{repo}/branches/$branch" --jq '.commit.commit.author.date' 2>/dev/null || true)
+
+            if [ -n "$LAST_COMMIT" ] && [ -n "$CUTOFF" ]; then
+              if [[ "$LAST_COMMIT" < "$CUTOFF" ]]; then
+                echo "Deleting stale branch: $branch (last commit: $LAST_COMMIT)"
+                git push origin --delete "$branch" 2>&1 || echo "Failed to delete $branch"
+              fi
+            fi
+          done

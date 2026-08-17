@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.BuildConfig
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.AppUpdate
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.dto.AppInfoDto
+import com.flutcloud.flutlink.ui.UiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,8 +24,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     val appVersion = BuildConfig.VERSION_NAME
 
-    private val _toast = MutableStateFlow<String?>(null)
-    val toast: StateFlow<String?> = _toast.asStateFlow()
+    private val _toast = MutableStateFlow<UiMessage?>(null)
+    val toast: StateFlow<UiMessage?> = _toast.asStateFlow()
 
     private val _update = MutableStateFlow<AppUpdate?>(null)
     val update: StateFlow<AppUpdate?> = _update.asStateFlow()
@@ -64,7 +66,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun switchAccount(meta: AccountMeta) {
         viewModelScope.launch {
             container.sessionManager.switchAccount(meta)
-            _toast.value = "Switched to ${meta.username}"
+            _toast.value = UiMessage(R.string.account_switched_to, meta.username)
         }
     }
 
@@ -87,10 +89,15 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 if (found != null) {
                     _update.value = found
                 } else {
-                    _toast.value = "You're up to date ($appVersion)."
+                    _toast.value = UiMessage(R.string.update_up_to_date, appVersion)
                 }
             } catch (e: NetworkException) {
-                _toast.value = "Update check failed: ${e.cause?.message ?: "network error"}"
+                val detail = e.cause?.message
+                _toast.value = if (detail.isNullOrBlank()) {
+                    UiMessage(R.string.update_check_failed)
+                } else {
+                    UiMessage(R.string.update_check_failed_detail, detail)
+                }
             } finally {
                 _checkingUpdate.value = false
             }
@@ -111,7 +118,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 container.updater.install(apk)
                 _update.value = null
             } catch (e: NetworkException) {
-                _toast.value = "Download failed: ${e.cause?.message ?: "network error"}"
+                val detail = e.cause?.message
+                _toast.value = if (detail.isNullOrBlank()) {
+                    UiMessage(R.string.update_download_failed)
+                } else {
+                    UiMessage(R.string.update_download_failed_detail, detail)
+                }
             } finally {
                 _installingUpdate.value = false
             }

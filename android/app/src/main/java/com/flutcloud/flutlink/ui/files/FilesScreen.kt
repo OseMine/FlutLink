@@ -56,12 +56,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.provider.OpenableColumns
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.data.FileOpener
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
@@ -106,21 +108,22 @@ fun FilesScreen(container: AppContainer) {
     }
     LaunchedEffect(error) {
         error?.let {
-            snackbar.showSnackbar(it)
+            snackbar.showSnackbar(it.resolve(context))
             vm.clearErrors()
         }
     }
     LaunchedEffect(downloaded) {
         downloaded?.let { path ->
             if (!FileOpener.open(context, path)) {
-                snackbar.showSnackbar("Downloaded to $path (no app could open it)")
+                snackbar.showSnackbar(context.getString(R.string.downloaded_to_app_files, path))
             }
             vm.clearErrors()
         }
     }
     LaunchedEffect(lastShare) {
         lastShare?.let {
-            snackbar.showSnackbar("Link created: ${it.url ?: "no URL"}")
+            val url = it.url ?: context.getString(R.string.no_url)
+            snackbar.showSnackbar(context.getString(R.string.link_created, url))
             vm.clearErrors()
         }
     }
@@ -164,13 +167,13 @@ fun FilesScreen(container: AppContainer) {
                 ExtendedFloatingActionButton(
                     onClick = { showNewFolder = true },
                     icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
-                    text = { Text("Folder") }
+                    text = { Text(stringResource(R.string.folder)) }
                 )
                 Spacer(Modifier.height(12.dp))
                 ExtendedFloatingActionButton(
                     onClick = { uploadLauncher.launch(arrayOf("*/*")) },
                     icon = { Icon(Icons.Default.UploadFile, contentDescription = null) },
-                    text = { Text("Upload") }
+                    text = { Text(stringResource(R.string.upload)) }
                 )
             }
         }
@@ -204,8 +207,8 @@ fun FilesScreen(container: AppContainer) {
             } else if (entries.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.Cloud,
-                    title = "This folder is empty",
-                    hint = "Use Upload or the folder button to add files."
+                    title = stringResource(R.string.folder_empty_title),
+                    hint = stringResource(R.string.folder_empty_hint)
                 )
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
@@ -283,7 +286,7 @@ private fun FilesTopBar(
     TopAppBar(
         title = {
             Text(
-                if (path == ROOT) "Files" else path,
+                if (path == ROOT) stringResource(R.string.tab_files) else path,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -291,13 +294,13 @@ private fun FilesTopBar(
         navigationIcon = {
             if (canGoBack) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             }
         },
         actions = {
             IconButton(onClick = onSearch) {
-                Icon(Icons.Default.Search, contentDescription = "Search")
+                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
             }
         }
     )
@@ -312,11 +315,11 @@ private fun SearchBar(
     TextField(
         value = query,
         onValueChange = onQueryChange,
-        placeholder = { Text("Search all files…") },
+        placeholder = { Text(stringResource(R.string.search_placeholder)) },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
         trailingIcon = {
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close search")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_search))
             }
         },
         singleLine = true,
@@ -336,8 +339,8 @@ private fun SearchResults(
         }
         results.isEmpty() -> EmptyState(
             icon = Icons.Default.Search,
-            title = "No matches",
-            hint = "Try a different search term."
+            title = stringResource(R.string.no_matches),
+            hint = stringResource(R.string.no_matches_hint)
         )
         else -> LazyColumn(Modifier.fillMaxSize()) {
             items(results, key = { it.path }) { entry ->
@@ -391,12 +394,12 @@ private fun EntryRow(
         }
         Box {
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Actions")
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.actions))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 if (entry.isVirtualLink && entry.linkTarget != null) {
                     DropdownMenuItem(
-                        text = { Text("Jump to writable part") },
+                        text = { Text(stringResource(R.string.jump_to_writable_part)) },
                         leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                         onClick = {
                             menuOpen = false
@@ -406,7 +409,7 @@ private fun EntryRow(
                 }
                 if (entry.isDir) {
                     DropdownMenuItem(
-                        text = { Text("Rename") },
+                        text = { Text(stringResource(R.string.rename)) },
                         leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
                         onClick = {
                             menuOpen = false
@@ -415,7 +418,7 @@ private fun EntryRow(
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text("Share link") },
+                    text = { Text(stringResource(R.string.share_link)) },
                     leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                     onClick = {
                         menuOpen = false
@@ -423,7 +426,7 @@ private fun EntryRow(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Delete") },
+                    text = { Text(stringResource(R.string.delete)) },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                     onClick = {
                         menuOpen = false
@@ -443,7 +446,7 @@ private fun LinkBadge() {
         shape = MaterialTheme.shapes.small
     ) {
         Text(
-            "virtual",
+            stringResource(R.string.virtual),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
@@ -455,18 +458,23 @@ private fun NewFolderDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var name by remember { mutableStateOf("") }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New folder") },
+        title = { Text(stringResource(R.string.new_folder)) },
         text = {
-            TextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Folder name") })
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.folder_name)) }
+            )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(
                 onClick = { if (name.isNotBlank()) onCreate(name.trim()) },
                 enabled = name.isNotBlank()
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -476,18 +484,23 @@ private fun RenameDialog(initialName: String, onDismiss: () -> Unit, onRename: (
     var name by remember { mutableStateOf(initialName) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename") },
+        title = { Text(stringResource(R.string.rename)) },
         text = {
-            TextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("New name") })
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                label = { Text(stringResource(R.string.new_name)) }
+            )
         },
         confirmButton = {
             androidx.compose.material3.TextButton(
                 onClick = { if (name.isNotBlank()) onRename(name.trim()) },
                 enabled = name.isNotBlank()
-            ) { Text("Rename") }
+            ) { Text(stringResource(R.string.rename)) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -507,7 +520,7 @@ private fun ShareDialog(
     LaunchedEffect(entry.path) { onLoadShares() }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Share — ${entry.name}") },
+        title = { Text(stringResource(R.string.share_link)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
@@ -540,18 +553,18 @@ private fun ShareDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.height(8.dp))
-                TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text("Password (optional)") })
+                TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text(stringResource(R.string.share_password_optional)) })
                 Spacer(Modifier.height(8.dp))
-                TextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text("Expiry YYYY-MM-DD (optional)") })
+                TextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text(stringResource(R.string.share_expiry_optional)) })
             }
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = {
                 onCreate(password.ifBlank { null }, expiry.ifBlank { null })
-            }) { Text("Create link") }
+            }) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -617,18 +630,18 @@ private fun OfflineBanner() {
 private fun DeleteConfirmDialog(entry: WebDavEntry, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete ${entry.name}?") },
+        title = { Text(stringResource(R.string.delete_confirm, entry.name)) },
         text = {
             Text(
-                if (entry.isDir) "The folder and all its contents will be deleted from the server."
-                else "The file will be deleted from the server."
+                if (entry.isDir) stringResource(R.string.delete_folder_confirm)
+                else stringResource(R.string.delete_file_confirm)
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onConfirm) { Text("Delete") }
+            androidx.compose.material3.TextButton(onClick = onConfirm) { Text(stringResource(R.string.delete)) }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

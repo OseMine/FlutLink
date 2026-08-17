@@ -27,10 +27,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.ui.components.ErrorBanner
 import com.flutcloud.flutlink.ui.components.ScrollableColumn
 import com.flutcloud.flutlink.ui.flutLinkViewModel
@@ -39,6 +42,7 @@ import com.flutcloud.flutlink.ui.viewmodel.LoginViewModel
 @Composable
 fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
     val vm = flutLinkViewModel { LoginViewModel(it) }
+    val context = LocalContext.current
     val serverUrl by vm.serverUrl.collectAsState()
     val username by vm.username.collectAsState()
     val token by vm.token.collectAsState()
@@ -64,12 +68,12 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "FlutLink",
+                stringResource(R.string.app_name),
                 style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                "FlutCloud client for Android",
+                stringResource(R.string.login_tagline),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -100,8 +104,8 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
             OutlinedTextField(
                 value = serverUrl,
                 onValueChange = { vm.serverUrl.value = it },
-                label = { Text("Server URL") },
-                placeholder = { Text("https://cloud.example.com") },
+                label = { Text(stringResource(R.string.server_url)) },
+                placeholder = { Text(stringResource(R.string.server_url_placeholder)) },
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -169,7 +173,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
 
             if (error != null) {
                 Spacer(Modifier.height(12.dp))
-                ErrorBanner(error.orEmpty())
+                ErrorBanner(it.resolve(context))
             }
 
             Spacer(Modifier.height(24.dp))
@@ -179,7 +183,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     CircularProgressIndicator()
-                    step?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    step?.let { Text(it.resolve(context), style = MaterialTheme.typography.bodySmall) }
                 }
             } else {
                 Button(

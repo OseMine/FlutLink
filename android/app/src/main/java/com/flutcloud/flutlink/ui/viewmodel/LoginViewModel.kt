@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.BuildConfig
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.AuthSession
 import com.flutcloud.flutlink.data.FlutCloudAppMissing
 import com.flutcloud.flutlink.data.NetworkException
+import com.flutcloud.flutlink.ui.UiMessage
+import com.flutcloud.flutlink.ui.networkUiMessage
+import com.flutcloud.flutlink.ui.toUiMessage
+import com.flutcloud.flutlink.ui.unexpectedUiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,15 +25,15 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
     val username = MutableStateFlow("")
     val token = MutableStateFlow("")
     val loading = MutableStateFlow(false)
-    val error = MutableStateFlow<String?>(null)
+    val error = MutableStateFlow<UiMessage?>(null)
 
     val registerMode = MutableStateFlow(false)
     val displayName = MutableStateFlow("")
     val adminUsername = MutableStateFlow("")
     val adminPassword = MutableStateFlow("")
 
-    private val _step = MutableStateFlow<String?>(null)
-    val step: StateFlow<String?> = _step.asStateFlow()
+    private val _step = MutableStateFlow<UiMessage?>(null)
+    val step: StateFlow<UiMessage?> = _step.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -47,17 +52,17 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         val user = username.value.trim()
         val pass = token.value.trim()
         if (url.isEmpty() || user.isEmpty() || pass.isEmpty()) {
-            error.value = "Fill in the server URL, username and app token."
+            error.value = UiMessage(R.string.error_fill_fields)
             return
         }
         viewModelScope.launch {
             loading.value = true
             error.value = null
             try {
-                _step.value = "Signing in…"
+                _step.value = UiMessage(R.string.signing_in)
                 val session = AuthSession(url, user, pass)
                 val info = container.ocsApi.getCurrentUser(session)
-                _step.value = "Verifying FlutCloud server…"
+                _step.value = UiMessage(R.string.verifying_server)
                 container.ocsApi.verifyServer(session)
                 // Mirror the desktop client: a transient probe failure keeps the
                 // previously stored admin flag instead of demoting the account.
@@ -72,14 +77,12 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
                     pass
                 )
                 onSuccess()
-            } catch (e: FlutCloudAppMissing) {
-                error.value = e.message
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } catch (e: Exception) {
-                error.value = e.message ?: "Sign-in failed"
+                error.value = unexpectedUiMessage(e.message)
             } finally {
                 loading.value = false
                 _step.value = null
@@ -101,7 +104,7 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         if (url.isEmpty() || user.isEmpty() || pass.isEmpty() ||
             adminUsername.value.isBlank() || adminPassword.value.isBlank()
         ) {
-            error.value = "Fill in all fields: server URL, username, password and the admin credentials."
+            error.value = UiMessage(R.string.error_fill_fields_register)
             return
         }
         viewModelScope.launch {
@@ -109,16 +112,16 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             error.value = null
             try {
                 val adminSession = AuthSession(url, adminUsername.value.trim(), adminPassword.value)
-                _step.value = "Verifying FlutCloud server…"
+                _step.value = UiMessage(R.string.step_verifying_server)
                 container.ocsApi.verifyServer(adminSession)
-                _step.value = "Creating account…"
+                _step.value = UiMessage(R.string.step_creating_account)
                 container.ocsApi.createUser(
                     adminSession, user, pass,
                     displayName.value.trim().ifBlank { null }
                 )
-                _step.value = "Setting up project folder…"
+                _step.value = UiMessage(R.string.step_setting_up_folder)
                 ensureProjectFolder(adminSession)
-                _step.value = "Signing in…"
+                _step.value = UiMessage(R.string.signing_in)
                 val session = AuthSession(url, user, pass)
                 val info = container.ocsApi.getCurrentUser(session)
                 container.ocsApi.verifyServer(session)
@@ -130,13 +133,13 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
                 )
                 onSuccess()
             } catch (e: FlutCloudAppMissing) {
-                error.value = e.message
+                error.value = UiMessage(R.string.error_flutcloud_app_missing)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } catch (e: Exception) {
-                error.value = e.message ?: "Registration failed"
+                error.value = unexpectedUiMessage(e.message)
             } finally {
                 loading.value = false
                 _step.value = null

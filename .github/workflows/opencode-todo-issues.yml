@@ -8,16 +8,14 @@ on:
         required: false
         type: string
   schedule:
-    - cron: "0 6 * * 3" # Mittwoch 06:00 UTC
+    - cron: "0 6 * * 3" # Wednesday 06:00 UTC
 
-# Guard gegen parallele Läufe, die duplizierte Issues erzeugen würden.
 concurrency:
   group: opencode-todo-issues
   cancel-in-progress: true
 
-# Minimalberechtigungen: nur Issues dürfen erstellt werden, kein Code-Schreibzugriff.
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 jobs:
@@ -28,22 +26,28 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Install opencode (pinned)
+      - name: Configure git identity
         shell: bash
-        run: npm install --global opencode-ai@1.18.18
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run opencode to create issues from todo.md
-        shell: bash
+        uses: anomalyco/opencode/github@latest
         env:
-          # OpenCode Zen API-Key als Secret anlegen:
-          # GitHub → Settings → Secrets and variables → Actions → OPENCODE_API_KEY
-          # (Key unter https://opencode.ai/auth abrufen; Free-Modelle kosten nichts)
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          # Eingeschränktes Token (nur issues: write) für gh/API-Aufrufe.
           GH_TOKEN: ${{ github.token }}
-          PROMPT: |
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: GitHub Actions
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: GitHub Actions
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
             Aufgabe: Erzeuge GitHub-Issues aus den offenen Aufgaben in todo.md.
 
             Schritte:
@@ -88,10 +92,3 @@ jobs:
               Schritt 5); Issues ohne Label sind ein Fehler.
             - Antworte am Ende mit einer Zusammenfassung der erstellten Issues
               (Nummer, Titel, Label) und der übersprungenen Duplikate.
-        run: |
-          # Zeitlimit (25 min) schützt vor hängenden Läufen; nur der
-          # issues:write-Token wird an opencode weitergereicht.
-          timeout 1500 opencode run \
-            --model opencode/deepseek-v4-flash-free \
-            --auto \
-            "$PROMPT" || echo "opencode beendet mit Fehler/Timeout"

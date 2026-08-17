@@ -6,6 +6,9 @@ import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.dto.ManagedUser
+import com.flutcloud.flutlink.ui.UiMessage
+import com.flutcloud.flutlink.ui.networkUiMessage
+import com.flutcloud.flutlink.ui.toUiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +20,7 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     val users = MutableStateFlow<List<ManagedUser>>(emptyList())
     val loading = MutableStateFlow(false)
-    val error = MutableStateFlow<String?>(null)
+    val error = MutableStateFlow<UiMessage?>(null)
     val search = MutableStateFlow("")
 
     fun refresh() = loadUsers()
@@ -35,9 +38,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 }
                 users.value = result
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } finally {
                 loading.value = false
             }
@@ -53,9 +56,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.createUser(s, userId.trim(), password, displayName?.trim()?.ifBlank { null })
                 loadUsers()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -68,9 +71,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.deleteUser(s, user.id)
                 users.value = users.value.filterNot { it.id == user.id }
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -83,9 +86,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.setUserQuota(s, user.id, quotaBytes)
                 loadUsers()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -98,9 +101,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.updateUser(s, user.id, "enabled", if (enabled) "1" else "0")
                 loadUsers()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -116,9 +119,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.addGroupMember(s, g, user.id)
                 loadUsers()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -132,9 +135,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 container.ocsApi.removeGroupMember(s, group, user.id)
                 loadUsers()
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }
@@ -149,9 +152,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 container.ocsApi.createGroup(s, g)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             }
         }
     }

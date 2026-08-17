@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -20,15 +21,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.ui.admin.AdminScreen
 import com.flutcloud.flutlink.ui.files.FilesScreen
 import com.flutcloud.flutlink.ui.settings.SettingsScreen
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    Files("Files", Icons.Default.Folder),
-    Admin("Admin", Icons.Default.AdminPanelSettings),
-    Settings("Settings", Icons.Default.Settings)
+private enum class Tab(@param:StringRes val labelRes: Int, val icon: ImageVector) {
+    Files(R.string.tab_files, Icons.Default.Folder),
+    Admin(R.string.tab_admin, Icons.Default.AdminPanelSettings),
+    Settings(R.string.tab_settings, Icons.Default.Settings)
 }
 
 @Composable
@@ -51,8 +54,8 @@ fun HomeScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                         NavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = { selectedTab = tab },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) }
+                            icon = { Icon(tab.icon, contentDescription = stringResource(tab.labelRes)) },
+                            label = { Text(stringResource(tab.labelRes)) }
                         )
                     }
                 }
