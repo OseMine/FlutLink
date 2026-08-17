@@ -356,6 +356,23 @@ LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
       `cargo fmt --check` grün, `cargo clippy --all-targets -- -D warnings`
       grün, `cargo test` → 78 passed / 0 failed.
 
+### Review 2026-08-16 (Android — P15-Port)
+
+- [x] **A-P15 (Bug, P15-Regression des Desktops):** Admin-Status wurde im
+      Android-Client nie aktualisiert — `LoginViewModel.signIn` schluckte
+      Netzwerkfehler der Admin-Probe (`runCatching { isAdmin(session) }
+      .getOrDefault(false)`) und der Status wurde nur beim Account-Add einmal
+      ermittelt und dauerhaft gespeichert. Fix (Port des Desktop-Fixes
+      `refresh_admin_flags`/`ocs::is_admin`): `SessionManager.refreshAdminFlags`
+      evaluiert den Admin-Status **beim App-Start** für jedes gespeicherte
+      Konto neu und überschreibt das Flag nur bei erfolgreicher OCS-Probe
+      (Fehler behalten den bisherigen Status); Aufruf aus `init()` in
+      `AppNavigation`. `LoginViewModel.signIn` erhält bei einem transienten
+      Probe-Fehler den bisherigen Admin-Status des Kontos statt `false`. Der
+      Admin-Tab in `HomeScreen` reagiert automatisch auf das aktualisierte
+      `accounts`-StateFlow. Verifikation: `./gradlew :app:assembleDebug
+      :app:lintDebug` grün.
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —

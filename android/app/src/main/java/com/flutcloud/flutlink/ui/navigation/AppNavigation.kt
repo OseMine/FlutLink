@@ -22,7 +22,7 @@ fun AppNavigation(container: AppContainer) {
     val session by container.sessionManager.session.collectAsState()
 
     LaunchedEffect(Unit) {
-        container.sessionManager.init()
+        container.sessionManager.init(container.ocsApi)
     }
 
     val sessionKey = session?.let { "${it.baseUrl}|${it.username}" }
