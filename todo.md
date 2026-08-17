@@ -6,6 +6,61 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-17 (Lauf 10, Fokus IPC/Updater-UI & Verifikation — neue Befunde)
+
+Verifikation in diesem Lauf frisch und grün: `cargo test --manifest-path
+src-tauri/Cargo.toml` → 78 passed / 0 failed; `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --check`
+grün; `npm run build` (vue-tsc + vite) grün. Fokusbereich: Updater-Events
+(`update://status`/`update://progress`), IPC-Wrapper (`src/lib/ipc.ts`),
+Update-Banner (`App.vue`) vs. Settings-Dialog (`SettingsModal.vue`), Keyring
+(`accounts.rs`) und Offline-Cache (`cache.rs`/`commands.rs`). Neu gefunden:
+
+- [ ] **A10-1 (Bug, mittel):** `App.vue` (Z. 159-161) lauscht auf
+      `update://status` als `listen<string>` und weist `updateBannerStatus`
+      den rohen Payload zu; das Backend emittiert aber ein
+      `UpdateStatus`-Objekt `{ code, assetName }` (`updater.rs:105-113`,
+      serde camelCase). Der Update-Banner (Z. 200-201) zeigt damit
+      `[object Object]` statt eines lokalisierten Status an. `SettingsModal.vue`
+      (Z. 163-167) verarbeitet dasselbe Event korrekt als
+      `listen<UpdateStatus>` mit Code-Mapping (`updateStatusText`, Z. 178-190).
+      Fix: In `App.vue` denselben `UpdateStatus`-Typ nutzen und über
+      `translateError`/Code-Mapping lokalisieren (oder `updateStatusText`
+      wiederverwenden).
+- [ ] **A10-2 (Konsistenz, minor):** `updater.rs:360` emittiert im
+      Checksumme-fehlt-Pfad einen **rohen String**
+      (`"checksum unavailable, skipping verification"`) auf `update://status`,
+      während alle anderen Emits ein `UpdateStatus`-Objekt senden
+      (Z. 568, 581, 593). `SettingsModal.vue` `updateStatusText` mappt
+      unbekannte Codes auf `""` → der Hinweis verschwindet still in der UI
+      (nur noch `eprintln!` im Log). Fix: Auch hier `UpdateStatus`
+      (z. B. `code: "checksum_unavailable"`) emittieren oder auf den
+      `checking`-Pfad verzichten; ggf. i18n-Key ergänzen.
+- [ ] **A10-3 (CI, bestätigt weiter offen):** R8-C1 unverändert — `release.yml`
+      Z. 135 pinnt `tauri-apps/tauri-action@v1` weiterhin nur auf das
+      bewegliche Tag (übrige Drittanbieter-Actions sind ebenfalls nur
+      Major-Tags: `actions/checkout@v7`, `actions/setup-node@v7`). Kein
+      SHA-Pinning, keine Änderung in diesem Lauf (Workflow-Dateien sind von
+      der Aufgabe ausgenommen).
+
+- [ ] **A10-4 (i18n, minor):** Datums-/Zeitformate ignorieren die UI-Sprache:
+      `EntryList.vue:49` (`formatMtime`) und `SyncPanel.vue:24` rufen
+      `toLocaleString()` **ohne** Locale-Argument auf → das WebView nutzt die
+      OS-Locale statt `ui.lang` (en/de). Bei deutscher UI auf englischem
+      System (und umgekehrt) zeigen Liste/Sync-Panel das Datum in der falschen
+      Sprache. Fix: `date.toLocaleString(ui.lang)` (bzw. `"de"`/`"en"`)
+      durchreichen.
+
+Keine weiteren neuen Befunde in diesem Lauf: Der Rest der offenen Punkte
+(A9-1 bis A9-16) wurde gegen den aktuellen Android-Code verifiziert und ist
+**weiterhin offen** (kein Sync-Tab, `strings.xml` nur `app_name`, Rename
+weiterhin nur für Ordner in `FilesScreen.kt:375`, keine Suche-Debounce, Upload
+weiterhin `readAllBytes`/`body.bytes()`, kein `exists`-Check vor PUT, kein
+`target_user`/`Impersonate-User`, keine Gruppen-API, nur `shareType = 3`
+(`FlutCloudApi.kt:232`), keine Quota-Freieingabe, kein `assert_flutcloud_url`
+(`BuildConfig.FLUTCLOUD_URL` ungenutzt), Downloads in App-Files, keine
+Brand-Themes, `WebDavApi.preview()` tot, Suchtreffer No-op, kein Offline-Cache).
+
 ### Review 2026-08-16 (Lauf 9, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
 
 Fokus dieses Laufs: Parität zwischen Desktop-UI (Vue/`FileExplorer.vue`,
@@ -107,9 +162,9 @@ Befunden **nicht** zu: Neu gefunden:
       in `FileExplorer.vue`); Android zeigt bei Netzwerkausfall nur Fehler.
       Fix: Listing-Cache + Offline-Banner portieren.
 
-Nicht erledigt aus früheren Läufen (weiter offen): U-R8-1 bis U-R8-12,
-R8-B1 (Bulk-Download-Kollision), R8-C1 (tauri-action auf `@v1` gepinnt),
-R7-7 (Release-Draft-Hinweis).
+Nicht erledigt aus früheren Läufen (weiter offen): R8-C1 (tauri-action auf
+`@v1` gepinnt), R7-7 (Release-Draft-Hinweis). U-R8-1 bis U-R8-12 und R8-B1
+sind dagegen umgesetzt (im Lauf-8-Abschnitt abgehakt, Details im Archiv).
 
 ### Review 2026-08-16 (Lauf 8, Fokus UX — neue Befunde)
 
