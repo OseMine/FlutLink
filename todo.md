@@ -166,9 +166,9 @@ Befunden **nicht** zu: Neu gefunden:
       in `FileExplorer.vue`); Android zeigt bei Netzwerkausfall nur Fehler.
       Fix: Listing-Cache + Offline-Banner portieren.
 
-Nicht erledigt aus früheren Läufen (weiter offen): U-R8-1 bis U-R8-12,
-R8-B1 (Bulk-Download-Kollision), R8-C1 (tauri-action auf `@v1` gepinnt),
-R7-7 (Release-Draft-Hinweis).
+Nicht erledigt aus früheren Läufen (weiter offen): R8-C1 (tauri-action auf
+`@v1` gepinnt), R7-7 (Release-Draft-Hinweis). U-R8-1 bis U-R8-12 und R8-B1
+sind dagegen umgesetzt (im Lauf-8-Abschnitt abgehakt, Details im Archiv).
 
 ### Review 2026-08-16 (Lauf 8, Fokus UX — neue Befunde)
 
