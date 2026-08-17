@@ -137,10 +137,33 @@ class FlutCloudApi(private val client: OkHttpClient) {
         return json.decodeFromString<UserInfoDto>(data.toString()).quota?.toQuota()
     }
 
-    /** Probe admin rights: OCS v1 answers HTTP 200, judge from the meta. */
-    suspend fun isAdmin(session: AuthSession): Boolean {
-        val data = execute(session, "GET", "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=1")
-        return data != null
+    /**
+     * Probe admin rights. OCS v1 answers HTTP 200 even for denied requests,
+     * so the result is judged from the OCS meta (`statuscode`), not the HTTP
+     * status. Returns `false` when the server answered and denied the request;
+     * network/parse failures propagate so callers can keep the previously
+     * stored flag instead of demoting an admin account on a transient error.
+     */
+    suspend fun isAdmin(session: AuthSession): Boolean = withContext(Dispatchers.IO) {
+        val request = build(session, "GET", "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=1")
+        try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (response.code >= 400) {
+                    throw ApiException(
+                        "Server answered ${response.code}: $body".trim(),
+                        "http_${response.code}",
+                        response.code
+                    )
+                }
+                val (_, error) = parseOcs(body)
+                error == null
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: IOException) {
+            throw NetworkException(e)
+        }
     }
 
     suspend fun ping(session: AuthSession): AppInfoDto? {
