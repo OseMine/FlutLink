@@ -255,6 +255,7 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ## Archiv (erledigt)
 
+<<<<<<< HEAD
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
@@ -319,6 +320,22 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       haben einen neuen Abschnitt „Android client/Android-Client" (Umfang
       Files/Admin/Security + Limits: kein Sync, keine Gruppenverwaltung, keine
       Impersonation, kein Tray/CLI).
+
+### Review 2026-08-16 (Android Sign-out Persistenz)
+
+- [x] **A-SO1 (Bug, Android):** „Sign out" war nicht persistent — `signOut()`
+      setzte nur den In-Memory-State (`_session.value = null`); das Konto blieb
+      mit `isActive = true` in `AccountStore` persistiert, und
+      `restoreSession()` stellte beim nächsten App-Start das zuletzt aktive
+      Konto samt Token wieder her (Fallback `?: firstOrNull()`). Fix in
+      `SessionManager.kt`: `signOut()` persistiert jetzt `isActive = false`
+      für alle Konten (`updateAccounts`) **und** leert die Session;
+      `restoreSession()` ohne `isActive`-Konto liefert keine Session mehr
+      (kein Auto-Fallback auf das erste Konto). Token/Metadaten bleiben
+      gespeichert, werden aber nicht mehr automatisch verwendet — nach
+      „Sign out" + App-Neustart ist kein Konto aktiv angemeldet, bis sich der
+      Nutzer erneut anmeldet bzw. explizit `switchAccount` aufruft.
+      Verifikation: `./gradlew :app:assembleDebug` grün.
 
 ### Review 2026-08-16 (Android-Client)
 
