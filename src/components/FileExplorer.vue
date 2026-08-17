@@ -639,7 +639,13 @@ async function loadAdminUsers() {
         const me = accounts.active.username;
         selectedUser.value =
           adminUsers.value.find((u) => u === me) ?? adminUsers.value[0];
-        files.setTargetUser(selectedUser.value);
+        // Only auto-select when the browser is still at its initial state. A
+        // slow user-list fetch must not yank an in-progress navigation back to
+        // the root via setTargetUser (which resets currentPath). The selected
+        // user is the admin's own account anyway, so browsing stays equivalent.
+        if (files.currentPath === "/") {
+          files.setTargetUser(selectedUser.value);
+        }
       }
     }
   } catch {

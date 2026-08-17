@@ -503,6 +503,32 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
     :app:lintDebug` grün (keine Missing/ExtraTranslation, keine ungenutzten
     String-Ressourcen); `cargo fmt --check` grün.
 
+### Issue #127 — Bug: Cannot navigate Folders (Desktop)
+
+- [x] **Bug (Navigation, mittel):** Ordner ließen sich nicht öffnen/navigieren —
+      ein Klick auf einen Ordner blieb ohne Wirkung bzw. die Navigation in
+      Unterordner schlug fehl. **Root-Cause 1 (alle Plattformen):** Eine
+      PROPFIND mit `Depth: 1` liefert den aufgelisteten Ordner selbst mit
+      zurück (RFC 4918); `parse_multistatus`/`to_entry` filterten nur den
+      Wurzel-Container (`rel == "/"`) heraus. Dadurch erschien jeder Ordner als
+      erster Eintrag in seiner eigenen Liste: leere Ordner wirkten nicht leer,
+      und ein Klick auf den „Selbst"-Eintrag (Pfad == aktuellem Ordner) war ein
+      No-Op (`navigate` auf den gleichen Pfad → `refresh` ohne sichtbare
+      Änderung) — exakt das gemeldete Symptom. **Root-Cause 2 (Admin):**
+      `FileExplorer.vue` `loadAdminUsers` (Z. 579-600) rief nach dem
+      (paginierend langsamen) `adminListUsers("")` `files.setTargetUser(me)`
+      auf, was `currentPath` auf `/` zurücksetzt; bei langsamer
+      Benutzerliste wurde eine bereits laufende Navigation zurück zum
+      Wurzelordner gerissen. **Fix:** Neuer `webdav::parse_listing`/`list_current_path`
+      (`webdav.rs`) filtert den aktuell aufgelisteten Ordner aus der eigenen
+      Liste (Root bleibt unverändert; Such-Ergebnisse unberührt); Android-Port
+      `WebDavApi.list` filtert analog (`listingCurrentPath`); `loadAdminUsers`
+      auto-selektiert nur noch, solange `files.currentPath === "/"` ist
+      (langsamer Fetch kann Navigation nicht mehr zurücksetzen). Verifikation:
+      `cargo test` → 79 passed (3 neue Tests in `webdav.rs`), `cargo fmt --check`
+      grün, `cargo clippy --all-targets -D warnings` grün, `npm run build` grün,
+      Android `:app:compileDebugKotlin` grün.
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —
