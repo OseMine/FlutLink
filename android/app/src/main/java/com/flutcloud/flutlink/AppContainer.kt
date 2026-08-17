@@ -8,6 +8,7 @@ import com.flutcloud.flutlink.core.SessionManager
 import com.flutcloud.flutlink.core.SettingsStore
 import com.flutcloud.flutlink.data.FlutCloudApi
 import com.flutcloud.flutlink.data.HttpClientFactory
+import com.flutcloud.flutlink.data.ListCache
 import com.flutcloud.flutlink.data.Updater
 import com.flutcloud.flutlink.data.WebDavApi
 import java.io.InputStream
@@ -25,6 +26,7 @@ class AppContainer(context: Context) {
 
     val ocsApi = FlutCloudApi(httpClient)
     val webDavApi = WebDavApi(httpClient)
+    val listCache = ListCache(appContext)
     val updater = Updater(httpClient, appContext)
 
     /** App-specific files dir for downloads (survives app updates). */

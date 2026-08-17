@@ -41,7 +41,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -57,10 +59,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.provider.OpenableColumns
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.data.FileOpener
+import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
 import com.flutcloud.flutlink.ui.components.EmptyState
-import com.flutcloud.flutlink.ui.components.ErrorBanner
 import com.flutcloud.flutlink.ui.components.QuotaBar
 import com.flutcloud.flutlink.ui.components.fileIcon
 import com.flutcloud.flutlink.ui.flutLinkViewModel
@@ -77,12 +82,15 @@ fun FilesScreen(container: AppContainer) {
     val entries by vm.entries.collectAsState()
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
+    val offline by vm.offline.collectAsState()
     val quota by vm.quota.collectAsState()
     val searchQuery by vm.searchQuery.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val downloaded by vm.downloaded.collectAsState()
     val lastShare by vm.lastShare.collectAsState()
+    val shares by vm.shares.collectAsState()
+    val sharesLoading by vm.sharesLoading.collectAsState()
     val sessionKey = vm.sessionKey
 
     var showSearch by remember { mutableStateOf(false) }
@@ -103,8 +111,10 @@ fun FilesScreen(container: AppContainer) {
         }
     }
     LaunchedEffect(downloaded) {
-        downloaded?.let {
-            snackbar.showSnackbar("Downloaded to app files: $it")
+        downloaded?.let { path ->
+            if (!FileOpener.open(context, path)) {
+                snackbar.showSnackbar("Downloaded to $path (no app could open it)")
+            }
             vm.clearErrors()
         }
     }
@@ -178,6 +188,9 @@ fun FilesScreen(container: AppContainer) {
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+            if (offline) {
+                OfflineBanner()
+            }
             if (showSearch) {
                 SearchResults(
                     results = searchResults,
@@ -233,7 +246,14 @@ fun FilesScreen(container: AppContainer) {
     shareTarget?.let { target ->
         ShareDialog(
             entry = target,
-            onDismiss = { shareTarget = null },
+            shares = shares,
+            sharesLoading = sharesLoading,
+            onLoadShares = { vm.loadShares(target) },
+            onRevoke = { vm.deleteShare(it) },
+            onDismiss = {
+                shareTarget = null
+                vm.resetShares()
+            },
             onCreate = { password, expiry ->
                 shareTarget = null
                 vm.createPublicShare(target, password, expiry)
@@ -473,16 +493,53 @@ private fun RenameDialog(initialName: String, onDismiss: () -> Unit, onRename: (
 }
 
 @Composable
-private fun ShareDialog(entry: WebDavEntry, onDismiss: () -> Unit, onCreate: (String?, String?) -> Unit) {
+private fun ShareDialog(
+    entry: WebDavEntry,
+    shares: List<Share>,
+    sharesLoading: Boolean,
+    onLoadShares: () -> Unit,
+    onRevoke: (Share) -> Unit,
+    onDismiss: () -> Unit,
+    onCreate: (String?, String?) -> Unit
+) {
     var password by remember { mutableStateOf("") }
     var expiry by remember { mutableStateOf("") }
+    LaunchedEffect(entry.path) { onLoadShares() }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Share link") },
+        title = { Text("Share — ${entry.name}") },
         text = {
-            Column {
-                Text(entry.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    entry.path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.height(12.dp))
+                Text(
+                    "Existing shares",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(8.dp))
+                when {
+                    sharesLoading -> Text("Loading shares…", style = MaterialTheme.typography.bodySmall)
+                    shares.isEmpty() -> Text(
+                        "No shares yet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    else -> shares.forEach { share ->
+                        ShareRow(share = share, onRevoke = { onRevoke(share) })
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "New public link",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(8.dp))
                 TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text("Password (optional)") })
                 Spacer(Modifier.height(8.dp))
                 TextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text("Expiry YYYY-MM-DD (optional)") })
@@ -491,12 +548,69 @@ private fun ShareDialog(entry: WebDavEntry, onDismiss: () -> Unit, onCreate: (St
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = {
                 onCreate(password.ifBlank { null }, expiry.ifBlank { null })
-            }) { Text("Create") }
+            }) { Text("Create link") }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
+}
+
+@Composable
+private fun ShareRow(share: Share, onRevoke: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(shareLabel(share), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            shareTarget(share).takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            val meta = listOfNotNull(
+                share.hasPassword?.takeIf { it }?.let { "password" },
+                share.expiration?.let { "expires $it" }
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        TextButton(onClick = onRevoke) { Text("Revoke") }
+    }
+}
+
+private fun shareLabel(share: Share): String = when (share.shareType) {
+    0 -> "User"
+    1 -> "Group"
+    3 -> "Public link"
+    else -> "Share"
+}
+
+private fun shareTarget(share: Share): String =
+    share.url ?: share.shareWithDisplayName ?: share.shareWith ?: ""
+
+@Composable
+private fun OfflineBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Text(
+            "Offline — showing cached data",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
 }
 
 @Composable

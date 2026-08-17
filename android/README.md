@@ -37,14 +37,31 @@ android/
 - **FlutCloud-only enforcement** — `FlutCloudApi.verifyServer` probes the
   `flutcloud` capability before an account is accepted.
 - **Files** — WebDAV browsing (PROPFIND), upload (Storage Access Framework),
-  download, folder creation, rename, delete, global search (SEARCH),
-  virtual-link (`resources`/`parts`) pairing, public share-link creation.
+  download + open with an external app (FileProvider/`ACTION_VIEW`), folder
+  creation, rename, delete, global search (SEARCH), virtual-link
+  (`resources`/`parts`) pairing, share management (create public links, list
+  existing shares, revoke), offline cache for folder listings with an
+  "Offline — showing cached data" banner.
 - **Admin** — OCS user administration: list/search, create, delete,
-  enable/disable, quota presets.
+  enable/disable, quota presets, group management (view a user's groups,
+  add/remove members, create groups).
+- **Registration** — create a real account from the login screen (admin
+  credentials via the OCS Provisioning API), then sign in with the new
+  account's password.
 - **Security** — tokens live in `EncryptedSharedPreferences` (Android
   Keystore), account metadata in a separate preferences file, same split as
   the desktop keyring design. No token is ever logged or persisted in plain
   text.
+
+### Consciously not on mobile (product decision)
+
+- **Two-way sync** — the desktop client's background sync engine
+  (`src-tauri/src/sync.rs`) is a deliberate **desktop-only** feature. A
+  continuous background sync on Android would need a foreground service,
+  battery/workmanager policy and conflict-resolution UI; the mobile client
+  deliberately does **not** implement it in this phase. Mobile users browse,
+  open and share files on demand. Sync remains tracked as a potential
+  Phase-2 item on the roadmap, not as a parity gap.
 
 ## Build
 

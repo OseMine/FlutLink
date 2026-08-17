@@ -26,6 +26,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     val entries = MutableStateFlow<List<WebDavEntry>>(emptyList())
     val loading = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
+    val offline = MutableStateFlow(false)
     val quota = MutableStateFlow<Quota?>(null)
 
     val searchQuery = MutableStateFlow("")
@@ -34,6 +35,12 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _lastShare = MutableStateFlow<Share?>(null)
     val lastShare: StateFlow<Share?> = _lastShare.asStateFlow()
+
+    private val _shares = MutableStateFlow<List<Share>>(emptyList())
+    val shares: StateFlow<List<Share>> = _shares.asStateFlow()
+
+    private val _sharesLoading = MutableStateFlow(false)
+    val sharesLoading: StateFlow<Boolean> = _sharesLoading.asStateFlow()
 
     private val _downloaded = MutableStateFlow<String?>(null)
     val downloaded: StateFlow<String?> = _downloaded.asStateFlow()
@@ -55,11 +62,21 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             loading.value = true
             error.value = null
             try {
-                entries.value = container.webDavApi.list(s, folderPath)
+                val result = container.webDavApi.list(s, folderPath)
                     .sortedWith(compareByDescending<WebDavEntry> { it.isDir }.thenBy { it.name.lowercase() })
+                entries.value = result
+                offline.value = false
+                sessionKey?.let { container.listCache.write(it, folderPath, result) }
                 path.value = folderPath
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                val cached = sessionKey?.let { container.listCache.read(it, folderPath) }
+                if (cached != null) {
+                    entries.value = cached
+                    offline.value = true
+                    path.value = folderPath
+                } else {
+                    error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                }
             } catch (e: ApiException) {
                 error.value = e.message
             } finally {
@@ -79,11 +96,17 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         if (entry.isDir) {
             listFolder(entry.path)
         } else {
-            downloadAndSave(entry)
+            downloadAndOpen(entry)
         }
     }
 
-    private fun downloadAndSave(entry: WebDavEntry) {
+    /**
+     * Download a file into the app's open-cache directory (previous opens are
+     * removed first, so the cache holds at most one file) and expose it to the
+     * screen, which launches the external app. Mirror of the desktop
+     * `open_remote_file`.
+     */
+    private fun downloadAndOpen(entry: WebDavEntry) {
         val s = session ?: return
         viewModelScope.launch {
             loading.value = true
@@ -173,12 +196,52 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     password = password?.ifBlank { null },
                     expireDate = expireDate?.ifBlank { null }
                 )
+                loadShares(entry)
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
             } catch (e: ApiException) {
                 error.value = e.message
             }
         }
+    }
+
+/** Load all shares of the entry's path (public links + user/group shares). */
+    fun loadShares(entry: WebDavEntry) {
+        val s = session ?: return
+        viewModelScope.launch {
+            _sharesLoading.value = true
+            error.value = null
+            try {
+                _shares.value = container.ocsApi.listShares(s, entry.path)
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            } finally {
+                _sharesLoading.value = false
+            }
+        }
+    }
+
+    /** Revoke a share by id, mirroring the desktop's `webdav_delete_share`. */
+    fun deleteShare(share: Share) {
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                container.ocsApi.deleteShare(s, share.id)
+                _shares.value = _shares.value.filterNot { it.id == share.id }
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            }
+        }
+    }
+
+    fun resetShares() {
+        _shares.value = emptyList()
+        _sharesLoading.value = false
     }
 
     /**

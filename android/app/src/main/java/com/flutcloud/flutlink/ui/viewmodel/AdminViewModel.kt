@@ -105,6 +105,57 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** Add `user` to the group `group` (creates the membership on the server). */
+    fun addToGroup(user: ManagedUser, group: String) {
+        val g = group.trim()
+        if (g.isEmpty()) return
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                container.ocsApi.addGroupMember(s, g, user.id)
+                loadUsers()
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            }
+        }
+    }
+
+    /** Remove `user` from the group `group`. */
+    fun removeFromGroup(user: ManagedUser, group: String) {
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                container.ocsApi.removeGroupMember(s, group, user.id)
+                loadUsers()
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            }
+        }
+    }
+
+    /** Create a new group with the given id. */
+    fun createGroup(name: String) {
+        val g = name.trim()
+        if (g.isEmpty()) return
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                container.ocsApi.createGroup(s, g)
+            } catch (e: NetworkException) {
+                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+            } catch (e: ApiException) {
+                error.value = e.message
+            }
+        }
+    }
+
     fun clearError() {
         error.value = null
     }

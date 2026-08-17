@@ -102,6 +102,7 @@ data class Quota(
 )
 
 /** A folder listing entry, mirrors the desktop `WebDavEntry`. */
+@Serializable
 data class WebDavEntry(
     val name: String,
     val path: String,

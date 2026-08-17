@@ -234,6 +234,53 @@ class FlutCloudApi(private val client: OkHttpClient) {
         updateUser(session, userId, "quota", value)
     }
 
+    // --- OCS groups API ---------------------------------------------------
+
+    /** List all groups, paging through `offset`/`limit` like [listUsers]. */
+    suspend fun listGroups(session: AuthSession, search: String = ""): List<String> {
+        val limit = 200
+        val all = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        var offset = 0
+        while (true) {
+            var url = "${session.normalizedBaseUrl}/ocs/v1.php/cloud/groups?format=json&limit=$limit&offset=$offset"
+            if (search.isNotEmpty()) url += "&search=${search.encoded()}"
+            val data = execute(session, "GET", url) ?: break
+            val groups = data.jsonObject["groups"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                ?.filter { seen.add(it) }
+                .orEmpty()
+            if (groups.isEmpty()) break
+            all += groups
+            if (groups.size < limit) break
+            offset += limit
+        }
+        return all
+    }
+
+    suspend fun createGroup(session: AuthSession, groupId: String) {
+        execute(
+            session, "POST",
+            "${session.normalizedBaseUrl}/ocs/v1.php/cloud/groups?format=json",
+            listOf("groupid" to groupId)
+        )
+    }
+
+    suspend fun addGroupMember(session: AuthSession, groupId: String, userId: String) {
+        execute(
+            session, "POST",
+            "${session.normalizedBaseUrl}/ocs/v1.php/cloud/groups/${groupId.encoded()}?format=json",
+            listOf("userid" to userId)
+        )
+    }
+
+    suspend fun removeGroupMember(session: AuthSession, groupId: String, userId: String) {
+        execute(
+            session, "DELETE",
+            "${session.normalizedBaseUrl}/ocs/v1.php/cloud/groups/${groupId.encoded()}/users/${userId.encoded()}?format=json"
+        )
+    }
+
     // --- OCS files sharing API --------------------------------------------
 
     suspend fun createShare(
