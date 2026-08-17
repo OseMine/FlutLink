@@ -238,6 +238,10 @@ Komponente hinzugekommen: `android/` ist ein Kotlin/Jetpack-Compose-
 Mirror des Desktop-Clients (FlutCloud-only-Policy, WebDAV/OCS, M3-Expressive-
 Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
+Ebenfalls am 2026-08-16 umgesetzt: der Offline-Cache (`cache.rs`) wächst nicht
+mehr unbegrenzt — Maximalbestand (`MAX_CACHE_ENTRIES = 500`) mit
+LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
+
 ### Review-Verlauf (alle Punkte umgesetzt — Details im Archiv)
 
 - Review 2026-08-16 (Lauf 8, Fokus UX) — U-R8-1 bis U-R8-12, R8-B1 umgesetzt;
@@ -335,6 +339,22 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       „Sign out" + App-Neustart ist kein Konto aktiv angemeldet, bis sich der
       Nutzer erneut anmeldet bzw. explizit `switchAccount` aufruft.
       Verifikation: `./gradlew :app:assembleDebug` grün.
+
+### Issue 2026-08-16 (Offline-Cache-Rotation)
+
+- [x] **Cache-Rotation (Issue, Feature):** Der Offline-Cache
+      (`src-tauri/src/cache.rs`) wuchs ohne Eviction unbegrenzt — jedes
+      erfolgreiche Listing und jede Quota blieb dauerhaft in `cache/`.
+      Fix umgesetzt: Maximalbestand `MAX_CACHE_ENTRIES = 500` definiert; die
+      neuen pure-Helper `evict_oldest` läuft nach jedem `save_listing`/
+      `save_quota` und entfernt die ältesten Einträge (Alter über die
+      Datei-mtime, wird bei jedem erfolgreichen Write aktualisiert → LRU-artige
+      Aging-Eviction), bis der Cache wieder unter dem Limit liegt.
+      Unit-Tests in `cache.rs`: `evict_keeps_cache_at_or_under_the_limit`
+      (50 Einträge → 10 bleiben, die ältesten 40 werden entfernt) und
+      `evict_is_a_noop_below_the_limit`. Kein Frontend-Anteil. Verifikation:
+      `cargo fmt --check` grün, `cargo clippy --all-targets -- -D warnings`
+      grün, `cargo test` → 78 passed / 0 failed.
 
 ### Review 2026-08-16 (Android-Client)
 
