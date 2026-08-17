@@ -88,6 +88,17 @@ pub struct StorageResult {
     pub stale: bool,
 }
 
+/// A page of users from the OCS provisioning API plus whether more pages
+/// follow. Lets the admin panel page through large instances instead of
+/// fetching every user up front (server-side pagination).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminUsersResult {
+    pub users: Vec<String>,
+    /// True when the server returned a full page and more users may follow.
+    pub has_more: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDetails {

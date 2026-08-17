@@ -35,6 +35,12 @@ export interface StorageResult {
   stale: boolean;
 }
 
+export interface AdminUsersResult {
+  users: string[];
+  /** True when a full page was returned and more users can be loaded. */
+  hasMore: boolean;
+}
+
 export interface Share {
   id: number;
   shareType: number;
@@ -266,8 +272,12 @@ export const api = {
   webdavRename: (path: string, newName: string, targetUser?: string) =>
     invoke<void>("webdav_rename", { path, newName, targetUser }),
 
-  adminListUsers: (search: string) =>
-    invoke<string[]>("admin_list_users", { search }),
+  adminListUsers: (
+    search: string,
+    limit?: number,
+    offset?: number
+  ): Promise<AdminUsersResult> =>
+    invoke<AdminUsersResult>("admin_list_users", { search, limit, offset }),
 
   adminGetUser: (userId: string) =>
     invoke<UserDetails>("admin_get_user", { userId }),

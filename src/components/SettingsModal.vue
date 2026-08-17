@@ -109,7 +109,8 @@ async function loadUsers() {
   adminLoading.value = true;
   adminError.value = null;
   try {
-    users.value = await api.adminListUsers("");
+    const res = await api.adminListUsers("");
+    users.value = res.users;
   } catch (e) {
     adminError.value = invokeError(e).message;
   } finally {

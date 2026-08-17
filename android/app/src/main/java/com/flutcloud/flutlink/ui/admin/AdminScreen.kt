@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +69,7 @@ fun AdminScreen(container: AppContainer) {
     val loading by vm.loading.collectAsState()
     val error by vm.error.collectAsState()
     val search by vm.search.collectAsState()
+    val hasMore by vm.hasMore.collectAsState()
 
     var showCreate by remember { mutableStateOf(false) }
     var groupTarget by remember { mutableStateOf<ManagedUser?>(null) }
@@ -119,6 +121,14 @@ fun AdminScreen(container: AppContainer) {
                             onManageGroups = { groupTarget = user }
                         )
                     }
+                    if (hasMore) {
+                        item {
+                            LoadMoreButton(
+                                loading = loading,
+                                onClick = { vm.loadMore() }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -143,6 +153,22 @@ fun AdminScreen(container: AppContainer) {
             onRemoveFromGroup = { group -> vm.removeFromGroup(current, group) },
             onCreateGroup = { group -> vm.createGroup(group) }
         )
+    }
+}
+
+@Composable
+private fun LoadMoreButton(loading: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(24.dp))
+        } else {
+            Button(onClick = onClick) {
+                Text("Load more")
+            }
+        }
     }
 }
 
