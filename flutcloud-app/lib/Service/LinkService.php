@@ -29,9 +29,9 @@ class LinkService
 Shared project space of the **FlutCloud Nextcloud app**.
 
 ## Purpose
-- Feature requests for the FlutCloud app and the FlutLink desktop client
-- Connection notes between FlutCloud, FlutLink (desktop) and the upcoming
-  FlutLink mobile app
+- Feature requests for the FlutCloud app and the FlutLink desktop and Android client
+- Connection notes between FlutCloud, FlutLink (desktop) and the FlutLink
+  Android client
 
 ## Feature requests
 Create one folder per request, e.g. `FR-001-share-links/`, containing a note
@@ -44,9 +44,9 @@ describing: what it should do, why (use case) and the expected behaviour.
 Gemeinsamer Projektbereich der **FlutCloud-Nextcloud-App**.
 
 ## Zweck
-- Feature-Requests für die FlutCloud-App und den FlutLink-Desktop-Client
-- Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und der geplanten
-  FlutLink-Mobile-App
+- Feature-Requests für die FlutCloud-App sowie den FlutLink-Desktop- und Android-Client
+- Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und dem
+  FlutLink-Android-Client
 
 ## Feature-Requests
 Lege pro Request einen Ordner an, z. B. `FR-001-share-links/`, mit einer

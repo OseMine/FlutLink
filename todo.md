@@ -306,6 +306,20 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
       `@v1`. Im automatisierten Lauf nicht angefasst (Workflow-Dateien sind von
       der Aufgabe ausgenommen) — weiterhin offen.
 
+### Review 2026-08-16 (Doku: Android-Client nicht mehr als „planned")
+
+- [x] **DOK1 (Doku, minor):** Alle Stellen, die den Android-Client als
+      „planned"/„not yet in development" beschrieben, auf den vorhandenen,
+      buildbaren Kotlin/Compose-Client aktualisiert. `README.md`-Roadmap:
+      „Phase 5 (done): Android client" statt „Next: Android client";
+      `commands.rs` `FLUTCLOUD_README` (EN+DE) nennt den Android-Client als
+      vorhanden (inkl. „Connecting FlutLink"-Eintrag), ebenso der
+      Server-wirksame Projektordner-README in
+      `flutcloud-app/lib/Service/LinkService.php`; `docs/en|de/features.md`
+      haben einen neuen Abschnitt „Android client/Android-Client" (Umfang
+      Files/Admin/Security + Limits: kein Sync, keine Gruppenverwaltung, keine
+      Impersonation, kein Tray/CLI).
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —

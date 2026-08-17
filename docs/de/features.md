@@ -91,3 +91,28 @@ Siehe [Tray & CLI](tray-and-cli.md).
 - **Native OS-Benachrichtigungen** nach einem Sync-Pass (Fehler bzw.
   synchronisierte Dateien, über alle Ordner aggregiert, kein Spam bei
   Leerläufen) und wenn ein Update verfügbar ist.
+
+## Android-Client
+
+Ein begleitender **Android-Client** (`android/`) portiert den
+Desktop-Funktionsumfang auf Kotlin + Jetpack Compose (Material 3). Er wurde
+mit opencode generiert, spiegelt die Desktop-App und ist kein separates
+Produkt. Es gilt dieselbe FlutCloud-only-Policy: Vor der Annahme eines Kontos
+wird die `flutcloud`-Capability geprüft.
+
+Auf Android verfügbar:
+
+- **Dateien** — WebDAV-Browsing (PROPFIND), Upload über das Storage Access
+  Framework, Download, Ordner anlegen, Umbenennen, Löschen, globale Suche
+  (SEARCH), `resources`/`parts`-Virtuallink-Pairing und öffentliche
+  Share-Links.
+- **Admin** — OCS-Benutzerverwaltung: auflisten/suchen, anlegen, löschen,
+  aktivieren/deaktivieren und Quota-Presets.
+- **Sicherheit** — Tokens liegen in `EncryptedSharedPreferences`
+  (Android-Keystore), Kontometadaten in einer separaten Preferences-Datei;
+  kein Token wird jemals geloggt oder im Klartext gespeichert.
+
+Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync, Gruppenverwaltung,
+Admin-Impersonation sowie Tray-/CLI-Verhalten.
+
+Build und Details siehe [`android/README.md`](../../android/README.md).
