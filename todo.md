@@ -6,6 +6,143 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-17 (Lauf 11, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed** (Tauri-Linux-Systemdeps
+`libwebkit2gtk-4.1-dev`/`libgtk-3-dev` nachinstalliert); `cargo fmt
+--check` grün; `cargo clippy --all-targets -- -D warnings` grün. **`npm run
+build` schlägt fehl** (s. D5), **Android-Build schlägt fehl** (s. D6) —
+beide Regressionen in CI bestätigt. Wichtiger Kontext: Der Lauf-10-Bericht
+behauptet „keine Commits seit Lauf 9, git status sauber, alle 16
+A9-Befunde unverändert offen" — **das stimmt für den aktuellen Stand
+nicht**: seit Lauf 9 wurden u. a. die Merges PR #132 (Android i18n) und
+PR #127 (Ordner-Navigation) sowie der dependabot-Bump
+`typescript-7.0.2` in `main` gemerged (`git log`: `8012480`,
+`74ff834`, `79f4e4b`). Die Android-Feature-Parität (Issue #136) und
+Android-i18n (AC2) sind im Archiv als umgesetzt dokumentiert und im Code
+nachweisbar. Die A9-Punkte wurden daher gegen den **aktuellen** Code
+nachgeprüft (Ergebnis in der Liste unten).
+
+Neu gefunden:
+
+- [ ] **D5 (Build/CI, hoch):** Frontend-Build ist kaputt —
+      `package.json` pinnt `"typescript": "~7.0.2"` zusammen mit
+      `"vue-tsc": "^3.3.5"`. TypeScript 7.0.2 (installiert: 7.0.2) hat den
+      Subpath `./lib/tsc` aus seinen `exports` entfernt; vue-tsc 3.3.9
+      (`resolveTscPath`, `node_modules/vue-tsc/index.js:73`) benötigt ihn
+      aber zwingend → `ERR_PACKAGE_PATH_NOT_EXPORTED` beim `vue-tsc
+      --noEmit`. Lokal reproduziert, und CI bestätigt es: `build`
+      (run 32024685413) und `Lint` (run 32024685371) failen auf `main`
+      seit dem Merge der Review-Commits. Fix: TypeScript auf eine
+      vue-tsc-kompatible Linie zurückstufen (z. B. `~5.9.3`, wie vor dem
+      dependabot-Bump) oder vue-tsc/@volar auf eine TS-7-fähige Version
+      heben; dependabot-Bump war der Auslöser (`8012480 Merge …/typescript-7.0.2`).
+- [ ] **D6 (Build/CI, hoch):** Android-Build ist kaputt —
+      `FilesViewModel.kt:144` weist `error.value` einen rohen `String`
+      zu („The folder name must not contain '/', '.' or '..'."), das Feld
+      ist aber `MutableStateFlow<UiMessage?>` → Kotlin-Compile-Fehler
+      `Assignment type mismatch: actual type is 'String', but 'UiMessage?'
+      was expected` in `:app:compileDebugKotlin`. CI bestätigt: `android`
+      (run 32024685436) failt. Fix: `UiMessage` mit einem Key aus
+      `strings.xml` verwenden (die Meldung gehört zusätzlich lokalisiert,
+      s. D7).
+- [ ] **D7 (i18n, mittel):** Android-i18n ist **unvollständig** — der
+      Archiv-Claim AC2 („alle UI-Texte in `strings.xml`") stimmt nicht:
+      aktuelle Screens der Feature-Parität (Issue #136) enthalten ~20
+      hartkodierte englische Strings, teilweise obwohl die Keys bereits in
+      `strings.xml`/`values-de` existieren:
+      - `LoginScreen.kt:89,95` „Sign in"/„Register" (Keys `sign_in`/
+        `register` existieren, werden nicht genutzt), `:118` „New
+        username"/„Username" (`new_username`/`username`), `:126`
+        „Password"/„App token / password" (`app_token`), `:138` „Display
+        name (optional)" (`display_name_optional`), `:144` „Admin
+        credentials" (`admin_credentials`), `:152` „Admin username"
+        (`admin_username`), `:160` „Admin password" (`admin_password`),
+        `:167` Register-Hinweistext (`register_description`), `:197`
+        „Register"/„Sign in".
+      - `FilesScreen.kt:533` „Existing shares", `:539` „Loading shares…",
+        `:541` „No shares yet", `:551` „New public link", `:592`
+        „password", `:593` „expires $it", `:599` „Revoke", `:603-608`
+        `shareLabel` „User"/„Group"/„Public link"/„Share", `:622` „Offline
+        — showing cached data".
+      - `AdminScreen.kt:169` „Load more", `:267` „Manage groups", `:332`
+        „Groups —", `:339` „No groups", `:361` „Remove", `:370` „Group
+        name", `:374-377` Gruppen-Hinweistext, `:386` „Create group",
+        `:393` „Add to group", `:397` „Close".
+      - `FilesViewModel.kt:144` hartkodierte Fehlermeldung (s. D6),
+        `AdminViewModel.kt:63` „Could not reach the server: …" und `:65`
+        rohes `e.message` — inkonsistent mit `loadUsers` (nutzt
+        `networkUiMessage`/`toUiMessage`).
+      Fix: alle Texte auf `stringResource`-Keys umstellen, fehlende Keys
+      (Share-/Gruppen-Dialog, Offline-Banner) in `values/` + `values-de/`
+      ergänzen.
+
+**A9-Nachprüfung gegen den aktuellen Code** (Lauf-9-Liste unten bleibt
+formal bestehen; hier der aktuelle Status):
+
+- A9-1 (Sync fehlt) → durch Dokumentation aufgelöst: `android/README.md`
+  „Consciously not on mobile" dokumentiert den Zwei-Wege-Sync als bewusste
+  Produktentscheidung (Desktop-only, Phase-2-Roadmap).
+- A9-2 (Android ohne Lokalisierung) → **teilweise umgesetzt** (strings.xml
+  + values-de vorhanden, ViewModels emittieren Ressourcen-IDs), aber
+  Restlücken s. D7 → offen.
+- A9-3 (Rename nur Ordner) → **weiter offen**: `FilesScreen.kt:410`
+  `if (entry.isDir)`.
+- A9-4 (Suche ohne Debounce) → **weiter offen**: `FilesScreen.kt:146`
+  `onQueryChange = { vm.search(it) }` bei jedem Tastendruck.
+- A9-5 (RAM-Loading) → **umgesetzt**: `WebDavApi.downloadToFile`/
+  `uploadStream` (Streaming, 64-KiB-Puffer) und `FilesViewModel.kt`
+  nutzen sie; `response.body?.bytes()`/`readAllBytes` nur noch als
+  Fallback ohne Content-Length.
+- A9-6 (Upload überschreibt still) → **weiter offen**:
+  `FilesViewModel.uploadStream`/`upload` führen keinen
+  `exists()`-Check aus (Q9-Port fehlt).
+- A9-7 (Impersonation fehlt) → **weiter offen**: kein `target_user`/
+  `Impersonate-User` in `WebDavApi.kt`/`FilesScreen.kt`.
+- A9-8 (Gruppenverwaltung fehlt) → **umgesetzt**: `GroupsDialog` +
+  `AdminViewModel.addToGroup`/`removeFromGroup`/`createGroup` +
+  OCS-Gruppen-Endpunkte.
+- A9-9 (Shares nur Public-Link) → **teilweise**: Share-Dialog mit Liste +
+  Widerruf jetzt vorhanden (`ShareDialog`, `vm.loadShares`/
+  `vm.deleteShare`); Erstellung weiterhin nur Public-Link (`shareType = 3`,
+  `FilesViewModel.kt:202`), User-/Gruppen-Shares und `publicUpload`
+  fehlen → offen (reduziert).
+- A9-10 (Quota nur Presets) → **weiter offen**: `AdminScreen.kt` kennt
+  nur unlimited/1/5/10 GB, keine Freieingabe.
+- A9-11 (FLUTCLOUD_URL nicht erzwungen) → **weiter offen**:
+  `LoginViewModel.kt:38-43` erlaubt weiter jede editierbare URL.
+- A9-12 (Downloads in App-Files) → **umgesetzt**: `FileOpener.open`
+  (ACTION_VIEW/FileProvider); „downloaded to app files" nur noch Fallback.
+- A9-13 (Theme nur system/light/dark) → **weiter offen**: kein
+  `operationflut`/`midnight` + Accent-Hue auf Android.
+- A9-14 (preview() Dead Code) → **weiter offen**: `WebDavApi.kt:261`
+  `preview()` ohne Aufrufer; Android zeigt keine Thumbnails.
+- A9-15 (Suchergebnisse nur lesbar) → **weiter offen**: `FilesScreen.kt:350-353`
+  No-op-Handler `{}`.
+- A9-16 (Offline-Cache fehlt) → **umgesetzt**: `listCache` +
+  `OfflineBanner` („Offline — showing cached data", D7 betrifft den
+  hartkodierten Text).
+
+Weiterhin offen aus früheren Läufen: D1–D4 (Lauf 10, im Code verifiziert:
+D1 `updater.rs:360` emittiert String, `updater.rs:567-598` `UpdateStatus`-
+Objekte; D2 `sync.rs:1195-1202` + `updater.rs:536` hartkodiert deutsch;
+D3 `SettingsModal.vue:112` ruft `adminListUsers("")`; D4 Archiv-
+Dateinamen-Konvention), R8-C1 und R7-7. Keine Code-Änderungen in diesem
+Lauf.
+
+**GitHub-Issues (nur gelesen):** Die offenen Issues #192–#211 (am
+2026-08-17 vom `opencode-todo-issues`-Workflow aus dem Lauf-9/10-Stand der
+todo.md erzeugt) spiegeln die veraltete Befundlage: #203 (Gruppen), #200
+(RAM-Loading), #206 (Downloads), #208 (Offline-Cache) und #196 (Sync)
+beschreiben Punkte, die im aktuellen Code umgesetzt bzw. dokumentiert sind
+(s. Archiv-Abschnitt Lauf 11). Zusätzlich zum bekannten D5/D6 stehen #192
+(update://status), #193 (i18n-Notifications), #194 (AdminPanel
+`adminListUsers("")`), #195 (Archiv-Dateiname), #154 (tauri-action @v1) und
+#155 (Release-Draft) offen — inhaltlich identisch zu D1–D4/R8-C1/R7-7.
+Ein Abgleich Issues ↔ todo.md wäre beim nächsten Workflow-Lauf sinnvoll
+(veraltete Issues schließen bzw. referenzieren).
+
 ### Review 2026-08-17 (Lauf 10, automatisierter Review — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
@@ -77,13 +214,15 @@ in `android/` grün. `android/README.md` und `AGENTS.md` behaupten, der
 Android-Port „spiegle den Desktop-Funktionsumfang" — das trifft laut
 Befunden **nicht** zu: Neu gefunden:
 
-- [ ] **A9-1 (Feature, hoch):** Android-Port hat **keinerlei Sync-Funktion** —
+- [x] **A9-1 (Feature, hoch):** Android-Port hat **keinerlei Sync-Funktion** —
       der Desktop-Kern (`SyncPanel.vue` + `sync.rs`, Zwei-Wege-Sync mit
       Journal/Planner/Worker) fehlt komplett. `HomeScreen.kt` kennt nur die
       Tabs Files/Admin/Settings (kein Sync-Tab); im gesamten Android-Code
       existiert kein Sync-Äquivalent. Damit widerspricht der Port der
       AGENTS.md-Aussage („spiegelt den Desktop-Funktionsumfang"). Fix:
       Sync-Tab + Sync-Engine (oder Funktionsumfang in README korrigieren).
+      → durch Dokumentation aufgelöst (android/README.md „Consciously not
+      on mobile"), siehe Lauf 11.
 - [ ] **A9-2 (i18n, mittel):** Android komplett ohne Lokalisierung —
       `android/app/src/main/res/values/strings.xml` enthält nur `app_name`;
       sämtliche UI-Texte sind hartkodiert englisch (`FilesScreen.kt`,
@@ -102,12 +241,13 @@ Befunden **nicht** zu: Neu gefunden:
       SEARCH-Request mit `depth: infinity`. Desktop debounced 300 ms
       (`FileExplorer.vue` Z. 31/47-60). Fix: Debounce in
       `FilesViewModel.search`.
-- [ ] **A9-5 (Robustheit, mittel):** Android lädt Dateien komplett in den
+- [x] **A9-5 (Robustheit, mittel):** Android lädt Dateien komplett in den
       RAM: Upload via `readAllBytes` (`FilesScreen.kt` Z. 523-524), Download
       via `response.body?.bytes()` (`WebDavApi.download` Z. 121-135). Desktop
       streamt (chunked upload > 10 MiB, `stream_to_file`). Große Dateien →
       OOM auf Android. Fix: Streaming (OkHttp ResponseBody → Datei), optional
-      Chunked-Upload-Parität.
+      Chunked-Upload-Parität. → umgesetzt (downloadToFile/uploadStream, 64-KiB
+      Puffer; nur noch Fallback ohne Content-Length), siehe Lauf 11.
 - [ ] **A9-6 (Bug, Datenverlust-Risiko, mittel):** Android-Upload
       überschreibt existierende Dateien still — der Desktop-Fix **Q9**
       (Existenz-Check `webdav::exists` + `AppError::TargetExists` +
@@ -121,12 +261,13 @@ Befunden **nicht** zu: Neu gefunden:
       Header in `webdav.rs`); `AdminScreen.kt`/`WebDavApi.kt` haben weder
       `target_user`-Parameter noch `Impersonate-User`-Support. Fix:
       Impersonation im Admin-Screen (Zugriff auf alle Nutzer-Dateien).
-- [ ] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
+- [x] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
       Desktop hat seit Q3 `admin_list_groups`/`admin_create_group`/
       `admin_add_group_member`/`admin_remove_group_member` + UI in
       `AdminPanel.vue`; Android-`AdminScreen.kt`/`FlutCloudApi.kt` haben
       keine Gruppen-Endpunkte. Auch fehlen displayname/email/password-
       Bearbeitung (Desktop `admin_edit_user`). Fix: Gruppen-API + UI portieren.
+      → umgesetzt (GroupsDialog + AdminViewModel-Gruppenaktionen), siehe Lauf 11.
 - [ ] **A9-9 (Feature, minor):** Android-Shares nur Public-Link —
       `FilesViewModel.createPublicShare` (Z. 153-171) hartkodiert
       `shareType = 3`; User-/Gruppen-Shares (Desktop P1) und
@@ -144,10 +285,11 @@ Befunden **nicht** zu: Neu gefunden:
       `.env`-URL via `assert_flutcloud_url` (`flutcloud.rs`). AGENTS.md
       verspricht „ausschließlich `$FLUTCLOUD_URL`". Fix: URL gegen
       `BuildConfig.FLUTCLOUD_URL` validieren oder URL-Feld sperren.
-- [ ] **A9-12 (UX, minor):** Android speichert Downloads in den App-Files
+- [x] **A9-12 (UX, minor):** Android speichert Downloads in den App-Files
       (`saveToAppStorage`, `FilesViewModel` Z. 96-102) statt im Download-
       Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
       Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
+      → umgesetzt (FileOpener/ACTION_VIEW, FileProvider), siehe Lauf 11.
 - [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
       dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
       Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
@@ -161,10 +303,11 @@ Befunden **nicht** zu: Neu gefunden:
       `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
       in Suchtreffern weiterhin Aktionen. Fix: Aktionen in Treffern
       freischalten oder Hinweis ergänzen.
-- [ ] **A9-16 (Feature, minor):** Kein Offline-Cache auf Android — Desktop
+- [x] **A9-16 (Feature, minor):** Kein Offline-Cache auf Android — Desktop
       hat seit Q2 den Listing-Cache (`cache.rs`, Stale-Flag + Offline-Banner
       in `FileExplorer.vue`); Android zeigt bei Netzwerkausfall nur Fehler.
       Fix: Listing-Cache + Offline-Banner portieren.
+      → umgesetzt (listCache + OfflineBanner), siehe Lauf 11.
 
 Nicht erledigt aus früheren Läufen (weiter offen): R8-C1 (tauri-action auf
 `@v1` gepinnt), R7-7 (Release-Draft-Hinweis). U-R8-1 bis U-R8-12 und R8-B1
@@ -330,6 +473,38 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Review 2026-08-17 (Lauf 11 — A9-Nachprüfung, umgesetzte Android-Punkte)
+
+Beim Lauf-11-Review gegen den aktuellen Code verifiziert als erledigt (die
+Lauf-9-Befunde A9-2, A9-9 bleiben reduziert offen; Details im Offen-
+Abschnitt):
+
+- [x] **A9-1 (Sync fehlt):** aufgelöst durch Dokumentation —
+      `android/README.md` „Consciously not on mobile (product decision)"
+      erklärt den Zwei-Wege-Sync als bewusst Desktop-only (Phase-2-Roadmap);
+      kein Paritäts-Gap mehr laut Doku.
+- [x] **A9-5 (RAM-Loading):** umgesetzt — `WebDavApi.downloadToFile`
+      (Streaming in Datei, 64-KiB-Puffer) und `WebDavApi.uploadStream`
+      (RequestBody-Streaming mit Progress) existieren und werden von
+      `FilesViewModel` (downloadAndOpen/uploadStream) genutzt; die früheren
+      `response.body?.bytes()`/`readAllBytes`-Pfade sind nur noch Fallback
+      ohne Content-Length.
+- [x] **A9-8 (Gruppenverwaltung):** umgesetzt — `AdminScreen.kt` `GroupsDialog`
+      (Mitglieder anzeigen/hinzufügen/entfernen, Gruppe erstellen) +
+      `AdminViewModel.addToGroup`/`removeFromGroup`/`createGroup` +
+      OCS-Gruppen-Endpunkte.
+- [x] **A9-12 (Downloads in App-Files):** umgesetzt — `FileOpener.open`
+      öffnet heruntergeladene Dateien per ACTION_VIEW (FileProvider) mit
+      externer App; „downloaded to app files"-Meldung nur noch Fallback,
+      wenn kein Handler existiert.
+- [x] **A9-16 (Offline-Cache):** umgesetzt — `ListCache`
+      (write/read pro SessionKey+Pfad) + `OfflineBanner` in `FilesScreen.kt`;
+      bei Netzwerkausfall werden gecachte Listings mit Banner angezeigt.
+
+Nicht Teil dieses Archiv-Laufs (weiter offen, siehe Offen-Abschnitt): D5
+(Frontend-Build kaputt), D6 (Android-Build kaputt), D7 (Android-i18n
+Restlücken), A9-3/A9-4/A9-6/A9-7/A9-10/A9-11/A9-13/A9-14/A9-15.
 
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
