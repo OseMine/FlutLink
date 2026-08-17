@@ -120,7 +120,6 @@ src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
 (`FileExplorer.vue`/`EntryList.vue`), Dialoge (Login/Settings/Admin/Share), Sync-Panel,
 Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
 
-<<<<<<< HEAD
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
       Sortierung von der Anzeige ab. → umgesetzt (siehe Archiv).
 - [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
@@ -260,7 +259,6 @@ LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
 
 ## Archiv (erledigt)
 
-<<<<<<< HEAD
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
