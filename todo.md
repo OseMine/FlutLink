@@ -389,6 +389,27 @@ LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
       `targetUser`-Watch leert nun auch `shareState`. Kein unbegrenztes
       Speicherwachstum mehr über Navigationen; Verifikation grün.
 
+### Review 2026-08-16 (Android OOM-Fix Datei-Transfer)
+
+- [x] **AC1 (Bug, hoch):** Android-Client lud komplette Dateien als `ByteArray`
+      in den Heap (`WebDavApi.download` → `body.bytes()`,
+      `FilesViewModel.saveToAppStorage` → `writeBytes(bytes)`,
+      SAF-Upload → `readAllBytes`) → OOM bei großen Videos/Fotos. Fix:
+      Streaming statt Heap, analog zum Desktop. `WebDavApi` erhält
+      `downloadToFile` (OkHttp `byteStream()` → `FileOutputStream` in
+      `STREAM_BUFFER_BYTES`-Blöcken) und `uploadStream` (custom `RequestBody`,
+      dessen `writeTo` den `openStream()`-Inhalt direkt in die `BufferedSink`
+      schreibt); beide melden Fortschritt über das neue `fun interface
+      ProgressCallback`. `AppContainer` stellt die SAF-Helper `contentSize`,
+      `openContentStream` und `readAllBytes` (nur Fallback ohne gemeldete
+      Größe) bereit. `FilesViewModel.downloadAndSave` streamt direkt in die
+      App-Datei, `uploadStream` streamt die Content-URI; `transferProgress`
+      (`TransferProgress`-Flow) speist eine `LinearProgressIndicator` in
+      `FilesScreen.kt`. SAF-Picker in `FilesScreen.kt` reicht Uri+MIME an die
+      VM statt `readAllBytes`. Verifikation: `./gradlew :app:assembleDebug`
+      grün, `./gradlew :app:lintDebug` grün (keine Android-Änderung an
+      Rust/Frontend).
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —

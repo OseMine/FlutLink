@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink.ui.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
@@ -12,6 +13,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
+
+/** Bytes copied so far vs. total bytes of a streaming transfer. */
+data class TransferProgress(val transferred: Long, val total: Long)
 
 class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -32,6 +37,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _downloaded = MutableStateFlow<String?>(null)
     val downloaded: StateFlow<String?> = _downloaded.asStateFlow()
+
+    private val _transferProgress = MutableStateFlow<TransferProgress?>(null)
+    val transferProgress: StateFlow<TransferProgress?> = _transferProgress.asStateFlow()
 
     val sessionKey: String?
         get() = session?.let { "${it.baseUrl}|${it.username}" }
@@ -81,24 +89,27 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             loading.value = true
             error.value = null
             try {
-                val bytes = container.webDavApi.download(s, entry.path)
-                _downloaded.value = saveToAppStorage(entry.name, bytes)
+                val dir = container.appFilesDir()
+                dir.mkdirs()
+                val file = java.io.File(dir, entry.name)
+                container.webDavApi.downloadToFile(
+                    session = s,
+                    path = entry.path,
+                    dest = file,
+                    onProgress = { transferred, total ->
+                        _transferProgress.value = TransferProgress(transferred, total)
+                    }
+                )
+                _downloaded.value = file.absolutePath
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
             } catch (e: ApiException) {
                 error.value = e.message
             } finally {
                 loading.value = false
+                _transferProgress.value = null
             }
         }
-    }
-
-    private fun saveToAppStorage(name: String, bytes: ByteArray): String {
-        val dir = container.appFilesDir()
-        dir.mkdirs()
-        val file = java.io.File(dir, name)
-        file.writeBytes(bytes)
-        return file.absolutePath
     }
 
     fun mkdir(name: String, onDone: () -> Unit = {}) {
@@ -170,18 +181,43 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun upload(targetDir: String, name: String, bytes: ByteArray) {
+    /**
+     * Upload a SAF content [uri] by streaming from the content provider instead
+     * of reading it into memory. Falls back to a buffered read only when the
+     * provider does not report the content size.
+     */
+    fun uploadStream(targetDir: String, name: String, uri: Uri, contentType: String = "application/octet-stream") {
         val s = session ?: return
         viewModelScope.launch {
             error.value = null
             try {
                 val remotePath = if (targetDir == "/") "/$name" else "$targetDir/$name"
-                container.webDavApi.upload(s, remotePath, bytes)
+                val size = container.contentSize(uri)
+                if (size != null && size >= 0) {
+                    container.webDavApi.uploadStream(
+                        session = s,
+                        path = remotePath,
+                        openStream = {
+                            container.openContentStream(uri)
+                                ?: throw IOException("Cannot open $uri")
+                        },
+                        contentLength = size,
+                        contentType = contentType,
+                        onProgress = { transferred, total ->
+                            _transferProgress.value = TransferProgress(transferred, total)
+                        }
+                    )
+                } else {
+                    val bytes = container.readAllBytes(uri)
+                    container.webDavApi.upload(s, remotePath, bytes, contentType = contentType)
+                }
                 listFolder(path.value)
             } catch (e: NetworkException) {
                 error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
             } catch (e: ApiException) {
                 error.value = e.message
+            } finally {
+                _transferProgress.value = null
             }
         }
     }

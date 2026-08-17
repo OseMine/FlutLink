@@ -8,12 +8,21 @@ import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSink
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.io.StringReader
 import java.net.URLDecoder
+
+/** Reports `(transferred, total)` bytes during a streaming transfer. */
+fun interface ProgressCallback {
+    fun onProgress(transferred: Long, total: Long)
+}
 
 /**
  * WebDAV client for the FlutCloud file API (PROPFIND, SEARCH, PUT, GET,
@@ -117,21 +126,87 @@ class WebDavApi(private val client: OkHttpClient) {
         statusCheck(builder.build())
     }
 
-    /** Download a remote file into memory. */
-    suspend fun download(session: AuthSession, path: String): ByteArray = withContext(Dispatchers.IO) {
+    /**
+     * Download a remote file streaming it directly into `dest` (OkHttp
+     * `byteStream()` -> `FileOutputStream`), so large files never sit in the
+     * heap as a `ByteArray`.
+     */
+    suspend fun downloadToFile(
+        session: AuthSession,
+        path: String,
+        dest: File,
+        onProgress: ProgressCallback? = null
+    ): File = withContext(Dispatchers.IO) {
         val request = auth(Request.Builder().url(davUrl(session, path)).get(), session).build()
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     throw ApiException("Download failed: HTTP ${response.code}", "http_${response.code}", response.code)
                 }
-                response.body?.bytes() ?: throw ApiException("Empty download")
+                val body = response.body ?: throw ApiException("Empty download")
+                val total = body.contentLength().coerceAtLeast(0L)
+                dest.parentFile?.mkdirs()
+                body.byteStream().use { input ->
+                    dest.outputStream().use { output ->
+                        val buffer = ByteArray(STREAM_BUFFER_BYTES)
+                        var transferred = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                            transferred += read
+                            onProgress?.onProgress(transferred, total)
+                        }
+                    }
+                }
+                dest
             }
         } catch (e: ApiException) {
             throw e
         } catch (e: IOException) {
             throw NetworkException(e)
         }
+    }
+
+    /**
+     * Upload a file by streaming `openStream` (e.g. a SAF content URI) into the
+     * request body, so the file never has to be read into the heap as a whole.
+     * `contentLength` must be known (query the provider); for providers without
+     * a size use [upload] instead.
+     */
+    suspend fun uploadStream(
+        session: AuthSession,
+        path: String,
+        openStream: () -> InputStream,
+        contentLength: Long,
+        contentType: String = "application/octet-stream",
+        mtimeEpochSeconds: Long? = null,
+        onProgress: ProgressCallback? = null
+    ) = withContext(Dispatchers.IO) {
+        val body = object : RequestBody() {
+            override fun contentType() = contentType.toMediaType()
+            override fun contentLength(): Long = contentLength
+            override fun writeTo(sink: BufferedSink) {
+                val input = openStream() ?: throw IOException("Cannot open upload stream")
+                input.use {
+                    val buffer = ByteArray(STREAM_BUFFER_BYTES)
+                    var transferred = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        sink.write(buffer, 0, read)
+                        transferred += read
+                        onProgress?.onProgress(transferred, contentLength)
+                    }
+                }
+            }
+        }
+        val builder = auth(
+            Request.Builder().url(davUrl(session, path)),
+            session
+        ).put(body)
+        mtimeEpochSeconds?.let { builder.header("X-OC-MTime", it.toString()) }
+        statusCheck(builder.build())
     }
 
     /** Create a folder (MKCOL). 405 = already exists, treated as success. */
@@ -221,6 +296,9 @@ class WebDavApi(private val client: OkHttpClient) {
 
     companion object {
         private const val TAG = "FlutLinkDav"
+
+        /** Chunk size for streaming transfers (download + upload). */
+        private const val STREAM_BUFFER_BYTES = 64 * 1024
         private fun searchRequestBody(user: String, query: String): String =
             """<?xml version="1.0" encoding="UTF-8"?>
 <d:searchrequest xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
