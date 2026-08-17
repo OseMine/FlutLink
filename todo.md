@@ -6,6 +6,93 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 
 ## Offen
 
+### Review 2026-08-17 (Lauf 12, Fokus gesamtes Projekt — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed**; `cargo clippy --all-targets
+-- -D warnings` grün; `cargo fmt --check` grün; `npm run build` (vue-tsc +
+vite) grün — mit Warnung zum Bundle (s. C7). Tauri-Linux-Systemdeps wurden
+für den Testlauf nachinstalliert (glib-2.0/libwebkit2gtk-4.1/libgtk-3).
+Android-Befunde gegen den aktuellen Code nachgeprüft: **A9-14 (Dead Code)
+und R8-C1 (tauri-action-Pin) sind erledigt** (vollständige Einträge ins
+Archiv verschoben); A9-7/A9-9/A9-10/A9-13 weiterhin offen. Die in Lauf 10
+als `[x]` markierten Punkte **D2 und D4 sind nicht vollständig umgesetzt**
+(s. C5/C6). Git-/Issue-Status: offene Punkte aus Issue #136 (Android-Parität)
+im Code verifiziert, s. o.
+
+Neu gefunden:
+
+- [ ] **C1 (CI, mittel):** `opencode-review.yml` nutzt `actions/checkout@v4`
+      (`:26`, `:108`, `:204`, `:275`), während alle übrigen Workflows
+      (`build.yml:23/50/83`, `lint.yml:22`, `android.yml:30/44`,
+      `release.yml:24/92/118/152/172`, `opencode.yml:23/52`,
+      `opencode-todo-issues.yml:26`) auf `actions/checkout@v7` stehen. Die
+      alte v4-Linie ist nicht mehr gepflegt und trägt bekannte CVEs;
+      außerdem inkonsistent zur Repo-Konvention (v7). Fix: in
+      `opencode-review.yml` auf `@v7` anheben.
+- [ ] **C2 (CI, Supply-Chain, mittel):** `anomalyco/opencode/github@latest`
+      ist in vier Workflows unpinnt (`opencode-review.yml:38`,
+      `opencode.yml:92`, `opencode-todo-issues.yml:38`, `release.yml:48`);
+      zusätzlich läuft `npx opencode-ai@latest` (`opencode-review.yml:164`,
+      `:256`). `@latest` ist ein bewegliches Tag — Builds sind nicht
+      reproduzierbar, ein kompromittiertes Release liefe ungeprüft. Das
+      widerspricht der Repo-Praxis aus R8-C1 (inzwischen umgesetzt:
+      `tauri-action` auf vollen SHA gepinnt, `release.yml:135`). Fix: auf
+      commit-pinned Versionen pinnen.
+- [ ] **C3 (CI, Bug, mittel):** `release.yml` `upload-android` lädt ein
+      Artefakt mit dem Namen `flutlink-android-release` herunter
+      (`release.yml:179`), aber der `android`-Job lädt es als
+      `flutlink-android-release-v__VERSION__` hoch (`release.yml:164`; der
+      `__VERSION__`-Platzhalter wird hier nicht substituiert, da der
+      `android`-Job die Composite-Action direkt aufruft und nicht
+      tauri-action). Ergebnis: der Download-Schritt findet kein Artefakt
+      und `gh release upload apk/*.apk` (release.yml:188) hängt nichts an
+      den Release an. Zusätzlich: `download-artifact@v4` (`release.yml:177`)
+      vs. `upload-artifact@v7` (`build.yml:107`,
+      `.github/actions/android-build/action.yml:68`) — Major-Versionen
+      müssen zusammenpassen. Fix: identischen Artefaktnamen verwenden und
+      download-artifact auf dieselbe Major-Version wie upload-artifact heben.
+- [ ] **C4 (Perf, mittel):** `FileExplorer.vue:648` (`loadAdminUsers`) ruft
+      `api.adminListUsers("")` — beim Mount (`:725`) und bei jedem
+      Account-Wechsel (`:761`) werden ALLE Benutzer der Instanz ohne
+      Pagination geladen, obwohl `admin_list_users` (commands.rs:1229)
+      `limit`/`offset` unterstützt und `ocs.rs:83` serverseitig paginiert.
+      D3 hat nur den SettingsModal-Pfad behoben; das
+      Impersonations-Dropdown bleibt für große Instanzen ein
+      Performance-/Payload-Problem. Fix: Dropdown paginieren (limit/offset
+      + „mehr laden") oder Suche erzwingen.
+- [ ] **C5 (i18n, minor):** D2 ist als erledigt markiert, aber der Fix ist
+      nicht umgesetzt: `sync.rs:1192-1204` und `updater.rs:540-544`
+      emittieren weiterhin hartkodierte (jetzt englische) System-Notifications
+      („FlutLink Sync"/„N file(s) synced successfully.",
+      „FlutLink Update"/„Version … is available (current: …).") — die
+      UI-Sprache wird nicht ins Backend gespiegelt und es werden keine
+      Codes emittiert. Bei deutscher UI erscheinen weiterhin englische
+      Notifications (D2-Ziel nicht erreicht). Fix: Codes statt Freitext
+      emittieren und im Frontend übersetzen oder die persistierte `lang`
+      (src/stores/ui.ts) ins Backend spiegeln.
+- [ ] **C6 (Konsistenz, minor):** D4 ist als erledigt markiert, aber die
+      Workflow-Prompts wurden nicht angepasst: `opencode.yml:120`
+      referenziert weiterhin `archived-todo.md`, `opencode-review.yml:72`
+      `archived-todos.md`, während `todo.md:3-5` die In-Dokument-Archiv-
+      Konvention („## Archiv (erledigt)") als verbindlich erklärt. Dieser
+      Lauf archiviert deshalb **im Dokument** (konsistent zu `todo.md`);
+      die Prompt-Texte in beiden Workflows müssen auf genau eine Konvention
+      angeglichen werden.
+- [ ] **C7 (Perf, niedrig):** `npm run build` warnt: Frontend-Haupt-Chunk
+      `index-*.js` = **690.23 kB** (gzip 153.58 kB) über dem 500-kB-Budget.
+      `vite.config.ts` definiert kein `manualChunks`/Code-Splitting; die
+      Material-Web- und großen UI-Module (FileExplorer, AdminPanel,
+      SettingsModal) liegen in einem Chunk. Fix: `manualChunks` (md-/vendor)
+      oder dynamische Imports für die Dialoge.
+- [ ] **C8 (Robustheit, minor):** `open_remote_file` (commands.rs:715-761)
+      nutzt ein gemeinsames Temp-Verzeichnis `flutlink-open` für alle
+      Accounts und alle impersonierten User. Das Cleanup („Leftovers von
+      vorherigen Opens werden vor dem Download entfernt") und die flache
+      Ablage nach Dateiname kollidieren bei parallelen Opens bzw.
+      gleichnamigen Dateien verschiedener Benutzer. Fix: pro Account/User/
+      Datei eindeutigen Unterordner oder Dateinamen-Präfix.
+
 ### Review 2026-08-17 (Lauf 11, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
@@ -319,10 +406,14 @@ Befunden **nicht** zu: Neu gefunden:
       dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
       Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
       Brand-Themes + Accent-Hue auf Android portieren.
-- [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
+- [x] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
       nirgends aufgerufen — Thumbnails existieren nur im Desktop
       (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
       `FilesScreen` nutzen oder `preview()` entfernen.
+      → erledigt (Lauf 12): `preview()` existiert nicht mehr in
+      `android/app/src/main/java/com/flutcloud/flutlink/data/FlutCloudApi.kt`
+      (keine `preview(`-Referenz mehr in `android/`); Eintrag ins Archiv
+      verschoben.
 - [x] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
       `FilesScreen.kt` `SearchResults` (Z. 315-318) übergibt `onRename`/
       `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
@@ -373,11 +464,13 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       Suchbegriff alle Benutzer (keine UI-Pagination). → umgesetzt (siehe Archiv).
 - [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
       gleichnamige Dateien aus verschiedenen Ordnern. → umgesetzt (siehe Archiv).
-- [ ] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
+- [x] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
       nur auf `@v1` (bewegliches Tag). Für Supply-Chain-Härtung auf einen
       vollständigen Commit-SHA pinnen (wie bei den übrigen Drittanbieter-Actions).
-      → im automatisierten Lauf offen gelassen (Workflow-Dateien sind von der
-      Aufgabe ausgenommen; weiterhin offen).
+      → erledigt (Lauf 12): `release.yml:135` pinnt jetzt den vollen
+      Commit-Hash `tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0`;
+      Eintrag ins Archiv verschoben. (Der Duplikat-Eintrag im Archiv-Abschnitt
+      bleibt als Verlauf stehen.)
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — neue Befunde)
 
@@ -498,6 +591,18 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Lauf 12 (2026-08-17) — erledigte Punkte
+
+- [x] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wurde
+      nirgends aufgerufen — Thumbnails existierten nur im Desktop
+      (`webdav_thumbnail` + `thumbs`-Cache). → erledigt: `preview()` ist aus
+      `android/app/src/main/java/com/flutcloud/flutlink/data/FlutCloudApi.kt`
+      entfernt (keine `preview(`-Referenz mehr in `android/`).
+- [x] **R8-C1 (CI, minor):** `release.yml` pinnte `tauri-apps/tauri-action`
+      nur auf `@v1` (bewegliches Tag). → erledigt: `release.yml:135` pinnt
+      jetzt den vollen Commit-Hash
+      `tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0`.
 
 ### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
 
