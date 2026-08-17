@@ -255,7 +255,6 @@ Theme, EncryptedSharedPreferences-Token). Keine offenen Punkte mehr.
 
 ## Archiv (erledigt)
 
-<<<<<<< HEAD
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
