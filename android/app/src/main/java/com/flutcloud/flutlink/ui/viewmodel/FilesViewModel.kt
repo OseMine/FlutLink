@@ -140,6 +140,10 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
     fun mkdir(name: String, onDone: () -> Unit = {}) {
         val s = session ?: return
+        if (name.isBlank() || name == "." || name == ".." || name.contains("/")) {
+            error.value = "The folder name must not contain '/', '.' or '..'."
+            return
+        }
         viewModelScope.launch {
             error.value = null
             try {
