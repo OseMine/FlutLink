@@ -120,6 +120,7 @@ src-tauri/Cargo.toml` → 76 passed / 0 failed; `cargo clippy --all-targets
 (`FileExplorer.vue`/`EntryList.vue`), Dialoge (Login/Settings/Admin/Share), Sync-Panel,
 Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
 
+<<<<<<< HEAD
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation ist unsichtbar und weicht bei
       Sortierung von der Anzeige ab. → umgesetzt (siehe Archiv).
 - [x] **U-R8-2 (UX, Bug, mittel):** Transfer-Fortschrittsleiste bleibt nach
@@ -259,6 +260,7 @@ LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
 
 ## Archiv (erledigt)
 
+<<<<<<< HEAD
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
 - [x] **U-R8-1 (UX, Bug, mittel):** Tastatur-Navigation unsichtbar/in konsistent.
@@ -372,6 +374,22 @@ LRU-Aging-Eviction und Rotationstests (Details im [Archiv](#archiv-erledigt)).
       Admin-Tab in `HomeScreen` reagiert automatisch auf das aktualisierte
       `accounts`-StateFlow. Verifikation: `./gradlew :app:assembleDebug
       :app:lintDebug` grün.
+
+### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-6)
+
+- [x] **U-R8-6 (UX, minor):** Thumbnail-Cache und Share-State wachsen über
+      Navigationen unbegrenzt. `FileExplorer.vue` `thumbs` (Z. 28) wurde nur bei
+      `targetUser`-Wechsel (Z. 634-640) und Konto-Wechsel (Z. 668-683) geleert,
+      nie beim Ordnerwechsel — `watch(() => files.entries)` (Z. 625-632) lud für
+      jeden besuchten Ordner weitere Thumbs in den Speicher. `shareState`
+      (Z. 439-441) wurde nur bei Konto-Wechsel geleert → stale Einträge blieben.
+      Fix in `src/components/FileExplorer.vue`: Der `watch(() => files.currentPath)`
+      prunt jetzt über `pruneCaches()` alle `thumbs`- und `shareState`-Einträge, die
+      nicht mehr unter dem aktuellen Ordner liegen (`isInCurrentFolder`-Präfix-Check;
+      der Watch läuft vor dem `entries`-Refresh). Zusätzlich prunt `loadThumb` das
+      Ergebnis nach dem async-`getThumbnail` gegen den aktuellen Ordner, und der
+      `targetUser`-Watch leert nun auch `shareState`. Kein unbegrenztes
+      Speicherwachstum mehr über Navigationen; Verifikation grün.
 
 ### Review 2026-08-16 (Android-Client)
 
