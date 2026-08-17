@@ -49,7 +49,7 @@ jobs:
           ./gradlew :app:assembleDebug --console=plain
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: flutlink-android-debug
           path: android/app/build/outputs/apk/debug/*.apk
