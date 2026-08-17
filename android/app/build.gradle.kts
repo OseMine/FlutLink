@@ -19,11 +19,16 @@ android {
         versionName = "1.0.0"
 
         // Optional compile-time FlutCloud server URL (never hard-coded in
-        // source): `./gradlew -PflutcloudUrl=https://cloud.example assemble`.
+        // source). Mirrors the desktop client: the `FLUTCLOUD_URL` environment
+        // variable takes precedence (used by the release/build workflows) and
+        // falls back to the local `-PflutcloudUrl=…` Gradle property for
+        // development builds.
+        val flutcloudUrl: String = System.getenv("FLUTCLOUD_URL")?.takeIf { it.isNotBlank() }
+            ?: providers.gradleProperty("flutcloudUrl").orNull.orEmpty()
         buildConfigField(
             "String",
             "FLUTCLOUD_URL",
-            "\"${providers.gradleProperty("flutcloudUrl").getOrElse("")}\""
+            "\"$flutcloudUrl\""
         )
 
         vectorDrawables {

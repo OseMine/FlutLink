@@ -63,7 +63,11 @@
     <string name="delete_confirm">Delete %1$s?</string>
     <string name="delete_folder_confirm">The folder and all its contents will be deleted from the server.</string>
     <string name="delete_file_confirm">The file will be deleted from the server.</string>
-    <string name="downloaded_to_app_files">Downloaded to Downloads: %1$s</string>
+    <string name="download">Download</string>
+    <string name="share">Share</string>
+    <string name="downloaded_to_downloads">Downloaded to Downloads: %1$s</string>
+    <string name="download_permission_denied">Storage permission denied. Could not save to the Downloads folder.</string>
+    <string name="share_failed">Could not share %1$s.</string>
     <string name="link_created">Link created: %1$s</string>
     <string name="no_url">no URL</string>
     <string name="file_exists_confirm">A file named \'%1$s\' already exists on the server. Overwrite?</string>

@@ -2,4 +2,7 @@
 <paths>
     <cache-path name="updates" path="updates/" />
     <files-path name="app_files" path="." />
+    <!-- Public Downloads folder (Android 9 and below, direct writes) -->
+    <external-path name="downloads" path="Download/" />
+    <external-path name="downloads_legacy" path="Downloads/" />
 </paths>

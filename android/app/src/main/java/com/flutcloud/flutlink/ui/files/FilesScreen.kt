@@ -1,7 +1,11 @@
 package com.flutcloud.flutlink.ui.files
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -17,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -25,9 +31,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -52,6 +60,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +68,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.provider.OpenableColumns
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.core.content.ContextCompat
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.data.FileOpener
+import com.flutcloud.flutlink.data.ShareSheet
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
 import com.flutcloud.flutlink.ui.components.EmptyState
@@ -72,6 +80,7 @@ import com.flutcloud.flutlink.ui.components.QuotaBar
 import com.flutcloud.flutlink.ui.components.fileIcon
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.viewmodel.FilesViewModel
+import kotlinx.coroutines.launch
 
 private const val ROOT = "/"
 
@@ -90,6 +99,8 @@ fun FilesScreen(container: AppContainer) {
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
     val downloaded by vm.downloaded.collectAsState()
+    val sharePath by vm.sharePath.collectAsState()
+    val toast by vm.toast.collectAsState()
     val lastShare by vm.lastShare.collectAsState()
     val shares by vm.shares.collectAsState()
     val sharesLoading by vm.sharesLoading.collectAsState()
@@ -101,8 +112,38 @@ fun FilesScreen(container: AppContainer) {
     var renameTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var shareTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<WebDavEntry?>(null) }
+    var downloadTarget by remember { mutableStateOf<WebDavEntry?>(null) }
 
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    val downloadPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        downloadTarget?.let { target ->
+            if (granted) {
+                vm.downloadToDownloads(target)
+            } else {
+                scope.launch {
+                    snackbar.showSnackbar(context.getString(R.string.download_permission_denied))
+                }
+            }
+        }
+        downloadTarget = null
+    }
+
+    fun requestDownload(entry: WebDavEntry) {
+        val needsPermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        if (needsPermission) {
+            downloadTarget = entry
+            downloadPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            vm.downloadToDownloads(entry)
+        }
+    }
 
     LaunchedEffect(sessionKey) {
         if (sessionKey != null) vm.refresh()
@@ -113,10 +154,24 @@ fun FilesScreen(container: AppContainer) {
             vm.clearErrors()
         }
     }
+    LaunchedEffect(toast) {
+        toast?.let {
+            snackbar.showSnackbar(it.resolve(context))
+            vm.clearErrors()
+        }
+    }
     LaunchedEffect(downloaded) {
         downloaded?.let { path ->
             if (!FileOpener.open(context, path)) {
-                snackbar.showSnackbar(context.getString(R.string.downloaded_to_app_files, path))
+                snackbar.showSnackbar(context.getString(R.string.downloaded_to_downloads, path))
+            }
+            vm.clearErrors()
+        }
+    }
+    LaunchedEffect(sharePath) {
+        sharePath?.let { path ->
+            if (!ShareSheet.share(context, path)) {
+                snackbar.showSnackbar(context.getString(R.string.share_failed, path))
             }
             vm.clearErrors()
         }
@@ -200,8 +255,10 @@ fun FilesScreen(container: AppContainer) {
                     results = searchResults,
                     searching = searching,
                     onOpen = { vm.open(it) },
+                    onDownload = { requestDownload(it) },
+                    onShareFile = { vm.downloadAndShare(it) },
                     onRename = { renameTarget = it },
-                    onShare = { shareTarget = it },
+                    onShareLink = { shareTarget = it },
                     onDelete = { deleteTarget = it },
                     onJumpToPaired = { entry -> entry.linkTarget?.let { vm.listFolder(it) } }
                 )
@@ -221,8 +278,10 @@ fun FilesScreen(container: AppContainer) {
                         EntryRow(
                             entry = entry,
                             onClick = { vm.open(entry) },
+                            onDownload = { requestDownload(entry) },
+                            onShareFile = { vm.downloadAndShare(entry) },
                             onRename = { renameTarget = entry },
-                            onShare = { shareTarget = entry },
+                            onShareLink = { shareTarget = entry },
                             onDelete = { deleteTarget = entry },
                             onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
                         )
@@ -350,8 +409,10 @@ private fun SearchResults(
     results: List<WebDavEntry>,
     searching: Boolean,
     onOpen: (WebDavEntry) -> Unit,
+    onDownload: (WebDavEntry) -> Unit,
+    onShareFile: (WebDavEntry) -> Unit,
     onRename: (WebDavEntry) -> Unit,
-    onShare: (WebDavEntry) -> Unit,
+    onShareLink: (WebDavEntry) -> Unit,
     onDelete: (WebDavEntry) -> Unit,
     onJumpToPaired: (WebDavEntry) -> Unit
 ) {
@@ -369,8 +430,10 @@ private fun SearchResults(
                 EntryRow(
                     entry = entry,
                     onClick = { onOpen(entry) },
+                    onDownload = { onDownload(entry) },
+                    onShareFile = { onShareFile(entry) },
                     onRename = { onRename(entry) },
-                    onShare = { onShare(entry) },
+                    onShareLink = { onShareLink(entry) },
                     onDelete = { onDelete(entry) },
                     onJumpToPaired = { onJumpToPaired(entry) }
                 )
@@ -383,8 +446,10 @@ private fun SearchResults(
 private fun EntryRow(
     entry: WebDavEntry,
     onClick: () -> Unit,
+    onDownload: () -> Unit,
+    onShareFile: () -> Unit,
     onRename: () -> Unit,
-    onShare: () -> Unit,
+    onShareLink: () -> Unit,
     onDelete: () -> Unit,
     onJumpToPaired: () -> Unit
 ) {
@@ -429,6 +494,24 @@ private fun EntryRow(
                         }
                     )
                 }
+                if (!entry.isDir) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.download)) },
+                        leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onDownload()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.share)) },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onShareFile()
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.rename)) },
                     leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
@@ -442,7 +525,7 @@ private fun EntryRow(
                     leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                     onClick = {
                         menuOpen = false
-                        onShare()
+                        onShareLink()
                     }
                 )
                 DropdownMenuItem(
