@@ -18,7 +18,6 @@ jobs:
   review:
     name: Code review
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     needs: issues-to-todo
     permissions:
       contents: write
