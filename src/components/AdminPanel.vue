@@ -176,7 +176,8 @@ async function listUsers(requireQuery = true) {
   editMsg.value = null;
   users.value = [];
   try {
-    users.value = await api.adminListUsers(query);
+    const result = await api.adminListUsers(query);
+    users.value = result.users;
   } catch (e) {
     error.value = invokeError(e).message;
   } finally {

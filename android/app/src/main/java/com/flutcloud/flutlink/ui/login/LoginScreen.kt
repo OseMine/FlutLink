@@ -173,7 +173,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
 
             if (error != null) {
                 Spacer(Modifier.height(12.dp))
-                ErrorBanner(it.resolve(context))
+                ErrorBanner(error!!.resolve(context))
             }
 
             Spacer(Modifier.height(24.dp))

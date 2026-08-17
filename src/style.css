@@ -63,12 +63,12 @@
   --shadow-m3-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
   --shadow-m3-3: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
 
-  /* --- Shape (radius) --- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* --- Shape (radius) — mirrors Android Shape.kt (6/10/14/20/28 dp) --- */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 20px;
   --radius-2xl: 28px;
 
   /* --- Motion --- */
@@ -274,11 +274,11 @@
   --m3-elevation-2: var(--shadow-m3-2);
   --m3-elevation-3: var(--shadow-m3-3);
 
-  /* Shape */
-  --m3-shape-extra-small: 4px;
-  --m3-shape-small: 8px;
-  --m3-shape-medium: 12px;
-  --m3-shape-large: 16px;
+  /* Shape — mirrors Android Shape.kt */
+  --m3-shape-extra-small: 6px;
+  --m3-shape-small: 10px;
+  --m3-shape-medium: 14px;
+  --m3-shape-large: 20px;
   --m3-shape-extra-large: 28px;
   --m3-shape-full: 9999px;
 
@@ -303,6 +303,20 @@ body,
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Typography — mirrors Android FlutTypography (Expressive) */
+h1, h2 {
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+h3, h4 {
+  font-weight: 600;
+  letter-spacing: -0.25px;
+}
+h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.25px;
 }
 
 /* Material 3 focus rings (keyboard navigation) */

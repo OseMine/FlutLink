@@ -60,9 +60,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 loadPage(s, append = true)
             } catch (e: NetworkException) {
-                error.value = "Could not reach the server: ${e.cause?.message ?: "network error"}"
+                error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
-                error.value = e.message
+                error.value = e.toUiMessage()
             } finally {
                 loading.value = false
             }

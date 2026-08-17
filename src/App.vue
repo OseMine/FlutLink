@@ -69,7 +69,13 @@ const activeInitial = computed(() =>
 );
 
 function resolveTheme() {
-  resolvedTheme.value = resolveThemeFromPreference(ui.theme);
+  if (ui.theme === "system") {
+    resolvedTheme.value = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "midnight"
+      : "light";
+  } else {
+    resolvedTheme.value = ui.theme;
+  }
 }
 
 function toggleLang() {

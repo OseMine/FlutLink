@@ -125,6 +125,7 @@
     <string name="error_flutcloud_app_missing">This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.</string>
     <string name="error_not_flutcloud">FlutLink is a dedicated client for the FlutCloud server and cannot connect to \'%1$s\'.</string>
     <string name="error_target_exists">A file or folder named \'%1$s\' already exists. Choose a different name.</string>
+    <string name="error_invalid_folder_name">The folder name must not contain invalid characters.</string>
     <string name="error_generic">An unexpected error occurred.</string>
     <string name="error_generic_detail">An unexpected error occurred: %1$s</string>
     <string name="account_switched_to">Switched to %1$s</string>

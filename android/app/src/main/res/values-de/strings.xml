@@ -125,6 +125,7 @@
     <string name="error_flutcloud_app_missing">Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.</string>
     <string name="error_not_flutcloud">FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit \'%1$s\' verbinden.</string>
     <string name="error_target_exists">Eine Datei oder ein Ordner namens \'%1$s\' existiert bereits. Bitte wähle einen anderen Namen.</string>
+    <string name="error_invalid_folder_name">Der Ordnername darf keine ungültigen Zeichen enthalten.</string>
     <string name="error_generic">Ein unerwarteter Fehler ist aufgetreten.</string>
     <string name="error_generic_detail">Ein unerwarteter Fehler ist aufgetreten: %1$s</string>
     <string name="account_switched_to">Zu %1$s gewechselt</string>

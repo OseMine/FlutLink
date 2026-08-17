@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
+import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.dto.Quota
@@ -141,7 +142,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     fun mkdir(name: String, onDone: () -> Unit = {}) {
         val s = session ?: return
         if (name.isBlank() || name == "." || name == ".." || name.contains("/")) {
-            error.value = "The folder name must not contain '/', '.' or '..'."
+            error.value = UiMessage(R.string.error_invalid_folder_name)
             return
         }
         viewModelScope.launch {
