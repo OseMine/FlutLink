@@ -42,6 +42,9 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** When a build-time URL is configured, the server field is locked. */
+    val urlLocked: Boolean get() = BuildConfig.FLUTCLOUD_URL.isNotBlank()
+
     fun toggleMode() {
         registerMode.value = !registerMode.value
     }
@@ -53,6 +56,12 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         val pass = token.value.trim()
         if (url.isEmpty() || user.isEmpty() || pass.isEmpty()) {
             error.value = UiMessage(R.string.error_fill_fields)
+            return
+        }
+        if (BuildConfig.FLUTCLOUD_URL.isNotBlank() &&
+            url.trimEnd('/') != BuildConfig.FLUTCLOUD_URL.trimEnd('/')
+        ) {
+            error.value = UiMessage(R.string.error_wrong_server_url)
             return
         }
         viewModelScope.launch {
@@ -105,6 +114,12 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             adminUsername.value.isBlank() || adminPassword.value.isBlank()
         ) {
             error.value = UiMessage(R.string.error_fill_fields_register)
+            return
+        }
+        if (BuildConfig.FLUTCLOUD_URL.isNotBlank() &&
+            url.trimEnd('/') != BuildConfig.FLUTCLOUD_URL.trimEnd('/')
+        ) {
+            error.value = UiMessage(R.string.error_wrong_server_url)
             return
         }
         viewModelScope.launch {

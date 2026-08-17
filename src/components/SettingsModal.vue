@@ -107,17 +107,23 @@ watch(
     if (open) {
       tab.value = "accounts";
       accentValue.value = ui.accentHue ?? themeDefaultHue();
-      if (accounts.active?.isAdmin) void loadUsers();
     }
   }
 );
 
+const adminSearch = ref("");
+
 async function loadUsers() {
   if (!accounts.active?.isAdmin) return;
+  const query = adminSearch.value.trim();
+  if (!query) {
+    adminError.value = t("searchUsersRequired");
+    return;
+  }
   adminLoading.value = true;
   adminError.value = null;
   try {
-    const res = await api.adminListUsers("");
+    const res = await api.adminListUsers(query);
     users.value = res.users;
   } catch (e) {
     adminError.value = invokeError(e).message;
@@ -171,7 +177,7 @@ async function downloadAndInstall() {
     });
     unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
       updateStatusKey.value = e.payload.code;
-      updateAssetName.value = e.payload.asset_name ?? null;
+      updateAssetName.value = e.payload.assetName ?? null;
     });
   } catch {
     // progress/status listeners are best-effort
@@ -195,6 +201,8 @@ const updateStatusText = computed(() => {
         : t("updateDownloading");
     case "installing":
       return t("updateInstalling");
+    case "checksum_warning":
+      return t("updateChecksumWarning");
     default:
       return "";
   }
@@ -268,6 +276,18 @@ const updateStatusText = computed(() => {
             </p>
             <template v-else>
               <p class="mb-3 text-sm text-on-surface-variant">{{ t("adminTabNote") }}</p>
+              <div class="mb-3 flex gap-2">
+                <md-outlined-text-field
+                  :label="t('searchUsers')"
+                  :value="adminSearch"
+                  @input="adminSearch = ($event.target as HTMLInputElement).value"
+                  @keyup.enter="loadUsers()"
+                  class="flex-1"
+                ></md-outlined-text-field>
+                <md-filled-button @click="loadUsers()">
+                  {{ adminLoading ? t("loading") : t("listUsers") }}
+                </md-filled-button>
+              </div>
               <div v-if="adminError" class="mb-3 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
                 {{ adminError }}
               </div>

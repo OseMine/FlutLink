@@ -130,25 +130,23 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 headlineContent = { Text(stringResource(R.string.theme)) },
                 supportingContent = { Text(stringResource(R.string.theme_hint)) },
                 leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
-                trailingContent = {
-                    val themeOptions = listOf(
-                        "system" to R.string.theme_system,
-                        "light" to R.string.theme_light,
-                        "dark" to R.string.theme_dark
-                    )
-                    SingleChoiceSegmentedButtonRow {
-                        themeOptions.forEachIndexed { index, (value, labelRes) ->
-                            SegmentedButton(
-                                selected = themePreference == value,
-                                onClick = { vm.setThemePreference(value) },
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size)
-                            ) {
-                                Text(stringResource(labelRes))
-                            }
-                        }
+            )
+            val themeOptions = listOf(
+                "system" to R.string.theme_system,
+                "light" to R.string.theme_light,
+                "dark" to R.string.theme_dark
+            )
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                themeOptions.forEachIndexed { index, (value, labelRes) ->
+                    SegmentedButton(
+                        selected = themePreference == value,
+                        onClick = { vm.setThemePreference(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size)
+                    ) {
+                        Text(stringResource(labelRes))
                     }
                 }
-            )
+            }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.dynamic_color)) },
                 supportingContent = { Text(stringResource(R.string.dynamic_color_hint)) },

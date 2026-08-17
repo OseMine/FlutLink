@@ -80,9 +80,44 @@
     <string name="quota_5gb">Kontingent: 5 GB</string>
     <string name="quota_10gb">Kontingent: 10 GB</string>
     <string name="delete_user">Benutzer löschen</string>
+    <string name="delete_user_confirm">Benutzer %1$s löschen? Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="cannot_delete_self">Sie können Ihr eigenes Konto nicht löschen.</string>
+    <string name="cannot_disable_self">Sie können Ihr eigenes Konto nicht deaktivieren.</string>
     <string name="create_user">Benutzer erstellen</string>
     <string name="user_id">Benutzer-ID</string>
     <string name="display_name_optional">Anzeigename (optional)</string>
+    <string name="login_tab_sign_in">Anmelden</string>
+    <string name="login_tab_register">Registrieren</string>
+    <string name="login_new_username">Neuer Benutzername</string>
+    <string name="login_password">Passwort</string>
+
+    <!-- Files — Share dialog -->
+    <string name="share_existing_shares">Bestehende Freigaben</string>
+    <string name="share_loading_shares">Lade Freigaben…</string>
+    <string name="share_no_shares_yet">Noch keine Freigaben</string>
+    <string name="share_new_public_link">Neuer öffentlicher Link</string>
+    <string name="share_meta_has_password">Passwort</string>
+    <string name="share_meta_expires">Läuft ab %1$s</string>
+    <string name="share_revoke">Widerrufen</string>
+    <string name="share_type_user">Benutzer</string>
+    <string name="share_type_group">Gruppe</string>
+    <string name="share_type_public_link">Öffentlicher Link</string>
+    <string name="share_type_generic">Freigabe</string>
+    <string name="files_offline_banner">Offline \u2014 Zwischengespeicherte Daten werden angezeigt</string>
+
+    <!-- Admin — Groups -->
+    <string name="admin_load_more">Mehr laden</string>
+    <string name="admin_manage_groups">Gruppen verwalten</string>
+    <string name="admin_groups_title">Gruppen \u2014 %1$s</string>
+    <string name="admin_no_groups">Keine Gruppen</string>
+    <string name="admin_group_name_label">Gruppenname</string>
+    <string name="admin_groups_hint">Ein neuer Name oben erstellt eine neue Gruppe; zum Hinzufügen zu einer bestehenden Gruppe muss diese bereits auf dem Server existieren.</string>
+    <string name="admin_create_group">Gruppe erstellen</string>
+    <string name="admin_add_to_group">Zur Gruppe hinzufügen</string>
+    <string name="close">Schließen</string>
+    <string name="file_exists_confirm">Eine Datei namens \'%1$s\' existiert bereits auf dem Server. Überschreiben?</string>
+    <string name="overwrite">Überschreiben</string>
+    <string name="error_wrong_server_url">Dieser Client ist für einen bestimmten FlutCloud-Server konfiguriert. Die URL kann nicht geändert werden.</string>
 
     <!-- Settings -->
     <string name="account">Konto</string>

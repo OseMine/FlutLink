@@ -53,6 +53,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
     val displayName by vm.displayName.collectAsState()
     val adminUsername by vm.adminUsername.collectAsState()
     val adminPassword by vm.adminPassword.collectAsState()
+    val urlLocked = vm.urlLocked
 
     Scaffold { innerPadding ->
         ScrollableColumn(
@@ -86,13 +87,13 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                     .padding(4.dp)
             ) {
                 ModeButton(
-                    text = "Sign in",
+                    text = stringResource(R.string.login_tab_sign_in),
                     selected = !registerMode,
                     onClick = { if (registerMode) vm.toggleMode() },
                     modifier = Modifier.weight(1f)
                 )
                 ModeButton(
-                    text = "Register",
+                    text = stringResource(R.string.login_tab_register),
                     selected = registerMode,
                     onClick = { if (!registerMode) vm.toggleMode() },
                     modifier = Modifier.weight(1f)
@@ -103,11 +104,12 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
 
             OutlinedTextField(
                 value = serverUrl,
-                onValueChange = { vm.serverUrl.value = it },
+                onValueChange = { if (!urlLocked) vm.serverUrl.value = it },
                 label = { Text(stringResource(R.string.server_url)) },
                 placeholder = { Text(stringResource(R.string.server_url_placeholder)) },
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 singleLine = true,
+                enabled = !urlLocked,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -115,7 +117,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
             OutlinedTextField(
                 value = username,
                 onValueChange = { vm.username.value = it },
-                label = { Text(if (registerMode) "New username" else "Username") },
+                label = { Text(if (registerMode) stringResource(R.string.login_new_username) else stringResource(R.string.username)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -123,7 +125,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
             OutlinedTextField(
                 value = token,
                 onValueChange = { vm.token.value = it },
-                label = { Text(if (registerMode) "Password" else "App token / password") },
+                label = { Text(if (registerMode) stringResource(R.string.login_password) else stringResource(R.string.app_token)) },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -135,13 +137,13 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                 OutlinedTextField(
                     value = displayName,
                     onValueChange = { vm.displayName.value = it },
-                    label = { Text("Display name (optional)") },
+                    label = { Text(stringResource(R.string.display_name_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    "Admin credentials",
+                    stringResource(R.string.admin_credentials),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -149,7 +151,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                 OutlinedTextField(
                     value = adminUsername,
                     onValueChange = { vm.adminUsername.value = it },
-                    label = { Text("Admin username") },
+                    label = { Text(stringResource(R.string.admin_username)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -157,14 +159,14 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                 OutlinedTextField(
                     value = adminPassword,
                     onValueChange = { vm.adminPassword.value = it },
-                    label = { Text("Admin password") },
+                    label = { Text(stringResource(R.string.admin_password)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    "The admin account creates the new user via the server's provisioning API. The registration password becomes the app password.",
+                    stringResource(R.string.register_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -194,7 +196,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                         (!registerMode || (adminUsername.isNotBlank() && adminPassword.isNotBlank())),
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
-                    Text(if (registerMode) "Register" else "Sign in")
+                    Text(if (registerMode) stringResource(R.string.login_tab_register) else stringResource(R.string.login_tab_sign_in))
                 }
             }
             Spacer(Modifier.height(24.dp))

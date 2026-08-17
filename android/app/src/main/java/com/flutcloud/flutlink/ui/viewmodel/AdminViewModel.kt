@@ -98,6 +98,10 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     fun deleteUser(user: ManagedUser) {
         val s = session ?: return
+        if (user.id == s.username) {
+            error.value = UiMessage(com.flutcloud.flutlink.R.string.cannot_delete_self)
+            return
+        }
         viewModelScope.launch {
             error.value = null
             try {
@@ -128,6 +132,10 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setEnabled(user: ManagedUser, enabled: Boolean) {
         val s = session ?: return
+        if (user.id == s.username && !enabled) {
+            error.value = UiMessage(com.flutcloud.flutlink.R.string.cannot_disable_self)
+            return
+        }
         viewModelScope.launch {
             error.value = null
             try {

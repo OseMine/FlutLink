@@ -131,7 +131,7 @@ export interface UpdateProgress {
 
 export interface UpdateStatus {
   code: string;
-  asset_name?: string | null;
+  assetName?: string | null;
 }
 
 export interface TransferProgress {

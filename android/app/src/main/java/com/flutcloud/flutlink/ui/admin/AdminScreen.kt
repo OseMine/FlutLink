@@ -73,6 +73,7 @@ fun AdminScreen(container: AppContainer) {
 
     var showCreate by remember { mutableStateOf(false) }
     var groupTarget by remember { mutableStateOf<ManagedUser?>(null) }
+    var deleteTarget by remember { mutableStateOf<ManagedUser?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.loadUsers() }
@@ -116,7 +117,7 @@ fun AdminScreen(container: AppContainer) {
                         UserRow(
                             user = user,
                             onToggleEnabled = { vm.setEnabled(user, !user.enabled) },
-                            onDelete = { vm.deleteUser(user) },
+                            onDelete = { deleteTarget = user },
                             onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) },
                             onManageGroups = { groupTarget = user }
                         )
@@ -154,6 +155,18 @@ fun AdminScreen(container: AppContainer) {
             onCreateGroup = { group -> vm.createGroup(group) }
         )
     }
+
+    deleteTarget?.let { target ->
+        val current = users.firstOrNull { it.id == target.id } ?: target
+        DeleteUserDialog(
+            user = current,
+            onDismiss = { deleteTarget = null },
+            onConfirm = {
+                deleteTarget = null
+                vm.deleteUser(current)
+            }
+        )
+    }
 }
 
 @Composable
@@ -166,7 +179,7 @@ private fun LoadMoreButton(loading: Boolean, onClick: () -> Unit) {
             CircularProgressIndicator(Modifier.size(24.dp))
         } else {
             Button(onClick = onClick) {
-                Text("Load more")
+                Text(stringResource(R.string.admin_load_more))
             }
         }
     }
@@ -264,7 +277,7 @@ private fun UserRow(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Manage groups") },
+                            text = { Text(stringResource(R.string.admin_manage_groups)) },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
@@ -329,14 +342,14 @@ private fun GroupsDialog(
     var groupInput by remember { mutableStateOf("") }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Groups — ${user.displayName ?: user.id}") },
+        title = { Text(stringResource(R.string.admin_groups_title, user.displayName ?: user.id)) },
         text = {
             Column {
                 Text("@${user.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
                 if (user.groups.isEmpty()) {
                     Text(
-                        "No groups",
+                        stringResource(R.string.admin_no_groups),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -358,7 +371,7 @@ private fun GroupsDialog(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
-                            TextButton(onClick = { onRemoveFromGroup(group) }) { Text("Remove") }
+                            TextButton(onClick = { onRemoveFromGroup(group) }) { Text(stringResource(R.string.remove)) }
                         }
                     }
                 }
@@ -367,11 +380,11 @@ private fun GroupsDialog(
                     value = groupInput,
                     onValueChange = { groupInput = it },
                     singleLine = true,
-                    label = { Text("Group name") },
+                    label = { Text(stringResource(R.string.admin_group_name_label)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    "Creating a new group uses the name above; adding to an existing group requires that it already exists on the server.",
+                    stringResource(R.string.admin_groups_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
@@ -383,18 +396,39 @@ private fun GroupsDialog(
                 TextButton(
                     onClick = { onCreateGroup(groupInput.trim()) },
                     enabled = groupInput.isNotBlank()
-                ) { Text("Create group") }
+                ) { Text(stringResource(R.string.admin_create_group)) }
                 TextButton(
                     onClick = {
                         onAddToGroup(groupInput.trim())
                         groupInput = ""
                     },
                     enabled = groupInput.isNotBlank()
-                ) { Text("Add to group") }
+                ) { Text(stringResource(R.string.admin_add_to_group)) }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        }
+    )
+}
+
+@Composable
+private fun DeleteUserDialog(
+    user: ManagedUser,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.delete_user)) },
+        text = {
+            Text(stringResource(R.string.delete_user_confirm, user.displayName ?: user.id))
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

@@ -28,9 +28,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Android (FlutLink mobile client)
-android/.gradle/
-android/build/
-android/app/build/
-android/local.properties
-android/.kotlin/
+# Generated reports
+reports/
+
+# opencode config
+.opencode/

@@ -357,7 +357,13 @@ pub async fn download_update(
         // Do not silently skip verification — surface it in the log and UI.
         let message = "checksum unavailable, skipping verification";
         eprintln!("warn: {message}");
-        let _ = app.emit("update://status", message);
+        let _ = app.emit(
+            "update://status",
+            UpdateStatus {
+                code: "checksum_warning".into(),
+                asset_name: None,
+            },
+        );
     }
 
     Ok(dest)
@@ -533,7 +539,7 @@ pub async fn check_update(app: AppHandle) -> AppResult<Option<ReleaseInfo>> {
             .builder()
             .title("FlutLink Update")
             .body(format!(
-                "Version {} ist verfügbar (aktuell: {}).",
+                "Version {} is available (current: {}).",
                 release.version, current
             ))
             .show();

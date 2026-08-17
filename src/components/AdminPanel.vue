@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from "vue";
 import { api, invokeError, type UserDetails, type UserQuota } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
+import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 import "@material/web/button/filled-button.js";
@@ -15,6 +16,7 @@ import "@material/web/select/select-option.js";
 const emit = defineEmits<{ browse: [userId: string] }>();
 
 const ui = useUiStore();
+const accounts = useAccountsStore();
 const t = (key: string) => translate(ui.lang, key);
 
 const MB = 1024 * 1024;
@@ -296,6 +298,10 @@ async function setQuota() {
 
 async function toggleEnabled() {
   if (!selected.value) return;
+  if (selected.value.id === accounts.active?.username) {
+    error.value = t("cannotDisableSelf");
+    return;
+  }
   error.value = null;
   editMsg.value = null;
   try {
@@ -315,6 +321,10 @@ async function toggleEnabled() {
 async function removeUser() {
   if (!selected.value) return;
   const name = selected.value.displayName || selected.value.id;
+  if (selected.value.id === accounts.active?.username) {
+    error.value = t("cannotDeleteSelf");
+    return;
+  }
   if (!window.confirm(t("deleteUserConfirm").replace("{name}", name))) return;
   error.value = null;
   editMsg.value = null;

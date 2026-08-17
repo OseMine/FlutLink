@@ -15,7 +15,7 @@ import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
-import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "./lib/ipc";
+import { api, invokeError, type ReleaseInfo, type UpdateProgress, type UpdateStatus } from "./lib/ipc";
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
 import "@material/web/button/text-button.js";
@@ -161,8 +161,11 @@ async function startUpdateDownload() {
     unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
       updateBannerProgress.value = e.payload.percent;
     });
-    unlistenStatus = await listen<string>("update://status", (e) => {
-      updateBannerStatus.value = e.payload;
+    unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
+      updateBannerStatus.value =
+        e.payload.code === "checksum_warning"
+          ? t("updateChecksumWarning")
+          : `${e.payload.code}${e.payload.assetName ? " — " + e.payload.assetName : ""}`;
     });
   } catch {
     // progress/status listeners are best-effort

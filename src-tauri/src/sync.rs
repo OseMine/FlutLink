@@ -1193,13 +1193,13 @@ impl SyncEngine {
             notify(
                 app,
                 "FlutLink Sync",
-                &format!("{files_failed} Datei(en) konnten nicht synchronisiert werden."),
+                &format!("{files_failed} file(s) failed to sync."),
             );
         } else if files_done > 0 {
             notify(
                 app,
                 "FlutLink Sync",
-                &format!("{files_done} Datei(en) erfolgreich synchronisiert."),
+                &format!("{files_done} file(s) synced successfully."),
             );
         }
     }

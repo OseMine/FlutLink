@@ -1296,6 +1296,11 @@ pub async fn admin_delete_user(state: State<'_, AppState>, user_id: String) -> A
     if !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
+    if user_id == account.meta.username {
+        return Err(AppError::App(
+            "You cannot delete your own account.".to_string(),
+        ));
+    }
     ocs::delete_user(&state.http_client, &account, &user_id).await
 }
 

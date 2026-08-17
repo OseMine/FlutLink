@@ -94,6 +94,7 @@ fun FilesScreen(container: AppContainer) {
     val shares by vm.shares.collectAsState()
     val sharesLoading by vm.sharesLoading.collectAsState()
     val sessionKey = vm.sessionKey
+    val pendingUpload by vm.pendingUpload.collectAsState()
 
     var showSearch by remember { mutableStateOf(false) }
     var showNewFolder by remember { mutableStateOf(false) }
@@ -198,7 +199,11 @@ fun FilesScreen(container: AppContainer) {
                 SearchResults(
                     results = searchResults,
                     searching = searching,
-                    onOpen = { vm.open(it) }
+                    onOpen = { vm.open(it) },
+                    onRename = { renameTarget = it },
+                    onShare = { shareTarget = it },
+                    onDelete = { deleteTarget = it },
+                    onJumpToPaired = { entry -> entry.linkTarget?.let { vm.listFolder(it) } }
                 )
             } else if (loading && entries.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -273,6 +278,19 @@ fun FilesScreen(container: AppContainer) {
             }
         )
     }
+    pendingUpload?.let { upload ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { vm.cancelUpload() },
+            title = { Text(stringResource(R.string.overwrite)) },
+            text = { Text(stringResource(R.string.file_exists_confirm, upload.name)) },
+            confirmButton = {
+                TextButton(onClick = { vm.confirmUpload() }) { Text(stringResource(R.string.overwrite)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.cancelUpload() }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -331,7 +349,11 @@ private fun SearchBar(
 private fun SearchResults(
     results: List<WebDavEntry>,
     searching: Boolean,
-    onOpen: (WebDavEntry) -> Unit
+    onOpen: (WebDavEntry) -> Unit,
+    onRename: (WebDavEntry) -> Unit,
+    onShare: (WebDavEntry) -> Unit,
+    onDelete: (WebDavEntry) -> Unit,
+    onJumpToPaired: (WebDavEntry) -> Unit
 ) {
     when {
         searching -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -347,10 +369,10 @@ private fun SearchResults(
                 EntryRow(
                     entry = entry,
                     onClick = { onOpen(entry) },
-                    onRename = {},
-                    onShare = {},
-                    onDelete = {},
-                    onJumpToPaired = {}
+                    onRename = { onRename(entry) },
+                    onShare = { onShare(entry) },
+                    onDelete = { onDelete(entry) },
+                    onJumpToPaired = { onJumpToPaired(entry) }
                 )
             }
         }
@@ -407,16 +429,14 @@ private fun EntryRow(
                         }
                     )
                 }
-                if (entry.isDir) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.rename)) },
-                        leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onRename()
-                        }
-                    )
-                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename)) },
+                    leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onRename()
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.share_link)) },
                     leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
@@ -530,15 +550,15 @@ private fun ShareDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Existing shares",
+                    stringResource(R.string.share_existing_shares),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.height(8.dp))
                 when {
-                    sharesLoading -> Text("Loading shares…", style = MaterialTheme.typography.bodySmall)
+                    sharesLoading -> Text(stringResource(R.string.share_loading_shares), style = MaterialTheme.typography.bodySmall)
                     shares.isEmpty() -> Text(
-                        "No shares yet",
+                        stringResource(R.string.share_no_shares_yet),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -548,7 +568,7 @@ private fun ShareDialog(
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "New public link",
+                    stringResource(R.string.share_new_public_link),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -589,22 +609,23 @@ private fun ShareRow(share: Share, onRevoke: () -> Unit) {
                 )
             }
             val meta = listOfNotNull(
-                share.hasPassword?.takeIf { it }?.let { "password" },
-                share.expiration?.let { "expires $it" }
+                share.hasPassword?.takeIf { it }?.let { stringResource(R.string.share_meta_has_password) },
+                share.expiration?.let { stringResource(R.string.share_meta_expires, it) }
             ).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        TextButton(onClick = onRevoke) { Text("Revoke") }
+        TextButton(onClick = onRevoke) { Text(stringResource(R.string.share_revoke)) }
     }
 }
 
+@Composable
 private fun shareLabel(share: Share): String = when (share.shareType) {
-    0 -> "User"
-    1 -> "Group"
-    3 -> "Public link"
-    else -> "Share"
+    0 -> stringResource(R.string.share_type_user)
+    1 -> stringResource(R.string.share_type_group)
+    3 -> stringResource(R.string.share_type_public_link)
+    else -> stringResource(R.string.share_type_generic)
 }
 
 private fun shareTarget(share: Share): String =
@@ -619,7 +640,7 @@ private fun OfflineBanner() {
         shape = MaterialTheme.shapes.small
     ) {
         Text(
-            "Offline — showing cached data",
+            stringResource(R.string.files_offline_banner),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )

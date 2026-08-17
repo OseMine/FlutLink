@@ -257,25 +257,6 @@ class WebDavApi(private val client: OkHttpClient) {
         }
     }
 
-    /** Fetch a preview thumbnail; null when the server has none. */
-    suspend fun preview(session: AuthSession, path: String, size: Int = 256): ByteArray? = withContext(Dispatchers.IO) {
-        val url = "${session.normalizedBaseUrl}/index.php/core/preview.png?file=${encodeSegment(path)}&x=$size&y=$size"
-        val request = auth(Request.Builder().url(url).get(), session).build()
-        try {
-            client.newCall(request).execute().use { response ->
-                if (response.code == 404 || response.code == 400) return@withContext null
-                if (!response.isSuccessful) {
-                    throw ApiException("Preview failed: HTTP ${response.code}", "http_${response.code}", response.code)
-                }
-                response.body?.bytes()
-            }
-        } catch (e: ApiException) {
-            throw e
-        } catch (e: IOException) {
-            throw NetworkException(e)
-        }
-    }
-
     private fun statusCheck(request: Request, ignoreStatus: Int? = null) {
         try {
             client.newCall(request).execute().use { response ->

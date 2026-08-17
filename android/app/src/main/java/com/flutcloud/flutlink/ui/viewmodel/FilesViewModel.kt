@@ -13,6 +13,8 @@ import com.flutcloud.flutlink.data.dto.WebDavEntry
 import com.flutcloud.flutlink.ui.UiMessage
 import com.flutcloud.flutlink.ui.networkUiMessage
 import com.flutcloud.flutlink.ui.toUiMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +23,9 @@ import java.io.IOException
 
 /** Bytes copied so far vs. total bytes of a streaming transfer. */
 data class TransferProgress(val transferred: Long, val total: Long)
+
+/** Holds a pending upload until the user confirms overwrite. */
+data class PendingUpload(val targetDir: String, val name: String, val uri: android.net.Uri, val contentType: String)
 
 class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -46,8 +51,16 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     private val _sharesLoading = MutableStateFlow(false)
     val sharesLoading: StateFlow<Boolean> = _sharesLoading.asStateFlow()
 
+    private val _pendingUpload = MutableStateFlow<PendingUpload?>(null)
+    val pendingUpload: StateFlow<PendingUpload?> = _pendingUpload.asStateFlow()
+
     private val _downloaded = MutableStateFlow<String?>(null)
     val downloaded: StateFlow<String?> = _downloaded.asStateFlow()
+
+    private val _toast = MutableStateFlow<UiMessage?>(null)
+    val toast: StateFlow<UiMessage?> = _toast.asStateFlow()
+
+    private var searchJob: Job? = null
 
     private val _transferProgress = MutableStateFlow<TransferProgress?>(null)
     val transferProgress: StateFlow<TransferProgress?> = _transferProgress.asStateFlow()
@@ -105,7 +118,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     /**
-     * Download a file into the app's open-cache directory (previous opens are
+     * Download a file into the app's files directory (previous opens are
      * removed first, so the cache holds at most one file) and expose it to the
      * screen, which launches the external app. Mirror of the desktop
      * `open_remote_file`.
@@ -137,6 +150,36 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 _transferProgress.value = null
             }
         }
+    }
+
+    fun saveToDownloads(filePath: String) {
+        viewModelScope.launch {
+            error.value = null
+            try {
+                val src = java.io.File(filePath)
+                if (!src.exists()) return@launch
+                container.copyToDownloads(src)
+                _toast.value = UiMessage(R.string.downloaded_to_app_files, src.name)
+            } catch (e: Exception) {
+                error.value = UiMessage(R.string.error_generic_detail, e.message ?: "")
+            }
+        }
+    }
+
+    fun shareFile(context: android.content.Context, filePath: String) {
+        val file = java.io.File(filePath)
+        if (!file.exists()) return
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", file
+        )
+        val mime = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, null))
     }
 
     fun mkdir(name: String, onDone: () -> Unit = {}) {
@@ -256,8 +299,42 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
      * Upload a SAF content [uri] by streaming from the content provider instead
      * of reading it into memory. Falls back to a buffered read only when the
      * provider does not report the content size.
+     *
+     * Before uploading, checks whether a file with the same name already exists
+     * on the server. If it does, a confirmation dialog is shown via
+     * [pendingUpload]; call [confirmUpload] or [cancelUpload] to proceed.
      */
     fun uploadStream(targetDir: String, name: String, uri: Uri, contentType: String = "application/octet-stream") {
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                val remotePath = if (targetDir == "/") "/$name" else "$targetDir/$name"
+                val exists = container.webDavApi.exists(s, remotePath)
+                if (exists) {
+                    _pendingUpload.value = PendingUpload(targetDir, name, uri, contentType)
+                    return@launch
+                }
+                doUpload(targetDir, name, uri, contentType)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            }
+        }
+    }
+
+    fun confirmUpload() {
+        val pending = _pendingUpload.value ?: return
+        _pendingUpload.value = null
+        doUpload(pending.targetDir, pending.name, pending.uri, pending.contentType)
+    }
+
+    fun cancelUpload() {
+        _pendingUpload.value = null
+    }
+
+    private fun doUpload(targetDir: String, name: String, uri: Uri, contentType: String) {
         val s = session ?: return
         viewModelScope.launch {
             error.value = null
@@ -279,8 +356,21 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                         }
                     )
                 } else {
-                    val bytes = container.readAllBytes(uri)
-                    container.webDavApi.upload(s, remotePath, bytes, contentType = contentType)
+                    val tmpFile = container.streamToTempFile(uri, name)
+                    try {
+                        container.webDavApi.uploadStream(
+                            session = s,
+                            path = remotePath,
+                            openStream = { tmpFile.inputStream() },
+                            contentLength = tmpFile.length(),
+                            contentType = contentType,
+                            onProgress = { transferred, total ->
+                                _transferProgress.value = TransferProgress(transferred, total)
+                            }
+                        )
+                    } finally {
+                        tmpFile.delete()
+                    }
                 }
                 listFolder(path.value)
             } catch (e: NetworkException) {
@@ -295,13 +385,15 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
     fun search(query: String) {
         val s = session ?: return
-        viewModelScope.launch {
-            searchQuery.value = query
-            if (query.isBlank()) {
-                searchResults.value = emptyList()
-                searching.value = false
-                return@launch
-            }
+        searchJob?.cancel()
+        searchQuery.value = query
+        if (query.isBlank()) {
+            searchResults.value = emptyList()
+            searching.value = false
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(300)
             searching.value = true
             error.value = null
             try {
@@ -325,5 +417,6 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         error.value = null
         _downloaded.value = null
         _lastShare.value = null
+        _pendingUpload.value = null
     }
 }

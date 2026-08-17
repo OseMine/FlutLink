@@ -132,7 +132,7 @@ jobs:
         run: npm ci
 
       - name: Build and release
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -161,7 +161,7 @@ jobs:
           keystore-store-password: ${{ secrets.ANDROID_KEYSTORE_STORE_PASSWORD }}
           keystore-key-alias: ${{ secrets.ANDROID_KEYSTORE_KEY_ALIAS }}
           keystore-key-password: ${{ secrets.ANDROID_KEYSTORE_KEY_PASSWORD }}
-          artifact-name: flutlink-android-release
+          artifact-name: flutlink-android-release-v__VERSION__
 
   upload-android:
     name: Upload Android APK to release

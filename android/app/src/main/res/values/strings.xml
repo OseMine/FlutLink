@@ -63,9 +63,11 @@
     <string name="delete_confirm">Delete %1$s?</string>
     <string name="delete_folder_confirm">The folder and all its contents will be deleted from the server.</string>
     <string name="delete_file_confirm">The file will be deleted from the server.</string>
-    <string name="downloaded_to_app_files">Downloaded to app files: %1$s</string>
+    <string name="downloaded_to_app_files">Downloaded to Downloads: %1$s</string>
     <string name="link_created">Link created: %1$s</string>
     <string name="no_url">no URL</string>
+    <string name="file_exists_confirm">A file named \'%1$s\' already exists on the server. Overwrite?</string>
+    <string name="overwrite">Overwrite</string>
 
     <!-- Admin -->
     <string name="user_administration">User administration</string>
@@ -80,9 +82,41 @@
     <string name="quota_5gb">Quota: 5 GB</string>
     <string name="quota_10gb">Quota: 10 GB</string>
     <string name="delete_user">Delete user</string>
+    <string name="delete_user_confirm">Delete user %1$s? This cannot be undone.</string>
+    <string name="cannot_delete_self">You cannot delete your own account.</string>
+    <string name="cannot_disable_self">You cannot disable your own account.</string>
     <string name="create_user">Create user</string>
     <string name="user_id">User ID</string>
     <string name="display_name_optional">Display name (optional)</string>
+    <string name="login_tab_sign_in">Sign in</string>
+    <string name="login_tab_register">Register</string>
+    <string name="login_new_username">New username</string>
+    <string name="login_password">Password</string>
+
+    <!-- Files — Share dialog -->
+    <string name="share_existing_shares">Existing shares</string>
+    <string name="share_loading_shares">Loading shares…</string>
+    <string name="share_no_shares_yet">No shares yet</string>
+    <string name="share_new_public_link">New public link</string>
+    <string name="share_meta_has_password">password</string>
+    <string name="share_meta_expires">expires %1$s</string>
+    <string name="share_revoke">Revoke</string>
+    <string name="share_type_user">User</string>
+    <string name="share_type_group">Group</string>
+    <string name="share_type_public_link">Public link</string>
+    <string name="share_type_generic">Share</string>
+    <string name="files_offline_banner">Offline \u2014 showing cached data</string>
+
+    <!-- Admin — Groups -->
+    <string name="admin_load_more">Load more</string>
+    <string name="admin_manage_groups">Manage groups</string>
+    <string name="admin_groups_title">Groups \u2014 %1$s</string>
+    <string name="admin_no_groups">No groups</string>
+    <string name="admin_group_name_label">Group name</string>
+    <string name="admin_groups_hint">Creating a new group uses the name above; adding to an existing group requires that it already exists on the server.</string>
+    <string name="admin_create_group">Create group</string>
+    <string name="admin_add_to_group">Add to group</string>
+    <string name="close">Close</string>
 
     <!-- Settings -->
     <string name="account">Account</string>
@@ -124,6 +158,7 @@
     <string name="error_http">Server error: %1$s</string>
     <string name="error_flutcloud_app_missing">This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.</string>
     <string name="error_not_flutcloud">FlutLink is a dedicated client for the FlutCloud server and cannot connect to \'%1$s\'.</string>
+    <string name="error_wrong_server_url">This client is configured for a specific FlutCloud server. The URL cannot be changed.</string>
     <string name="error_target_exists">A file or folder named \'%1$s\' already exists. Choose a different name.</string>
     <string name="error_invalid_folder_name">The folder name must not contain invalid characters.</string>
     <string name="error_generic">An unexpected error occurred.</string>
