@@ -1110,3 +1110,4 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - [x] **B16 - CI:** `ci.yml` (Z. 37-46): Linux-System-Dependencies doppelt installiert (auch in `setup`-Action); auf die Action umstellen. → `ci.yml` entfernt.
 - [x] **B17 - Robustheit:** `accounts.rs` `save_token`/`load_accounts`: Ohne Secret-Service (Linux) ist die App unbenutzbar; Hinweis/Fehlermeldung für Linux-Nutzer ergänzen.
 - [x] **B18 - Robustheit:** `webdav.rs` `get_file` (Z. 147-159): `.flutlink-<pid>.tmp`-Reste bei Stream-Fehlern nicht aufgeräumt; `remove_file(&tmp)` im Fehlerpfad ergänzen.
+
