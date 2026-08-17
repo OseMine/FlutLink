@@ -529,6 +529,19 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
       grün, `cargo clippy --all-targets -D warnings` grün, `npm run build` grün,
       Android `:app:compileDebugKotlin` grün.
 
+### Review 2026-08-16 (U-R8-11)
+
+- [x] **U-R8-11 (UX, minor):** Login-/Registrier-Formular wurde nach Erfolg bzw.
+      Schließen nicht geleert — `form` (inkl. Token) und
+      `showPassword`/`showAdminPassword` blieben gefüllt; beim nächsten Öffnen
+      waren die Felder vorausgefüllt (Risiko auf geteilten Geräten: versehentliches
+      Wiederverbinden mit dem alten Token). Fix in `src/components/LoginModal.vue`:
+      neue `resetForm()` setzt `form`, `showPassword`, `showAdminPassword` und
+      `formError` zurück; die Wrapper `close()`/`done()` rufen `resetForm()` vor
+      dem Emit auf. Alle Aufrufstellen (Backdrop-`@click.self`, beide Cancel-
+      Buttons, Erfolgspfade in `submit()`/`submitRegister()`) nutzen die Wrapper.
+      Verifikation: `npm run build` (vue-tsc + vite) grün, `cargo fmt --check` grün.
+
 ### Review 2026-08-16 (Android-Client)
 
 - [x] **AC1 (Feature, neu):** Android-Mobile-Client `android/` umgesetzt —
