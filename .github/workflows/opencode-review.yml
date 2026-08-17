@@ -71,13 +71,14 @@ jobs:
                vorhanden), bestehende Einträge unangetastet lassen.
             5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als
                erledigt („[x]") und verschiebe abgehakte Todos in die datei archived-todos.md".
+            6. Überprüfe nach den kriterien auch github issues
 
             WICHTIG:
             - Nur todo.md verändern — KEINEN Anwendungscode,
               KEINE Workflows/Actions. Keine Git-Operationen (committen, pushen,
               PRs, Merges, Branch-Löschungen) — das übernimmt die Workflow-Step.
             - Keine GitHub-API-/gh-Aufrufe. Keine destructive Aktionen.
-            - Beende deine Antwort direkt nach Schritt 5.
+            - Beende deine Antwort direkt nach Schritt 6.
 
             Regeln: Keine Findings ohne konkrete Datei-/Funktionsnamen. Wenn keine
             neuen Befunde vorhanden sind, vermerke das ausdrücklich im Review-Bericht.
