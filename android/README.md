@@ -37,11 +37,13 @@ android/
 - **FlutCloud-only enforcement** — `FlutCloudApi.verifyServer` probes the
   `flutcloud` capability before an account is accepted.
 - **Files** — WebDAV browsing (PROPFIND), upload (Storage Access Framework),
-  download + open with an external app (FileProvider/`ACTION_VIEW`), folder
-  creation, rename, delete, global search (SEARCH), virtual-link
-  (`resources`/`parts`) pairing, share management (create public links, list
-  existing shares, revoke), offline cache for folder listings with an
-  "Offline — showing cached data" banner.
+  download + open with an external app (FileProvider/`ACTION_VIEW`), download
+  into the public **Downloads** folder (MediaStore on Android 10+), share via
+  the Android **share sheet** (`ACTION_SEND`), folder creation, rename,
+  delete, global search (SEARCH), virtual-link (`resources`/`parts`) pairing,
+  share management (create public links, list existing shares, revoke),
+  offline cache for folder listings with an "Offline — showing cached data"
+  banner.
 - **Admin** — OCS user administration: list/search, create, delete,
   enable/disable, quota presets, group management (view a user's groups,
   add/remove members, create groups).
@@ -83,9 +85,16 @@ parsing, `AccountStore` roundtrip, `SessionManager` account switching/removal):
 ./gradlew :app:testDebugUnitTest
 ```
 
-The FlutCloud server URL is compiled into `BuildConfig.FLUTCLOUD_URL`. Override
-it for local development with:
+The FlutCloud server URL is compiled into `BuildConfig.FLUTCLOUD_URL`. Like the
+desktop client, the build reads it from the `FLUTCLOUD_URL` environment
+variable (this is what the release/build workflows do), falling back to the
+local `-PflutcloudUrl=…` Gradle property for development. When a URL is baked
+in, the login screen locks the server field — the client then connects
+exclusively to that server:
 
 ```
+export FLUTCLOUD_URL=https://your-server.example
+./gradlew :app:assembleDebug
+# or, for a one-off local build:
 ./gradlew :app:assembleDebug -PflutcloudUrl=https://your-server.example
 ```

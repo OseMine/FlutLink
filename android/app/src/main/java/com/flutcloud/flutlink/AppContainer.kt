@@ -62,39 +62,6 @@ class AppContainer(context: Context) {
     }
 
     /**
-     * Copy a file into the public Downloads folder.
-     * On Android 10+ uses MediaStore; on older versions writes to
-     * `Environment.DIRECTORY_DOWNLOADS` directly.
-     */
-    fun copyToDownloads(src: java.io.File) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val resolver = appContext.contentResolver
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, src.name)
-                put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
-                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-            }
-            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            val uri = resolver.insert(collection, values)
-                ?: throw IOException("Failed to create MediaStore entry")
-            try {
-                resolver.openOutputStream(uri)?.use { out ->
-                    src.inputStream().use { input -> input.copyTo(out) }
-                } ?: throw IOException("Failed to open output stream")
-            } catch (e: Exception) {
-                resolver.delete(uri, null, null)
-                throw e
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            dir.mkdirs()
-            val dest = java.io.File(dir, src.name)
-            src.copyTo(dest, overwrite = true)
-        }
-    }
-
-    /**
      * Download a file into the public Downloads folder.
      * On Android 10+ uses MediaStore; on older versions writes to
      * `Environment.DIRECTORY_DOWNLOADS` directly.

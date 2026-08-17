@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -207,7 +207,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
-                Icon(Icons.Default.Logout, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.sign_out))
             }
