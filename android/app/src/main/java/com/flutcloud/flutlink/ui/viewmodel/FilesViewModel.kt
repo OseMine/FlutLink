@@ -57,6 +57,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     private val _downloaded = MutableStateFlow<String?>(null)
     val downloaded: StateFlow<String?> = _downloaded.asStateFlow()
 
+    private val _sharePath = MutableStateFlow<String?>(null)
+    val sharePath: StateFlow<String?> = _sharePath.asStateFlow()
+
     private val _toast = MutableStateFlow<UiMessage?>(null)
     val toast: StateFlow<UiMessage?> = _toast.asStateFlow()
 
@@ -152,34 +155,71 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun saveToDownloads(filePath: String) {
+    /**
+     * Download a file into the public Downloads folder (MediaStore on
+     * Android 10+, direct write below) and confirm with a toast. Mirrors the
+     * desktop `download` action.
+     */
+    fun downloadToDownloads(entry: WebDavEntry) {
+        val s = session ?: return
         viewModelScope.launch {
+            loading.value = true
             error.value = null
             try {
-                val src = java.io.File(filePath)
-                if (!src.exists()) return@launch
-                container.copyToDownloads(src)
-                _toast.value = UiMessage(R.string.downloaded_to_app_files, src.name)
-            } catch (e: Exception) {
-                error.value = UiMessage(R.string.error_generic_detail, e.message ?: "")
+                container.downloadToDownloads(entry.name) { dest ->
+                    container.webDavApi.downloadToFile(
+                        session = s,
+                        path = entry.path,
+                        dest = dest,
+                        onProgress = { transferred, total ->
+                            _transferProgress.value = TransferProgress(transferred, total)
+                        }
+                    )
+                }
+                _toast.value = UiMessage(R.string.downloaded_to_downloads, entry.name)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } finally {
+                loading.value = false
+                _transferProgress.value = null
             }
         }
     }
 
-    fun shareFile(context: android.content.Context, filePath: String) {
-        val file = java.io.File(filePath)
-        if (!file.exists()) return
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context, "${context.packageName}.fileprovider", file
-        )
-        val mime = android.webkit.MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "application/octet-stream"
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = mime
-            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    /**
+     * Download a file into the app's files directory and expose it to the
+     * screen, which launches the Android share sheet. The cached file is
+     * served via FileProvider (see `file_paths.xml`).
+     */
+    fun downloadAndShare(entry: WebDavEntry) {
+        val s = session ?: return
+        viewModelScope.launch {
+            loading.value = true
+            error.value = null
+            try {
+                val dir = container.appFilesDir()
+                dir.mkdirs()
+                val file = java.io.File(dir, entry.name)
+                container.webDavApi.downloadToFile(
+                    session = s,
+                    path = entry.path,
+                    dest = file,
+                    onProgress = { transferred, total ->
+                        _transferProgress.value = TransferProgress(transferred, total)
+                    }
+                )
+                _sharePath.value = file.absolutePath
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } finally {
+                loading.value = false
+                _transferProgress.value = null
+            }
         }
-        context.startActivity(android.content.Intent.createChooser(intent, null))
     }
 
     fun mkdir(name: String, onDone: () -> Unit = {}) {
@@ -418,5 +458,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         _downloaded.value = null
         _lastShare.value = null
         _pendingUpload.value = null
+        _sharePath.value = null
+        _toast.value = null
     }
 }

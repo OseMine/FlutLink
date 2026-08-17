@@ -98,21 +98,29 @@ Ein begleitender **Android-Client** (`android/`) portiert den
 Desktop-Funktionsumfang auf Kotlin + Jetpack Compose (Material 3). Er wurde
 mit opencode generiert, spiegelt die Desktop-App und ist kein separates
 Produkt. Es gilt dieselbe FlutCloud-only-Policy: Vor der Annahme eines Kontos
-wird die `flutcloud`-Capability geprüft.
+wird die `flutcloud`-Capability geprüft, und wenn eine Server-URL ins Build
+eingebaut ist (`FLUTCLOUD_URL` / `-PflutcloudUrl`), ist das URL-Feld im
+Login-Screen gesperrt.
 
 Auf Android verfügbar:
 
 - **Dateien** — WebDAV-Browsing (PROPFIND), Upload über das Storage Access
-  Framework, Download, Ordner anlegen, Umbenennen, Löschen, globale Suche
-  (SEARCH), `resources`/`parts`-Virtuallink-Pairing und öffentliche
-  Share-Links.
+  Framework (mit Überschreiben-Bestätigung), Download + Öffnen mit einer
+  externen App, Download in den öffentlichen **Downloads-Ordner**, Teilen über
+  das Android-**Share-Sheet**, Ordner anlegen, Umbenennen, Löschen, globale
+  Suche (SEARCH), `resources`/`parts`-Virtuallink-Pairing, Share-Verwaltung
+  (öffentliche Links anlegen, Shares auflisten und widerrufen) sowie ein
+  Offline-Cache für Ordner-Listings.
 - **Admin** — OCS-Benutzerverwaltung: auflisten/suchen, anlegen, löschen,
-  aktivieren/deaktivieren und Quota-Presets.
+  aktivieren/deaktivieren, Quota-Presets und Gruppenverwaltung.
+- **Registrierung** — neues Konto direkt vom Login-Screen über die
+  OCS-Provisioning-API (Admin-Zugangsdaten), dann Anmeldung mit dem neuen
+  Passwort.
 - **Sicherheit** — Tokens liegen in `EncryptedSharedPreferences`
   (Android-Keystore), Kontometadaten in einer separaten Preferences-Datei;
   kein Token wird jemals geloggt oder im Klartext gespeichert.
 
-Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync, Gruppenverwaltung,
-Admin-Impersonation sowie Tray-/CLI-Verhalten.
+Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync, Admin-Impersonation
+sowie Tray-/CLI-Verhalten.
 
 Build und Details siehe [`android/README.md`](../../android/README.md).

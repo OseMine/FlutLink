@@ -11,9 +11,10 @@ Dateien `archived-todo.md` und `reports/review-*.md`.
 Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
 src-tauri/Cargo.toml` → **83 passed / 0 failed** (Tauri-Linux-Systemdeps
 `libwebkit2gtk-4.1-dev`/`libgtk-3-dev` nachinstalliert); `cargo fmt
---check` grün; `cargo clippy --all-targets -- -D warnings` grün. **`npm run
-build` schlägt fehl** (s. D5), **Android-Build schlägt fehl** (s. D6) —
-beide Regressionen in CI bestätigt. Wichtiger Kontext: Der Lauf-10-Bericht
+--check` grün; `cargo clippy --all-targets -- -D warnings` grün. Zu
+Laufbeginn schlugen **`npm run build`** (s. D5) und der **Android-Build**
+(s. D6) fehl — beide Regressionen waren in CI bestätigt und sind mit diesem
+Lauf behoben (Details bei D5/D6). Wichtiger Kontext: Der Lauf-10-Bericht
 behauptet „keine Commits seit Lauf 9, git status sauber, alle 16
 A9-Befunde unverändert offen" — **das stimmt für den aktuellen Stand
 nicht**: seit Lauf 9 wurden u. a. die Merges PR #132 (Android i18n) und
@@ -26,7 +27,7 @@ nachgeprüft (Ergebnis in der Liste unten).
 
 Neu gefunden:
 
-- [ ] **D5 (Build/CI, hoch):** Frontend-Build ist kaputt —
+- [x] **D5 (Build/CI, hoch):** Frontend-Build ist kaputt —
       `package.json` pinnt `"typescript": "~7.0.2"` zusammen mit
       `"vue-tsc": "^3.3.5"`. TypeScript 7.0.2 (installiert: 7.0.2) hat den
       Subpath `./lib/tsc` aus seinen `exports` entfernt; vue-tsc 3.3.9
@@ -38,7 +39,9 @@ Neu gefunden:
       vue-tsc-kompatible Linie zurückstufen (z. B. `~5.9.3`, wie vor dem
       dependabot-Bump) oder vue-tsc/@volar auf eine TS-7-fähige Version
       heben; dependabot-Bump war der Auslöser (`8012480 Merge …/typescript-7.0.2`).
-- [ ] **D6 (Build/CI, hoch):** Android-Build ist kaputt —
+      → erledigt: `package.json` steht auf `"typescript": "~5.8.3"`; `npm run
+      build` (vue-tsc + vite) ist grün.
+- [x] **D6 (Build/CI, hoch):** Android-Build ist kaputt —
       `FilesViewModel.kt:144` weist `error.value` einen rohen `String`
       zu („The folder name must not contain '/', '.' or '..'."), das Feld
       ist aber `MutableStateFlow<UiMessage?>` → Kotlin-Compile-Fehler
@@ -47,7 +50,9 @@ Neu gefunden:
       (run 32024685436) failt. Fix: `UiMessage` mit einem Key aus
       `strings.xml` verwenden (die Meldung gehört zusätzlich lokalisiert,
       s. D7).
-- [ ] **D7 (i18n, mittel):** Android-i18n ist **unvollständig** — der
+      → erledigt: `FilesViewModel.mkdir` emittiert `UiMessage(R.string.error_invalid_folder_name)`;
+      `./gradlew :app:assembleDebug` + `:app:lintDebug` sind grün.
+- [x] **D7 (i18n, mittel):** Android-i18n ist **unvollständig** — der
       Archiv-Claim AC2 („alle UI-Texte in `strings.xml`") stimmt nicht:
       aktuelle Screens der Feature-Parität (Issue #136) enthalten ~20
       hartkodierte englische Strings, teilweise obwohl die Keys bereits in
@@ -77,6 +82,9 @@ Neu gefunden:
       Fix: alle Texte auf `stringResource`-Keys umstellen, fehlende Keys
       (Share-/Gruppen-Dialog, Offline-Banner) in `values/` + `values-de/`
       ergänzen.
+      → erledigt: alle genannten Screens/ViewModels nutzen `stringResource`
+      bzw. `UiMessage`/`networkUiMessage`/`toUiMessage`; `values/` und
+      `values-de/` enthalten dieselben Keys (Abgleich grün).
 
 **A9-Nachprüfung gegen den aktuellen Code** (Lauf-9-Liste unten bleibt
 formal bestehen; hier der aktuelle Status):
@@ -84,20 +92,21 @@ formal bestehen; hier der aktuelle Status):
 - A9-1 (Sync fehlt) → durch Dokumentation aufgelöst: `android/README.md`
   „Consciously not on mobile" dokumentiert den Zwei-Wege-Sync als bewusste
   Produktentscheidung (Desktop-only, Phase-2-Roadmap).
-- A9-2 (Android ohne Lokalisierung) → **teilweise umgesetzt** (strings.xml
-  + values-de vorhanden, ViewModels emittieren Ressourcen-IDs), aber
-  Restlücken s. D7 → offen.
-- A9-3 (Rename nur Ordner) → **weiter offen**: `FilesScreen.kt:410`
-  `if (entry.isDir)`.
-- A9-4 (Suche ohne Debounce) → **weiter offen**: `FilesScreen.kt:146`
-  `onQueryChange = { vm.search(it) }` bei jedem Tastendruck.
+- A9-2 (Android ohne Lokalisierung) → **umgesetzt**: alle UI-Texte liegen in
+  `values/strings.xml` + `values-de/strings.xml` (identische Key-Sets),
+  ViewModels emittieren Ressourcen-IDs; Restlücken aus D7 sind geschlossen
+  (siehe D7 → erledigt).
+- A9-3 (Rename nur Ordner) → **umgesetzt**: `EntryRow` bietet „Rename" für
+  Dateien **und** Ordner an (`FilesScreen.kt`, Dropdown ohne `isDir`-Guard).
+- A9-4 (Suche ohne Debounce) → **umgesetzt**: `FilesViewModel.search`
+  debounced mit `delay(300)` (analog Desktop).
 - A9-5 (RAM-Loading) → **umgesetzt**: `WebDavApi.downloadToFile`/
   `uploadStream` (Streaming, 64-KiB-Puffer) und `FilesViewModel.kt`
   nutzen sie; `response.body?.bytes()`/`readAllBytes` nur noch als
   Fallback ohne Content-Length.
-- A9-6 (Upload überschreibt still) → **weiter offen**:
-  `FilesViewModel.uploadStream`/`upload` führen keinen
-  `exists()`-Check aus (Q9-Port fehlt).
+- A9-6 (Upload überschreibt still) → **umgesetzt**: `uploadStream` führt
+  einen `exists()`-Check aus und zeigt bei Treffer den Overwrite-Confirm
+  (`PendingUpload`/`confirmUpload`), analog Desktop-Q9.
 - A9-7 (Impersonation fehlt) → **weiter offen**: kein `target_user`/
   `Impersonate-User` in `WebDavApi.kt`/`FilesScreen.kt`.
 - A9-8 (Gruppenverwaltung fehlt) → **umgesetzt**: `GroupsDialog` +
@@ -110,38 +119,54 @@ formal bestehen; hier der aktuelle Status):
   fehlen → offen (reduziert).
 - A9-10 (Quota nur Presets) → **weiter offen**: `AdminScreen.kt` kennt
   nur unlimited/1/5/10 GB, keine Freieingabe.
-- A9-11 (FLUTCLOUD_URL nicht erzwungen) → **weiter offen**:
-  `LoginViewModel.kt:38-43` erlaubt weiter jede editierbare URL.
-- A9-12 (Downloads in App-Files) → **umgesetzt**: `FileOpener.open`
-  (ACTION_VIEW/FileProvider); „downloaded to app files" nur noch Fallback.
+- A9-11 (FLUTCLOUD_URL nicht erzwungen) → **umgesetzt**: `app/build.gradle.kts`
+  liest die Server-URL aus der `FLUTCLOUD_URL`-Umgebungsvariable (Fallback
+  `-PflutcloudUrl`) und baut sie als `BuildConfig.FLUTCLOUD_URL` ein;
+  `LoginScreen` sperrt das URL-Feld, `LoginViewModel.signIn`/`register`
+  verwerfen abweichende URLs (`error_wrong_server_url`). Hinweis: Die
+  GitHub-Actions (`android.yml`, `release.yml`, `build.yml`) wurden
+  **bewusst nicht** angefasst (Workflows sind für automatisierte Läufe tabu);
+  da die Gradle-Konfiguration die Umgebungsvariable direkt liest, greift ein
+  späteres `env.FLUTCLOUD_URL` in den Workflows automatisch.
+- A9-12 (Downloads in App-Files) → **umgesetzt**: Dateiaktion „Download"
+  speichert in den öffentlichen **Downloads-Ordner** (MediaStore ab
+  Android 10, Direktzugriff davor mit Laufzeit-Permission auf API 26–28),
+  „Teilen" öffnet das **Share-Sheet** (`ShareSheet`/`ACTION_SEND`); „Öffnen"
+  bleibt FileProvider/`ACTION_VIEW`.
 - A9-13 (Theme nur system/light/dark) → **weiter offen**: kein
   `operationflut`/`midnight` + Accent-Hue auf Android.
 - A9-14 (preview() Dead Code) → **weiter offen**: `WebDavApi.kt:261`
   `preview()` ohne Aufrufer; Android zeigt keine Thumbnails.
-- A9-15 (Suchergebnisse nur lesbar) → **weiter offen**: `FilesScreen.kt:350-353`
-  No-op-Handler `{}`.
+- A9-15 (Suchergebnisse nur lesbar) → **umgesetzt**: `SearchResults` reicht
+  `onDownload`/`onShareFile`/`onRename`/`onShareLink`/`onDelete`/
+  `onJumpToPaired` an `EntryRow` durch — Aktionen in Suchtreffern sind aktiv.
 - A9-16 (Offline-Cache fehlt) → **umgesetzt**: `listCache` +
   `OfflineBanner` („Offline — showing cached data", D7 betrifft den
   hartkodierten Text).
 
-Weiterhin offen aus früheren Läufen: D1–D4 (Lauf 10, im Code verifiziert:
-D1 `updater.rs:360` emittiert String, `updater.rs:567-598` `UpdateStatus`-
-Objekte; D2 `sync.rs:1195-1202` + `updater.rs:536` hartkodiert deutsch;
-D3 `SettingsModal.vue:112` ruft `adminListUsers("")`; D4 Archiv-
-Dateinamen-Konvention), R8-C1 und R7-7. Keine Code-Änderungen in diesem
-Lauf.
+Weiterhin offen aus früheren Läufen: R8-C1 (tauri-action auf `@v1` gepinnt)
+und R7-7 (Release-Draft manuell publizieren, als Schritt 3 dokumentiert).
+D1–D4 (Lauf 10) sind im aktuellen Code verifiziert und **erledigt**: D1
+`updater.rs` emittiert `UpdateStatus { code: "checksum_warning" }` statt
+String; D2 die hartkodierten deutschen Notification-Texte sind entfernt
+(englische Texte, `sync.rs:1195-1204` + `updater.rs:534-539`); D3
+`SettingsModal.vue` verlangt wie `AdminPanel.vue` einen Suchbegriff
+(`searchUsersRequired`); D4 der Archiv-Dateiname ist in `todo.md` selbst
+konsolidiert (Abschnitt „## Archiv (erledigt)").
 
 **GitHub-Issues (nur gelesen):** Die offenen Issues #192–#211 (am
 2026-08-17 vom `opencode-todo-issues`-Workflow aus dem Lauf-9/10-Stand der
 todo.md erzeugt) spiegeln die veraltete Befundlage: #203 (Gruppen), #200
-(RAM-Loading), #206 (Downloads), #208 (Offline-Cache) und #196 (Sync)
-beschreiben Punkte, die im aktuellen Code umgesetzt bzw. dokumentiert sind
-(s. Archiv-Abschnitt Lauf 11). Zusätzlich zum bekannten D5/D6 stehen #192
-(update://status), #193 (i18n-Notifications), #194 (AdminPanel
-`adminListUsers("")`), #195 (Archiv-Dateiname), #154 (tauri-action @v1) und
-#155 (Release-Draft) offen — inhaltlich identisch zu D1–D4/R8-C1/R7-7.
-Ein Abgleich Issues ↔ todo.md wäre beim nächsten Workflow-Lauf sinnvoll
-(veraltete Issues schließen bzw. referenzieren).
+(RAM-Loading), #208 (Offline-Cache) und #196 (Sync) beschreiben Punkte, die
+im aktuellen Code umgesetzt bzw. dokumentiert sind (s. Archiv-Abschnitt
+Lauf 11). **#206 (Downloads) ist mit diesem Lauf umgesetzt** (Downloads-Ordner
++ Share-Sheet + `FLUTCLOUD_URL`-Preconfig, s. Archiv-Abschnitt Issue #206).
+Zusätzlich zum bekannten D5/D6 stehen #192 (update://status), #193
+(i18n-Notifications), #194 (AdminPanel `adminListUsers("")`), #195
+(Archiv-Dateiname), #154 (tauri-action @v1) und #155 (Release-Draft) offen —
+D1–D4 sind im Code nachgewiesen erledigt (s. oben), inhaltlich identisch zu
+R8-C1/R7-7. Ein Abgleich Issues ↔ todo.md wäre beim nächsten Workflow-Lauf
+sinnvoll (veraltete Issues schließen bzw. referenzieren).
 
 ### Review 2026-08-17 (Lauf 10, automatisierter Review — neue Befunde)
 
@@ -155,7 +180,7 @@ Alle 16 offenen Android-Befunde (A9-1 … A9-16) sowie R8-C1 und R7-7 sind
 unverändert offen (keine Commits seit Lauf 9, `git status` sauber). Neu
 gefunden:
 
-- [ ] **D1 (Bug, minor):** `update://status`-Payload ist typinkonsistent —
+- [x] **D1 (Bug, minor):** `update://status`-Payload ist typinkonsistent —
       `updater.rs:360` (`download_update`) emittiert bei fehlender GitHub-
       Checksumme einen plain `String` („checksum unavailable, skipping
       verification"), `download_and_install_update` (`updater.rs:567-598`)
@@ -170,7 +195,7 @@ gefunden:
       `download_update` ein `UpdateStatus { code: "checksum_unavailable",
       asset_name: None }`-Objekt emittieren und in `App.vue` den String-Cast
       auf das Objekt-Schema umstellen.
-- [ ] **D2 (i18n, minor):** Native OS-Notifications im Backend sind hartkodiert
+- [x] **D2 (i18n, minor):** Native OS-Notifications im Backend sind hartkodiert
       deutsch, obwohl die UI seit N14 über Codes/`translateError` lokalisiert:
       `sync.rs:1192-1204` (`notify(…, "FlutLink Sync", "{files_done} Datei(en)
       erfolgreich synchronisiert.")` bzw. „konnten nicht synchronisiert
@@ -179,7 +204,7 @@ gefunden:
       System-Notifications. Fix: Sprache der aktiven UI ins Backend spiegeln
       (persistierte `lang` aus `src/stores/ui.ts` → `AppState`) oder Codes
       statt Freitext emittieren und das Frontend übersetzen lassen.
-- [ ] **D3 (Perf, mittel):** `SettingsModal.vue:112` (`loadUsers`) ruft
+- [x] **D3 (Perf, mittel):** `SettingsModal.vue:112` (`loadUsers`) ruft
       `api.adminListUsers("")` — beim Öffnen des Admin-Tabs werden ALLE
       Benutzer der Instanz geladen (`ocs.rs::list_users` paginiert mit
       Offset durch alle Seiten; `admin_list_users`, commands.rs:1226-1240
@@ -188,7 +213,7 @@ gefunden:
       hat — auf großen Instanzen hängt der Admin-Tab minutenlang. Fix:
       Suchbegriff verlangen (wie in `AdminPanel.vue`) oder die Liste in der
       UI paginieren.
-- [ ] **D4 (Konsistenz, minor):** Workflow-Prompts referenzieren
+- [x] **D4 (Konsistenz, minor):** Workflow-Prompts referenzieren
       `archived-todo.md` (`opencode.yml:120`, `opencode-review.yml:66`),
       die Aufgabe/dieser Lauf sagt `archived-todos.md`, während der
       `todo.md`-Kopf erklärt, es ersetze `archived-todo.md` und das Archiv
@@ -223,19 +248,19 @@ Befunden **nicht** zu: Neu gefunden:
       Sync-Tab + Sync-Engine (oder Funktionsumfang in README korrigieren).
       → durch Dokumentation aufgelöst (android/README.md „Consciously not
       on mobile"), siehe Lauf 11.
-- [ ] **A9-2 (i18n, mittel):** Android komplett ohne Lokalisierung —
+- [x] **A9-2 (i18n, mittel):** Android komplett ohne Lokalisierung —
       `android/app/src/main/res/values/strings.xml` enthält nur `app_name`;
       sämtliche UI-Texte sind hartkodiert englisch (`FilesScreen.kt`,
       `LoginScreen.kt`, `AdminScreen.kt`, `SettingsScreen.kt`). Der Desktop
       lokalisiert alles über `src/lib/i18n.ts` (en/de). AGENTS.md fordert
       i18n für alle UI-Texte. Fix: Android-`strings.xml`-Ressourcen + Werte
       nachziehen.
-- [ ] **A9-3 (Bug, minor):** Android erlaubt **Rename nur für Ordner** —
+- [x] **A9-3 (Bug, minor):** Android erlaubt **Rename nur für Ordner** —
       `FilesScreen.kt` `EntryRow` (Z. 375-384) zeigt „Rename" nur
       `if (entry.isDir)`; Dateien sind auf Android nicht umbenennbar.
       Desktop erlaubt Rename für Dateien und Ordner (`FileExplorer.vue`
       `startRename`). Fix: Menüpunkt auch für Dateien anbieten.
-- [ ] **A9-4 (Perf, minor):** Android-Suche ohne Debounce —
+- [x] **A9-4 (Perf, minor):** Android-Suche ohne Debounce —
       `FilesScreen.kt` `SearchBar` (Z. 280-293) ruft `onValueChange =
       { vm.search(it) }` bei **jedem** Tastendruck → pro Zeichen ein
       SEARCH-Request mit `depth: infinity`. Desktop debounced 300 ms
@@ -248,7 +273,7 @@ Befunden **nicht** zu: Neu gefunden:
       OOM auf Android. Fix: Streaming (OkHttp ResponseBody → Datei), optional
       Chunked-Upload-Parität. → umgesetzt (downloadToFile/uploadStream, 64-KiB
       Puffer; nur noch Fallback ohne Content-Length), siehe Lauf 11.
-- [ ] **A9-6 (Bug, Datenverlust-Risiko, mittel):** Android-Upload
+- [x] **A9-6 (Bug, Datenverlust-Risiko, mittel):** Android-Upload
       überschreibt existierende Dateien still — der Desktop-Fix **Q9**
       (Existenz-Check `webdav::exists` + `AppError::TargetExists` +
       Overwrite-Confirm in `FileExplorer.vue`) wurde **nicht** portiert.
@@ -278,7 +303,7 @@ Befunden **nicht** zu: Neu gefunden:
 - [ ] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
       (unlimited/1/5/10 GB); Desktop erlaubt seit Q8 freie Werteingabe
       („custom"). Fix: Freieingabe ergänzen.
-- [ ] **A9-11 (Policy, mittel):** Android-Login erzwingt `FLUTCLOUD_URL`
+- [x] **A9-11 (Policy, mittel):** Android-Login erzwingt `FLUTCLOUD_URL`
       nicht — `LoginViewModel` (Z. 28-33, 37) nimmt jede editierbare URL
       (Default aus `BuildConfig.FLUTCLOUD_URL`) und prüft nur die
       FlutCloud-App-Capability (`verifyServer`); Desktop erzwingt die exakte
@@ -298,7 +323,7 @@ Befunden **nicht** zu: Neu gefunden:
       nirgends aufgerufen — Thumbnails existieren nur im Desktop
       (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
       `FilesScreen` nutzen oder `preview()` entfernen.
-- [ ] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
+- [x] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
       `FilesScreen.kt` `SearchResults` (Z. 315-318) übergibt `onRename`/
       `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
       in Suchtreffern weiterhin Aktionen. Fix: Aktionen in Treffern
@@ -473,6 +498,55 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
+
+- [x] **I206-1 (Android, Feature):** Downloads landen im **Downloads-Ordner** —
+      neue Dateiaktion „Download" in `EntryRow` (`FilesScreen.kt`) lädt über
+      `AppContainer.downloadToDownloads` in den öffentlichen Downloads-Ordner
+      (MediaStore ab Android 10, Direktzugriff davor) mit Fortschrittsbalken
+      und Toast `downloaded_to_downloads`. Auf API 26–28 wird
+      `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion=28`) zur Laufzeit angefragt
+      (`downloadPermissionLauncher`), Ablehnung → Snackbar
+      `download_permission_denied`.
+- [x] **I206-2 (Android, Feature):** **Share-Sheet** — neue Dateiaktion
+      „Teilen" lädt in den App-Dateibereich und öffnet über das neue
+      `data/ShareSheet.kt` (`ACTION_SEND` + FileProvider + `EXTRA_STREAM`) das
+      Android-Share-Sheet. Fehler → Snackbar `share_failed`.
+- [x] **I206-3 (Android, Policy):** **FLUTCLOUD_URL-Preconfig** —
+      `app/build.gradle.kts` liest die Server-URL zuerst aus der
+      `FLUTCLOUD_URL`-Umgebungsvariable (wie der Desktop), Fallback
+      `-PflutcloudUrl`-Gradle-Property; `BuildConfig.FLUTCLOUD_URL` sperrt das
+      URL-Feld im `LoginScreen` (`urlLocked`), `LoginViewModel.signIn`/
+      `register` verwerfen abweichende URLs. Die GitHub-Workflows wurden
+      bewusst nicht angefasst (Workflows sind für automatisierte Läufe tabu);
+      die Gradle-Konfiguration greift auf ein später gesetztes
+      `env.FLUTCLOUD_URL` automatisch zu.
+- [x] **I206-4 (Android, Robustheit):** `FileOpener` ruft `MediaStore.Downloads`
+      nur noch ab API 29 auf (`@RequiresApi(29)`), davor FileProvider-Fallback;
+      `file_paths.xml` deckt den öffentlichen Download-Ordner ab
+      (`external-path Download/` + `Downloads/`). Dead Code entfernt:
+      `AppContainer.copyToDownloads` und `FilesViewModel.saveToDownloads`.
+- [x] **I206-5 (Android, i18n):** Keys `download`, `share`,
+      `downloaded_to_downloads` (ersetzt `downloaded_to_app_files`),
+      `download_permission_denied`, `share_failed` in `values/` +
+      `values-de/` ergänzt/umbenannt.
+- [x] **I206-6 (Android, Tests):** Vorbestehender Test-Bruch behoben —
+      `SessionManagerTest` übergibt `init()` eine `FlutCloudApi` mit
+      50-ms-Timeout (Admin-Flag-Refresh scheitert schnell und hermetic), der
+      veraltete „fallback to first account"-Test prüft jetzt das durch A-SO1
+      festgelegte Verhalten (keine Session ohne aktives Konto).
+- [x] **I206-7 (Cleanup):** Deprecated `Icons.Default.Logout` →
+      `Icons.AutoMirrored.Filled.Logout` (`SettingsScreen.kt`).
+- [x] **I206-8 (Doku):** `README.md`, `android/README.md`, `docs/en/features.md`
+      und `docs/de/features.md` beschreiben Downloads-Ordner, Share-Sheet und
+      die `FLUTCLOUD_URL`-Preconfig.
+- [x] **I206-9 (Verifikation):** `./gradlew :app:assembleDebug`, `:app:lintDebug`
+      und `:app:testDebugUnitTest` grün; `cargo fmt --check`, `cargo clippy
+      --all-targets -- -D warnings` und `cargo test` grün; `npm run build`
+      grün. Versionen stehen überall auf `1.0.0` (`package.json`,
+      `src-tauri/Cargo.toml` + `Cargo.lock`, `tauri.conf.json`,
+      Android `versionName`).
 
 ### Review 2026-08-17 (Lauf 11 — A9-Nachprüfung, umgesetzte Android-Punkte)
 

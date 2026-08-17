@@ -1,12 +1,15 @@
 package com.flutcloud.flutlink.core
 
 import com.flutcloud.flutlink.data.AuthSession
+import com.flutcloud.flutlink.data.FlutCloudApi
 import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.TimeUnit
 
 /** JVM tests for account switching/removal/sign-out in [SessionManager]. */
 class SessionManagerTest {
@@ -14,6 +17,18 @@ class SessionManagerTest {
     private fun store() = AccountStore(
         prefs = InMemorySharedPreferences(),
         securePrefs = InMemorySharedPreferences()
+    )
+
+    /**
+     * An OCS API that fails fast on any network probe. `init` only uses it for
+     * the best-effort admin-flag refresh, which keeps the stored flag when the
+     * probe fails — so a short connect timeout keeps the tests hermetic.
+     */
+    private fun ocsApi() = FlutCloudApi(
+        OkHttpClient.Builder()
+            .connectTimeout(50, TimeUnit.MILLISECONDS)
+            .readTimeout(50, TimeUnit.MILLISECONDS)
+            .build()
     )
 
     private fun meta(
@@ -34,7 +49,7 @@ class SessionManagerTest {
         store.saveToken(bob, "tok-bob")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
 
         assertEquals(listOf("admin", "bob"), manager.accounts.value.map { it.username })
         assertEquals("admin", session(manager)?.username)
@@ -45,23 +60,23 @@ class SessionManagerTest {
     @Test
     fun `init without accounts leaves session null`() = runBlocking {
         val manager = SessionManager(store())
-        manager.init()
+        manager.init(ocsApi())
 
         assertTrue(manager.accounts.value.isEmpty())
         assertNull(session(manager))
     }
 
     @Test
-    fun `init falls back to the first account when none is active`() = runBlocking {
+    fun `init does not auto-sign-in when no account is active`() = runBlocking {
         val store = store()
         val bob = meta("bob")
         store.saveAccounts(listOf(bob))
         store.saveToken(bob, "tok-bob")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
 
-        assertEquals("bob", session(manager)?.username)
+        assertNull(session(manager))
     }
 
     @Test
@@ -70,7 +85,7 @@ class SessionManagerTest {
         store.saveAccounts(listOf(meta("admin", isActive = true)))
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
 
         assertNull(session(manager))
     }
@@ -78,7 +93,7 @@ class SessionManagerTest {
     @Test
     fun `addAccount makes the account active and starts a session`() = runBlocking {
         val manager = SessionManager(store())
-        manager.init()
+        manager.init(ocsApi())
 
         manager.addAccount(meta("alice"), "tok-alice")
 
@@ -95,7 +110,7 @@ class SessionManagerTest {
         store.saveToken(admin, "old-token")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
         assertEquals("old-token", session(manager)?.token)
 
         manager.addAccount(meta("admin", instance = "https://flutcloud.de/"), "new-token")
@@ -115,7 +130,7 @@ class SessionManagerTest {
         store.saveToken(bob, "tok-bob")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
         assertEquals("admin", session(manager)?.username)
 
         manager.switchAccount(bob)
@@ -136,7 +151,7 @@ class SessionManagerTest {
         store.saveToken(bob, "tok-bob")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
         assertEquals("admin", session(manager)?.username)
 
         manager.removeAccount(admin)
@@ -157,7 +172,7 @@ class SessionManagerTest {
         store.saveToken(bob, "tok-bob")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
 
         manager.removeAccount(bob)
 
@@ -174,7 +189,7 @@ class SessionManagerTest {
         store.saveToken(admin, "tok-admin")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
         assertEquals("admin", session(manager)?.username)
 
         manager.removeAccount(admin)
@@ -191,7 +206,7 @@ class SessionManagerTest {
         store.saveToken(admin, "tok-admin")
 
         val manager = SessionManager(store)
-        manager.init()
+        manager.init(ocsApi())
 
         manager.signOut()
 

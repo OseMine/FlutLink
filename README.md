@@ -150,6 +150,10 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 - The server URL is never hard-coded in source; the backend reads
   `FLUTCLOUD_URL` from `.env` (`src-tauri/src/flutcloud.rs`) and exposes it to
   the frontend via the `get_flutcloud_url` command.
+- The Android client (`android/`) bakes the same URL into
+  `BuildConfig.FLUTCLOUD_URL` from the `FLUTCLOUD_URL` environment variable
+  (falling back to the `-PflutcloudUrl` Gradle property) and locks the login
+  server field when a URL is compiled in.
 - `account_add` / `register_user` reject other URLs
   (`AppError::NotFlutCloud`).
 - Before connecting, the OCS capabilities endpoint is probed for the

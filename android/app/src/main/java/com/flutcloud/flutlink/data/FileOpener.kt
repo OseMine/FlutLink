@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.webkit.MimeTypeMap
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -23,8 +24,14 @@ object FileOpener {
         if (!file.exists()) return false
 
         val uri = if (isInDownloadsFolder(file)) {
-            queryMediaStoreUri(context, file.name)
-                ?: FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                queryMediaStoreUri(context, file.name)
+                    ?: FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            } else {
+                // MediaStore.Downloads only exists on Android 10+; on older
+                // versions fall back to the FileProvider path directly.
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            }
         } else {
             FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         }
@@ -48,6 +55,7 @@ object FileOpener {
     private fun isInDownloadsFolder(file: File): Boolean =
         file.absolutePath.contains(Environment.DIRECTORY_DOWNLOADS)
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun queryMediaStoreUri(context: Context, fileName: String): android.net.Uri? {
         val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         context.contentResolver.query(

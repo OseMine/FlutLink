@@ -63,7 +63,11 @@
     <string name="delete_confirm">%1$s löschen?</string>
     <string name="delete_folder_confirm">Der Ordner und sein gesamter Inhalt werden vom Server gelöscht.</string>
     <string name="delete_file_confirm">Die Datei wird vom Server gelöscht.</string>
-    <string name="downloaded_to_app_files">In App-Dateien heruntergeladen: %1$s</string>
+    <string name="download">Herunterladen</string>
+    <string name="share">Teilen</string>
+    <string name="downloaded_to_downloads">In Downloads heruntergeladen: %1$s</string>
+    <string name="download_permission_denied">Speicherberechtigung verweigert. Nicht in den Downloads-Ordner gespeichert.</string>
+    <string name="share_failed">%1$s konnte nicht geteilt werden.</string>
     <string name="link_created">Link erstellt: %1$s</string>
     <string name="no_url">keine URL</string>
 
