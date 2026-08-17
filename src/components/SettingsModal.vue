@@ -349,16 +349,14 @@ const updateStatusText = computed(() => {
                 {{ t("accentColor") }}
               </p>
               <div class="flex items-center gap-3">
-                <input
-                  v-model.number="accentValue"
-                  type="range"
-                  min="0"
-                  max="360"
-                  step="1"
-                  class="w-full accent-primary"
+                <md-slider
+                  :min="0"
+                  :max="360"
+                  :step="1"
+                  :value="accentValue"
                   :aria-label="t('accentColor')"
-                  @input="applyAccent"
-                />
+                  @input="accentValue = ($event.target as HTMLInputElement).value as unknown as number; applyAccent()"
+                ></md-slider>
                 <md-outlined-button @click="resetAccent">
                   {{ t("accentReset") }}
                 </md-outlined-button>

@@ -18,6 +18,8 @@ import "@material/web/dialog/dialog.js";
 import "@material/web/menu/menu.js";
 import "@material/web/menu/menu-item.js";
 import "@material/web/divider/divider.js";
+import "@material/web/select/outlined-select.js";
+import "@material/web/select/select-option.js";
 import Icon from "./Icon.vue";
 import EntryList from "./EntryList.vue";
 
@@ -323,7 +325,7 @@ function onKeydown(e: KeyboardEvent) {
   const entries = sortedEntries.value;
   if (!entries.length) return;
   const target = e.target as HTMLElement | null;
-  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT", "MD-OUTLINED-SELECT"].includes(target.tagName);
   if (typing) return;
   switch (e.key) {
     case "ArrowDown":
@@ -893,16 +895,15 @@ watch(
       <template v-if="adminViewAll">
         <div class="flex items-center gap-2">
           <span class="text-xs text-on-surface-variant">{{ t("filterUser") }}</span>
-          <select
-            v-model="selectedUser"
-            class="rounded-md border border-outline bg-surface-container-high px-2 py-1.5 text-xs text-on-surface focus:border-primary"
-            @change="onUserSelect"
+          <md-outlined-select
+            :value="selectedUser"
+            @change="selectedUser = ($event.target as HTMLSelectElement).value; onUserSelect()"
           >
-            <option v-if="!selectedUser" value="" disabled>{{ t("users") }}…</option>
-            <option v-for="userId in adminUsers" :key="userId" :value="userId">
+            <md-select-option v-if="!selectedUser" value="" disabled>{{ t("users") }}…</md-select-option>
+            <md-select-option v-for="userId in adminUsers" :key="userId" :value="userId">
               {{ userId }}
-            </option>
-          </select>
+            </md-select-option>
+          </md-outlined-select>
         </div>
         <button
           v-if="!adminUsers.length"
@@ -1187,7 +1188,7 @@ watch(
       >
         {{ t("share") }}
       </button>
-      <div class="my-1 border-t border-outline-variant"></div>
+      <md-divider class="my-1"></md-divider>
       <button
         class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-error hover:bg-error-container"
         @click="removeEntry(ctxMenu.entry); ctxMenu = null"

@@ -9,6 +9,8 @@ import "@material/web/button/outlined-button.js";
 import "@material/web/textfield/outlined-text-field.js";
 import "@material/web/divider/divider.js";
 import "@material/web/switch/switch.js";
+import "@material/web/select/outlined-select.js";
+import "@material/web/select/select-option.js";
 
 const emit = defineEmits<{ browse: [userId: string] }>();
 
@@ -609,16 +611,16 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("setQuota") }}
               </label>
               <div class="flex gap-2">
-                <select
-                  v-model="edits.quotaPreset"
-                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary"
+                <md-outlined-select
+                  :value="edits.quotaPreset"
+                  @change="edits.quotaPreset = ($event.target as HTMLSelectElement).value as QuotaPresetId"
                 >
-                  <option value="1gb">1 GB</option>
-                  <option value="5gb">5 GB</option>
-                  <option value="10gb">10 GB</option>
-                  <option value="unlimited">{{ t("unlimited") }}</option>
-                  <option value="custom">{{ t("custom") }}</option>
-                </select>
+                  <md-select-option value="1gb">1 GB</md-select-option>
+                  <md-select-option value="5gb">5 GB</md-select-option>
+                  <md-select-option value="10gb">10 GB</md-select-option>
+                  <md-select-option value="unlimited">{{ t("unlimited") }}</md-select-option>
+                  <md-select-option value="custom">{{ t("custom") }}</md-select-option>
+                </md-outlined-select>
                 <md-outlined-text-field
                   type="number"
                   :value="edits.quotaValue"
@@ -628,15 +630,15 @@ function quotaFree(q: UserQuota | null): string {
                   step="0.1"
                   class="flex-1"
                 ></md-outlined-text-field>
-                <select
-                  v-model="edits.quotaUnit"
+                <md-outlined-select
+                  :value="edits.quotaUnit"
+                  @change="edits.quotaUnit = ($event.target as HTMLSelectElement).value as 'gb' | 'mb' | 'unlimited'"
                   :disabled="edits.quotaUnit === 'unlimited'"
-                  class="rounded-md border border-outline bg-surface-container-high px-2 py-2 text-sm text-on-surface focus:border-primary disabled:opacity-40"
                 >
-                  <option value="gb">{{ t("gb") }}</option>
-                  <option value="mb">{{ t("mb") }}</option>
-                  <option value="unlimited">{{ t("unlimited") }}</option>
-                </select>
+                  <md-select-option value="gb">{{ t("gb") }}</md-select-option>
+                  <md-select-option value="mb">{{ t("mb") }}</md-select-option>
+                  <md-select-option value="unlimited">{{ t("unlimited") }}</md-select-option>
+                </md-outlined-select>
                 <md-filled-button
                   @click="setQuota"
                 >
