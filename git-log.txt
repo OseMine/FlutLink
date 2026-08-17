@@ -1,0 +1,2 @@
+54cac80 opencode-review.yml aktualisieren
+467db4d Issue #206 done: downloads + share-sheet + FLUTCLOUD_URL preconfig, all checks green.
