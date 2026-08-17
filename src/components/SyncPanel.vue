@@ -5,11 +5,20 @@ import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
 import { translate, translateError } from "../lib/i18n";
 import { invokeError } from "../lib/ipc";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/checkbox/checkbox.js";
+import "@material/web/progress/linear-progress.js";
+import "@material/web/divider/divider.js";
 
 const sync = useSyncStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 const followSymlinks = ref(false);
+
+function onFollowSymlinksChange(e: Event) {
+  followSymlinks.value = (e.target as HTMLInputElement).checked;
+}
 
 function errorLabel(err: { code: string; detail?: string | null }): string {
   return translateError(ui.lang, err.code, err.detail);
@@ -87,26 +96,16 @@ async function syncNow() {
         <p class="text-sm text-on-surface-variant">{{ t("noSyncFoldersHint") }}</p>
       </div>
       <div class="flex gap-2">
-        <button
-          class="rounded-md border border-outline px-3 py-1.5 text-sm text-on-surface-variant hover:bg-surface-container-high"
-          @click="syncNow"
-        >
+        <md-outlined-button @click="syncNow">
           {{ t("syncNow") }}
-        </button>
+        </md-outlined-button>
         <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant">
-          <input
-            v-model="followSymlinks"
-            type="checkbox"
-            class="accent-primary"
-          />
+          <md-checkbox :checked="followSymlinks" @change="onFollowSymlinksChange"></md-checkbox>
           {{ t("followSymlinks") }}
         </label>
-        <button
-          class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-on-primary hover:bg-primary-hover"
-          @click="pickFolder"
-        >
+        <md-filled-button @click="pickFolder">
           + {{ t("addFolder") }}
-        </button>
+        </md-filled-button>
       </div>
     </div>
 
@@ -163,20 +162,21 @@ async function syncNow() {
         <p v-if="folder.lastError" class="mt-1 text-xs text-error">{{ errorLabel(folder.lastError) }}</p>
 
         <div class="mt-3 flex gap-2">
-          <button
-            class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
-            @click="togglePaused(folder)"
-          >
+          <md-outlined-button @click="togglePaused(folder)">
             {{ folder.paused ? t("resume") : t("pause") }}
-          </button>
-          <button
-            class="rounded-md border border-outline px-2.5 py-1 text-xs text-error hover:bg-error-container"
-            @click="remove(folder.folderId)"
-          >
+          </md-outlined-button>
+          <md-outlined-button class="error-btn" @click="remove(folder.folderId)">
             {{ t("remove") }}
-          </button>
+          </md-outlined-button>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style>
+.error-btn {
+  --md-outlined-button-label-text-color: var(--color-error);
+  --md-outlined-button-outline-color: var(--color-error);
+}
+</style>

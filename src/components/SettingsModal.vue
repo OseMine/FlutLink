@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/button/text-button.js";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/tabs/tabs.js";
+import "@material/web/tabs/primary-tab.js";
+import "@material/web/divider/divider.js";
+import "@material/web/slider/slider.js";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import AppLogo from "./AppLogo.vue";
@@ -203,26 +211,19 @@ const updateStatusText = computed(() => {
       <div class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-outline bg-surface-container shadow-m3-3">
         <div class="flex items-center justify-between border-b border-outline-variant px-5 py-3">
           <h2 class="text-base font-semibold text-on-surface">{{ t("settingsTitle") }}</h2>
-          <button
-            class="flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
+          <md-icon-button
             :aria-label="t('close')"
             @click="emit('close')"
           >
             <Icon name="close" :size="18" />
-          </button>
+          </md-icon-button>
         </div>
 
-        <div class="flex gap-1 border-b border-outline-variant px-4 pt-2">
-          <button
-            v-for="key in (['accounts', 'admin', 'about'] as const)"
-            :key="key"
-            class="rounded-t-md px-3 py-1.5 text-sm font-medium transition"
-            :class="tab === key ? 'border-b-2 border-primary text-on-surface' : 'text-on-surface-variant hover:text-on-surface-variant'"
-            @click="tab = key"
-          >
-            {{ t(key === 'accounts' ? 'tabAccounts' : key === 'admin' ? 'tabAdmin' : 'tabAbout') }}
-          </button>
-        </div>
+        <md-tabs :active-tab-index="tab === 'accounts' ? 0 : tab === 'admin' ? 1 : 2">
+          <md-primary-tab @click="tab = 'accounts'">{{ t("tabAccounts") }}</md-primary-tab>
+          <md-primary-tab @click="tab = 'admin'">{{ t("tabAdmin") }}</md-primary-tab>
+          <md-primary-tab @click="tab = 'about'">{{ t("tabAbout") }}</md-primary-tab>
+        </md-tabs>
 
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
           <!-- Accounts -->
@@ -247,27 +248,17 @@ const updateStatusText = computed(() => {
                 </p>
                 <p class="truncate text-xs text-on-surface-variant">{{ account.instanceUrl }}</p>
               </div>
-              <button
-                v-if="!account.isActive"
-                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
-                @click="switchTo(account.username, account.instanceUrl)"
-              >
+              <md-outlined-button @click="switchTo(account.username, account.instanceUrl)">
                 {{ t("switchAccount") }}
-              </button>
-              <button
-                class="rounded-md border border-outline px-2.5 py-1 text-xs text-error hover:bg-error-container"
-                @click="remove(account.username, account.instanceUrl)"
-              >
+              </md-outlined-button>
+              <md-outlined-button class="error-btn" @click="remove(account.username, account.instanceUrl)">
                 {{ t("removeAccount") }}
-              </button>
+              </md-outlined-button>
             </div>
-            <button
-              class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-outline px-3 py-2 text-sm text-on-surface-variant hover:border-primary hover:text-primary-emphasis"
-              @click="emit('login')"
-            >
-              <Icon name="add" :size="16" />
+            <md-outlined-button @click="emit('login')">
+              <Icon name="add" :size="16" slot="icon" />
               {{ t("addAccount") }}
-            </button>
+            </md-outlined-button>
           </div>
 
           <!-- Admin -->
@@ -368,12 +359,9 @@ const updateStatusText = computed(() => {
                   :aria-label="t('accentColor')"
                   @input="applyAccent"
                 />
-                <button
-                  class="shrink-0 rounded-md border border-outline px-2.5 py-1.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
-                  @click="resetAccent"
-                >
+                <md-outlined-button @click="resetAccent">
                   {{ t("accentReset") }}
-                </button>
+                </md-outlined-button>
               </div>
               <p class="mt-2 text-xs text-outline">{{ t("accentColorHint") }}</p>
             </div>
@@ -393,12 +381,9 @@ const updateStatusText = computed(() => {
                   <span class="text-primary-emphasis">v{{ updateInfo.version }}</span>
                 </p>
                 <p class="mb-2 truncate text-xs text-on-surface-variant">{{ updateInfo.name }}</p>
-                <button
-                  class="w-full rounded-md border border-primary bg-primary/20 px-3 py-2 text-sm text-primary-emphasis hover:bg-primary/30"
-                  @click="downloadAndInstall"
-                >
+                <md-filled-button @click="downloadAndInstall">
                   {{ t("updateDownloadAndInstall") }}
-                </button>
+                </md-filled-button>
               </template>
 
               <template
@@ -429,22 +414,16 @@ const updateStatusText = computed(() => {
                   <p class="mb-2 text-xs text-error">
                     {{ updateError || t("updateCheckFailed") }}
                   </p>
-                <button
-                  class="w-full rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
-                  @click="checkForUpdate"
-                >
+                <md-outlined-button @click="checkForUpdate">
                   {{ t("checkForUpdates") }}
-                </button>
+                </md-outlined-button>
               </template>
 
               <template v-else>
                 <p class="mb-2 text-xs text-outline">{{ t("updateUpToDate") }}</p>
-                <button
-                  class="w-full rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
-                  @click="checkForUpdate"
-                >
+                <md-outlined-button @click="checkForUpdate">
                   {{ t("checkForUpdates") }}
-                </button>
+                </md-outlined-button>
               </template>
             </div>
 
@@ -455,3 +434,10 @@ const updateStatusText = computed(() => {
     </div>
   </Teleport>
 </template>
+
+<style>
+.error-btn {
+  --md-outlined-button-label-text-color: var(--color-error);
+  --md-outlined-button-outline-color: var(--color-error);
+}
+</style>

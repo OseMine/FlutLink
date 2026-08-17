@@ -5,6 +5,13 @@ import { useAccountsStore } from "../stores/accounts";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { api, invokeError } from "../lib/ipc";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/button/text-button.js";
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/tabs/tabs.js";
+import "@material/web/tabs/primary-tab.js";
+import "@material/web/divider/divider.js";
 
 const props = defineProps<{
   open: boolean;
@@ -161,22 +168,10 @@ async function submitRegister() {
           </p>
         </div>
 
-        <div class="mt-4 grid grid-cols-2 rounded-md bg-surface-container-high p-1">
-          <button
-            class="rounded px-3 py-1.5 text-sm font-medium transition"
-            :class="mode === 'login' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'"
-            @click="mode = 'login'"
-          >
-            {{ t("signInTab") }}
-          </button>
-          <button
-            class="rounded px-3 py-1.5 text-sm font-medium transition"
-            :class="mode === 'register' ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'"
-            @click="mode = 'register'"
-          >
-            {{ t("registerTab") }}
-          </button>
-        </div>
+        <md-tabs :active-tab-index="mode === 'login' ? 0 : 1">
+          <md-primary-tab @click="mode = 'login'">{{ t("signInTab") }}</md-primary-tab>
+          <md-primary-tab @click="mode = 'register'">{{ t("registerTab") }}</md-primary-tab>
+        </md-tabs>
 
         <div class="mt-3 rounded-md bg-surface-container-high/60 px-3 py-2 text-xs text-on-surface-variant">
           {{ t("serverAutoNote") }}:
@@ -189,40 +184,26 @@ async function submitRegister() {
           class="mt-4 space-y-3"
           @submit.prevent="submit"
         >
-          <div>
-            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("username") }}
-            </label>
-            <input
-              v-model="form.username"
-              required
-              autocomplete="off"
-              class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-            />
-          </div>
+          <md-outlined-text-field
+            :label="t('username')"
+            :value="form.username"
+            required
+            autocomplete="off"
+            @input="form.username = ($event.target as HTMLInputElement).value"
+          ></md-outlined-text-field>
 
-          <div>
-            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("password") }}
-            </label>
-            <div class="flex gap-2">
-              <input
-                v-model="form.token"
-                required
-                :type="showPassword ? 'text' : 'password'"
-                :placeholder="t('tokenPlaceholder')"
-                autocomplete="off"
-                class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-              />
-              <button
-                type="button"
-                class="rounded-md bg-surface-container-high px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-                @click="showPassword = !showPassword"
-              >
-                {{ showPassword ? t("hide") : t("show") }}
-              </button>
-            </div>
-          </div>
+          <md-outlined-text-field
+            type="password"
+            :label="t('password')"
+            :value="form.token"
+            required
+            autocomplete="off"
+            @input="form.token = ($event.target as HTMLInputElement).value"
+          ></md-outlined-text-field>
+
+          <md-text-button @click="showPassword = !showPassword">
+            {{ showPassword ? t("hide") : t("show") }}
+          </md-text-button>
 
           <p class="text-xs leading-relaxed text-outline">{{ t("authNote") }}</p>
 
@@ -231,20 +212,12 @@ async function submitRegister() {
           </div>
 
           <div class="flex gap-2 pt-1">
-            <button
-              type="button"
-              class="rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-              @click="close"
-            >
+            <md-outlined-button class="mt-2 w-full" @click="close">
               {{ t("cancel") }}
-            </button>
-            <button
-              type="submit"
-              :disabled="submitting"
-              class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
-            >
+            </md-outlined-button>
+            <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submit">
               {{ submitting ? t("connecting") : t("connect") }}
-            </button>
+            </md-filled-button>
           </div>
         </form>
 
@@ -253,103 +226,74 @@ async function submitRegister() {
           class="mt-4 space-y-3"
           @submit.prevent="submitRegister"
         >
-          <div>
-            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("username") }}
-            </label>
-            <input
-              v-model="form.username"
+          <md-outlined-text-field
+            :label="t('username')"
+            :value="form.username"
+            required
+            autocomplete="off"
+            @input="form.username = ($event.target as HTMLInputElement).value"
+          ></md-outlined-text-field>
+
+          <md-outlined-text-field
+            type="password"
+            :label="t('password')"
+            :value="form.token"
+            required
+            autocomplete="off"
+            @input="form.token = ($event.target as HTMLInputElement).value"
+          ></md-outlined-text-field>
+
+          <md-text-button @click="showPassword = !showPassword">
+            {{ showPassword ? t("hide") : t("show") }}
+          </md-text-button>
+
+          <md-outlined-text-field
+            :label="t('displayNameOptional')"
+            :value="form.displayName"
+            autocomplete="off"
+            @input="form.displayName = ($event.target as HTMLInputElement).value"
+          ></md-outlined-text-field>
+
+          <md-divider class="my-2"></md-divider>
+
+          <p class="mb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+            {{ t("adminSection") }}
+          </p>
+          <div class="grid grid-cols-2 gap-2">
+            <md-outlined-text-field
+              :label="t('adminUsername')"
+              :value="form.adminUsername"
               required
               autocomplete="off"
-              class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-            />
-          </div>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("password") }}
-            </label>
-            <div class="flex gap-2">
-              <input
-                v-model="form.token"
+              @input="form.adminUsername = ($event.target as HTMLInputElement).value"
+            ></md-outlined-text-field>
+            <div>
+              <md-outlined-text-field
+                type="password"
+                :label="t('adminPassword')"
+                :value="form.adminPassword"
                 required
-                :type="showPassword ? 'text' : 'password'"
                 autocomplete="off"
-                class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-              />
-              <button
-                type="button"
-                class="rounded-md bg-surface-container-high px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-                @click="showPassword = !showPassword"
-              >
-                {{ showPassword ? t("hide") : t("show") }}
-              </button>
+                @input="form.adminPassword = ($event.target as HTMLInputElement).value"
+              ></md-outlined-text-field>
+              <md-text-button @click="showAdminPassword = !showAdminPassword">
+                {{ showAdminPassword ? t("hide") : t("show") }}
+              </md-text-button>
             </div>
           </div>
-
-          <div>
-            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("displayNameOptional") }}
-            </label>
-            <input
-              v-model="form.displayName"
-              autocomplete="off"
-              class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-            />
-          </div>
-
-          <div class="border-t border-outline-variant pt-3">
-            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-              {{ t("adminSection") }}
-            </p>
-            <div class="grid grid-cols-2 gap-2">
-              <input
-                v-model="form.adminUsername"
-                required
-                :placeholder="t('adminUsername')"
-                autocomplete="off"
-                class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-              />
-              <div class="flex gap-2">
-                <input
-                  v-model="form.adminPassword"
-                  required
-                  :type="showAdminPassword ? 'text' : 'password'"
-                  :placeholder="t('adminPassword')"
-                  autocomplete="off"
-                  class="flex-1 min-w-0 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-                />
-                <button
-                  type="button"
-                  class="shrink-0 rounded-md bg-surface-container-high px-2.5 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-                  @click="showAdminPassword = !showAdminPassword"
-                >
-                  {{ showAdminPassword ? t("hide") : t("show") }}
-                </button>
-              </div>
-            </div>
-            <p class="mt-2 text-xs leading-relaxed text-outline">{{ t("adminNote") }}</p>
-          </div>
+          <p class="mt-2 text-xs leading-relaxed text-outline">{{ t("adminNote") }}</p>
 
           <div v-if="formError" class="rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
             {{ formError }}
           </div>
 
           <div class="flex gap-2 pt-1">
-            <button
-              type="button"
-              class="rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-              @click="close"
-            >
+            <md-outlined-button class="mt-2 w-full" @click="close">
               {{ t("cancel") }}
-            </button>
-            <button
-              type="submit"
-              :disabled="submitting"
-              class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
-            >
+            </md-outlined-button>
+            <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submitRegister">
               {{ submitting ? t("registering") : t("register") }}
-            </button>
+            </md-filled-button>
           </div>
         </form>
       </div>

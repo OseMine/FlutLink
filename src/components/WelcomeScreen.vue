@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 
@@ -21,18 +23,12 @@ const t = (key: string) => translate(ui.lang, key);
     </div>
 
     <div class="flex flex-col items-center gap-2 sm:flex-row">
-      <button
-        class="w-48 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-on-primary transition hover:bg-primary-hover"
-        @click="emit('login')"
-      >
+      <md-filled-button class="w-48" @click="emit('login')">
         {{ t("signIn") }}
-      </button>
-      <button
-        class="w-48 rounded-lg border border-outline px-4 py-2.5 text-sm font-medium text-on-surface transition hover:border-primary hover:text-primary-emphasis"
-        @click="emit('register')"
-      >
+      </md-filled-button>
+      <md-outlined-button class="w-48" @click="emit('register')">
         {{ t("registerServer") }}
-      </button>
+      </md-outlined-button>
     </div>
 
     <div class="mt-2 flex flex-col items-center gap-3">

@@ -16,6 +16,11 @@ import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate } from "./lib/i18n";
 import { api, invokeError, type ReleaseInfo, type UpdateProgress } from "./lib/ipc";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/button/text-button.js";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/divider/divider.js";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -201,19 +206,19 @@ watch(
           {{ updateBannerStatus }}
         </span>
       </template>
-      <button
+      <md-filled-button
         v-else
-        class="shrink-0 rounded-md border border-primary bg-primary px-3 py-1 text-xs font-medium text-on-primary hover:bg-primary-hover"
+        class="shrink-0"
         @click="startUpdateDownload"
       >
         {{ t("updateDownloadAndInstall") }}
-      </button>
-      <button
-        class="shrink-0 rounded-md px-2 py-1 text-xs text-on-primary-container hover:bg-surface-container-high"
+      </md-filled-button>
+      <md-text-button
+        class="shrink-0"
         @click="updateBanner = null"
       >
         {{ t("dismiss") }}
-      </button>
+      </md-text-button>
     </div>
     <div class="flex min-h-0 flex-1">
       <template v-if="accounts.active">
@@ -226,23 +231,34 @@ watch(
             </div>
 
             <nav class="flex items-center gap-1">
-              <button
-                class="rounded-md px-4 py-2 text-sm font-medium transition"
-                :class="tab === 'files' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'"
+              <md-filled-button
+                v-if="tab === 'files'"
                 @click="tab = 'files'"
               >
                 {{ t("files") }}
-              </button>
-              <button
-                class="rounded-md px-4 py-2 text-sm font-medium transition"
-                :class="tab === 'sync' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'"
+              </md-filled-button>
+              <md-outlined-button
+                v-else
+                @click="tab = 'files'"
+              >
+                {{ t("files") }}
+              </md-outlined-button>
+
+              <md-filled-button
+                v-if="tab === 'sync'"
                 @click="tab = 'sync'"
               >
                 {{ t("sync") }}
-              </button>
-              <button
-                class="rounded-md px-4 py-2 text-sm font-medium transition"
-                :class="tab === 'admin' ? 'bg-primary-container text-on-primary-container' : 'text-on-surface-variant hover:text-on-surface'"
+              </md-filled-button>
+              <md-outlined-button
+                v-else
+                @click="tab = 'sync'"
+              >
+                {{ t("sync") }}
+              </md-outlined-button>
+
+              <md-filled-button
+                v-if="tab === 'admin'"
                 :disabled="!accounts.active?.isAdmin"
                 :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
                 @click="tab = 'admin'"
@@ -251,23 +267,30 @@ watch(
                 <span v-if="!accounts.active?.isAdmin" class="text-on-surface-variant">
                   <Icon name="lock" :size="14" />
                 </span>
-              </button>
+              </md-filled-button>
+              <md-outlined-button
+                v-else
+                :disabled="!accounts.active?.isAdmin"
+                :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
+                @click="tab = 'admin'"
+              >
+                {{ t("admin") }}
+                <span v-if="!accounts.active?.isAdmin" class="text-on-surface-variant">
+                  <Icon name="lock" :size="14" />
+                </span>
+              </md-outlined-button>
             </nav>
 
             <div class="flex items-center gap-2">
-              <button
-                class="rounded-md border border-outline px-3 py-1.5 text-xs font-medium text-on-surface-variant transition hover:bg-surface-container-high"
-                @click="toggleLang"
-              >
+              <md-outlined-button @click="toggleLang">
                 {{ langLabel }}
-              </button>
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-md border border-outline text-on-surface-variant transition hover:bg-surface-container-high"
+              </md-outlined-button>
+              <md-icon-button
                 :title="t('settings')"
                 @click="showSettings = true"
               >
                 <Icon name="settings" :size="18" />
-              </button>
+              </md-icon-button>
 
               <div class="relative">
                 <button
@@ -352,19 +375,15 @@ watch(
               <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
             </div>
             <div class="flex items-center gap-2">
-              <button
-                class="rounded-md border border-outline px-3 py-1.5 text-xs font-medium text-on-surface-variant transition hover:bg-surface-container-high"
-                @click="toggleLang"
-              >
+              <md-outlined-button @click="toggleLang">
                 {{ langLabel }}
-              </button>
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-md border border-outline text-on-surface-variant transition hover:bg-surface-container-high"
+              </md-outlined-button>
+              <md-icon-button
                 :title="t('settings')"
                 @click="showSettings = true"
               >
                 <Icon name="settings" :size="18" />
-              </button>
+              </md-icon-button>
             </div>
           </header>
           <WelcomeScreen class="min-h-0 flex-1" @login="openLogin('login')" @register="openLogin('register')" />

@@ -291,6 +291,56 @@
 
   /* Focus ring */
   --m3-focus-ring: var(--color-primary);
+
+  /* @material/web system color tokens — mapped from our M3 palette */
+  --md-sys-color-primary: var(--color-primary);
+  --md-sys-color-on-primary: var(--color-on-primary);
+  --md-sys-color-primary-container: var(--color-primary-container);
+  --md-sys-color-on-primary-container: var(--color-on-primary-container);
+  --md-sys-color-secondary: var(--color-secondary);
+  --md-sys-color-on-secondary: var(--color-on-secondary);
+  --md-sys-color-secondary-container: var(--color-secondary-container);
+  --md-sys-color-on-secondary-container: var(--color-on-secondary-container);
+  --md-sys-color-tertiary: var(--color-tertiary);
+  --md-sys-color-on-tertiary: var(--color-on-tertiary);
+  --md-sys-color-tertiary-container: var(--color-tertiary-container);
+  --md-sys-color-on-tertiary-container: var(--color-on-tertiary-container);
+  --md-sys-color-error: var(--color-error);
+  --md-sys-color-on-error: var(--color-on-error);
+  --md-sys-color-error-container: var(--color-error-container);
+  --md-sys-color-on-error-container: var(--color-on-error-container);
+  --md-sys-color-surface: var(--color-surface);
+  --md-sys-color-on-surface: var(--color-on-surface);
+  --md-sys-color-surface-variant: var(--color-surface-container);
+  --md-sys-color-on-surface-variant: var(--color-on-surface-variant);
+  --md-sys-color-surface-container-lowest: var(--color-surface-container-lowest);
+  --md-sys-color-surface-container-low: var(--color-surface-container-low);
+  --md-sys-color-surface-container: var(--color-surface-container);
+  --md-sys-color-surface-container-high: var(--color-surface-container-high);
+  --md-sys-color-surface-container-highest: var(--color-surface-container-highest);
+  --md-sys-color-outline: var(--color-outline);
+  --md-sys-color-outline-variant: var(--color-outline-variant);
+  --md-sys-color-inverse-surface: var(--color-inverse-surface);
+  --md-sys-color-inverse-on-surface: var(--color-inverse-on-surface);
+  --md-sys-color-inverse-primary: var(--color-inverse-primary);
+  --md-sys-color-shadow: rgb(0 0 0);
+  --md-sys-color-scrim: rgb(0 0 0);
+
+  /* @material/web shape tokens */
+  --md-sys-shape-corner-extra-small: var(--m3-shape-extra-small);
+  --md-sys-shape-corner-small: var(--m3-shape-small);
+  --md-sys-shape-corner-medium: var(--m3-shape-medium);
+  --md-sys-shape-corner-large: var(--m3-shape-large);
+  --md-sys-shape-corner-extra-large: var(--m3-shape-extra-large);
+  --md-sys-shape-corner-full: var(--m3-shape-full);
+
+  /* @material/web typography tokens — keep Inter as our typeface */
+  --md-ref-typeface-plain: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --md-ref-typeface-brand: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --md-ref-typeface-weight-regular: 400;
+  --md-ref-typeface-weight-medium: 500;
+  --md-ref-typeface-weight-semibold: 600;
+  --md-ref-typeface-weight-bold: 700;
 }
 
 html,

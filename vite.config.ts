@@ -7,7 +7,16 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [vue(), tailwindcss()],
+  plugins: [
+    vue({
+      template: {
+        compilerOptions: {
+          isCustomElement: (tag) => tag.startsWith("md-"),
+        },
+      },
+    }),
+    tailwindcss(),
+  ],
   // Expose non-VITE_ prefixed variables (e.g. FLUTCLOUD_URL) to import.meta.env.
   envPrefix: ["VITE_", "FLUTCLOUD_"],
 

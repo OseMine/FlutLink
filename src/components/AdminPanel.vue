@@ -4,6 +4,11 @@ import { api, invokeError, type UserDetails, type UserQuota } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/divider/divider.js";
+import "@material/web/switch/switch.js";
 
 const emit = defineEmits<{ browse: [userId: string] }>();
 
@@ -377,53 +382,45 @@ function quotaFree(q: UserQuota | null): string {
     </div>
 
     <div class="flex gap-2">
-      <input
-        v-model="search"
-        class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-        :placeholder="t('searchUsers')"
+      <md-outlined-text-field
+        :label="t('searchUsers')"
+        :value="search"
+        @input="search = ($event.target as HTMLInputElement).value"
         @keyup.enter="listUsers()"
-      />
-      <button
-        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
-        @click="listUsers()"
-      >
+        class="flex-1"
+      ></md-outlined-text-field>
+      <md-filled-button @click="listUsers()">
         {{ loading ? t("loading") : t("listUsers") }}
-      </button>
-      <button
-        class="rounded-md border border-outline px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
-        @click="showCreate = !showCreate"
-      >
+      </md-filled-button>
+      <md-outlined-button @click="showCreate = !showCreate">
         + {{ t("createUser") }}
-      </button>
+      </md-outlined-button>
     </div>
 
     <div v-if="showCreate" class="rounded-lg border border-outline-variant bg-surface-container p-4">
       <h3 class="mb-1 text-sm font-medium text-on-surface">{{ t("createUserTitle") }}</h3>
       <p class="mb-3 text-xs text-on-surface-variant">{{ t("newUserHint") }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
-        <input
-          v-model="newUser.userId"
+        <md-outlined-text-field
           :placeholder="t('userId')"
-          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-        />
-        <input
-          v-model="newUser.password"
+          :value="newUser.userId"
+          @input="newUser.userId = ($event.target as HTMLInputElement).value"
+        ></md-outlined-text-field>
+        <md-outlined-text-field
           type="password"
           :placeholder="t('password')"
-          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-        />
-        <input
-          v-model="newUser.displayName"
+          :value="newUser.password"
+          @input="newUser.password = ($event.target as HTMLInputElement).value"
+        ></md-outlined-text-field>
+        <md-outlined-text-field
           :placeholder="t('displayName')"
-          class="rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-        />
+          :value="newUser.displayName"
+          @input="newUser.displayName = ($event.target as HTMLInputElement).value"
+        ></md-outlined-text-field>
       </div>
-      <button
-        class="mt-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
-        @click="createUser"
-      >
+      <md-filled-button class="mt-3" @click="createUser">
         {{ t("create") }}
-      </button>
+      </md-filled-button>
     </div>
 
     <div class="grid min-h-0 flex-1 grid-cols-2 gap-4">
@@ -439,14 +436,14 @@ function quotaFree(q: UserQuota | null): string {
             </button>
           </li>
         </ul>
-        <button
+        <md-outlined-button
           v-if="hasMore && users.length"
-          class="w-full border-t border-outline-variant px-4 py-2 text-sm font-medium text-primary hover:bg-surface-container-high"
+          class="w-full"
           :disabled="loading"
           @click="loadMore"
         >
           {{ loading ? t("loading") : t("loadMore") }}
-        </button>
+        </md-outlined-button>
         <p v-if="!users.length" class="p-4 text-sm text-on-surface-variant">
           {{ loading ? t("loading") : t("noUsersYet") }}
         </p>
@@ -469,24 +466,21 @@ function quotaFree(q: UserQuota | null): string {
               </p>
             </div>
             <div class="flex shrink-0 flex-col items-end gap-1.5">
-              <button
-                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
+              <md-outlined-button
                 @click="emit('browse', selected.id)"
               >
                 {{ t("browseFiles") }}
-              </button>
-              <button
-                class="rounded-md border border-outline px-2.5 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high"
+              </md-outlined-button>
+              <md-outlined-button
                 @click="toggleEnabled"
               >
                 {{ selected.enabled ? t("disableAccount") : t("enableAccount") }}
-              </button>
-              <button
-                class="rounded-md border border-error px-2.5 py-1 text-xs text-error hover:bg-error-container"
+              </md-outlined-button>
+              <md-outlined-button class="error-btn"
                 @click="removeUser"
               >
                 {{ t("deleteUser") }}
-              </button>
+              </md-outlined-button>
             </div>
           </div>
 
@@ -496,16 +490,16 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("displayName") }}
               </label>
               <div class="flex gap-2">
-                <input
-                  v-model="edits.displayName"
-                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
-                />
-                <button
-                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                <md-outlined-text-field
+                  :value="edits.displayName"
+                  @input="edits.displayName = ($event.target as HTMLInputElement).value"
+                  class="flex-1"
+                ></md-outlined-text-field>
+                <md-filled-button
                   @click="saveField('displayname')"
                 >
                   {{ t("save") }}
-                </button>
+                </md-filled-button>
               </div>
             </div>
 
@@ -514,17 +508,17 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("email") }}
               </label>
               <div class="flex gap-2">
-                <input
-                  v-model="edits.email"
+                <md-outlined-text-field
                   type="email"
-                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
-                />
-                <button
-                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                  :value="edits.email"
+                  @input="edits.email = ($event.target as HTMLInputElement).value"
+                  class="flex-1"
+                ></md-outlined-text-field>
+                <md-filled-button
                   @click="saveField('email')"
                 >
                   {{ t("save") }}
-                </button>
+                </md-filled-button>
               </div>
             </div>
 
@@ -533,24 +527,23 @@ function quotaFree(q: UserQuota | null): string {
                 {{ t("password") }}
               </label>
               <div class="flex gap-2">
-                <input
-                  v-model="edits.password"
+                <md-outlined-text-field
                   :type="showPassword ? 'text' : 'password'"
                   :placeholder="t('passwordPlaceholder')"
-                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
-                />
-                <button
-                  class="rounded-md bg-surface-container-high px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
+                  :value="edits.password"
+                  @input="edits.password = ($event.target as HTMLInputElement).value"
+                  class="flex-1"
+                ></md-outlined-text-field>
+                <md-outlined-button
                   @click="showPassword = !showPassword"
                 >
                   {{ showPassword ? t("hide") : t("show") }}
-                </button>
-                <button
-                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                </md-outlined-button>
+                <md-filled-button
                   @click="saveField('password')"
                 >
                   {{ t("save") }}
-                </button>
+                </md-filled-button>
               </div>
             </div>
 
@@ -576,24 +569,23 @@ function quotaFree(q: UserQuota | null): string {
               </div>
               <p v-else class="text-xs text-outline">{{ t("noGroups") }}</p>
               <div class="mt-2 flex gap-2">
-                <input
-                  v-model="groupInput"
+                <md-outlined-text-field
                   :placeholder="t('groupName')"
-                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+                  :value="groupInput"
+                  @input="groupInput = ($event.target as HTMLInputElement).value"
                   @keyup.enter="addToGroup"
-                />
-                <button
-                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                  class="flex-1"
+                ></md-outlined-text-field>
+                <md-filled-button
                   @click="addToGroup"
                 >
                   {{ t("addToGroup") }}
-                </button>
-                <button
-                  class="rounded-md border border-outline px-3 py-2 text-sm text-on-surface-variant hover:bg-surface-container-high"
+                </md-filled-button>
+                <md-outlined-button
                   @click="createGroup"
                 >
                   {{ t("createGroup") }}
-                </button>
+                </md-outlined-button>
               </div>
             </div>
 
@@ -627,14 +619,15 @@ function quotaFree(q: UserQuota | null): string {
                   <option value="unlimited">{{ t("unlimited") }}</option>
                   <option value="custom">{{ t("custom") }}</option>
                 </select>
-                <input
-                  v-model.number="edits.quotaValue"
+                <md-outlined-text-field
                   type="number"
+                  :value="edits.quotaValue"
+                  @input="edits.quotaValue = ($event.target as HTMLInputElement).valueAsNumber"
                   :disabled="edits.quotaUnit === 'unlimited'"
                   min="0"
                   step="0.1"
-                  class="flex-1 rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary disabled:opacity-40"
-                />
+                  class="flex-1"
+                ></md-outlined-text-field>
                 <select
                   v-model="edits.quotaUnit"
                   :disabled="edits.quotaUnit === 'unlimited'"
@@ -644,12 +637,11 @@ function quotaFree(q: UserQuota | null): string {
                   <option value="mb">{{ t("mb") }}</option>
                   <option value="unlimited">{{ t("unlimited") }}</option>
                 </select>
-                <button
-                  class="rounded-md bg-primary px-3 py-2 text-sm text-on-primary hover:bg-primary-hover"
+                <md-filled-button
                   @click="setQuota"
                 >
                   {{ t("save") }}
-                </button>
+                </md-filled-button>
               </div>
             </div>
           </div>
@@ -659,3 +651,10 @@ function quotaFree(q: UserQuota | null): string {
     </div>
   </div>
 </template>
+
+<style>
+.error-btn {
+  --md-outlined-button-label-text-color: var(--color-error);
+  --md-outlined-button-outline-color: var(--color-error);
+}
+</style>

@@ -7,6 +7,17 @@ import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
 import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/button/text-button.js";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/checkbox/checkbox.js";
+import "@material/web/progress/linear-progress.js";
+import "@material/web/dialog/dialog.js";
+import "@material/web/menu/menu.js";
+import "@material/web/menu/menu-item.js";
+import "@material/web/divider/divider.js";
 import Icon from "./Icon.vue";
 import EntryList from "./EntryList.vue";
 
@@ -33,6 +44,7 @@ const emptySelection = new Set<string>();
 let unlistenDragDrop: (() => void) | null = null;
 
 const isSearching = computed(() => files.searchQuery.length > 0);
+const transferProgress = computed(() => files.transfer?.percent ?? null);
 
 const sortKey = ref<"name" | "size" | "mtime">("name");
 const sortAsc = ref(true);
@@ -826,38 +838,34 @@ watch(
             <Icon name="grid" :size="16" />
           </button>
         </div>
-        <button
+        <md-outlined-button
           v-if="files.pairedPath"
-          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
-          :class="files.splitView ? 'bg-primary text-on-primary hover:bg-primary-hover' : ''"
-          :title="t('splitViewHint')"
           @click="files.toggleSplitView"
+          :class="files.splitView ? 'active-toggle' : ''"
+          :title="t('splitViewHint')"
         >
-          <Icon name="columns" :size="15" />
+          <Icon name="columns" :size="15" slot="icon" />
           {{ t("splitView") }}
-        </button>
-        <button
-          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
+        </md-outlined-button>
+        <md-outlined-button
           @click="files.refresh"
         >
-          <Icon name="refresh" :size="15" />
+          <Icon name="refresh" :size="15" slot="icon" />
           {{ t("refresh") }}
-        </button>
-        <button
-          class="flex items-center gap-1.5 rounded-md border border-outline px-3 py-1 text-sm text-on-surface-variant hover:bg-surface-container-high"
+        </md-outlined-button>
+        <md-outlined-button
           @click="showNewFolder = true"
         >
-          <Icon name="add" :size="15" />
+          <Icon name="add" :size="15" slot="icon" />
           {{ t("newFolder") }}
-        </button>
-        <button
-          class="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+        </md-outlined-button>
+        <md-filled-button
           :disabled="uploading"
           @click="uploadFiles"
         >
-          <Icon name="upload" :size="15" />
+          <Icon name="upload" :size="15" slot="icon" />
           {{ t("upload") }}
-        </button>
+        </md-filled-button>
       </div>
     </div>
 
@@ -960,31 +968,20 @@ watch(
     </div>
 
     <div v-if="selected.size > 0 || files.displayEntries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
-      <label class="flex cursor-pointer items-center gap-1.5 select-none">
-        <input
-          type="checkbox"
-          class="accent-primary"
-          :checked="allSelected"
-          @change="toggleSelectAll"
-        />
+        <label class="flex cursor-pointer items-center gap-1.5 select-none">
+        <md-checkbox :checked="allSelected" @change="toggleSelectAll()"></md-checkbox>
         <span>{{ t("selectAll") }}</span>
       </label>
       <template v-if="selected.size > 0">
         <span>{{ selected.size }} {{ t("selected") }}</span>
-        <button
-          class="rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
-          :disabled="busyPath !== null"
-          @click="bulkDownload"
-        >
+        <md-outlined-button @click="bulkDownload">
+          <Icon name="download" :size="15" slot="icon" />
           {{ t("download") }}
-        </button>
-        <button
-          class="rounded-md border border-error px-2 py-0.5 text-error hover:bg-error-container/40"
-          :disabled="busyPath !== null"
-          @click="bulkDelete"
-        >
+        </md-outlined-button>
+        <md-outlined-button class="error-btn" @click="bulkDelete">
+          <Icon name="delete" :size="15" slot="icon" />
           {{ t("delete") }}
-        </button>
+        </md-outlined-button>
         <button class="underline-offset-2 hover:underline" @click="clearSelection">
           {{ t("clear") }}
         </button>
@@ -1003,12 +1000,9 @@ watch(
       <span v-if="files.transfer.totalFiles > 1" class="shrink-0">
         {{ files.transfer.index + 1 }} / {{ files.transfer.totalFiles }}
       </span>
-      <div class="h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-surface-container-high">
-        <div
-          class="h-full bg-primary transition-[width]"
-          :style="{ width: files.transfer.percent + '%' }"
-        ></div>
-      </div>
+      <md-linear-progress
+        :value="transferProgress != null ? transferProgress / 100 : 0"
+      ></md-linear-progress>
       <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
@@ -1220,19 +1214,12 @@ watch(
           class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
-          <button
-            type="button"
-            class="flex-1 rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-            @click="showNewFolder = false"
-          >
+          <md-outlined-button @click="showNewFolder = false">
             {{ t("cancel") }}
-          </button>
-          <button
-            type="submit"
-            class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
-          >
+          </md-outlined-button>
+          <md-filled-button :disabled="nameInput.trim().length === 0" @click="createFolder">
             {{ t("create") }}
-          </button>
+          </md-filled-button>
         </div>
       </form>
     </div>
@@ -1254,19 +1241,12 @@ watch(
           class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
-          <button
-            type="button"
-            class="flex-1 rounded-md bg-surface-container-high px-4 py-2 text-sm text-on-surface-variant hover:bg-surface-container-highest"
-            @click="renameTarget = null"
-          >
+          <md-outlined-button @click="renameTarget = null">
             {{ t("cancel") }}
-          </button>
-          <button
-            type="submit"
-            class="flex-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
-          >
+          </md-outlined-button>
+          <md-filled-button @click="doRename">
             {{ t("save") }}
-          </button>
+          </md-filled-button>
         </div>
       </form>
     </div>
@@ -1335,16 +1315,14 @@ watch(
           </p>
           <div class="space-y-3">
             <div class="flex gap-2">
-              <button
+              <md-outlined-button
                 v-for="type in shareTypes"
                 :key="type.value"
-                type="button"
-                class="flex-1 rounded-md border px-3 py-1.5 text-sm transition"
-                :class="shareForm.type === type.value ? 'border-primary bg-primary text-on-primary' : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
+                :class="shareForm.type === type.value ? 'active-toggle' : ''"
                 @click="shareForm.type = type.value"
               >
                 {{ type.label }}
-              </button>
+              </md-outlined-button>
             </div>
             <input
               v-if="shareForm.type !== 'link'"
@@ -1364,17 +1342,28 @@ watch(
                 class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
               />
               <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant select-none">
-                <input v-model="shareForm.publicUpload" type="checkbox" class="accent-primary" />
+                <md-checkbox :checked="shareForm.publicUpload" @change="shareForm.publicUpload = !shareForm.publicUpload"></md-checkbox>
                 {{ t("publicUpload") }}
               </label>
-            </template>
-            <button
-              class="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+</template>
+
+<style>
+.error-btn {
+  --md-outlined-button-label-text-color: var(--color-error);
+  --md-outlined-button-outline-color: var(--color-error);
+}
+.active-toggle {
+  --md-outlined-button-container-color: var(--color-primary);
+  --md-outlined-button-label-text-color: var(--color-on-primary);
+  --md-outlined-button-outline-color: var(--color-primary);
+}
+</style>
+            <md-filled-button
               :disabled="submitting"
               @click="createShare"
             >
               {{ t("createShare") }}
-            </button>
+            </md-filled-button>
           </div>
         </div>
       </div>
