@@ -12,8 +12,10 @@ einem Tauri WebView.
 
 **`android/` ist ein Port des Desktop-Clients auf Kotlin + Jetpack Compose,
 generiert mit opencode** — es spiegelt den Desktop-Funktionsumfang und ist
-kein separates Produkt. Änderungen an Features/Verhalten müssen dort
-mitgezogen werden (CI: `.github/workflows/android.yml`).
+kein separates Produkt. Bewusste Ausnahme: der Zwei-Wege-Sync ist
+Desktop-only (Plattform-Gründe, s. `android/README.md` „Consciously not on
+mobile"). Änderungen an Features/Verhalten müssen dort mitgezogen werden
+(CI: `.github/workflows/android.yml`).
 
 ## Struktur
 

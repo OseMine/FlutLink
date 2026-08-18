@@ -159,7 +159,10 @@ konsolidiert (Abschnitt „## Archiv (erledigt)").
 todo.md erzeugt) spiegeln die veraltete Befundlage: #203 (Gruppen), #200
 (RAM-Loading), #208 (Offline-Cache) und #196 (Sync) beschreiben Punkte, die
 im aktuellen Code umgesetzt bzw. dokumentiert sind (s. Archiv-Abschnitt
-Lauf 11). **#206 (Downloads) ist mit diesem Lauf umgesetzt** (Downloads-Ordner
+Lauf 11). **#196 (Sync) ist mit Lauf 12 explizit evaluiert** (Entscheidung:
+kein Zwei-Wege-Sync auf Android in dieser Phase — Plattform-Gründe, Details
+im Archiv-Abschnitt Issue #196). **#206 (Downloads) ist mit diesem Lauf
+umgesetzt** (Downloads-Ordner
 + Share-Sheet + `FLUTCLOUD_URL`-Preconfig, s. Archiv-Abschnitt Issue #206).
 Zusätzlich zum bekannten D5/D6 stehen #192 (update://status), #193
 (i18n-Notifications), #194 (AdminPanel `adminListUsers("")`), #195
@@ -498,6 +501,35 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Issue #196 — Android-Sync evaluiert (2026-08-18): bewusst Desktop-only
+
+- [x] **E196-1 (Entscheidung, hoch):** „Ist Zwei-Wege-Sync auf Android
+      nötig?" — **nein, nicht in dieser Phase.** Der Desktop-Kern
+      (`src-tauri/src/sync.rs`, 1699 Zeilen) koppelt einen beliebigen lokalen
+      Ordner an einen Remote-Ordner und spiegelt Änderungen im Hintergrund in
+      beide Richtungen (Journal + Planner + Worker, 10-s-Intervall). Ein
+      treuer Port ist auf Android aus Plattform-Gründen nicht sinnvoll:
+      (1) **Scoped Storage** — das Kernmodell („beliebigen lokalen Ordner
+      spiegeln") bräuchte `MANAGE_EXTERNAL_STORAGE` (Play-restricted);
+      App-private Storage wäre für Nutzer außerhalb der App unsichtbar und
+      macht den Sinn von Sync zunichte. (2) **Hintergrundausführung** —
+      kontinuierlicher Sync bräuchte einen Foreground-Service (Android 14:
+      `FOREGROUND_SERVICE_DATA_SYNC` + Runtime-Permission) oder
+      WorkManager-Jobs mit Batterie-Restriktionen — aufdringlich
+      (persistente Notification) und akkufressend für einen Client, dessen
+      Mobile-Workflow On-Demand ist. (3) **Konflikt-UX** — Journal-Status,
+      Konfliktkopien und Pause/Fortsetzen wären eine eigene UI-Fläche auf
+      dem kleinen Screen. Der mobile Offline-Bedarf ist bedarfsweise
+      abgedeckt: Streaming-Download in den Downloads-Ordner, Öffnen mit
+      externer App, Offline-Cache für Listings (A9-16). → keine
+      Code-Änderung; die Paritäts-Aussagen sind jetzt präzise: `android/README.md`
+      „Consciously not on mobile" (technische Begründung), `AGENTS.md`
+      (bewusste Ausnahme Zwei-Wege-Sync), `docs/en|de/features.md`
+      („Not ported"-Zeile verweist auf die Produktentscheidung).
+- [x] **E196-2 (Verifikation):** Doku-only-Lauf — kein Code betroffen;
+      `cargo fmt --check`/`cargo clippy`/`cargo test` und `npm run build`
+      unverändert grün (kein Rust-/TS-Code geändert).
 
 ### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
 

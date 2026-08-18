@@ -111,7 +111,9 @@ Available on Android:
   Keystore), account metadata in a separate preferences file; no token is
   ever logged or stored in plain text.
 
-Not ported (desktop-only for now): two-way sync, admin impersonation, and
+Not ported (desktop-only for now): two-way sync (deliberate product decision,
+see the *Consciously not on mobile* section in
+[`android/README.md`](../../android/README.md)), admin impersonation, and
 tray/CLI behaviour.
 
 See [`android/README.md`](../../android/README.md) for the build and feature

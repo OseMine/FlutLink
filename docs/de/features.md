@@ -120,7 +120,9 @@ Auf Android verfügbar:
   (Android-Keystore), Kontometadaten in einer separaten Preferences-Datei;
   kein Token wird jemals geloggt oder im Klartext gespeichert.
 
-Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync, Admin-Impersonation
-sowie Tray-/CLI-Verhalten.
+Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync (bewusste
+Produktentscheidung, Abschnitt „Consciously not on mobile" in
+[`android/README.md`](../../android/README.md)), Admin-Impersonation sowie
+Tray-/CLI-Verhalten.
 
 Build und Details siehe [`android/README.md`](../../android/README.md).
