@@ -3,87 +3,44 @@ package com.flutcloud.flutlink.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val LightColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = LightSecondary,
-    onSecondary = LightOnSecondary,
-    secondaryContainer = LightSecondaryContainer,
-    onSecondaryContainer = LightOnSecondaryContainer,
-    tertiary = LightTertiary,
-    onTertiary = LightOnTertiary,
-    tertiaryContainer = LightTertiaryContainer,
-    onTertiaryContainer = LightOnTertiaryContainer,
-    error = LightError,
-    onError = LightOnError,
-    errorContainer = LightErrorContainer,
-    onErrorContainer = LightOnErrorContainer,
-    background = LightBackground,
-    onBackground = LightOnBackground,
-    surface = LightSurface,
-    onSurface = LightOnSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = LightSurfaceContainerHigh,
-    surfaceContainerHighest = LightSurfaceContainerHighest,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant
-)
-
-private val DarkColorScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    primaryContainer = DarkPrimaryContainer,
-    onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DarkSecondary,
-    onSecondary = DarkOnSecondary,
-    secondaryContainer = DarkSecondaryContainer,
-    onSecondaryContainer = DarkOnSecondaryContainer,
-    tertiary = DarkTertiary,
-    onTertiary = DarkOnTertiary,
-    tertiaryContainer = DarkTertiaryContainer,
-    onTertiaryContainer = DarkOnTertiaryContainer,
-    error = DarkError,
-    onError = DarkOnError,
-    errorContainer = DarkErrorContainer,
-    onErrorContainer = DarkOnErrorContainer,
-    background = DarkBackground,
-    onBackground = DarkOnBackground,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    surfaceContainer = DarkSurfaceContainer,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    surfaceContainerHighest = DarkSurfaceContainerHighest,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant
-)
-
+/**
+ * FlutCloud brand theming.
+ *
+ * [brandTheme] mirrors the Desktop theme selector:
+ * - "operationflut" — default dark brand theme (accent hue 266)
+ * - "midnight" — deep-navy brand theme (accent hue 220)
+ * - "system" — follow the OS (dark → midnight, light → light theme)
+ *
+ * [accentHue] is a "Material You"-style seed (0..360) that derives the whole
+ * primary/secondary/tertiary palette; -1 keeps the theme default. Android 12+
+ * wallpaper palettes ([dynamicColor]) only apply in "system" mode without a
+ * custom accent hue, matching the Desktop behaviour.
+ */
 @Composable
 fun FlutLinkTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color follows Android 12+ wallpaper palettes ("Material You");
-    // when off, the fixed FlutCloud brand palette is used.
+    brandTheme: String = "system",
+    accentHue: Float = -1f,
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
+    val systemDark = isSystemInDarkTheme()
+    val isDark = brandTheme == "operationflut" || brandTheme == "midnight" || systemDark
+    val midnight = brandTheme == "midnight" || (brandTheme == "system" && systemDark)
+    val defaultHue = if (midnight) 220f else 266f
+    val hue = if (accentHue in 0f..360f) accentHue else defaultHue
+    val customHue = accentHue in 0f..360f
+
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        dynamicColor && brandTheme == "system" && !customHue &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (systemDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        else -> buildFlutColorScheme(dark = isDark, midnight = midnight, hue = hue)
     }
 
     MaterialTheme(

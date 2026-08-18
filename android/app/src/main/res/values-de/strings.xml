@@ -130,10 +130,13 @@
     <string name="feature_count">%1$d Features</string>
     <string name="appearance">Darstellung</string>
     <string name="theme">Design</string>
-    <string name="theme_hint">Wähle hell, dunkel oder System.</string>
+    <string name="theme_hint">Wähle ein FlutCloud-Design oder folge dem System.</string>
     <string name="theme_system">System</string>
-    <string name="theme_light">Hell</string>
-    <string name="theme_dark">Dunkel</string>
+    <string name="theme_operationflut">OperationFlut</string>
+    <string name="theme_midnight">Deep Midnight</string>
+    <string name="accent_color">Akzentfarbe</string>
+    <string name="accent_color_hint">Ein Material-You-Akzent: ein Farbton leitet die gesamte Primärpalette ab.</string>
+    <string name="accent_reset">Zurücksetzen</string>
     <string name="dynamic_color">Dynamische Farbe</string>
     <string name="dynamic_color_hint">Nutze die Material-You-Palette (Android 12+) deines Hintergrundbilds.</string>
     <string name="updates">Updates</string>

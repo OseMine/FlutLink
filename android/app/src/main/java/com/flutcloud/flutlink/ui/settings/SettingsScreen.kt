@@ -1,6 +1,7 @@
 package com.flutcloud.flutlink.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -64,6 +66,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     val context = LocalContext.current
     val accounts by vm.accounts.collectAsState()
     val themePreference by vm.themePreference.collectAsState()
+    val accentHue by vm.accentHue.collectAsState()
     val dynamicColor by vm.dynamicColor.collectAsState()
     val serverInfo by vm.serverInfo.collectAsState()
     val toast by vm.toast.collectAsState()
@@ -133,8 +136,8 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             )
             val themeOptions = listOf(
                 "system" to R.string.theme_system,
-                "light" to R.string.theme_light,
-                "dark" to R.string.theme_dark
+                "operationflut" to R.string.theme_operationflut,
+                "midnight" to R.string.theme_midnight
             )
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 themeOptions.forEachIndexed { index, (value, labelRes) ->
@@ -147,6 +150,30 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                     }
                 }
             }
+            val systemDark = isSystemInDarkTheme()
+            val defaultHue =
+                if (themePreference == "midnight" || (themePreference == "system" && systemDark)) 220f else 266f
+            val sliderHue = if (accentHue in 0f..360f) accentHue else defaultHue
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.accent_color)) },
+                supportingContent = { Text(stringResource(R.string.accent_color_hint)) },
+                leadingContent = { Icon(Icons.Default.Palette, contentDescription = null) },
+                trailingContent = {
+                    if (accentHue in 0f..360f) {
+                        TextButton(onClick = { vm.setAccentHue(-1f) }) {
+                            Text(stringResource(R.string.accent_reset))
+                        }
+                    }
+                }
+            )
+            Slider(
+                value = sliderHue,
+                onValueChange = { vm.setAccentHue(it) },
+                valueRange = 0f..360f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            )
             ListItem(
                 headlineContent = { Text(stringResource(R.string.dynamic_color)) },
                 supportingContent = { Text(stringResource(R.string.dynamic_color_hint)) },

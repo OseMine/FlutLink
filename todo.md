@@ -133,8 +133,11 @@ formal bestehen; hier der aktuelle Status):
   Android 10, Direktzugriff davor mit Laufzeit-Permission auf API 26–28),
   „Teilen" öffnet das **Share-Sheet** (`ShareSheet`/`ACTION_SEND`); „Öffnen"
   bleibt FileProvider/`ACTION_VIEW`.
-- A9-13 (Theme nur system/light/dark) → **weiter offen**: kein
-  `operationflut`/`midnight` + Accent-Hue auf Android.
+- A9-13 (Theme nur system/light/dark) → **umgesetzt**: Brand-Themes
+  `operationflut`/`midnight` + Accent-Hue-Slider auf Android portiert
+  (`Color.kt` `buildFlutColorScheme` via oklch, `Theme.kt`, `SettingsStore`,
+  `SettingsViewModel`, `SettingsScreen`, en+de-Strings; dynamische Farbe greift
+  nur noch im System-Modus ohne eigenen Accent-Hue).
 - A9-14 (preview() Dead Code) → **weiter offen**: `WebDavApi.kt:261`
   `preview()` ohne Aufrufer; Android zeigt keine Thumbnails.
 - A9-15 (Suchergebnisse nur lesbar) → **umgesetzt**: `SearchResults` reicht
@@ -315,10 +318,14 @@ Befunden **nicht** zu: Neu gefunden:
       Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
       Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
       → umgesetzt (FileOpener/ACTION_VIEW, FileProvider), siehe Lauf 11.
-- [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
+- [x] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
       dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
       Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
       Brand-Themes + Accent-Hue auf Android portieren.
+      → umgesetzt (siehe Lauf 14: oklch-basierte Brand-Paletten in
+      `Color.kt`, `Theme.kt`/`SettingsStore`/`SettingsViewModel`/
+      `SettingsScreen`, en+de-Strings; dynamische Farbe nur noch im
+      System-Modus ohne eigenen Accent-Hue).
 - [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
       nirgends aufgerufen — Thumbnails existieren nur im Desktop
       (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
@@ -572,13 +579,23 @@ Abschnitt):
       öffnet heruntergeladene Dateien per ACTION_VIEW (FileProvider) mit
       externer App; „downloaded to app files"-Meldung nur noch Fallback,
       wenn kein Handler existiert.
+- [x] **A9-13 (Brand-Themes + Accent-Hue):** umgesetzt — Android bietet die
+      FlutCloud-Brand-Themes `operationflut` (Hue 266) und `midnight`
+      (Hue 220) plus einen Accent-Hue-Slider (0–360°), identisch zum
+      Desktop. `Color.kt` spiegelt `src/style.css` 1:1 (oklch→sRGB-
+      Ableitung von primary/secondary/tertiary aus dem Seed-Hue, feste
+      Surfaces pro Theme); `Theme.kt` (`brandTheme`/`accentHue`),
+      `SettingsStore` (inkl. Legacy-Migration light/dark),
+      `SettingsViewModel`, `SettingsScreen` (SegmentedButtons + Slider +
+      Reset), en+de-Strings. Dynamische Farbe (Wallpaper) greift nur noch im
+      System-Modus ohne eigenen Accent-Hue.
 - [x] **A9-16 (Offline-Cache):** umgesetzt — `ListCache`
       (write/read pro SessionKey+Pfad) + `OfflineBanner` in `FilesScreen.kt`;
       bei Netzwerkausfall werden gecachte Listings mit Banner angezeigt.
 
 Nicht Teil dieses Archiv-Laufs (weiter offen, siehe Offen-Abschnitt): D5
 (Frontend-Build kaputt), D6 (Android-Build kaputt), D7 (Android-i18n
-Restlücken), A9-3/A9-4/A9-6/A9-7/A9-10/A9-11/A9-13/A9-14/A9-15.
+Restlücken), A9-3/A9-4/A9-6/A9-7/A9-10/A9-11/A9-14/A9-15.
 
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 
