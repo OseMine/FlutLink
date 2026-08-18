@@ -4,6 +4,32 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-18 (Lauf 12 — A9-Restpunkte umgesetzt & verifiziert)
+
+Die Lauf-9/11-offenen Android-Punkte wurden während des Lauf-12-Reviews über
+die gemergten Issue-PRs eingebracht und gegen den Stand von HEAD (`862798e`)
+verifiziert (Details im Offen-Abschnitt, „A9-Nachprüfung (Lauf 12)"):
+
+- [x] **A9-7 (Admin-Impersonation, PR #202):** `WebDavApi.kt` setzt den
+      `Impersonate-User`-Header und reicht `targetUser` durch alle WebDAV-
+      Methoden (`list`/`search`/`exists`/`download`/`upload`/`mkdir`/
+      `rename`/`delete`); `FilesViewModel.kt` führt `targetUser`-StateFlow +
+      `setTargetUser`; `FilesScreen.kt` verdrahtet die Nutzer-Auswahl.
+- [x] **A9-9 (Share-Optionen, PR #204):** `FlutCloudApi.createShare` unterstützt
+      `shareType`/`shareWith`/`password`/`expireDate`/`publicUpload`;
+      `SharingDialog` (`FilesScreen.kt`) mit Link/User/Group-Tab und
+      Empfängerfeld.
+- [x] **A9-10 (Quota-Freieingabe, PR #205):** `CustomQuotaDialog` in
+      `AdminScreen.kt` (freier Wert + Einheit, `quota_custom`-Strings).
+- [x] **A9-13 (Brand-Themes + Accent, PRs #210/#215 + Fix `862798e`):**
+      `Theme.kt` mappt `operationflut`/`midnight`, `Color.kt` enthält
+      `operationflutScheme`/`midnightScheme` (Accent-Hue), `SettingsScreen.kt`
+      bietet Theme-Auswahl + Accent-Slider.
+- [x] **A9-14 (Dead Code):** `WebDavApi.preview()` entfernt — kein
+      Aufrufer mehr vorhanden.
+- [x] **A9-1 (Sync-Doku):** bereits Lauf 11; PR #196 ergänzte die
+      Sync-Dokumentation.
+
 ### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
 
 - [x] **I206-1 (Android, Feature):** Downloads landen im **Downloads-Ordner** —
