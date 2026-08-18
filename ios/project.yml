@@ -1,4 +1,4 @@
-name: FlutLink-iOS
+name: FlutLink
 options:
   bundleIdPrefix: com.flutcloud.flutlink
   deploymentTarget:
