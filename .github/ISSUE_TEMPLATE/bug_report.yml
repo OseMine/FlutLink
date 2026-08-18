@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: FlutLink version
-      description: "Which version of FlutLink are you using?"
+      description: "Which version of FlutLink are you using? (Desktop: Settings > About · Android: Settings > About)"
       placeholder: "e.g. 1.0.0"
     validations:
       required: true
@@ -19,16 +19,15 @@ body:
   - type: input
     id: nextcloud-version
     attributes:
-      label: Nextcloud server version
-      description: "Which Nextcloud server version is the FlutCloud server running?"
+      label: FlutCloud server version
       placeholder: "e.g. 30"
     validations:
       required: false
 
   - type: dropdown
-    id: os
+    id: platform
     attributes:
-      label: Operating system
+      label: Platform
       options:
         - Windows
         - macOS
@@ -37,6 +36,15 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: device
+    attributes:
+      label: Device (Android only)
+      description: "Manufacturer and model, e.g. Samsung Galaxy S24. Leave blank for desktop."
+      placeholder: "e.g. Samsung Galaxy S24"
+    validations:
+      required: false
+
   - type: dropdown
     id: installation
     attributes:
@@ -44,7 +52,8 @@ body:
       options:
         - Bundled app (from release)
         - `npm run tauri dev`
-        - Android APK
+        - Android APK (from GitHub release)
+        - Android APK (built locally)
     validations:
       required: true
 
@@ -81,7 +90,10 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "Paste relevant logs (webview console, Rust stderr, sync journal errors) here."
+      description: |
+        Paste relevant logs here.
+        - Desktop (Rust stderr): run with `cargo tauri dev` and copy console output.
+        - Android: `adb logcat -d *:E | grep -i flutcloud`
       render: shell
 
   - type: textarea

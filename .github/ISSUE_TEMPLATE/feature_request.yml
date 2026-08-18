@@ -15,7 +15,23 @@ body:
       options:
         - Desktop (Windows/macOS/Linux)
         - Android
-        - Both
+        - Both (feature parity)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Files / WebDAV browser
+        - Shares
+        - Sync engine
+        - Admin panel
+        - Settings / Theme / i18n
+        - Login / Accounts
+        - Notifications / Tray
+        - Other
     validations:
       required: true
 
@@ -32,7 +48,7 @@ body:
     id: solution
     attributes:
       label: Proposed solution
-      description: "Describe how the feature should work, including UI/UX or CLI details."
+      description: "Describe how the feature should work, including UI/UX details."
     validations:
       required: true
 
