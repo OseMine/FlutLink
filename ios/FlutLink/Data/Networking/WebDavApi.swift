@@ -247,7 +247,8 @@ final class WebDavApi {
         case "parts": target = "resources"
         default: return nil
         }
-        return "/" + ([target] + segments.drop(1).map(String.init)).joined(separator: "/")
+        let tail = segments.drop(1).map { s in String(s) }
+        return "/" + ([target] + tail).joined(separator: "/")
     }
 
     static func pairedPath(_ rel: String) -> String? {
