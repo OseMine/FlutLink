@@ -45,16 +45,16 @@ if [[ "$SKIP_GENERATE" == false && ! -d "$IOS_DIR/FlutLink.xcodeproj" ]]; then
         echo "    Or pass --skip-generate if the project already exists."
         exit 1
     fi
-    echo "[1/4] Generating Xcode project..."
+    echo "[1/3] Generating Xcode project..."
     cd "$IOS_DIR"
     xcodegen generate --spec project.yml
     echo "      Done."
 else
-    echo "[1/4] Skipping Xcode project generation (already exists or --skip-generate)."
+    echo "[1/3] Skipping Xcode project generation (already exists or --skip-generate)."
 fi
 
 # Step 2: Build archive
-echo "[2/4] Building $CONFIG archive..."
+echo "[2/3] Building $CONFIG archive..."
 mkdir -p "$BUILD_DIR"
 
 xcodebuild \
@@ -72,46 +72,15 @@ xcodebuild \
     archive 2>&1 | tail -20
 echo "      Archive created at $ARCHIVE_PATH"
 
-# Step 3: Export archive (unsigned / ad-hoc)
-echo "[3/4] Exporting archive..."
-mkdir -p "$EXPORT_PATH"
-
-cat > "$BUILD_DIR/ExportOptions.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>ad-hoc</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>signingCertificate</key>
-    <string></string>
-    <key>compileBitcode</key>
-    <false/>
-</dict>
-</plist>
-PLIST
-
-xcodebuild \
-    -exportArchive \
-    -archivePath "$ARCHIVE_PATH" \
-    -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \
-    -exportPath "$EXPORT_PATH" \
-    CODE_SIGN_IDENTITY="" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
-    2>&1 | tail -3
-
-# Step 4: Package into IPA
-echo "[4/4] Packaging IPA..."
+# Step 3: Package into IPA (directly from archive .app — no export needed for unsigned builds)
+echo "[3/3] Packaging IPA..."
 mkdir -p "$IPA_PATH/Payload"
 
-APP_PATH=$(find "$EXPORT_PATH" -name "*.app" -maxdepth 1 | head -1)
+APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
 if [[ -z "$APP_PATH" ]]; then
-    echo "[!] ERROR: No .app found in export path."
-    echo "    Export contents:"
-    ls -la "$EXPORT_PATH/"
+    echo "[!] ERROR: No .app found in archive."
+    echo "    Archive contents:"
+    find "$ARCHIVE_PATH" -name "*.app" 2>/dev/null
     exit 1
 fi
 
