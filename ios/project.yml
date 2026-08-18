@@ -5,6 +5,9 @@ options:
     iOS: "17.0"
   xcodeVersion: "16.0"
   createIntermediateGroups: true
+  knownRegions:
+    - en
+    - de
 
 targets:
   FlutLink:

@@ -41,6 +41,12 @@ final class WebDavApi {
         let entries = Self.parseMultistatus(data: data, basePath: basePath)
         let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let currentPath = normalizedPath.isEmpty ? "/" : "/\(normalizedPath)"
+        if let target = targetUser {
+            let namespaceFragment = "/remote.php/dav/files/\(target.urlEncoded)"
+            if let raw = String(data: data, encoding: .utf8), !raw.contains(namespaceFragment) {
+                return []
+            }
+        }
         return entries.filter { $0.path != currentPath }
     }
 
@@ -59,7 +65,14 @@ final class WebDavApi {
             throw ApiException.api(message: "Server answered \(response.statusCode): \(body)", code: "http_\(response.statusCode)", statusCode: response.statusCode)
         }
         let basePath = "/remote.php/dav/files/\(effectiveUser(targetUser).urlEncoded)"
-        return Self.parseMultistatus(data: data, basePath: basePath)
+        let entries = Self.parseMultistatus(data: data, basePath: basePath)
+        if let target = targetUser {
+            let namespaceFragment = "/remote.php/dav/files/\(target.urlEncoded)"
+            if let raw = String(data: data, encoding: .utf8), !raw.contains(namespaceFragment) {
+                return []
+            }
+        }
+        return entries
     }
 
     // MARK: - Exists

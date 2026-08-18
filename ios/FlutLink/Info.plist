@@ -45,5 +45,7 @@
     </array>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
+    <key>FLUTCLOUD_URL</key>
+    <string>$(FLUTCLOUD_URL)</string>
 </dict>
 </plist>

@@ -54,7 +54,7 @@ struct FilesView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("search".localized) { viewModel.search = " " }
+                        Button("search".localized) { viewModel.search("") }
                         Button("new_folder".localized) { showNewFolder = true }
                         Button("upload".localized) { showFilePicker = true }
                     } label: {
@@ -137,6 +137,17 @@ struct FilesView: View {
             } else {
                 List(viewModel.searchResults) { entry in
                     FileRow(entry: entry) { viewModel.open(entry) }
+                        .contextMenu {
+                            if entry.isVirtualLink, let paired = entry.pairedPath {
+                                Button("jump_to_writable_part".localized) { viewModel.listFolder(paired) }
+                            }
+                            if !entry.isDir {
+                                Button("download".localized) { viewModel.downloadToDownloads(entry) }
+                                Button("share".localized) { shareTarget = entry; showShareSheet = true }
+                            }
+                            Button("rename".localized) { renameTarget = entry; renameNewName = entry.name; showRename = true }
+                            Button("delete".localized, role: .destructive) { deleteTarget = entry; showDeleteConfirm = true }
+                        }
                 }
             }
         }

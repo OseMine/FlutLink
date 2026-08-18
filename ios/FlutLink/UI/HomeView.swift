@@ -11,10 +11,18 @@ struct HomeView: View {
     let onSignOut: () -> Void
 
     @State private var selectedTab: FlutTab = .files
+    @StateObject private var filesVM: FilesViewModel
+    @StateObject private var adminVM: AdminViewModel
+    @StateObject private var settingsVM: SettingsViewModel
 
-    private var filesVM: FilesViewModel { FilesViewModel(sessionManager: sessionManager) }
-    private var adminVM: AdminViewModel { AdminViewModel(sessionManager: sessionManager) }
-    private var settingsVM: SettingsViewModel { SettingsViewModel(sessionManager: sessionManager, settingsStore: settingsStore) }
+    init(sessionManager: SessionManager, settingsStore: SettingsStore, onSignOut: @escaping () -> Void) {
+        self.sessionManager = sessionManager
+        self.settingsStore = settingsStore
+        self.onSignOut = onSignOut
+        _filesVM = StateObject(wrappedValue: FilesViewModel(sessionManager: sessionManager))
+        _adminVM = StateObject(wrappedValue: AdminViewModel(sessionManager: sessionManager))
+        _settingsVM = StateObject(wrappedValue: SettingsViewModel(sessionManager: sessionManager, settingsStore: settingsStore))
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -22,7 +30,10 @@ struct HomeView: View {
                 .tabItem { Label("tab_files".localized, systemImage: "folder") }
                 .tag(FlutTab.files)
             if isAdmin {
-                AdminView(viewModel: adminVM)
+                AdminView(viewModel: adminVM, onViewFiles: { userId in
+                    filesVM.setTargetUser(userId)
+                    selectedTab = .files
+                })
                     .tabItem { Label("tab_admin".localized, systemImage: "person.3") }
                     .tag(FlutTab.admin)
             }

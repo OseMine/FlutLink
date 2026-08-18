@@ -24,10 +24,12 @@ final class SettingsViewModel: ObservableObject {
         self.appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         self.themePreference = settingsStore.themePreference
         self.accentHue = settingsStore.accentHue
+        self.accounts = sessionManager.accounts
     }
 
     func loadServerInfo() {
         guard let s = sessionManager.session else { return }
+        accounts = sessionManager.accounts
         Task { serverInfo = await FlutCloudApi(session: s).ping() }
     }
 

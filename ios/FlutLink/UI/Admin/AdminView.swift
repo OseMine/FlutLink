@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AdminView: View {
     @ObservedObject var viewModel: AdminViewModel
+    let onViewFiles: (String) -> Void
     @State private var showCreateUser = false
     @State private var showGroupSheet = false
     @State private var groupTarget: ManagedUser?
@@ -38,8 +39,8 @@ struct AdminView: View {
                             quotaTarget = user; showQuotaSheet = true
                         } onToggleEnabled: { enabled in
                             viewModel.setEnabled(user, enabled: enabled)
-                        } onViewFiles: { user in
-                            viewModel.setTargetUser(user.id)
+                        } onViewFiles: {
+                            onViewFiles(user.id)
                         }
                     }
                     .refreshable { viewModel.refresh() }
@@ -72,7 +73,7 @@ struct AdminView: View {
                 Button("cancel".localized, role: .cancel) {}
             }
         }
-        .onAppear { viewModel.loadUsers() }
+        .onAppear { /* require search term — do not auto-load all users */ }
     }
 }
 
@@ -180,7 +181,7 @@ struct GroupSheet: View {
                             HStack {
                                 Text(g)
                                 Spacer()
-                                Button("Remove", role: .destructive) { viewModel.removeFromGroup(user, group: g) }
+                                Button("remove".localized, role: .destructive) { viewModel.removeFromGroup(user, group: g) }
                             }
                         }
                     }
