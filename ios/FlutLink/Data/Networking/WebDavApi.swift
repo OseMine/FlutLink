@@ -247,7 +247,7 @@ final class WebDavApi {
         case "parts": target = "resources"
         default: return nil
         }
-        let tail = segments.drop(1).map { s in String(s) }
+        let tail = segments.dropFirst(1).map { s in String(s) }
         return "/" + ([target] + tail).joined(separator: "/")
     }
 
