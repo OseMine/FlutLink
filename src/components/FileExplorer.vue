@@ -1346,7 +1346,8 @@ watch(
                 <md-checkbox :checked="shareForm.publicUpload" @change="shareForm.publicUpload = !shareForm.publicUpload"></md-checkbox>
                 {{ t("publicUpload") }}
               </label>
-              <md-filled-button
+            </template>
+            <md-filled-button
                 :disabled="submitting"
                 @click="createShare"
               >

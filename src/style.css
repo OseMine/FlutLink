@@ -450,3 +450,23 @@ textarea {
   --md-outlined-button-label-text-color: var(--color-on-primary);
   --md-outlined-button-outline-color: var(--color-primary);
 }
+
+/* Modal transition */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity var(--m3-motion-duration-medium) var(--m3-motion-easing-standard);
+}
+.modal-enter-active > div,
+.modal-leave-active > div {
+  transition: transform var(--m3-motion-duration-medium) var(--m3-motion-easing-emphasized),
+              opacity var(--m3-motion-duration-medium) var(--m3-motion-easing-standard);
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from > div,
+.modal-leave-to > div {
+  opacity: 0;
+  transform: scale(0.95);
+}

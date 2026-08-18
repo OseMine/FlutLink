@@ -211,6 +211,7 @@ const updateStatusText = computed(() => {
 
 <template>
   <Teleport to="body">
+    <Transition name="modal">
     <div
       v-if="props.open"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -450,6 +451,7 @@ const updateStatusText = computed(() => {
         </div>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>
 

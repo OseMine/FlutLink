@@ -1,0 +1,48 @@
+name: Android
+description: Suggest an idea or Report a Bug for FlutLink Android App
+labels: ["android"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature or reporting a bug! Please describe what you'd like to see or the issue you're experiencing.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Issue Type
+      description: "Is this a feature request or a bug report?"
+      options:
+        - Feature Request
+        - Bug Report
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: "What problem does this solve, or what workflow does it enable?"
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: "Describe how the feature should work, including UI/UX or CLI details."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: "Any alternative solutions or workarounds you considered."
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: "Any other context, mockups, or references here."
