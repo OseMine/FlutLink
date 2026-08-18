@@ -17,6 +17,12 @@ Desktop-only (Plattform-Gründe, s. `android/README.md` „Consciously not on
 mobile"). Änderungen an Features/Verhalten müssen dort mitgezogen werden
 (CI: `.github/workflows/android.yml`).
 
+**TEST — `ios/` ist ein Port des Desktop-Clients auf Swift + SwiftUI,
+erstellt mit opencode.** Es spiegelt den Desktop-Funktionsumfang wider
+(kein Zwei-Wege-Sync). Dies ist ein Test und kein Produktions-Build.
+CI: `.github/workflows/ios.yml`. Änderungen an Features/Verhalten müssen
+dort mitgezogen werden.
+
 ## Struktur
 
 - `src/` — Vue 3 Frontend (Komponenten, Pinia-Stores in `src/stores/`,
@@ -67,6 +73,10 @@ mobile"). Änderungen an Features/Verhalten müssen dort mitgezogen werden
   `nextcloud/`-Modulen)
 - `cd android && ./gradlew :app:assembleDebug` — Android-Client bauen
   (JDK 17; CI siehe `.github/workflows/android.yml`)
+- `cd ios && xcodegen generate && xcodebuild -scheme FlutLink -destination "generic/platform=iOS" build` — iOS-Client bauen
+  (Xcode 16+, XcodeGen; CI siehe `.github/workflows/ios.yml`)
+- `./scripts/build-ipa.sh` — Unsigned IPA erzeugen (Debug)
+- `./scripts/build-ipa.sh --release` — Unsigned IPA erzeugen (Release)
 
 ## Konventionen
 
@@ -91,4 +101,6 @@ Vor dem Abschluss einer Änderung immer ausführen:
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `cargo test` (jeweils mit `--manifest-path src-tauri/Cargo.toml`) und
 `npm run build`. Bei Änderungen an `android/` zusätzlich
-`cd android && ./gradlew :app:assembleDebug`.
+`cd android && ./gradlew :app:assembleDebug`. Bei Änderungen an `ios/`
+zusätzlich `cd ios && xcodegen generate && xcodebuild -scheme FlutLink
+-destination "generic/platform=iOS" build`.

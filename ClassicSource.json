@@ -1,0 +1,53 @@
+{
+  "name": "FlutLink",
+  "subtitle": "TEST — iOS port created by opencode. FlutCloud client for iOS.",
+  "description": "TEST — FlutLink iOS is a test port created entirely by opencode. It is not a production build.\n\nFlutLink is a dedicated client for the FlutCloud server. It connects exclusively to the FlutCloud server and rejects servers that do not run the FlutCloud Nextcloud app.",
+  "iconURL": "https://raw.githubusercontent.com/OseMine/FlutLink/main/ios/FlutLink/Assets.xcassets/AppIcon.appiconset/Contents.json",
+  "headerURL": "https://raw.githubusercontent.com/OseMine/FlutLink/main/ios/FlutLink/Assets.xcassets/AppIcon.appiconset/Contents.json",
+  "website": "https://github.com/OseMine/FlutLink",
+  "tintColor": "#4E63E8",
+  "featuredApps": [
+    "com.flutcloud.flutlink.ios"
+  ],
+  "apps": [
+    {
+      "name": "FlutLink (iOS Test)",
+      "bundleIdentifier": "com.flutcloud.flutlink.ios",
+      "developerName": "OseMine",
+      "subtitle": "TEST — FlutCloud client for iOS (created by opencode)",
+      "localizedDescription": "TEST — This iOS port was created entirely by opencode as a test. It is not a production build.\n\nFlutLink is a dedicated client for the FlutCloud server. Browse files via WebDAV, manage shares, administer users, and register new accounts. Connects exclusively to your FlutCloud server.",
+      "iconURL": "https://raw.githubusercontent.com/OseMine/FlutLink/main/ios/FlutLink/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "tintColor": "#4E63E8",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "date": "2026-08-18T12:00:00Z",
+          "size": 0,
+          "downloadURL": "https://github.com/OseMine/FlutLink/releases/latest/download/FlutLink.ipa",
+          "localizedDescription": "TEST — Initial test build created by opencode. SwiftUI port of the FlutLink desktop client with WebDAV file browsing, share management, admin user provisioning, and registration.",
+          "minOSVersion": "17.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSAppTransportSecurity": {
+            "NSAllowsArbitraryLoads": true
+          }
+        }
+      }
+    }
+  ],
+  "news": [
+    {
+      "title": "TEST — FlutLink iOS (Test Build)",
+      "identifier": "flutlink-ios-test",
+      "caption": "This iOS port was created entirely by opencode as a test. Not a production build.",
+      "date": "2026-08-18",
+      "tintColor": "#4E63E8",
+      "notify": true,
+      "appID": "com.flutcloud.flutlink.ios"
+    }
+  ]
+}

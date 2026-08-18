@@ -1,0 +1,93 @@
+# TEST — iOS port created by opencode. Not a production build.
+#
+# CI for the FlutLink iOS client (`ios/`). Mirrors the Android CI pattern:
+# builds the iOS app on macOS runners to catch compile errors on every change.
+#
+# The iOS app is a SwiftUI port of the FlutLink desktop/Android clients,
+# generated entirely with opencode. It requires macOS + Xcode (no Linux runner).
+
+name: ios
+
+on:
+  push:
+    paths:
+      - 'ios/**'
+      - 'scripts/build-ipa.sh'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'scripts/build-ipa.sh'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (xcodebuild)
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml
+
+      - name: Build (Debug, generic iOS device)
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project FlutLink.xcodeproj \
+            -scheme FlutLink \
+            -configuration Debug \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath ../build/ios/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            clean build 2>&1 | xcpretty
+
+  build-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Build unsigned IPA
+        run: |
+          chmod +x scripts/build-ipa.sh
+          ./scripts/build-ipa.sh --release
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutlink-ios-unsigned
+          path: build/ios/FlutLink.ipa
+          retention-days: 14
+
+  complete:
+    name: iOS CI complete
+    needs: [build, build-ipa]
+    runs-on: macos-15
+    steps:
+      - name: All checks passed
+        run: echo "iOS build + IPA packaging passed"
