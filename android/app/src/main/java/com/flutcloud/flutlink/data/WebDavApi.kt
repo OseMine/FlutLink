@@ -32,16 +32,37 @@ class WebDavApi(private val client: OkHttpClient) {
 
     private fun logI(msg: String) = Log.i(TAG, msg)
 
-    private fun davRoot(session: AuthSession): String =
-        "${session.normalizedBaseUrl}/remote.php/dav/files/${encodeSegment(session.username)}"
+    /** The user whose files namespace a request addresses (admin impersonation). */
+    private fun effectiveUser(session: AuthSession, targetUser: String?): String =
+        targetUser ?: session.username
 
-    private fun davUrl(session: AuthSession, path: String): String {
-        val root = davRoot(session)
+    private fun davRoot(session: AuthSession, targetUser: String? = null): String =
+        "${session.normalizedBaseUrl}/remote.php/dav/files/${encodeSegment(effectiveUser(session, targetUser))}"
+
+    private fun davUrl(session: AuthSession, path: String, targetUser: String? = null): String {
+        val root = davRoot(session, targetUser)
         return if (path.isEmpty() || path == "/") root else "$root/${encodePathSegments(path)}"
     }
 
     private fun auth(request: Request.Builder, session: AuthSession): Request.Builder =
         request.header("Authorization", Credentials.basic(session.username, session.token))
+
+    /**
+     * Attach the `Impersonate-User` header so the server resolves the request
+     * in another user's namespace. Requires admin credentials; only set when
+     * [targetUser] differs from the signed-in user (mirrors the desktop
+     * `webdav::list`/`request_as`).
+     */
+    private fun impersonate(
+        request: Request.Builder,
+        session: AuthSession,
+        targetUser: String?
+    ): Request.Builder =
+        if (targetUser != null && targetUser != session.username) {
+            request.header("Impersonate-User", targetUser)
+        } else {
+            request
+        }
 
     private fun executeWebDav(request: Request, basePath: String): List<WebDavEntry> {
         val started = System.currentTimeMillis()
@@ -69,32 +90,46 @@ class WebDavApi(private val client: OkHttpClient) {
     }
 
     /** List a folder (PROPFIND, Depth 1). */
-    suspend fun list(session: AuthSession, path: String): List<WebDavEntry> = withContext(Dispatchers.IO) {
-        val request = auth(
-            Request.Builder().url(davUrl(session, path)).method("PROPFIND", null),
-            session
+    suspend fun list(session: AuthSession, path: String, targetUser: String? = null): List<WebDavEntry> = withContext(Dispatchers.IO) {
+        val effective = effectiveUser(session, targetUser)
+        val request = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)).method("PROPFIND", null),
+                session
+            ),
+            session,
+            targetUser
         ).header("Depth", "1").build()
-        executeWebDav(request, "/remote.php/dav/files/${encodeSegment(session.username)}")
+        executeWebDav(request, "/remote.php/dav/files/${encodeSegment(effective)}")
             .filterNot { it.path == listingCurrentPath(path) }
     }
 
     /** WebDAV-SEARCH across the whole files tree. */
-    suspend fun search(session: AuthSession, query: String): List<WebDavEntry> = withContext(Dispatchers.IO) {
-        val body = searchRequestBody(session.username, query)
-        val request = auth(
-            Request.Builder()
-                .url("${session.normalizedBaseUrl}/remote.php/dav/")
-                .method("SEARCH", body.toRequestBody("application/xml".toMediaType())),
-            session
+    suspend fun search(session: AuthSession, query: String, targetUser: String? = null): List<WebDavEntry> = withContext(Dispatchers.IO) {
+        val effective = effectiveUser(session, targetUser)
+        val body = searchRequestBody(effective, query)
+        val request = impersonate(
+            auth(
+                Request.Builder()
+                    .url("${session.normalizedBaseUrl}/remote.php/dav/")
+                    .method("SEARCH", body.toRequestBody("application/xml".toMediaType())),
+                session
+            ),
+            session,
+            targetUser
         ).header("Depth", "0").build()
-        executeWebDav(request, "/remote.php/dav/files/${encodeSegment(session.username)}")
+        executeWebDav(request, "/remote.php/dav/files/${encodeSegment(effective)}")
     }
 
     /** PROPFIND (Depth 0): does the remote resource exist? */
-    suspend fun exists(session: AuthSession, path: String): Boolean = withContext(Dispatchers.IO) {
-        val request = auth(
-            Request.Builder().url(davUrl(session, path)).method("PROPFIND", null),
-            session
+    suspend fun exists(session: AuthSession, path: String, targetUser: String? = null): Boolean = withContext(Dispatchers.IO) {
+        val request = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)).method("PROPFIND", null),
+                session
+            ),
+            session,
+            targetUser
         ).header("Depth", "0").build()
         try {
             client.newCall(request).execute().use { response ->
@@ -117,11 +152,16 @@ class WebDavApi(private val client: OkHttpClient) {
         path: String,
         bytes: ByteArray,
         contentType: String = "application/octet-stream",
-        mtimeEpochSeconds: Long? = null
+        mtimeEpochSeconds: Long? = null,
+        targetUser: String? = null
     ) = withContext(Dispatchers.IO) {
-        val builder = auth(
-            Request.Builder().url(davUrl(session, path)),
-            session
+        val builder = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)),
+                session
+            ),
+            session,
+            targetUser
         ).put(bytes.toRequestBody(contentType.toMediaType()))
         mtimeEpochSeconds?.let { builder.header("X-OC-MTime", it.toString()) }
         statusCheck(builder.build())
@@ -136,9 +176,14 @@ class WebDavApi(private val client: OkHttpClient) {
         session: AuthSession,
         path: String,
         dest: File,
-        onProgress: ProgressCallback? = null
+        onProgress: ProgressCallback? = null,
+        targetUser: String? = null
     ): File = withContext(Dispatchers.IO) {
-        val request = auth(Request.Builder().url(davUrl(session, path)).get(), session).build()
+        val request = impersonate(
+            auth(Request.Builder().url(davUrl(session, path, targetUser)).get(), session),
+            session,
+            targetUser
+        ).build()
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -182,7 +227,8 @@ class WebDavApi(private val client: OkHttpClient) {
         contentLength: Long,
         contentType: String = "application/octet-stream",
         mtimeEpochSeconds: Long? = null,
-        onProgress: ProgressCallback? = null
+        onProgress: ProgressCallback? = null,
+        targetUser: String? = null
     ) = withContext(Dispatchers.IO) {
         val body = object : RequestBody() {
             override fun contentType() = contentType.toMediaType()
@@ -202,28 +248,40 @@ class WebDavApi(private val client: OkHttpClient) {
                 }
             }
         }
-        val builder = auth(
-            Request.Builder().url(davUrl(session, path)),
-            session
+        val builder = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)),
+                session
+            ),
+            session,
+            targetUser
         ).put(body)
         mtimeEpochSeconds?.let { builder.header("X-OC-MTime", it.toString()) }
         statusCheck(builder.build())
     }
 
     /** Create a folder (MKCOL). 405 = already exists, treated as success. */
-    suspend fun mkdir(session: AuthSession, path: String) = withContext(Dispatchers.IO) {
-        val request = auth(
-            Request.Builder().url(davUrl(session, path)).method("MKCOL", null),
-            session
+    suspend fun mkdir(session: AuthSession, path: String, targetUser: String? = null) = withContext(Dispatchers.IO) {
+        val request = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)).method("MKCOL", null),
+                session
+            ),
+            session,
+            targetUser
         ).build()
         statusCheck(request, ignoreStatus = 405)
     }
 
     /** Delete a file/folder. 404 = already gone, treated as success. */
-    suspend fun delete(session: AuthSession, path: String) = withContext(Dispatchers.IO) {
-        val request = auth(
-            Request.Builder().url(davUrl(session, path)).method("DELETE", null),
-            session
+    suspend fun delete(session: AuthSession, path: String, targetUser: String? = null) = withContext(Dispatchers.IO) {
+        val request = impersonate(
+            auth(
+                Request.Builder().url(davUrl(session, path, targetUser)).method("DELETE", null),
+                session
+            ),
+            session,
+            targetUser
         ).build()
         statusCheck(request, ignoreStatus = 404)
     }
@@ -232,14 +290,18 @@ class WebDavApi(private val client: OkHttpClient) {
      * Rename/move a resource (MOVE with Overwrite: F). Throws a
      * `target_exists` ApiException when the destination already exists.
      */
-    suspend fun rename(session: AuthSession, path: String, newPath: String) = withContext(Dispatchers.IO) {
-        val request = auth(
-            Request.Builder()
-                .url(davUrl(session, path))
-                .method("MOVE", null)
-                .header("Destination", davUrl(session, newPath))
-                .header("Overwrite", "F"),
-            session
+    suspend fun rename(session: AuthSession, path: String, newPath: String, targetUser: String? = null) = withContext(Dispatchers.IO) {
+        val request = impersonate(
+            auth(
+                Request.Builder()
+                    .url(davUrl(session, path, targetUser))
+                    .method("MOVE", null)
+                    .header("Destination", davUrl(session, newPath, targetUser))
+                    .header("Overwrite", "F"),
+                session
+            ),
+            session,
+            targetUser
         ).build()
         try {
             client.newCall(request).execute().use { response ->

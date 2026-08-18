@@ -109,9 +109,14 @@
     <string name="share_type_generic">Freigabe</string>
     <string name="files_offline_banner">Offline \u2014 Zwischengespeicherte Daten werden angezeigt</string>
 
+    <!-- Files — Admin-Impersonation -->
+    <string name="impersonation_notice">Admin-Impersonation \u2014 du durchsuchst die privaten Dateien von %1$s</string>
+    <string name="stop_impersonation">Impersonation beenden</string>
+
     <!-- Admin — Groups -->
     <string name="admin_load_more">Mehr laden</string>
     <string name="admin_manage_groups">Gruppen verwalten</string>
+    <string name="view_files">Dateien ansehen</string>
     <string name="admin_groups_title">Gruppen \u2014 %1$s</string>
     <string name="admin_no_groups">Keine Gruppen</string>
     <string name="admin_group_name_label">Gruppenname</string>
@@ -165,6 +170,7 @@
     <string name="error_not_flutcloud">FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit \'%1$s\' verbinden.</string>
     <string name="error_target_exists">Eine Datei oder ein Ordner namens \'%1$s\' existiert bereits. Bitte wähle einen anderen Namen.</string>
     <string name="error_invalid_folder_name">Der Ordnername darf keine ungültigen Zeichen enthalten.</string>
+    <string name="error_not_admin_impersonation">Nur Administratoren können die Dateien anderer Benutzer durchsuchen.</string>
     <string name="error_generic">Ein unerwarteter Fehler ist aufgetreten.</string>
     <string name="error_generic_detail">Ein unerwarteter Fehler ist aufgetreten: %1$s</string>
     <string name="account_switched_to">Zu %1$s gewechselt</string>

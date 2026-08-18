@@ -45,6 +45,9 @@ fun HomeScreen(container: AppContainer, onLoggedOut: () -> Unit) {
         }?.isAdmin
     } ?: false
 
+    // Impersonation hand-off: Admin tab picks a target user, Files tab consumes it.
+    var impersonateTarget by rememberSaveable { mutableStateOf<String?>(null) }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -64,8 +67,18 @@ fun HomeScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     ) { innerPadding ->
         Box(Modifier.padding(innerPadding).fillMaxSize()) {
             when (selectedTab) {
-                Tab.Files -> FilesScreen(container)
-                Tab.Admin -> AdminScreen(container)
+                Tab.Files -> FilesScreen(
+                    container = container,
+                    impersonateTarget = impersonateTarget,
+                    onImpersonationHandled = { impersonateTarget = null }
+                )
+                Tab.Admin -> AdminScreen(
+                    container = container,
+                    onViewFiles = { user ->
+                        impersonateTarget = user.id
+                        selectedTab = Tab.Files
+                    }
+                )
                 Tab.Settings -> SettingsScreen(container, onLoggedOut)
             }
         }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -62,7 +63,7 @@ private const val GB = 1024L * 1024 * 1024
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminScreen(container: AppContainer) {
+fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
     val vm = flutLinkViewModel { AdminViewModel(it) }
     val context = LocalContext.current
     val users by vm.users.collectAsState()
@@ -119,7 +120,8 @@ fun AdminScreen(container: AppContainer) {
                             onToggleEnabled = { vm.setEnabled(user, !user.enabled) },
                             onDelete = { deleteTarget = user },
                             onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) },
-                            onManageGroups = { groupTarget = user }
+                            onManageGroups = { groupTarget = user },
+                            onViewFiles = { onViewFiles(user) }
                         )
                     }
                     if (hasMore) {
@@ -191,7 +193,8 @@ private fun UserRow(
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
     onQuota: (Long?) -> Unit,
-    onManageGroups: () -> Unit
+    onManageGroups: () -> Unit,
+    onViewFiles: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val resources = LocalContext.current.resources
@@ -282,6 +285,14 @@ private fun UserRow(
                             onClick = {
                                 menuOpen = false
                                 onManageGroups()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.view_files)) },
+                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onViewFiles()
                             }
                         )
                         DropdownMenuItem(

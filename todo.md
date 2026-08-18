@@ -107,8 +107,10 @@ formal bestehen; hier der aktuelle Status):
 - A9-6 (Upload überschreibt still) → **umgesetzt**: `uploadStream` führt
   einen `exists()`-Check aus und zeigt bei Treffer den Overwrite-Confirm
   (`PendingUpload`/`confirmUpload`), analog Desktop-Q9.
-- A9-7 (Impersonation fehlt) → **weiter offen**: kein `target_user`/
-  `Impersonate-User` in `WebDavApi.kt`/`FilesScreen.kt`.
+- A9-7 (Impersonation fehlt) → **umgesetzt**: `WebDavApi.kt` setzt
+  `Impersonate-User` + `target_user`-Namespace (alle WebDAV-Operationen),
+  `FilesViewModel.setTargetUser` mit Admin-Check, Admin-Screen-Aktion
+  „View files" + Impersonation-Banner in `FilesScreen.kt`.
 - A9-8 (Gruppenverwaltung fehlt) → **umgesetzt**: `GroupsDialog` +
   `AdminViewModel.addToGroup`/`removeFromGroup`/`createGroup` +
   OCS-Gruppen-Endpunkte.
@@ -280,12 +282,16 @@ Befunden **nicht** zu: Neu gefunden:
       `WebDavApi.exists()` (Z. 84-102) existiert, wird aber von
       `FilesViewModel.upload` (Z. 173-187) nie aufgerufen. Fix:
       `exists`-Check + Bestätigungs-Dialog vor dem PUT.
-- [ ] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
+- [x] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
       Desktop erlaubt Admins das Browsen fremder Nutzer (`webdav_list`
       `target_user` + `FileExplorer.vue` adminViewAll, `Impersonate-User`-
       Header in `webdav.rs`); `AdminScreen.kt`/`WebDavApi.kt` haben weder
       `target_user`-Parameter noch `Impersonate-User`-Support. Fix:
       Impersonation im Admin-Screen (Zugriff auf alle Nutzer-Dateien).
+      → umgesetzt: `WebDavApi`-Methoden nehmen `targetUser` (Namespace +
+      `Impersonate-User`-Header), `FilesViewModel.setTargetUser` (Admin-Check,
+      Cache-Namespace inkl. Target), Aktion „View files" im Admin-Screen +
+      Banner/Beenden in `FilesScreen.kt`, siehe Archiv.
 - [x] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
       Desktop hat seit Q3 `admin_list_groups`/`admin_create_group`/
       `admin_add_group_member`/`admin_remove_group_member` + UI in
@@ -499,6 +505,35 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 
 ## Archiv (erledigt)
 
+### A9-7 — Android Admin-Impersonation (2026-08-18)
+
+Umgesetzt (Issue „Android: Admin-Impersonation fehlt"): Admins können im
+Admin-Screen über die Aktion „View files" in die Dateien fremder Nutzer
+wechseln; der `Impersonate-User`-Header wird bei den entsprechenden Requests
+gesetzt (mit Admin-Check).
+
+- `WebDavApi.kt`: alle Methoden (`list`, `search`, `exists`, `upload`,
+  `downloadToFile`, `uploadStream`, `mkdir`, `delete`, `rename`) akzeptieren
+  `targetUser: String?`; der Dav-Namespace (`/remote.php/dav/files/{user}`)
+  wird auf den Ziel-Nutzer umgestellt und `Impersonate-User` gesetzt, wenn
+  `targetUser` ≠ eigener Nutzername (mirror von `webdav.rs`/
+  `request_as`). `search`-Body nutzt den effektiven Nutzer.
+- `FilesViewModel.kt`: neuer `targetUser`-State + `setTargetUser(userId?)`
+  mit Admin-Gate (`error_not_admin_impersonation` für Nicht-Admins, mirror
+  `commands.rs` `AppError::Forbidden`); `sessionKey`/Offline-Cache sind je
+  Ziel-Nutzer getrennt; alle WebDAV-Aufrufe reichen `targetUser` durch.
+- `AdminScreen.kt`: Dropdown-Eintrag „View files" je Nutzer.
+- `HomeScreen.kt`: übergibt den gewählten Ziel-Nutzer an den Files-Tab.
+- `FilesScreen.kt`: Impersonation-Banner („browsing the private files of
+  @user") + „Stop impersonation", solange `targetUser` gesetzt ist.
+- i18n: `view_files`/`impersonation_notice`/`stop_impersonation`/
+  `error_not_admin_impersonation` in `values/` + `values-de/` (Key-Sets
+  identisch).
+
+Verifikation: `./gradlew :app:assembleDebug` + `:app:testDebugUnitTest`
+grün; `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
+`cargo test` grün.
+
 ### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
 
 - [x] **I206-1 (Android, Feature):** Downloads landen im **Downloads-Ordner** —
@@ -578,7 +613,8 @@ Abschnitt):
 
 Nicht Teil dieses Archiv-Laufs (weiter offen, siehe Offen-Abschnitt): D5
 (Frontend-Build kaputt), D6 (Android-Build kaputt), D7 (Android-i18n
-Restlücken), A9-3/A9-4/A9-6/A9-7/A9-10/A9-11/A9-13/A9-14/A9-15.
+Restlücken), A9-9/A9-10/A9-13/A9-14 (und A9-3/A9-4/A9-6/A9-11/A9-15 sind
+zwischenzeitlich umgesetzt, s. Offen-Liste).
 
 ### Review 2026-08-16 (Lauf 8, Fokus UX — U-R8-1 bis U-R8-12, R8-B1)
 

@@ -38,6 +38,9 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     val offline = MutableStateFlow(false)
     val quota = MutableStateFlow<Quota?>(null)
 
+    /** Admin impersonation: the user whose files are browsed (null = own files). */
+    val targetUser = MutableStateFlow<String?>(null)
+
     val searchQuery = MutableStateFlow("")
     val searchResults = MutableStateFlow<List<WebDavEntry>>(emptyList())
     val searching = MutableStateFlow(false)
@@ -69,7 +72,37 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     val transferProgress: StateFlow<TransferProgress?> = _transferProgress.asStateFlow()
 
     val sessionKey: String?
-        get() = session?.let { "${it.baseUrl}|${it.username}" }
+        get() = session?.let { "${it.baseUrl}|${it.username}|${targetUser.value ?: ""}" }
+
+    /**
+     * Whether the signed-in account is an administrator (mirrors the desktop
+     * command-level admin gate: non-admins are refused with Forbidden).
+     */
+    private fun isAdmin(): Boolean {
+        val s = session ?: return false
+        return container.sessionManager.accounts.value.any {
+            it.username == s.username &&
+                it.instanceUrl.trimEnd('/') == s.baseUrl.trimEnd('/') &&
+                it.isAdmin
+        }
+    }
+
+    /**
+     * Switch the browsed namespace to another user's files (admin
+     * impersonation). Non-admins are refused; the browser resets to that
+     * user's root, mirroring the desktop `files.setTargetUser`.
+     */
+    fun setTargetUser(userId: String?) {
+        val s = session ?: return
+        val target = userId?.takeIf { it != s.username }
+        if (target != null && !isAdmin()) {
+            error.value = UiMessage(R.string.error_not_admin_impersonation)
+            return
+        }
+        targetUser.value = target
+        path.value = "/"
+        listFolder("/")
+    }
 
     fun refresh() {
         listFolder(path.value)
@@ -82,7 +115,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             loading.value = true
             error.value = null
             try {
-                val result = container.webDavApi.list(s, folderPath)
+                val result = container.webDavApi.list(s, folderPath, targetUser.value)
                     .sortedWith(compareByDescending<WebDavEntry> { it.isDir }.thenBy { it.name.lowercase() })
                 entries.value = result
                 offline.value = false
@@ -173,7 +206,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                         dest = dest,
                         onProgress = { transferred, total ->
                             _transferProgress.value = TransferProgress(transferred, total)
-                        }
+                        },
+                        targetUser = targetUser.value
                     )
                 }
                 _toast.value = UiMessage(R.string.downloaded_to_downloads, entry.name)
@@ -208,7 +242,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     dest = file,
                     onProgress = { transferred, total ->
                         _transferProgress.value = TransferProgress(transferred, total)
-                    }
+                    },
+                    targetUser = targetUser.value
                 )
                 _sharePath.value = file.absolutePath
             } catch (e: NetworkException) {
@@ -232,7 +267,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             error.value = null
             try {
                 val target = if (path.value == "/") "/$name" else "${path.value}/$name"
-                container.webDavApi.mkdir(s, target)
+                container.webDavApi.mkdir(s, target, targetUser.value)
                 listFolder(path.value)
                 onDone()
             } catch (e: NetworkException) {
@@ -250,7 +285,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             error.value = null
             try {
                 val newPath = entry.path.substringBeforeLast('/', "") + "/" + newName
-                container.webDavApi.rename(s, entry.path, newPath)
+                container.webDavApi.rename(s, entry.path, newPath, targetUser.value)
                 listFolder(path.value)
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)
@@ -265,7 +300,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             error.value = null
             try {
-                container.webDavApi.delete(s, entry.path)
+                container.webDavApi.delete(s, entry.path, targetUser.value)
                 entries.value = entries.value.filterNot { it.path == entry.path }
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)
@@ -350,7 +385,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             error.value = null
             try {
                 val remotePath = if (targetDir == "/") "/$name" else "$targetDir/$name"
-                val exists = container.webDavApi.exists(s, remotePath)
+                val exists = container.webDavApi.exists(s, remotePath, targetUser.value)
                 if (exists) {
                     _pendingUpload.value = PendingUpload(targetDir, name, uri, contentType)
                     return@launch
@@ -393,7 +428,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                         contentType = contentType,
                         onProgress = { transferred, total ->
                             _transferProgress.value = TransferProgress(transferred, total)
-                        }
+                        },
+                        targetUser = targetUser.value
                     )
                 } else {
                     val tmpFile = container.streamToTempFile(uri, name)
@@ -406,7 +442,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                             contentType = contentType,
                             onProgress = { transferred, total ->
                                 _transferProgress.value = TransferProgress(transferred, total)
-                            }
+                            },
+                            targetUser = targetUser.value
                         )
                     } finally {
                         tmpFile.delete()
@@ -437,7 +474,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             searching.value = true
             error.value = null
             try {
-                searchResults.value = container.webDavApi.search(s, query.trim())
+                searchResults.value = container.webDavApi.search(s, query.trim(), targetUser.value)
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
