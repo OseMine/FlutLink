@@ -23,7 +23,7 @@ final class WebDavApi {
     private func davUrl(path: String, targetUser: String? = nil) -> String {
         let root = davRoot(targetUser)
         if path.isEmpty || path == "/" { return root }
-        return "\(root)/\(path.split(separator: "/").map { $0.urlEncoded }.joined(separator: "/"))"
+        return "\(root)/\(path.split(separator: "/").map { String($0).urlEncoded }.joined(separator: "/"))"
     }
 
     // MARK: - PROPFIND

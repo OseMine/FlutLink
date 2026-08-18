@@ -48,7 +48,7 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
-    func dismissUpdate() { update = nil }
+    func dismissUpdate() { update = Optional<AppUpdate>.none }
 
     func openUpdateURL() {
         guard let url = URL(string: "https://github.com/OseMine/FlutLink/releases/latest") else { return }
