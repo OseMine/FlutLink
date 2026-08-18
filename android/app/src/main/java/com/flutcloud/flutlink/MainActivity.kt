@@ -29,13 +29,13 @@ class MainActivity : ComponentActivity() {
 private fun FlutLinkRoot(container: AppContainer) {
     val themePreference by container.settingsStore.themePreference.collectAsState(initial = "system")
     val dynamicColor by container.settingsStore.dynamicColor.collectAsState(initial = true)
-    val darkTheme = when (themePreference) {
-        "light" -> false
-        "dark" -> true
-        else -> androidx.compose.foundation.isSystemInDarkTheme()
-    }
+    val accentHue by container.settingsStore.accentHue.collectAsState(initial = null)
 
-    FlutLinkTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
+    FlutLinkTheme(
+        themePreference = themePreference,
+        dynamicColor = dynamicColor,
+        accentHue = accentHue
+    ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background

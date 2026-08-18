@@ -1,5 +1,7 @@
 package com.flutcloud.flutlink.ui.settings
 
+import androidx.annotation.StringRes
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -49,13 +52,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.annotation.StringRes
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.ui.components.SectionHeader
 import com.flutcloud.flutlink.ui.flutLinkViewModel
+import com.flutcloud.flutlink.ui.theme.defaultAccentHue
 import com.flutcloud.flutlink.ui.viewmodel.SettingsViewModel
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +69,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     val accounts by vm.accounts.collectAsState()
     val themePreference by vm.themePreference.collectAsState()
     val dynamicColor by vm.dynamicColor.collectAsState()
+    val accentHue by vm.accentHue.collectAsState()
     val serverInfo by vm.serverInfo.collectAsState()
     val toast by vm.toast.collectAsState()
     val update by vm.update.collectAsState()
@@ -134,9 +139,9 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
             )
             val themeOptions = listOf(
-                "system" to R.string.theme_system,
-                "light" to R.string.theme_light,
-                "dark" to R.string.theme_dark
+                "operationflut" to R.string.theme_operationflut,
+                "midnight" to R.string.theme_midnight,
+                "system" to R.string.theme_system
             )
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 themeOptions.forEachIndexed { index, (value, labelRes) ->
@@ -148,6 +153,39 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                         Text(stringResource(labelRes))
                     }
                 }
+            }
+            Text(
+                stringResource(R.string.theme_system_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            val accentDefault = defaultAccentHue(themePreference, isSystemInDarkTheme())
+            val accentValue = accentHue ?: accentDefault
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        stringResource(R.string.accent_color),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { vm.setAccentHue(null) }) {
+                        Text(stringResource(R.string.accent_reset))
+                    }
+                }
+                Slider(
+                    value = accentValue.toFloat(),
+                    onValueChange = { vm.setAccentHue(it.roundToInt()) },
+                    valueRange = 0f..360f
+                )
+                Text(
+                    stringResource(R.string.accent_color_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.dynamic_color)) },

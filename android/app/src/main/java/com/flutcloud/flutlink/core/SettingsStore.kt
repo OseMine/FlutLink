@@ -3,6 +3,7 @@ package com.flutcloud.flutlink.core
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -16,8 +17,10 @@ class SettingsStore(private val context: Context) {
 
     private object Keys {
         val defaultServerUrl = stringPreferencesKey("default_server_url")
-        val themePreference = stringPreferencesKey("theme_preference") // system|light|dark
+        // operationflut|midnight|system (legacy light|dark still resolve).
+        val themePreference = stringPreferencesKey("theme_preference")
         val dynamicColor = booleanPreferencesKey("dynamic_color")
+        val accentHue = intPreferencesKey("accent_hue")
     }
 
     val defaultServerUrl: Flow<String> =
@@ -29,6 +32,10 @@ class SettingsStore(private val context: Context) {
     val dynamicColor: Flow<Boolean> =
         context.flutlinkDataStore.data.map { it[Keys.dynamicColor] ?: true }
 
+    /** Material You accent seed; null keeps the theme's default hue. */
+    val accentHue: Flow<Int?> =
+        context.flutlinkDataStore.data.map { it[Keys.accentHue] }
+
     suspend fun setDefaultServerUrl(url: String) {
         context.flutlinkDataStore.edit { it[Keys.defaultServerUrl] = url }
     }
@@ -39,6 +46,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDynamicColor(enabled: Boolean) {
         context.flutlinkDataStore.edit { it[Keys.dynamicColor] = enabled }
+    }
+
+    suspend fun setAccentHue(hue: Int?) {
+        context.flutlinkDataStore.edit { prefs ->
+            if (hue == null) prefs.remove(Keys.accentHue) else prefs[Keys.accentHue] = hue
+        }
     }
 
     suspend fun defaultServerUrlOrEmpty(): String = defaultServerUrl.first()
