@@ -152,6 +152,7 @@ async function submitRegister() {
 
 <template>
   <Teleport to="body">
+    <Transition name="modal">
     <div
       v-if="props.open"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -212,7 +213,7 @@ async function submitRegister() {
           </div>
 
           <div class="flex gap-2 pt-1">
-            <md-outlined-button class="mt-2 w-full" @click="close">
+            <md-outlined-button class="mt-4 w-full" @click="close">
               {{ t("cancel") }}
             </md-outlined-button>
             <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submit">
@@ -288,7 +289,7 @@ async function submitRegister() {
           </div>
 
           <div class="flex gap-2 pt-1">
-            <md-outlined-button class="mt-2 w-full" @click="close">
+            <md-outlined-button class="mt-4 w-full" @click="close">
               {{ t("cancel") }}
             </md-outlined-button>
             <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submitRegister">
@@ -298,5 +299,6 @@ async function submitRegister() {
         </form>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>

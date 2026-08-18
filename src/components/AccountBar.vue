@@ -112,7 +112,7 @@ const storageFreeLabel = computed(() => {
         <span
           v-if="account.isAdmin"
           :title="t('admin')"
-          class="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase"
+          class="rounded bg-primary-container/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-primary-container"
         >
           {{ t("admin") }}
         </span>

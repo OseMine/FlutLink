@@ -288,7 +288,7 @@ function parentPath(path: string): string {
           {{ parentPath(entry.path) }}
         </p>
         <div
-          class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-black/50 group-hover:flex"
+          class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-scrim/50 group-hover:flex"
           @click.stop
           @dblclick.stop
         >

@@ -1346,28 +1346,17 @@ watch(
                 <md-checkbox :checked="shareForm.publicUpload" @change="shareForm.publicUpload = !shareForm.publicUpload"></md-checkbox>
                 {{ t("publicUpload") }}
               </label>
-</template>
-
-<style>
-.error-btn {
-  --md-outlined-button-label-text-color: var(--color-error);
-  --md-outlined-button-outline-color: var(--color-error);
-}
-.active-toggle {
-  --md-outlined-button-container-color: var(--color-primary);
-  --md-outlined-button-label-text-color: var(--color-on-primary);
-  --md-outlined-button-outline-color: var(--color-primary);
-}
-</style>
-            <md-filled-button
-              :disabled="submitting"
-              @click="createShare"
-            >
-              {{ t("createShare") }}
-            </md-filled-button>
+              <md-filled-button
+                :disabled="submitting"
+                @click="createShare"
+              >
+                {{ t("createShare") }}
+              </md-filled-button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+

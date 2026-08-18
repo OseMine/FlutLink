@@ -664,9 +664,3 @@ function quotaFree(q: UserQuota | null): string {
   </div>
 </template>
 
-<style>
-.error-btn {
-  --md-outlined-button-label-text-color: var(--color-error);
-  --md-outlined-button-outline-color: var(--color-error);
-}
-</style>
