@@ -133,13 +133,12 @@ final class FlutCloudApi {
         guard let dict = data.value as? [String: Any] else {
             throw ApiException.api(message: "Missing user data")
         }
-        let quotaDict = dict["quota"] as? [String: Any]
-        let qd = quotaDict.map { AnyCodable($0) }
+        let qd = dict["quota"] as? [String: Any]
         return ManagedUser(
             id: dict["id"] as? String ?? userId,
             displayName: dict["display-name"] as? String,
             email: dict["email"] as? String,
-            quota: qd.flatMap { Quota(total: $0.totalBytes, used: $0.usedBytes, free: $0.freeBytes, relative: $0.relativePercent) },
+            quota: qd.map { Quota(total: AnyCodable($0["totalBytes"]).intValue, used: AnyCodable($0["usedBytes"]).intValue, free: AnyCodable($0["freeBytes"]).intValue, relative: AnyCodable($0["relative"]).doubleValue) },
             groups: dict["groups"] as? [String] ?? [],
             enabled: dict["enabled"] as? Bool ?? true
         )
