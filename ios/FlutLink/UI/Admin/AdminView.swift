@@ -127,16 +127,6 @@ struct UserRow: View {
     }
 }
 
-private func formatBytes(_ bytes: Int64?) -> String {
-    guard let b = bytes else { return "" }
-    if b < 1024 { return "\(b) B" }
-    let units = ["KB", "MB", "GB", "TB"]
-    var value = Double(b)
-    var unit = -1
-    while value >= 1024 && unit < units.count - 1 { value /= 1024; unit += 1 }
-    return String(format: "%.1f %@", value, units[unit])
-}
-
 struct CreateUserSheet: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var userId = ""
