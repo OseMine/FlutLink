@@ -22,7 +22,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IOS_DIR="$REPO_ROOT/ios"
 BUILD_DIR="$REPO_ROOT/build/ios"
 ARCHIVE_PATH="$BUILD_DIR/FlutLink.xcarchive"
-EXPORT_PATH="$BUILD_DIR/export"
 IPA_PATH="$BUILD_DIR/FlutLink.ipa"
 
 CONFIG="Debug"
@@ -74,7 +73,9 @@ echo "      Archive created at $ARCHIVE_PATH"
 
 # Step 3: Package into IPA (directly from archive .app — no export needed for unsigned builds)
 echo "[3/3] Packaging IPA..."
-mkdir -p "$IPA_PATH/Payload"
+IPA_WORK="$BUILD_DIR/ipa_work"
+rm -rf "$IPA_WORK"
+mkdir -p "$IPA_WORK/Payload"
 
 APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
 if [[ -z "$APP_PATH" ]]; then
@@ -84,11 +85,11 @@ if [[ -z "$APP_PATH" ]]; then
     exit 1
 fi
 
-cp -R "$APP_PATH" "$IPA_PATH/Payload/"
-cd "$IPA_PATH"
+cp -R "$APP_PATH" "$IPA_WORK/Payload/"
+cd "$IPA_WORK"
 zip -r -q "$BUILD_DIR/FlutLink.ipa" Payload/
 cd "$REPO_ROOT"
-rm -rf "$IPA_PATH"
+rm -rf "$IPA_WORK"
 
 echo ""
 echo "=== Done ==="
