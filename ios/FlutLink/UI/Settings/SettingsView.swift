@@ -84,13 +84,31 @@ struct SettingsView: View {
                 Section {
                     Button("sign_out".localized, role: .destructive) { showSignOutConfirm = true }
                 }
-                Section {
-                    Text("flutlink_for_ios".localized)
-                        .font(.caption).foregroundStyle(.secondary)
+                Section("updates".localized) {
+                    if let update = viewModel.update {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("update_available".localized).font(.headline)
+                                Text("FlutLink \(update.version)").font(.subheadline)
+                            }
+                            Spacer()
+                            Button("update".localized) { viewModel.openUpdateURL() }
+                                .buttonStyle(.borderedProminent).controlSize(.small)
+                        }
+                    } else {
+                        HStack {
+                            Text("flutlink_for_ios".localized)
+                            Spacer()
+                            if viewModel.checkingUpdate {
+                                ProgressView()
+                            } else {
+                                Button("check_for_updates".localized) { viewModel.checkForUpdate() }
+                                    .buttonStyle(.bordered).controlSize(.small)
+                            }
+                        }
+                    }
                     Text("version_format".localized.replacingOccurrences(of: "%1$s", with: viewModel.appVersion))
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("flutcloud_only_note".localized)
-                        .font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("tab_settings".localized)
