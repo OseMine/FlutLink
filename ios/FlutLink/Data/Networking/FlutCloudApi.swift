@@ -85,12 +85,11 @@ final class FlutCloudApi {
               let quotaDict = dict["quota"] as? [String: Any] else {
             return nil
         }
-        let qd = AnyCodable(quotaDict)
         return Quota(
-            total: qd.totalBytes,
-            used: qd.usedBytes,
-            free: qd.freeBytes,
-            relative: qd.relativePercent
+            total: AnyCodable(quotaDict["totalBytes"]).intValue,
+            used: AnyCodable(quotaDict["usedBytes"]).intValue,
+            free: AnyCodable(quotaDict["freeBytes"]).intValue,
+            relative: AnyCodable(quotaDict["relative"]).doubleValue
         )
     }
 
