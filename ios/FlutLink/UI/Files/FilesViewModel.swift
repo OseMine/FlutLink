@@ -82,7 +82,7 @@ final class FilesViewModel: ObservableObject {
                 }
                 path = folderPath
                 _ = api
-            } catch is ApiException {
+            } catch let error as ApiException {
                 errorMessage = Self.mapError(error)
             } catch {
                 if let key = sessionKey, let cached = listCache.read(accountKey: key, path: folderPath) {
