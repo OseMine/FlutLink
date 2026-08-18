@@ -370,7 +370,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         doUpload(pending.targetDir, pending.name, pending.uri, pending.contentType)
     }
 
-    fun cancelUpload() {
+    fun clearPendingUpload() {
         _pendingUpload.value = null
     }
 
@@ -453,12 +453,27 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         searchResults.value = emptyList()
     }
 
-    fun clearErrors() {
+    fun clearError() {
         error.value = null
+    }
+
+    fun clearDownloaded() {
         _downloaded.value = null
-        _lastShare.value = null
-        _pendingUpload.value = null
+    }
+
+    fun clearSharePath() {
         _sharePath.value = null
+    }
+
+    fun clearLastShare() {
+        _lastShare.value = null
+    }
+
+    fun clearToast() {
         _toast.value = null
+    }
+
+    fun clearPendingUpload() {
+        _pendingUpload.value = null
     }
 }

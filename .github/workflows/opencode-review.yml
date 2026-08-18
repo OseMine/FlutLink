@@ -69,7 +69,7 @@ jobs:
             4. Hänge neue Befunde als datierten Abschnitt oben in todo.md an (falls
                vorhanden), bestehende Einträge unangetastet lassen.
             5. Prüfe, welche Punkte aus todo.md erledigt wurden, markiere sie als
-               erledigt („[x]") und verschiebe abgehakte Todos in die datei archived-todos.md".
+               erledigt („[x]") und verschiebe abgehakte Todos in archived-todo.md.
             6. Überprüfe nach den kriterien auch github issues
 
             WICHTIG:

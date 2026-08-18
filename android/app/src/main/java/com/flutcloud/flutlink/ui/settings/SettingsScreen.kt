@@ -72,9 +72,11 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     val installingUpdate by vm.installingUpdate.collectAsState()
 
     val session by container.sessionManager.session.collectAsState()
+    val sessionKey = session?.let { "${it.baseUrl}|${it.username}" }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.loadServerInfo() }
+    LaunchedEffect(sessionKey) { vm.loadServerInfo() }
     LaunchedEffect(toast) {
         toast?.let {
             snackbar.showSnackbar(it.resolve(context))
@@ -201,10 +203,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
 
             Spacer(Modifier.height(24.dp))
             TextButton(
-                onClick = {
-                    vm.signOut()
-                    onLoggedOut()
-                },
+                onClick = { vm.signOut() },
                 modifier = Modifier.fillMaxWidth().height(48.dp)
             ) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)

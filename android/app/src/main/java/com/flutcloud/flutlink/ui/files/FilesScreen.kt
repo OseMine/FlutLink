@@ -151,13 +151,13 @@ fun FilesScreen(container: AppContainer) {
     LaunchedEffect(error) {
         error?.let {
             snackbar.showSnackbar(it.resolve(context))
-            vm.clearErrors()
+            vm.clearError()
         }
     }
     LaunchedEffect(toast) {
         toast?.let {
             snackbar.showSnackbar(it.resolve(context))
-            vm.clearErrors()
+            vm.clearToast()
         }
     }
     LaunchedEffect(downloaded) {
@@ -165,7 +165,7 @@ fun FilesScreen(container: AppContainer) {
             if (!FileOpener.open(context, path)) {
                 snackbar.showSnackbar(context.getString(R.string.downloaded_to_downloads, path))
             }
-            vm.clearErrors()
+            vm.clearDownloaded()
         }
     }
     LaunchedEffect(sharePath) {
@@ -173,14 +173,14 @@ fun FilesScreen(container: AppContainer) {
             if (!ShareSheet.share(context, path)) {
                 snackbar.showSnackbar(context.getString(R.string.share_failed, path))
             }
-            vm.clearErrors()
+            vm.clearSharePath()
         }
     }
     LaunchedEffect(lastShare) {
         lastShare?.let {
             val url = it.url ?: context.getString(R.string.no_url)
             snackbar.showSnackbar(context.getString(R.string.link_created, url))
-            vm.clearErrors()
+            vm.clearLastShare()
         }
     }
 
@@ -339,14 +339,14 @@ fun FilesScreen(container: AppContainer) {
     }
     pendingUpload?.let { upload ->
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { vm.cancelUpload() },
+            onDismissRequest = { vm.clearPendingUpload() },
             title = { Text(stringResource(R.string.overwrite)) },
             text = { Text(stringResource(R.string.file_exists_confirm, upload.name)) },
             confirmButton = {
                 TextButton(onClick = { vm.confirmUpload() }) { Text(stringResource(R.string.overwrite)) }
             },
             dismissButton = {
-                TextButton(onClick = { vm.cancelUpload() }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { vm.clearPendingUpload() }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

@@ -71,7 +71,7 @@ class AppContainer(context: Context) {
      *                   streams the content into it (e.g. via [WebDavApi.downloadToFile]).
      * @return The destination [File] that was written.
      */
-    suspend fun downloadToDownloads(fileName: String, download: suspend (File) -> Unit): File {
+    suspend fun downloadToDownloads(fileName: String, download: suspend (File) -> Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val resolver = appContext.contentResolver
             val values = ContentValues().apply {
@@ -97,14 +97,12 @@ class AppContainer(context: Context) {
                 resolver.delete(uri, null, null)
                 throw e
             }
-            return File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fileName)
         } else {
             @Suppress("DEPRECATION")
             val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             dir.mkdirs()
             val file = File(dir, fileName)
             download(file)
-            return file
         }
     }
 }

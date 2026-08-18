@@ -173,9 +173,9 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                 )
             }
 
-            if (error != null) {
+            error?.let { err ->
                 Spacer(Modifier.height(12.dp))
-                ErrorBanner(error!!.resolve(context))
+                ErrorBanner(err.resolve(context))
             }
 
             Spacer(Modifier.height(24.dp))

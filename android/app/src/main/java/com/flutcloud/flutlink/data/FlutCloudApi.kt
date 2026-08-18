@@ -62,7 +62,6 @@ class FlutCloudApi(private val client: OkHttpClient) {
                 FormBody.Builder().apply { pairs.forEach { (k, v) -> add(k, v) } }.build()
             })
             .header("Authorization", Credentials.basic(session.username, session.token))
-            .header("OCS-APIRequest", "true")
             .header("Accept", "application/json")
         return builder.build()
     }
@@ -80,15 +79,18 @@ class FlutCloudApi(private val client: OkHttpClient) {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
                 android.util.Log.i(tag, "$method $url -> ${response.code} in ${System.currentTimeMillis() - started}ms body=${body.length}")
+                
+                val (data, ocsError) = parseOcs(body)
+                
                 if (response.code >= 400) {
                     throw ApiException(
-                        "Server answered ${response.code}: $body".trim(),
+                        ocsError ?: "Server answered ${response.code}: $body".trim(),
                         "http_${response.code}",
                         response.code
                     )
                 }
-                val (data, error) = parseOcs(body)
-                if (error != null) throw ApiException(error, "ocs_error", response.code)
+                
+                if (ocsError != null) throw ApiException(ocsError, "ocs_error", response.code)
                 data
             }
         } catch (e: ApiException) {
@@ -145,24 +147,17 @@ class FlutCloudApi(private val client: OkHttpClient) {
      * stored flag instead of demoting an admin account on a transient error.
      */
     suspend fun isAdmin(session: AuthSession): Boolean = withContext(Dispatchers.IO) {
-        val request = build(session, "GET", "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=1")
+        val url = "${session.normalizedBaseUrl}/ocs/v1.php/cloud/users?format=json&limit=1"
         try {
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (response.code >= 400) {
-                    throw ApiException(
-                        "Server answered ${response.code}: $body".trim(),
-                        "http_${response.code}",
-                        response.code
-                    )
-                }
-                val (_, error) = parseOcs(body)
-                error == null
-            }
+            execute(session, "GET", url)
+            true
         } catch (e: ApiException) {
-            throw e
-        } catch (e: IOException) {
-            throw NetworkException(e)
+            // If it's a 401/403 or an OCS "failure", they are not an admin.
+            if (e.statusCode == 401 || e.statusCode == 403 || e.code == "ocs_error") {
+                false
+            } else {
+                throw e
+            }
         }
     }
 
