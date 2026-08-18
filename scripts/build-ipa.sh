@@ -63,10 +63,8 @@ xcodebuild \
     -archivePath "$ARCHIVE_PATH" \
     -destination "generic/platform=iOS" \
     -derivedDataPath "$BUILD_DIR/DerivedData" \
-    CODE_SIGN_IDENTITY="" \
+    CODE_SIGN_IDENTITY="-" \
     CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO \
-    AD_HOC_CODE_SIGNING_ALLOWED=YES \
     ENABLE_BITCODE=NO \
     archive 2>&1 | tail -20
 echo "      Archive created at $ARCHIVE_PATH"
@@ -85,10 +83,33 @@ if [[ -z "$APP_PATH" ]]; then
     exit 1
 fi
 
+echo "      Found .app: $APP_PATH"
+
+if [[ ! -f "$APP_PATH/Info.plist" ]]; then
+    echo "[!] ERROR: .app is missing Info.plist — invalid bundle structure."
+    exit 1
+fi
+
 cp -R "$APP_PATH" "$IPA_WORK/Payload/"
+
+echo "      Verifying Payload structure..."
+if [[ ! -d "$IPA_WORK/Payload/FlutLink.app" ]]; then
+    echo "[!] ERROR: Payload/FlutLink.app not found after copy."
+    exit 1
+fi
+
 cd "$IPA_WORK"
 zip -r -q "$BUILD_DIR/FlutLink.ipa" Payload/
 cd "$REPO_ROOT"
+
+IPA_SIZE=$(wc -c < "$BUILD_DIR/FlutLink.ipa" | tr -d ' ')
+echo "      IPA size: $IPA_SIZE bytes"
+
+if [[ "$IPA_SIZE" -lt 1000 ]]; then
+    echo "[!] ERROR: IPA is suspiciously small ($IPA_SIZE bytes) — likely corrupt."
+    exit 1
+fi
+
 rm -rf "$IPA_WORK"
 
 echo ""
