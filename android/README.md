@@ -58,12 +58,26 @@ android/
 ### Consciously not on mobile (product decision)
 
 - **Two-way sync** — the desktop client's background sync engine
-  (`src-tauri/src/sync.rs`) is a deliberate **desktop-only** feature. A
-  continuous background sync on Android would need a foreground service,
-  battery/workmanager policy and conflict-resolution UI; the mobile client
-  deliberately does **not** implement it in this phase. Mobile users browse,
-  open and share files on demand. Sync remains tracked as a potential
-  Phase-2 item on the roadmap, not as a parity gap.
+  (`src-tauri/src/sync.rs`) pairs an arbitrary local folder with a remote
+  folder and mirrors changes in both directions in the background (journal
+  + planner + worker). It is a deliberate **desktop-only** feature; a
+  faithful port is not feasible on Android in this phase:
+  - **Scoped storage** — the engine's core model ("pick any local folder,
+    mirror it") needs unrestricted access to arbitrary user folders. On
+    Android 10+ that requires the Play-restricted `MANAGE_EXTERNAL_STORAGE`
+    permission, while app-private storage would keep synced files invisible
+    to the user outside the app — defeating the point of sync.
+  - **Background execution** — a continuous sync would need a foreground
+    service (Android 14: `FOREGROUND_SERVICE_DATA_SYNC` type + runtime
+    permission) or WorkManager jobs with battery constraints: intrusive
+    (persistent notification) and battery-draining for a client whose mobile
+    workflow is on demand.
+  - **Conflict UX** — journal status, "conflict copy" handling and
+    pause/resume would be an entire new UI surface on a small screen.
+  The offline need is covered on demand instead: streaming downloads into the
+  public Downloads folder, open with an external app, and an offline listing
+  cache with an "Offline — showing cached data" banner. Two-way sync remains
+  tracked as a potential Phase-2 item on the roadmap, not as a parity gap.
 
 ## Build
 
