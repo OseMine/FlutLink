@@ -1353,7 +1353,6 @@ watch(
               >
                 {{ t("createShare") }}
               </md-filled-button>
-            </div>
           </div>
         </div>
       </div>
