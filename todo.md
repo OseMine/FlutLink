@@ -293,13 +293,16 @@ Befunden **nicht** zu: Neu gefunden:
       keine Gruppen-Endpunkte. Auch fehlen displayname/email/password-
       Bearbeitung (Desktop `admin_edit_user`). Fix: Gruppen-API + UI portieren.
       → umgesetzt (GroupsDialog + AdminViewModel-Gruppenaktionen), siehe Lauf 11.
-- [ ] **A9-9 (Feature, minor):** Android-Shares nur Public-Link —
+- [x] **A9-9 (Feature, minor):** Android-Shares nur Public-Link —
       `FilesViewModel.createPublicShare` (Z. 153-171) hartkodiert
       `shareType = 3`; User-/Gruppen-Shares (Desktop P1) und
       `publicUpload`-Option fehlen. `FlutCloudApi.listShares`/
       `deleteShare` (Z. 245-253) existieren zwar, werden aber von keiner
       UI aufgerufen (Dead Code) → kein Share-Management (Liste/Widerruf,
       Desktop P2). Fix: Share-Optionen + Verwaltung portieren.
+      → umgesetzt (Share-Dialog mit Link/User/Group-Typ, Empfängerfeld,
+      `publicUpload`-Checkbox; `listShares`/`deleteShare` in der UI
+      verdrahtet), siehe Lauf 12.
 - [ ] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
       (unlimited/1/5/10 GB); Desktop erlaubt seit Q8 freie Werteingabe
       („custom"). Fix: Freieingabe ergänzen.

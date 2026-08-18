@@ -275,17 +275,37 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun createPublicShare(entry: WebDavEntry, password: String? = null, expireDate: String? = null) {
+    /**
+     * Create a share for [entry], mirroring the desktop `webdav_create_share`:
+     * public link (3), user (0) or group (1) share. User/group shares require
+     * a recipient; link shares support the [password]/[expireDate]/[publicUpload]
+     * options. Refreshes the share list afterwards.
+     */
+    fun createShare(
+        entry: WebDavEntry,
+        shareType: Int,
+        shareWith: String? = null,
+        password: String? = null,
+        expireDate: String? = null,
+        publicUpload: Boolean = false
+    ) {
         val s = session ?: return
+        val with = shareWith?.trim()
+        if (shareType < 3 && with.isNullOrBlank()) {
+            error.value = UiMessage(R.string.share_recipient_required)
+            return
+        }
         viewModelScope.launch {
             error.value = null
             try {
                 _lastShare.value = container.ocsApi.createShare(
                     session = s,
                     path = entry.path,
-                    shareType = 3,
+                    shareType = shareType,
+                    shareWith = with,
                     password = password?.ifBlank { null },
-                    expireDate = expireDate?.ifBlank { null }
+                    expireDate = expireDate?.ifBlank { null },
+                    publicUpload = publicUpload
                 )
                 loadShares(entry)
             } catch (e: NetworkException) {

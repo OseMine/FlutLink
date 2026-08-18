@@ -9,6 +9,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,10 +39,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -321,9 +324,9 @@ fun FilesScreen(container: AppContainer) {
                 shareTarget = null
                 vm.resetShares()
             },
-            onCreate = { password, expiry ->
+            onCreate = { shareType, shareWith, password, expiry, publicUpload ->
                 shareTarget = null
-                vm.createPublicShare(target, password, expiry)
+                vm.createShare(target, shareType, shareWith, password, expiry, publicUpload)
             }
         )
     }
@@ -616,14 +619,17 @@ private fun ShareDialog(
     onLoadShares: () -> Unit,
     onRevoke: (Share) -> Unit,
     onDismiss: () -> Unit,
-    onCreate: (String?, String?) -> Unit
+    onCreate: (shareType: Int, shareWith: String?, password: String?, expiry: String?, publicUpload: Boolean) -> Unit
 ) {
+    var shareType by remember { mutableStateOf(3) }
+    var shareWith by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var expiry by remember { mutableStateOf("") }
+    var publicUpload by remember { mutableStateOf(false) }
     LaunchedEffect(entry.path) { onLoadShares() }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.share_link)) },
+        title = { Text(stringResource(R.string.share)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
@@ -651,19 +657,52 @@ private fun ShareDialog(
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    stringResource(R.string.share_new_public_link),
+                    stringResource(R.string.new_share),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.height(8.dp))
-                TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text(stringResource(R.string.share_password_optional)) })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = shareType == 3,
+                        onClick = { shareType = 3 },
+                        label = { Text(stringResource(R.string.share_type_public_link)) }
+                    )
+                    FilterChip(
+                        selected = shareType == 0,
+                        onClick = { shareType = 0 },
+                        label = { Text(stringResource(R.string.share_type_user)) }
+                    )
+                    FilterChip(
+                        selected = shareType == 1,
+                        onClick = { shareType = 1 },
+                        label = { Text(stringResource(R.string.share_type_group)) }
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                TextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text(stringResource(R.string.share_expiry_optional)) })
+                if (shareType < 3) {
+                    TextField(
+                        value = shareWith,
+                        onValueChange = { shareWith = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.share_recipient)) }
+                    )
+                } else {
+                    TextField(value = password, onValueChange = { password = it }, singleLine = true, label = { Text(stringResource(R.string.share_password_optional)) })
+                    Spacer(Modifier.height(8.dp))
+                    TextField(value = expiry, onValueChange = { expiry = it }, singleLine = true, label = { Text(stringResource(R.string.share_expiry_optional)) })
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = publicUpload, onCheckedChange = { publicUpload = it })
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.share_public_upload), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = {
-                onCreate(password.ifBlank { null }, expiry.ifBlank { null })
+                onCreate(shareType, shareWith, password.ifBlank { null }, expiry.ifBlank { null }, publicUpload)
             }) { Text(stringResource(R.string.create)) }
         },
         dismissButton = {
