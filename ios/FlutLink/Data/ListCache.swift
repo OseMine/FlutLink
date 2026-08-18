@@ -38,13 +38,13 @@ final class ListCache {
     private func evictIfNeeded() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: cacheDir,
-            includingPropertiesForKeys: [.modificationDateKey],
+            includingPropertiesForKeys: [.contentModificationDateKey],
             options: .skipsHiddenFiles
         ) else { return }
         guard files.count > maxEntries else { return }
         let sorted = files.sorted { a, b in
-            let aDate = (try? a.resourceValues(forKeys: [.modificationDateKey]).modificationDate) ?? .distantPast
-            let bDate = (try? b.resourceValues(forKeys: [.modificationDateKey]).modificationDate) ?? .distantPast
+            let aDate = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let bDate = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             return aDate < bDate
         }
         let toRemove = sorted.prefix(files.count - maxEntries)
