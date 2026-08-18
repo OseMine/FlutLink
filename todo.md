@@ -5,6 +5,119 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Review 2026-08-18 (Lauf 13, Fokus iOS — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed** (Tauri-Linux-Systemdeps
+`libwebkit2gtk-4.1-dev`/`libgtk-3-dev`/… nachinstalliert); `cargo fmt --check`
+grün; `cargo clippy --all-targets -- -D warnings` grün; `npm run build`
+(vue-tsc + vite) grün (nur die bekannte Chunk-Size-Warnung, L12-N6). Der
+iOS-Build (`xcodebuild`) ist auf dem Linux-Runner **nicht ausführbar** — die
+Befunde I1-1/I1-2 beruhen auf Swift-Semantik (s. u.) und müssten im `ios.yml`-
+CI-Build bestätigt werden. Gegenstand dieses Laufs: der komplette iOS-Port
+(`ios/`, Test-Port, 26 Swift-Dateien) gegen Desktop-Parität, Swift-Korrektheit,
+Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
+
+- [ ] **I1-1 (Build, hoch):** Die iOS-App kompiliert bei HEAD **nicht** —
+      `FilesView.swift:57` (`Button("search".localized) { viewModel.search = " " }`)
+      weist einer **Methode** einen String zu: `FilesViewModel.search(_:)`
+      (`FilesViewModel.swift:293`) ist eine `func`, keine Property → Compile-
+      Fehler „cannot assign to property: 'search' is a method". Der Menüpunkt
+      „Search" müsste `viewModel.search("")` aufrufen bzw. die SearchBar fokussieren.
+- [ ] **I1-2 (Build, hoch):** `AdminView.swift:42` ruft `viewModel.setTargetUser(user.id)`
+      auf — `AdminViewModel` hat **keine** solche Methode (nur `FilesViewModel.swift:49`,
+      kein `extension AdminViewModel` im Projekt) → Compile-Fehler „value of type
+      'AdminViewModel' has no member 'setTargetUser'". Damit failt der `ios.yml`-Build
+      (last commit `0c78139` berührt nur `Models.swift`; die Fehler stammen aus dem
+      Ursprungs-Commit `7f1a95f` und wurden von den „fix(ios): … compilation errors"-
+      Commits `ba4c484`/`c854dad` nicht abgedeckt). Fix: Impersonation-Flow über
+      geteilten State verdrahten (siehe I1-3).
+- [ ] **I1-3 (Architektur, mittel):** `HomeView.swift:15-17` erzeugt **bei jeder**
+      `body`-Auswertung neue ViewModel-Instanzen (`private var filesVM: FilesViewModel
+      { FilesViewModel(sessionManager:) }`). Jeder Re-Render (Tab-Wechsel, Accent-Slider-
+      Zug in den Settings, Kontowechsel) liefert frische VMs → Dateiliste, Ordnerpfad,
+      Suche, Shares und Quota setzen zurück; `FilesView` verliert laufend den Zustand.
+      Fix: `@StateObject` einmalig im Parent erzeugen (z. B. in `init`) bzw. die VMs
+      persistent in `SessionManager`/`AppContainer` halten.
+- [ ] **I1-4 (Bug, mittel):** `SettingsViewModel.accounts` (`SettingsViewModel.swift:11`)
+      wird **nie** befüllt (kein Assignment, keine Spiegelung von
+      `sessionManager.accounts`). `SettingsView.swift:16`/`:65` sieht daher immer leer
+      aus → die Account-Sektion zeigt dauerhaft „not_signed_in", Kontenwechsel/-entfernen
+      sind unbenutzbar. Fix: `accounts` aus `sessionManager` spiegeln (didSet-Publisher
+      oder onAppear-Sync).
+- [ ] **I1-5 (Policy, mittel):** `FLUTCLOUD_URL` erreicht die iOS-App **nicht**:
+      `project.yml:32` setzt nur die Build-Setting `FLUTCLOUD_URL: "$(FLUTCLOUD_URL)"`,
+      aber `Info.plist` enthält **keinen** `FLUTCLOUD_URL`-Key. Damit ist
+      `Bundle.main.object(forInfoDictionaryKey: "FLUTCLOUD_URL")` (`LoginViewModel.swift:27,42,76`)
+      immer `nil` → `urlLocked` immer `false`, die Abweichungs-Checks greifen nie.
+      `ios/README.md:124-132` verspricht das Gegenteil. Anders als Android (BuildConfig
+      via `app/build.gradle.kts`, A9-11 erledigt) gibt es keine wirksame FlutCloud-only-
+      Erzwingung. Fix: `FLUTCLOUD_URL` als `$(FLUTCLOUD_URL)`-Entry in `Info.plist`
+      (bzw. `INFOPLIST_KEY_FLUTCLOUD_URL`) und `env.FLUTCLOUD_URL` im `ios.yml` setzen.
+- [ ] **I1-6 (Feature, mittel):** Dateiaktionen „Open"/„Download"/„Share" enden im
+      Leeren: `downloadAndOpen` (`FilesViewModel.swift:113-129`) und `downloadAndShare`
+      (`:150-164`) setzen `downloadedData`/`shareData`, aber **keine** View/Sheet/QuickLook/
+      `UIActivityViewController` präsentiert sie; `FilesView.swift:100-102` `.onChange(of:
+      downloadedData)` ruft sofort `clearDownloaded()`. `downloadToDownloads` (`:131-148`)
+      schreibt nur ins Temp-Verzeichnis (kein Downloads-Ordner, kein Share-Sheet). Die
+      README-Behauptung „download + share via the iOS share sheet" ist nicht implementiert.
+      Fix: `.sheet`/QuickLook bzw. `UIActivityViewController`-Bridge verdrahten.
+- [ ] **I1-7 (i18n, mittel):** Keinerlei Lokalisierungs-Ressourcen im iOS-Port — es gibt
+      keine `Localizable.strings`/`.lproj`-Dateien. `.localized` (`LoginView.swift:95-97`,
+      `NSLocalizedString(self, …)`) fällt auf den rohen Key zurück → lange Keys erscheinen
+      wörtlich in der UI (z. B. „files_offline_banner", „impersonation_notice",
+      „remove_account_confirm", „error_flutcloud_app_missing"). Zusätzlich hartkodiert
+      englisch: `AdminView.swift:183` „Remove", `SettingsView.swift:23` „Admin",
+      `:32-36` „Name"/„Version"/„Features"/„Load", `Components.swift:182` „Type".
+      Desktop + Android sind lokalisiert (en/de), iOS nicht. Fix: `Localizable.strings`
+      (en/de) anlegen und alle Keys + die hartkodierten Texte aufnehmen.
+- [ ] **I1-8 (Perf, mittel):** Admin-Tab lädt ohne Suchbegriff alle Benutzer:
+      `AdminView.swift:75` `.onAppear { viewModel.loadUsers() }` mit leerem Suchfeld;
+      `AdminViewModel.loadPage` (`:54-68`) holt pro Seite 200 Benutzer-IDs und danach
+      **200 Einzel-`getUser`-OCS-Requests** (N+1). Desktop verlangt seit D3/U-R8-12 einen
+      Suchbegriff. Fix: Suchpflicht analog Desktop oder `loadUsers()` beim Appear ohne
+      Suchbegriff unterbinden.
+- [ ] **I1-9 (UX, minor):** Suchergebnisse sind nur lesbar — `searchResultsList`
+      (`FilesView.swift:131-143`) rendert `FileRow` ohne `contextMenu`; Download/Share/
+      Rename/Delete fehlen in Treffern. Desktop (und Android nach A9-15) erlauben die
+      Aktionen. Fix: `contextMenu` auch in der Ergebnisliste anbieten.
+- [ ] **I1-10 (Perf/Robustheit, mittel):** Upload/Download komplett im RAM: der
+      `fileImporter`-Handler (`FilesView.swift:92-99`) liest die Datei mit
+      `Data(contentsOf:)` komplett ein, `WebDavApi.upload` (`:82-89`) setzt die ganze
+      `Data` als `httpBody`, `downloadToFile` (`:105-117`) lädt per Download-Task auf
+      Disk, danach aber `Data(contentsOf: tempURL)` wieder in den Speicher. Desktop
+      streamt chunked (>10 MiB), Android 64-KiB-Puffer (A9-5). `uploadStream`
+      (`WebDavApi.swift:91-101`) ist Dead Code und streamt nicht. Fix: echte
+      `uploadTask`/Download-Streams; `uploadStream` implementieren oder entfernen.
+- [ ] **I1-11 (Cache, minor):** `ListCache.swift` hat kein Limit — pro (Account, Pfad)
+      eine JSON-Datei, keine Eviction, kein Maximalbestand. Desktop `cache.rs` evicted
+      LRU (`MAX_CACHE_ENTRIES=500`). Fix: Bestand begrenzen (mtime/LRU-basiert).
+- [ ] **I1-12 (Parität, minor):** Kein Impersonation-Namespace-Guard: Desktop
+      `webdav.rs:160-167` verwirft SEARCH-/List-Ergebnisse, wenn der Server den
+      `Impersonate-User`-Header ignoriert (Admin-Namespace-Pfade); iOS `WebDavApi.list`/
+      `search` prüfen das nicht → ein Admin bekäme bei nicht ehrendem Server still die
+      eigene Liste. Fix: Guard portieren.
+
+Keine neuen Befunde im Desktop-Backend (`commands.rs`, `webdav.rs`, `ocs.rs`,
+`sync.rs`, `accounts.rs`, `error.rs`, `cache.rs`, `updater.rs`) und im Vue-
+Frontend über die Lauf-12-Punkte (L12-N1 … L12-N6) hinaus.
+
+**R8-C1 und R7-7 sind inzwischen erledigt** (gegen `release.yml` verifiziert):
+- R8-C1 (tauri-action-Pin): `release.yml:145` pinnt jetzt auf den vollen Commit-SHA
+  `tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0` statt `@v1`.
+- R7-7 (Release-Draft): `release.yml:152` steht auf `releaseDraft: false` (+
+  `prerelease: false`) — Releases werden automatisch publiziert, der manuelle
+  Draft-Publish-Schritt entfällt.
+Beide wurden in das Archiv verschoben (unten). Hinweis: In den drei opencode-
+Workflows (`opencode.yml:92`, `opencode-todo-issues.yml:38`,
+`opencode-review.yml:38`) bleibt `anomalyco/opencode/github@latest` ein
+bewegliches `@latest`-Tag (Supply-Chain-Thema wie R8-C1, CI-Pinning).
+
+Verifikation dieses Laufs (frisch ausgeführt): `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed**; `cargo fmt --check` grün;
+`cargo clippy --all-targets -- -D warnings` grün; `npm run build` grün.
+iOS-Build auf Linux nicht möglich (kein Xcode).
+
 ### Review 2026-08-18 (Lauf 12, ganzes Projekt — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt (Details am Abschnittsende).
@@ -499,11 +612,12 @@ Stores (`files.ts`/`ui.ts`) und die zugehörigen Backend-Commands. Neu gefunden:
       Suchbegriff alle Benutzer (keine UI-Pagination). → umgesetzt (siehe Archiv).
 - [x] **R8-B1 (Backend, Bug, minor):** `webdav_bulk_download` überschreibt
       gleichnamige Dateien aus verschiedenen Ordnern. → umgesetzt (siehe Archiv).
-- [ ] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
+- [x] **R8-C1 (CI, minor):** `release.yml` (Z. 135) pinnt `tauri-apps/tauri-action`
       nur auf `@v1` (bewegliches Tag). Für Supply-Chain-Härtung auf einen
       vollständigen Commit-SHA pinnen (wie bei den übrigen Drittanbieter-Actions).
       → im automatisierten Lauf offen gelassen (Workflow-Dateien sind von der
-      Aufgabe ausgenommen; weiterhin offen).
+      Aufgabe ausgenommen; weiterhin offen). → erledigt in Lauf 13 verifiziert:
+      `release.yml:145` pinnt den vollen SHA `1deb371b… # v1.0.0` (siehe Archiv).
 
 ### Review 2026-08-16 (Lauf 7, Release-Review v1 — neue Befunde)
 
