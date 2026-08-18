@@ -104,7 +104,7 @@ struct Quota: Equatable {
     let relative: Double?
 }
 
-struct WebDavEntry: Identifiable, Equatable {
+struct WebDavEntry: Identifiable, Equatable, Codable {
     let name: String
     let path: String
     let isDir: Bool
