@@ -5,6 +5,121 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Review 2026-08-18 (Lauf 12, ganzes Projekt — neue Befunde)
+
+Verifikation in diesem Lauf frisch durchgeführt (Details am Abschnittsende).
+Gegenstand: gesamtes Projekt (Backend `src-tauri/`, Frontend `src/`,
+Stores/IPC, Workflows `.github/`). Die Lauf-11-Fixes D5/D6/D7 wurden gegen
+den aktuellen Code nachgeprüft: D5 bestätigt (`package.json` pinnt
+`"typescript": "~5.8.3"`, `npm run build` grün); D6 bestätigt (Android
+`:app:assembleDebug` grün); D7 bestätigt (`values/` + `values-de/` haben
+identische Key-Sets, Screens nutzen `stringResource`). Die zuletzt offenen
+Android-Punkte A9-7, A9-10, A9-13 und A9-14 (sowie die A9-9-Restlücke)
+wurden **während dieses Laufs** über die gemergten Issue-PRs (#202, #204,
+#205, #210, #215, #196) eingebracht und hier im aktuellen Code verifiziert
+(Details in „A9-Nachprüfung (Lauf 12)" unten). Offen bleiben nur R8-C1
+(CI-Pin) und R7-7 (Release-Draft-Hinweis). Neu gefunden:
+
+- [ ] **L12-N1 (Perf, mittel):** AdminPanel-Pagination ist unerreichbarer
+      toter Code und die Suche lädt alle Treffer in einer Blocking-Kette.
+      `AdminPanel.vue:175-195` (`listUsers`) ruft `api.adminListUsers(query)`
+      **ohne** `limit`/`offset`; `admin_list_users` (`commands.rs:1229-1248`)
+      reicht `limit=None` durch, wodurch `ocs::list_users` (`ocs.rs:83-120`)
+      alle Treffer-Seiten in einer Schleife holt und `has_more=false`
+      zurückgibt. `hasMore`/`offset` werden dadurch nie gesetzt → `loadPage`/
+      `loadMore` (`AdminPanel.vue:197-228`, PAGE=200-Paginierung) ist
+      unerreichbarer toter Code; der U-R8-12-Fix („Seite für Seite") greift
+      nie. Auf großen Instanzen blockiert eine Suche wie „a" hunderte OCS-
+      Requests. Fix: `listUsers` auf `loadPage(false)` umstellen (Offset-
+      Reset, `hasMore` aus `AdminUsersResult` setzen).
+- [ ] **L12-N2 (Policy, minor):** `SettingsModal.vue:144-151` (`remove`)
+      löscht ein Konto ohne Bestätigungsdialog — inkonsistent mit F7, das in
+      `App.vue:104` (`removeActive`) und `AccountBar.vue:27` (`remove`) via
+      `window.confirm(t("deleteAccountConfirm"))` durchgesetzt wird. Ein
+      Klick auf „Remove account" im Settings-Tab entfernt das Konto sofort.
+      Fix: denselben Confirm wie F7 ergänzen.
+- [ ] **L12-N3 (Perf, mittel):** `FileExplorer.vue:645-669` (`loadAdminUsers`)
+      ruft `api.adminListUsers("")` beim Mount und bei jedem Kontowechsel —
+      ungefilterter Komplettabruf aller Benutzer (alle Seiten, `ocs::list_users`
+      ohne Limit). Für die Impersonation-Dropdown nötig, aber auf großen
+      Instanzen derselbe unbounded-Fetch, den D3/U-R8-12 für den Admin-Tab
+      unterbinden. Fix: Paginierung oder Sucheingabe im Filter (mindestens
+      Lazy-Load statt sofortiger Vollabruf).
+- [ ] **L12-N4 (UX, minor):** Doppelte Fehleranzeige bei der Suche:
+      `src/stores/files.ts:151-173` (`searchFiles`) setzt `error.value` **und**
+      wirft weiter (`throw e`); `FileExplorer.vue:97-103` (`runSearch`) fängt
+      und zeigt zusätzlich einen Toast. Ein Suchfehler erscheint dadurch
+      doppelt (Fehler-Banner + Toast). Fix: entweder nicht rethrowen oder im
+      Aufrufer nicht zusätzlich tosten.
+- [ ] **L12-N5 (Code-Qualität, minor):** Sortierkomparator ist doppelt
+      implementiert: `FileExplorer.vue:54-75` (`sortedEntries`) und
+      `EntryList.vue:52-75` (`sortedEntries`) enthalten identische Logik
+      (Ordner zuerst, dann `size`/`mtime`/`name`). Da `kbdIndex` die
+      Explorer-Sortierung und die Anzeige die EntryList-Sortierung nutzt,
+      können künftige Änderungen (z. B. veränderte Sortierreihenfolge)
+      auseinanderdriften. Fix: Komparator in eine geteilte Utility
+      (z. B. `src/lib/`) auslagern.
+- [ ] **L12-N6 (Perf, minor):** Das Frontend-Bundle ist eine einzige große
+      JS-Chunk (691 kB minifiziert, 154 kB gzip; `vite build` meldet
+      „Some chunks are larger than 500 kB"). `main.ts` importiert alle
+      `@material/web/*`-Module statisch; Login/Settings/Admin-Modale und der
+      Sync-Panel wären Kandidaten für `defineAsyncComponent`/
+      dynamische Imports („Beim Start nur das laden, was sichtbar ist").
+      Fix: Code-Splitting (Routen/Modale lazy), `chunkSizeWarningLimit`
+      nicht einfach erhöhen.
+
+Keine neuen Befunde im Backend (`commands.rs`, `webdav.rs`, `ocs.rs`,
+`sync.rs`, `updater.rs`, `accounts.rs`, `cache.rs`) und in den
+Workflows/Actions über die bekannten Punkte hinaus.
+
+**A9-Nachprüfung (Lauf 12) gegen den aktuellen Code** — die Lauf-9/11-
+Befunde sind mit den während dieses Laufs gemergten PRs umgesetzt und
+hier gegen den Stand von HEAD (`862798e`) verifiziert:
+
+- A9-7 (Admin-Impersonation) → **umgesetzt** (PR #202): `WebDavApi.kt`
+  setzt `Impersonate-User`-Header und reicht `targetUser` durch alle
+  WebDAV-Methoden (`list`/`search`/`exists`/`download`/`upload`/`mkdir`/
+  `rename`/`delete`), `FilesViewModel.kt` führt `targetUser`-StateFlow +
+  `setTargetUser`; `FilesScreen.kt:253` verdrahtet die Auswahl in der UI.
+- A9-9 (Share-Optionen) → **umgesetzt** (PR #204): `FlutCloudApi.createShare`
+  (`shareType`/`shareWith`/`password`/`expireDate`/`publicUpload`),
+  `SharingDialog` in `FilesScreen.kt` mit Link/User/Group-Tab und
+  Empfängerfeld.
+- A9-10 (Quota-Freieingabe) → **umgesetzt** (PR #205): `AdminScreen.kt`
+  `CustomQuotaDialog` (Wert + Einheit) + `quota_custom`-Strings.
+- A9-13 (Brand-Themes + Accent) → **umgesetzt** (PRs #210/#215 + Fix
+  `862798e`): `Theme.kt` mappt `operationflut`/`midnight`, `Color.kt` hat
+  `operationflutScheme`/`midnightScheme` (Accent-Hue), `SettingsScreen.kt`
+  Theme-Auswahl + Accent-Slider.
+- A9-14 (`preview()` Dead Code) → **erledigt**: die Funktion existiert in
+  `WebDavApi.kt` nicht mehr (durch den Share-Optionen-Umbau entfernt).
+- A9-1 (Sync-Doku) → in Lauf 11 aufgelöst; PR #196 ergänzte die
+  Sync-Dokumentation.
+
+**GitHub-Issues (Schritt 6, nur lokale Quellen — keine gh/API-Aufrufe):**
+Die während dieses Laufs gemergten Branches `opencode/issue196`,
+`opencode/issue202`, `opencode/issue204`, `opencode/issue205`,
+`opencode/issue210`, `opencode/issue215` (git log bis HEAD `862798e`)
+belegen, dass die zugehörigen Issues umgesetzt wurden (Sync-Doku #196,
+Impersonation #202, Share-Optionen #204, Quota-Freieingabe #205,
+Brand-Themes #210/#215). Die offene Issue-Liste selbst ist per gh/API in
+diesem Lauf nicht abrufbar (Verbot); ein Re-Sync durch den
+`opencode-todo-issues`-Workflow beim nächsten Lauf ist wie in Lauf 11
+empfohlen (veraltete Issues #192–#211 schließen bzw. referenzieren).
+Die Issue-Templates wurden zwischenzeitlich überarbeitet
+(`.github/ISSUE_TEMPLATE/`: `bug_report.yml`, `feature_request.yml`,
+`android.yml`, `config.yml` — commit `0d1c469`).
+
+Verifikation dieses Laufs (frisch ausgeführt): `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed** (Tauri-Linux-Systemdeps
+`libwebkit2gtk-4.1-dev`/`libgtk-3-dev`/… nachinstalliert, `glib-2.0.pc`
+wieder gefunden); `cargo clippy --all-targets --manifest-path
+src-tauri/Cargo.toml -- -D warnings` grün; `cargo fmt --manifest-path
+src-tauri/Cargo.toml --all --check` grün; `npm run build` (vue-tsc + vite)
+grün (nur Chunk-Size-Warnung, s. L12-N6); Android
+`cd android && ./gradlew :app:assembleDebug` → BUILD SUCCESSFUL
+(D6 bestätigt).
+
 ### Review 2026-08-17 (Lauf 11, Fokus Desktop-UI ≈ Android-UI — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
@@ -106,8 +221,9 @@ formal bestehen; hier der aktuelle Status):
 - A9-6 (Upload überschreibt still) → **umgesetzt**: `uploadStream` führt
   einen `exists()`-Check aus und zeigt bei Treffer den Overwrite-Confirm
   (`PendingUpload`/`confirmUpload`), analog Desktop-Q9.
-- A9-7 (Impersonation fehlt) → **weiter offen**: kein `target_user`/
-  `Impersonate-User` in `WebDavApi.kt`/`FilesScreen.kt`.
+- A9-7 (Impersonation fehlt) → **umgesetzt** (Lauf 12): `Impersonate-User`-
+  Header + `targetUser`-Durchreichung in `WebDavApi.kt`, `targetUser`-
+  StateFlow in `FilesViewModel.kt`, UI in `FilesScreen.kt`.
 - A9-8 (Gruppenverwaltung fehlt) → **umgesetzt**: `GroupsDialog` +
   `AdminViewModel.addToGroup`/`removeFromGroup`/`createGroup` +
   OCS-Gruppen-Endpunkte.
@@ -116,8 +232,8 @@ formal bestehen; hier der aktuelle Status):
   `vm.deleteShare`); Erstellung weiterhin nur Public-Link (`shareType = 3`,
   `FilesViewModel.kt:202`), User-/Gruppen-Shares und `publicUpload`
   fehlen → offen (reduziert).
-- A9-10 (Quota nur Presets) → **weiter offen**: `AdminScreen.kt` kennt
-  nur unlimited/1/5/10 GB, keine Freieingabe.
+- A9-10 (Quota nur Presets) → **umgesetzt** (Lauf 12): `AdminScreen.kt`
+  `CustomQuotaDialog` mit freier Werteingabe (PR #205).
 - A9-11 (FLUTCLOUD_URL nicht erzwungen) → **umgesetzt**: `app/build.gradle.kts`
   liest die Server-URL aus der `FLUTCLOUD_URL`-Umgebungsvariable (Fallback
   `-PflutcloudUrl`) und baut sie als `BuildConfig.FLUTCLOUD_URL` ein;
@@ -132,10 +248,11 @@ formal bestehen; hier der aktuelle Status):
   Android 10, Direktzugriff davor mit Laufzeit-Permission auf API 26–28),
   „Teilen" öffnet das **Share-Sheet** (`ShareSheet`/`ACTION_SEND`); „Öffnen"
   bleibt FileProvider/`ACTION_VIEW`.
-- A9-13 (Theme nur system/light/dark) → **weiter offen**: kein
-  `operationflut`/`midnight` + Accent-Hue auf Android.
-- A9-14 (preview() Dead Code) → **weiter offen**: `WebDavApi.kt:261`
-  `preview()` ohne Aufrufer; Android zeigt keine Thumbnails.
+- A9-13 (Theme nur system/light/dark) → **umgesetzt** (Lauf 12):
+  `operationflut`/`midnight` + Accent-Hue in `Theme.kt`/`Color.kt`/
+  `SettingsScreen.kt` (PRs #210/#215).
+- A9-14 (preview() Dead Code) → **erledigt** (Lauf 12): Funktion in
+  `WebDavApi.kt` entfernt.
 - A9-15 (Suchergebnisse nur lesbar) → **umgesetzt**: `SearchResults` reicht
   `onDownload`/`onShareFile`/`onRename`/`onShareLink`/`onDelete`/
   `onJumpToPaired` an `EntryRow` durch — Aktionen in Suchtreffern sind aktiv.
@@ -279,12 +396,15 @@ Befunden **nicht** zu: Neu gefunden:
       `WebDavApi.exists()` (Z. 84-102) existiert, wird aber von
       `FilesViewModel.upload` (Z. 173-187) nie aufgerufen. Fix:
       `exists`-Check + Bestätigungs-Dialog vor dem PUT.
-- [ ] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
+- [x] **A9-7 (Feature, mittel):** Admin-Impersonation fehlt auf Android —
       Desktop erlaubt Admins das Browsen fremder Nutzer (`webdav_list`
       `target_user` + `FileExplorer.vue` adminViewAll, `Impersonate-User`-
       Header in `webdav.rs`); `AdminScreen.kt`/`WebDavApi.kt` haben weder
       `target_user`-Parameter noch `Impersonate-User`-Support. Fix:
       Impersonation im Admin-Screen (Zugriff auf alle Nutzer-Dateien).
+      → umgesetzt (`Impersonate-User`-Header + `targetUser` in
+      `WebDavApi.kt`/`FilesViewModel.kt`, UI in `FilesScreen.kt`),
+      siehe Lauf 12.
 - [x] **A9-8 (Feature, mittel):** Admin-Gruppen-Verwaltung fehlt auf Android —
       Desktop hat seit Q3 `admin_list_groups`/`admin_create_group`/
       `admin_add_group_member`/`admin_remove_group_member` + UI in
@@ -302,9 +422,10 @@ Befunden **nicht** zu: Neu gefunden:
       → umgesetzt (Share-Dialog mit Link/User/Group-Typ, Empfängerfeld,
       `publicUpload`-Checkbox; `listShares`/`deleteShare` in der UI
       verdrahtet), siehe Lauf 12.
-- [ ] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
+- [x] **A9-10 (Feature, minor):** Android-Quota-Verwaltung nur Presets
       (unlimited/1/5/10 GB); Desktop erlaubt seit Q8 freie Werteingabe
       („custom"). Fix: Freieingabe ergänzen.
+      → umgesetzt (`CustomQuotaDialog` in `AdminScreen.kt`), siehe Lauf 12.
 - [x] **A9-11 (Policy, mittel):** Android-Login erzwingt `FLUTCLOUD_URL`
       nicht — `LoginViewModel` (Z. 28-33, 37) nimmt jede editierbare URL
       (Default aus `BuildConfig.FLUTCLOUD_URL`) und prüft nur die
@@ -317,14 +438,17 @@ Befunden **nicht** zu: Neu gefunden:
       Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
       Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
       → umgesetzt (FileOpener/ACTION_VIEW, FileProvider), siehe Lauf 11.
-- [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
+- [x] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
       dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
       Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
       Brand-Themes + Accent-Hue auf Android portieren.
-- [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
+      → umgesetzt (`operationflut`/`midnight`-Schemes in `Color.kt` +
+      `Theme.kt`, Accent-Hue-Slider in `SettingsScreen.kt`), siehe Lauf 12.
+- [x] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
       nirgends aufgerufen — Thumbnails existieren nur im Desktop
       (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
       `FilesScreen` nutzen oder `preview()` entfernen.
+      → erledigt (Funktion entfernt), siehe Lauf 12.
 - [x] **A9-15 (UX, minor):** Android-Suchergebnisse sind nur lesbar —
       `FilesScreen.kt` `SearchResults` (Z. 315-318) übergibt `onRename`/
       `onShare`/`onDelete`/`onJumpToPaired` als No-op-`{}`. Desktop erlaubt
