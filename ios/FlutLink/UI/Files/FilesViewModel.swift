@@ -325,8 +325,9 @@ final class FilesViewModel: ObservableObject {
                 switch code {
                 case "target_exists": return String(format: NSLocalizedString("error_target_exists", comment: ""), msg)
                 case "ocs_error": return String(format: NSLocalizedString("error_ocs", comment: ""), msg)
-                default where code.hasPrefix("http_"): return String(format: NSLocalizedString("error_http", comment: ""), msg)
-                default: return msg
+                default:
+                    if code.hasPrefix("http_") { return String(format: NSLocalizedString("error_http", comment: ""), msg) }
+                    return msg
                 }
             case .network(let err): return String(format: NSLocalizedString("error_network_reach_detail", comment: ""), err.localizedDescription)
             }

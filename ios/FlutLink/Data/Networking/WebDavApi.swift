@@ -1,6 +1,5 @@
 // TEST — iOS port created by opencode. Not a production build.
 import Foundation
-import XMLParser
 
 final class WebDavApi {
     private let session: AuthSession
