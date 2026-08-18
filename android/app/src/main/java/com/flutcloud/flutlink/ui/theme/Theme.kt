@@ -56,7 +56,8 @@ fun FlutLinkTheme(
     val hue = accentHue ?: defaultAccentHue(themePreference, darkTheme)
 
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+        dynamicColor && accentHue == null && themePreference == "system" &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (resolved.isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         else -> when (resolved) {
             FlutResolvedTheme.Light -> lightScheme(hue)
