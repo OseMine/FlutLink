@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -28,6 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
@@ -59,6 +63,7 @@ import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.AdminViewModel
 
 private const val GB = 1024L * 1024 * 1024
+private const val MB = 1024L * 1024
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +78,7 @@ fun AdminScreen(container: AppContainer) {
 
     var showCreate by remember { mutableStateOf(false) }
     var groupTarget by remember { mutableStateOf<ManagedUser?>(null) }
+    var quotaTarget by remember { mutableStateOf<ManagedUser?>(null) }
     var deleteTarget by remember { mutableStateOf<ManagedUser?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -119,6 +125,7 @@ fun AdminScreen(container: AppContainer) {
                             onToggleEnabled = { vm.setEnabled(user, !user.enabled) },
                             onDelete = { deleteTarget = user },
                             onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) },
+                            onQuotaCustom = { quotaTarget = user },
                             onManageGroups = { groupTarget = user }
                         )
                     }
@@ -153,6 +160,18 @@ fun AdminScreen(container: AppContainer) {
             onAddToGroup = { group -> vm.addToGroup(current, group) },
             onRemoveFromGroup = { group -> vm.removeFromGroup(current, group) },
             onCreateGroup = { group -> vm.createGroup(group) }
+        )
+    }
+
+    quotaTarget?.let { target ->
+        val current = users.firstOrNull { it.id == target.id } ?: target
+        CustomQuotaDialog(
+            user = current,
+            onDismiss = { quotaTarget = null },
+            onConfirm = { bytes ->
+                quotaTarget = null
+                vm.setQuota(current, bytes)
+            }
         )
     }
 
@@ -191,6 +210,7 @@ private fun UserRow(
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
     onQuota: (Long?) -> Unit,
+    onQuotaCustom: () -> Unit,
     onManageGroups: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -274,6 +294,14 @@ private fun UserRow(
                             onClick = {
                                 menuOpen = false
                                 onQuota(10 * GB)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.quota_custom)) },
+                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onQuotaCustom()
                             }
                         )
                         DropdownMenuItem(
@@ -426,6 +454,97 @@ private fun DeleteUserDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(stringResource(R.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+private enum class QuotaUnit(val factor: Long) {
+    GB(1024L * 1024 * 1024),
+    MB(1024L * 1024)
+}
+
+/** Prefill for the custom quota dialog from the user's current quota. */
+private fun quotaPrefill(total: Long?): Pair<String, QuotaUnit>? {
+    if (total == null || total <= 0) return null
+    return if (total % GB == 0L) {
+        (total / GB).toString() to QuotaUnit.GB
+    } else if (total % MB == 0L) {
+        (total / MB).toString() to QuotaUnit.MB
+    } else {
+        val mb = total.toDouble() / MB
+        val text = if (mb % 1.0 == 0.0) mb.toLong().toString()
+        else "%.1f".format(mb).trimEnd('0').trimEnd('.')
+        text to QuotaUnit.MB
+    }
+}
+
+@Composable
+private fun CustomQuotaDialog(
+    user: ManagedUser,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit
+) {
+    val prefill = remember(user) { quotaPrefill(user.quota?.total) }
+    var value by remember { mutableStateOf(prefill?.first ?: "") }
+    var unit by remember { mutableStateOf(prefill?.second ?: QuotaUnit.GB) }
+    var unitMenuOpen by remember { mutableStateOf(false) }
+    val valueNum = value.toDoubleOrNull()
+    val valid = valueNum != null && valueNum > 0
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.quota_custom_title)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { new ->
+                        if (new.matches(Regex("[0-9]*\\.?[0-9]*"))) value = new
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    label = { Text(stringResource(R.string.quota_custom_value)) },
+                    isError = value.isNotBlank() && !valid,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(12.dp))
+                Box {
+                    OutlinedButton(onClick = { unitMenuOpen = true }) {
+                        Text(
+                            if (unit == QuotaUnit.GB) stringResource(R.string.quota_unit_gb)
+                            else stringResource(R.string.quota_unit_mb)
+                        )
+                    }
+                    DropdownMenu(expanded = unitMenuOpen, onDismissRequest = { unitMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.quota_unit_gb)) },
+                            onClick = {
+                                unit = QuotaUnit.GB
+                                unitMenuOpen = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.quota_unit_mb)) },
+                            onClick = {
+                                unit = QuotaUnit.MB
+                                unitMenuOpen = false
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val num = valueNum
+                    if (num != null && num > 0) onConfirm(Math.round(num * unit.factor))
+                },
+                enabled = valid
+            ) { Text(stringResource(R.string.quota_set)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }

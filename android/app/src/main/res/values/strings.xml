@@ -85,6 +85,12 @@
     <string name="quota_1gb">Quota: 1 GB</string>
     <string name="quota_5gb">Quota: 5 GB</string>
     <string name="quota_10gb">Quota: 10 GB</string>
+    <string name="quota_custom">Quota: custom</string>
+    <string name="quota_custom_title">Custom quota</string>
+    <string name="quota_custom_value">Quota value</string>
+    <string name="quota_unit_gb">GB</string>
+    <string name="quota_unit_mb">MB</string>
+    <string name="quota_set">Set</string>
     <string name="delete_user">Delete user</string>
     <string name="delete_user_confirm">Delete user %1$s? This cannot be undone.</string>
     <string name="cannot_delete_self">You cannot delete your own account.</string>
