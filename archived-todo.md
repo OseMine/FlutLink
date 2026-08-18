@@ -4,6 +4,25 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-18 (Lauf 13 — R8-C1 & R7-7 abgeschlossen)
+
+In Lauf 13 gegen den aktuellen Stand von `release.yml` verifiziert und damit
+abgeschlossen (bis dahin in todo.md als offen geführt):
+
+- [x] **R8-C1 (CI-Pin `tauri-action`):** `release.yml:145` nutzt jetzt den vollen
+      Commit-SHA `tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0`
+      statt des beweglichen `@v1`-Tags. Supply-Chain-Härtung konsistent zu den übrigen
+      Drittanbieter-Actions (checkout@v7, setup-node@v7, upload/download-artifact@v4).
+- [x] **R7-7 (Release-Draft-Hinweis):** `release.yml:152` setzt `releaseDraft: false`
+      (und `prerelease: false`) — der Build-and-Release-Job publiziert Releases
+      automatisch; der zuvor dokumentierte manuelle Schritt 3 („Draft publizieren") ist
+      damit obsolet. Der `check_for_update`-Updater findet das Release regulär.
+
+Hinweis (weiter offen, kein Ticket): Die opencode-Workflows nutzen weiterhin
+`anomalyco/opencode/github@latest` (`opencode.yml:92`,
+`opencode-todo-issues.yml:38`, `opencode-review.yml:38`) — beweglicher
+`@latest`-Tag, analog zum früheren R8-C1-Thema.
+
 ### Review 2026-08-18 (Lauf 12 — A9-Restpunkte umgesetzt & verifiziert)
 
 Die Lauf-9/11-offenen Android-Punkte wurden während des Lauf-12-Reviews über
