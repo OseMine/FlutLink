@@ -160,11 +160,6 @@ struct TransferProgress: Equatable {
     let total: Int64
 }
 
-struct AppUpdate {
-    let version: String
-    let ipaUrl: String
-}
-
 // MARK: - GitHub Release DTOs
 
 struct GithubAsset: Codable {
