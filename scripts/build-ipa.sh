@@ -3,17 +3,17 @@
 # TEST — iOS port created by opencode. Not a production build.
 #
 # This script:
-#   1. Generates the Xcode project from project.yml (via XcodeGen)
+#   1. Generates the Xcode project from project.yml (via XcodeGen), if needed
 #   2. Builds an unsigned .app archive
 #   3. Packages it into an unsigned .ipa
 #
 # Prerequisites:
 #   - macOS with Xcode 16+ and command-line tools
-#   - XcodeGen: brew install xcodegen
+#   - XcodeGen: brew install xcodegen  (skipped if .xcodeproj already exists)
 #   - (Optional) FLUTCLOUD_URL env var to lock the server URL
 #
 # Usage:
-#   ./scripts/build-ipa.sh [--release]
+#   ./scripts/build-ipa.sh [--release] [--skip-generate]
 
 set -euo pipefail
 
@@ -26,25 +26,32 @@ EXPORT_PATH="$BUILD_DIR/export"
 IPA_PATH="$BUILD_DIR/FlutLink.ipa"
 
 CONFIG="Debug"
-if [[ "${1:-}" == "--release" ]]; then
-    CONFIG="Release"
-fi
+SKIP_GENERATE=false
+for arg in "$@"; do
+    case "$arg" in
+        --release) CONFIG="Release" ;;
+        --skip-generate) SKIP_GENERATE=true ;;
+    esac
+done
 
 echo "=== FlutLink iOS IPA Builder ==="
 echo "TEST — created by opencode"
 echo ""
 
-# Step 0: Ensure XcodeGen is available
-if ! command -v xcodegen &>/dev/null; then
-    echo "[!] XcodeGen not found. Install it with: brew install xcodegen"
-    exit 1
+# Step 1: Generate Xcode project (only if .xcodeproj is missing or not skipped)
+if [[ "$SKIP_GENERATE" == false && ! -d "$IOS_DIR/FlutLink.xcodeproj" ]]; then
+    if ! command -v xcodegen &>/dev/null; then
+        echo "[!] XcodeGen not found. Install it with: brew install xcodegen"
+        echo "    Or pass --skip-generate if the project already exists."
+        exit 1
+    fi
+    echo "[1/4] Generating Xcode project..."
+    cd "$IOS_DIR"
+    xcodegen generate --spec project.yml
+    echo "      Done."
+else
+    echo "[1/4] Skipping Xcode project generation (already exists or --skip-generate)."
 fi
-
-# Step 1: Generate Xcode project
-echo "[1/4] Generating Xcode project..."
-cd "$IOS_DIR"
-xcodegen generate --spec project.yml
-echo "      Done."
 
 # Step 2: Build archive
 echo "[2/4] Building $CONFIG archive..."
@@ -65,7 +72,7 @@ xcodebuild \
     archive 2>&1 | tail -5
 echo "      Archive created at $ARCHIVE_PATH"
 
-# Step 3: Export archive (unsigned / development)
+# Step 3: Export archive (unsigned / ad-hoc)
 echo "[3/4] Exporting archive..."
 mkdir -p "$EXPORT_PATH"
 
@@ -100,7 +107,6 @@ xcodebuild \
 echo "[4/4] Packaging IPA..."
 mkdir -p "$IPA_PATH/Payload"
 
-# Find the .app inside the export
 APP_PATH=$(find "$EXPORT_PATH" -name "*.app" -maxdepth 1 | head -1)
 if [[ -z "$APP_PATH" ]]; then
     echo "[!] ERROR: No .app found in export path."
@@ -115,7 +121,6 @@ zip -r -q "$BUILD_DIR/FlutLink.ipa" Payload/
 cd "$REPO_ROOT"
 rm -rf "$IPA_PATH"
 
-# Done
 echo ""
 echo "=== Done ==="
 echo "Unsigned IPA: $BUILD_DIR/FlutLink.ipa"
