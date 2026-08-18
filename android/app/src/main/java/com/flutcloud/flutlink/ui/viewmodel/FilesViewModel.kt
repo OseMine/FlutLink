@@ -472,8 +472,4 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     fun clearToast() {
         _toast.value = null
     }
-
-    fun clearPendingUpload() {
-        _pendingUpload.value = null
-    }
 }
