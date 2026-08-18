@@ -83,6 +83,12 @@
     <string name="quota_1gb">Kontingent: 1 GB</string>
     <string name="quota_5gb">Kontingent: 5 GB</string>
     <string name="quota_10gb">Kontingent: 10 GB</string>
+    <string name="quota_custom">Kontingent: benutzerdefiniert</string>
+    <string name="quota_custom_title">Benutzerdefiniertes Kontingent</string>
+    <string name="quota_custom_value">Kontingentwert</string>
+    <string name="quota_unit_gb">GB</string>
+    <string name="quota_unit_mb">MB</string>
+    <string name="quota_set">Übernehmen</string>
     <string name="delete_user">Benutzer löschen</string>
     <string name="delete_user_confirm">Benutzer %1$s löschen? Dies kann nicht rückgängig gemacht werden.</string>
     <string name="cannot_delete_self">Sie können Ihr eigenes Konto nicht löschen.</string>

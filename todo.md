@@ -117,8 +117,9 @@ formal bestehen; hier der aktuelle Status):
   `vm.deleteShare`); Erstellung weiterhin nur Public-Link (`shareType = 3`,
   `FilesViewModel.kt:202`), User-/Gruppen-Shares und `publicUpload`
   fehlen → offen (reduziert).
-- A9-10 (Quota nur Presets) → **weiter offen**: `AdminScreen.kt` kennt
-  nur unlimited/1/5/10 GB, keine Freieingabe.
+- A9-10 (Quota nur Presets) → **umgesetzt**: `AdminScreen.kt` kennt zusätzlich
+  die Freieingabe „custom" (Wert + GB/MB-Einheit, Vorbelegung aus der
+  aktuellen Quota), siehe Archiv.
 - A9-11 (FLUTCLOUD_URL nicht erzwungen) → **umgesetzt**: `app/build.gradle.kts`
   liest die Server-URL aus der `FLUTCLOUD_URL`-Umgebungsvariable (Fallback
   `-PflutcloudUrl`) und baut sie als `BuildConfig.FLUTCLOUD_URL` ein;
@@ -547,6 +548,22 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
       grün. Versionen stehen überall auf `1.0.0` (`package.json`,
       `src-tauri/Cargo.toml` + `Cargo.lock`, `tauri.conf.json`,
       Android `versionName`).
+
+### Review 2026-08-17 (A9-10 — Android-Quota-Freieingabe „custom")
+
+- [x] **A9-10 (Feature, minor):** Android-Quota-Verwaltung kannte nur die
+      Presets unlimited/1/5/10 GB, keine freie Werteingabe (Desktop seit Q8
+      „custom"). Fix in `AdminScreen.kt`: neuer Menüpunkt „Quota: custom"
+      (`quota_custom`) im User-Menü öffnet den neuen `CustomQuotaDialog` —
+      numerische Werteingabe (Dezimal erlaubt, `KeyboardType.Decimal`) plus
+      Einheiten-Dropdown (GB/MB, `QuotaUnit`-Enum); die aktuelle Quota des
+      Benutzers wird als Vorschlag vorbelegt (`quotaPrefill`, ganzzahlige GB/
+      MB oder 0,1-GB-Auflösung). Bestätigung (`quota_set`) rechnet auf Bytes um
+      und ruft wie die Presets `AdminViewModel.setQuota` →
+      OCS-`setUserQuota`. Neue i18n-Keys `quota_custom`, `quota_custom_title`,
+      `quota_custom_value`, `quota_unit_gb`, `quota_unit_mb`, `quota_set` in
+      `values/` + `values-de/`. Verifikation: `./gradlew :app:assembleDebug`
+      und `:app:lintDebug` grün.
 
 ### Review 2026-08-17 (Lauf 11 — A9-Nachprüfung, umgesetzte Android-Punkte)
 
