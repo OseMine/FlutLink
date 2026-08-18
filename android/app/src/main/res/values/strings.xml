@@ -101,7 +101,10 @@
     <string name="share_existing_shares">Existing shares</string>
     <string name="share_loading_shares">Loading shares…</string>
     <string name="share_no_shares_yet">No shares yet</string>
-    <string name="share_new_public_link">New public link</string>
+    <string name="new_share">New share</string>
+    <string name="share_recipient">Username or group name</string>
+    <string name="share_recipient_required">Enter a user or group to share with.</string>
+    <string name="share_public_upload">Allow others to upload</string>
     <string name="share_meta_has_password">password</string>
     <string name="share_meta_expires">expires %1$s</string>
     <string name="share_revoke">Revoke</string>

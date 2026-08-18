@@ -99,7 +99,10 @@
     <string name="share_existing_shares">Bestehende Freigaben</string>
     <string name="share_loading_shares">Lade Freigaben…</string>
     <string name="share_no_shares_yet">Noch keine Freigaben</string>
-    <string name="share_new_public_link">Neuer öffentlicher Link</string>
+    <string name="new_share">Neue Freigabe</string>
+    <string name="share_recipient">Benutzername oder Gruppenname</string>
+    <string name="share_recipient_required">Gib einen Benutzer oder eine Gruppe zum Teilen ein.</string>
+    <string name="share_public_upload">Anderen Uploads erlauben</string>
     <string name="share_meta_has_password">Passwort</string>
     <string name="share_meta_expires">Läuft ab %1$s</string>
     <string name="share_revoke">Widerrufen</string>
