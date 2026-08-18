@@ -133,8 +133,8 @@ formal bestehen; hier der aktuelle Status):
   Android 10, Direktzugriff davor mit Laufzeit-Permission auf API 26–28),
   „Teilen" öffnet das **Share-Sheet** (`ShareSheet`/`ACTION_SEND`); „Öffnen"
   bleibt FileProvider/`ACTION_VIEW`.
-- A9-13 (Theme nur system/light/dark) → **weiter offen**: kein
-  `operationflut`/`midnight` + Accent-Hue auf Android.
+- A9-13 (Theme nur system/light/dark) → **umgesetzt**: `operationflut`/
+  `midnight`-Brand-Themes + Accent-Hue-Slider auf Android (siehe Archiv).
 - A9-14 (preview() Dead Code) → **weiter offen**: `WebDavApi.kt:261`
   `preview()` ohne Aufrufer; Android zeigt keine Thumbnails.
 - A9-15 (Suchergebnisse nur lesbar) → **umgesetzt**: `SearchResults` reicht
@@ -315,10 +315,11 @@ Befunden **nicht** zu: Neu gefunden:
       Ordner bzw. mit Öffnen/Teilen; kein Share-Sheet. Desktop öffnet
       Dateien direkt (P8). Fix: `ACTION_VIEW`/MediaStore-Download + Teilen.
       → umgesetzt (FileOpener/ACTION_VIEW, FileProvider), siehe Lauf 11.
-- [ ] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
+- [x] **A9-13 (Design, minor):** Android-Theme deckt nur system/light/dark +
       dynamic color ab (`Theme.kt`); Desktop bietet die FlutCloud-Brand-
       Themes `operationflut`/`midnight` + Accent-Hue-Slider (U8). Fix:
       Brand-Themes + Accent-Hue auf Android portieren.
+      → umgesetzt (Brand-Themes + Accent-Hue auf Android), siehe Archiv.
 - [ ] **A9-14 (Dead Code, minor):** `WebDavApi.preview()` (Z. 185-201) wird
       nirgends aufgerufen — Thumbnails existieren nur im Desktop
       (`webdav_thumbnail` + `thumbs`-Cache). Fix: Entweder Thumbnails in
@@ -498,6 +499,34 @@ ViewModels emittieren Ressourcen-IDs statt englischer Fehler-/Toast-Texte.
 - Review 2026-08-14 (Lauf 2, v1.0.0-Bereitschaft) — F1–F10 umgesetzt.
 
 ## Archiv (erledigt)
+
+### Issue #210 — Android: FlutCloud-Brand-Themes + Accent-Hue (2026-08-18)
+
+- [x] **A9-13 (Design, minor):** FlutCloud-Brand-Themes `operationflut`/
+      `midnight` + Accent-Hue-Slider auf Android portiert (Parität zum
+      Desktop U8):
+  - `Color.kt` erzeugt die M3-Paletten jetzt **parametrisch aus einem
+    Accent-Seed-Hue** statt statisch: OKLCH→sRGB-Konvertierung (CSS Color 4,
+    identische Werte wie `src/style.css`) mit `lightScheme`/`operationflutScheme`/
+    `midnightScheme`; Surfaces bleiben pro Theme fix (operationflut #090821,
+    midnight #05070F, light #F4F4F7).
+  - `Theme.kt`: `FlutLinkTheme(themePreference, dynamicColor, accentHue)`;
+    `resolveFlutTheme` mappt `operationflut`/`midnight`/`system` (+ Legacy
+    `light`/`dark`), `system` → dunkel: midnight, hell: light; `defaultAccentHue`
+    266/266/220 (CSS `--m3-accent-hue`-Defaults). Dynamic color (Android 12+)
+    bleibt als Override-Option.
+  - `SettingsStore`/`SettingsViewModel`: neue `accentHue`-Preference (Int?,
+    null = Theme-Default), `MainActivity` reicht Preference + Hue in das Theme.
+  - `SettingsScreen`: Theme-Optionen `operationflut`/`midnight`/`system`
+    (SegmentedButtons) + Accent-Hue-Slider (0–360) mit Reset-Button; i18n
+    (en/de) `theme_operationflut`/`theme_midnight`/`theme_system_note`/
+    `accent_color`/`accent_color_hint`/`accent_reset`, `theme_hint` aktualisiert,
+    `theme_light`/`theme_dark` entfernt (nur noch Legacy-Resolution).
+  - Doku: `android/README.md` „Appearance" (Brand-Themes + Accent-Hue).
+  - Verifikation: `./gradlew :app:assembleDebug :app:lintDebug
+    :app:testDebugUnitTest` grün; `cargo fmt --check`, `cargo clippy
+    --all-targets -- -D warnings`, `cargo test` (83 passed) und `npm run
+    build` unverändert grün.
 
 ### Issue #206 — Release-Fixes (2026-08-17): Downloads/Share-Sheet + FLUTCLOUD_URL-Preconfig
 

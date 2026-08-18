@@ -20,6 +20,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val accounts = MutableStateFlow<List<AccountMeta>>(emptyList())
     val themePreference = MutableStateFlow("system")
     val dynamicColor = MutableStateFlow(true)
+    val accentHue = MutableStateFlow<Int?>(null)
     val serverInfo = MutableStateFlow<AppInfoDto?>(null)
 
     val appVersion = BuildConfig.VERSION_NAME
@@ -46,6 +47,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             container.settingsStore.dynamicColor.collect { dynamicColor.value = it }
         }
+        viewModelScope.launch {
+            container.settingsStore.accentHue.collect { accentHue.value = it }
+        }
     }
 
     fun loadServerInfo() {
@@ -61,6 +65,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { container.settingsStore.setDynamicColor(enabled) }
+    }
+
+    fun setAccentHue(hue: Int?) {
+        viewModelScope.launch { container.settingsStore.setAccentHue(hue) }
     }
 
     fun switchAccount(meta: AccountMeta) {

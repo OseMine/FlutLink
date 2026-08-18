@@ -54,6 +54,13 @@ android/
   Keystore), account metadata in a separate preferences file, same split as
   the desktop keyring design. No token is ever logged or persisted in plain
   text.
+- **Appearance** — the FlutCloud brand themes **OperationFlut** and
+  **Deep Midnight** plus a Material-You-style **accent hue slider** (Settings →
+  Appearance), matching the desktop `[data-theme]` palettes in `src/style.css`.
+  A single seed hue derives the whole primary/secondary/tertiary palette while
+  the surfaces stay fixed per theme; `System` follows the device (dark →
+  Deep Midnight, light → the light brand palette). `Dynamic color` (Android
+  12+ wallpaper palette) can override the brand palettes.
 
 ### Consciously not on mobile (product decision)
 
