@@ -1,5 +1,6 @@
 // TEST — iOS port created by opencode. Not a production build.
 import Foundation
+import UIKit
 
 @MainActor
 final class SettingsViewModel: ObservableObject {

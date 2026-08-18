@@ -1,5 +1,6 @@
 // TEST — iOS port created by opencode. Not a production build.
 import Foundation
+import CommonCrypto
 
 final class ListCache {
     private let cacheDir: URL
@@ -32,5 +33,3 @@ final class ListCache {
         return hash.map { String(format: "%02x", $0) }.joined()
     }
 }
-
-import CommonCrypto

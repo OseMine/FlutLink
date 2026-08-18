@@ -287,32 +287,13 @@ final class WebDavXMLParser: NSObject, XMLParserDelegate {
     init(data: Data, basePath: String) {
         self.basePath = basePath
         super.init()
-        _ = data.withUnsafeBytes { parser?.parse($0.bindMemory(to: UInt8.self)) }
-    }
-
-    private lazy var parser: XMLParser? = nil
-
-    func parse() -> [WebDavEntry] {
-        let p = XMLParser(data: Data())
-        return entries
-    }
-
-    func parse() -> [WebDavEntry] {
-        return entries
-    }
-}
-
-extension WebDavXMLParser {
-    convenience init(data: Data, basePath: String) {
-        self.init(basePath: basePath)
         let parser = XMLParser(data: data)
         parser.delegate = self
         parser.parse()
     }
 
-    private init(basePath: String) {
-        self.basePath = basePath
-        super.init()
+    func parse() -> [WebDavEntry] {
+        return entries
     }
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {

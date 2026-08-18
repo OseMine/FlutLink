@@ -69,7 +69,7 @@ xcodebuild \
     CODE_SIGNING_ALLOWED=NO \
     AD_HOC_CODE_SIGNING_ALLOWED=YES \
     ENABLE_BITCODE=NO \
-    archive 2>&1 | tail -5
+    archive 2>&1 | tail -20
 echo "      Archive created at $ARCHIVE_PATH"
 
 # Step 3: Export archive (unsigned / ad-hoc)
