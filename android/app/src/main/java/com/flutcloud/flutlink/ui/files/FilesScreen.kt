@@ -89,7 +89,11 @@ private const val ROOT = "/"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FilesScreen(container: AppContainer) {
+fun FilesScreen(
+    container: AppContainer,
+    impersonateTarget: String? = null,
+    onImpersonationHandled: () -> Unit = {}
+) {
     val vm = flutLinkViewModel { FilesViewModel(it) }
     val context = LocalContext.current
     val path by vm.path.collectAsState()
@@ -98,6 +102,7 @@ fun FilesScreen(container: AppContainer) {
     val error by vm.error.collectAsState()
     val offline by vm.offline.collectAsState()
     val quota by vm.quota.collectAsState()
+    val targetUser by vm.targetUser.collectAsState()
     val searchQuery by vm.searchQuery.collectAsState()
     val searchResults by vm.searchResults.collectAsState()
     val searching by vm.searching.collectAsState()
@@ -150,6 +155,12 @@ fun FilesScreen(container: AppContainer) {
 
     LaunchedEffect(sessionKey) {
         if (sessionKey != null) vm.refresh()
+    }
+    LaunchedEffect(impersonateTarget) {
+        if (impersonateTarget != null) {
+            vm.setTargetUser(impersonateTarget)
+            onImpersonationHandled()
+        }
     }
     LaunchedEffect(error) {
         error?.let {
@@ -239,6 +250,13 @@ fun FilesScreen(container: AppContainer) {
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding).fillMaxSize()) {
             QuotaBar(quota)
+            val impersonated = targetUser
+            if (impersonated != null) {
+                ImpersonationBanner(
+                    user = impersonated,
+                    onStop = { vm.setTargetUser(null) }
+                )
+            }
             val progressState by vm.transferProgress.collectAsState()
             val progress = progressState
             if (progress != null) {
@@ -752,6 +770,30 @@ private fun shareLabel(share: Share): String = when (share.shareType) {
 
 private fun shareTarget(share: Share): String =
     share.url ?: share.shareWithDisplayName ?: share.shareWith ?: ""
+
+@Composable
+private fun ImpersonationBanner(user: String, onStop: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.impersonation_notice, "@$user"),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onStop) {
+                Text(stringResource(R.string.stop_impersonation))
+            }
+        }
+    }
+}
 
 @Composable
 private fun OfflineBanner() {

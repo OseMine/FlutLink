@@ -120,9 +120,14 @@
     <string name="share_type_generic">Share</string>
     <string name="files_offline_banner">Offline \u2014 showing cached data</string>
 
+    <!-- Files — Admin impersonation -->
+    <string name="impersonation_notice">Admin impersonation \u2014 browsing the private files of %1$s</string>
+    <string name="stop_impersonation">Stop impersonation</string>
+
     <!-- Admin — Groups -->
     <string name="admin_load_more">Load more</string>
     <string name="admin_manage_groups">Manage groups</string>
+    <string name="view_files">View files</string>
     <string name="admin_groups_title">Groups \u2014 %1$s</string>
     <string name="admin_no_groups">No groups</string>
     <string name="admin_group_name_label">Group name</string>
@@ -178,6 +183,7 @@
     <string name="error_wrong_server_url">This client is configured for a specific FlutCloud server. The URL cannot be changed.</string>
     <string name="error_target_exists">A file or folder named \'%1$s\' already exists. Choose a different name.</string>
     <string name="error_invalid_folder_name">The folder name must not contain invalid characters.</string>
+    <string name="error_not_admin_impersonation">Only administrators can browse other users\' files.</string>
     <string name="error_generic">An unexpected error occurred.</string>
     <string name="error_generic_detail">An unexpected error occurred: %1$s</string>
     <string name="account_switched_to">Switched to %1$s</string>
