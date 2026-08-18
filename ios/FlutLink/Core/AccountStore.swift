@@ -2,7 +2,7 @@
 import Foundation
 import Security
 
-final class AccountStore {
+final class AccountStore: ObservableObject {
     private let defaults = UserDefaults.standard
     private static let accountsKey = "flutlink_accounts"
 
