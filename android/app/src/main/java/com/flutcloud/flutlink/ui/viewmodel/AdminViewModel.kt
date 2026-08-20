@@ -30,6 +30,16 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refresh() = loadUsers()
 
+    /** Reset the list when the search field is empty (no server round-trips). */
+    fun clearSearch() {
+        users.value = emptyList()
+        hasMore.value = false
+        searchTerm = ""
+        offset = 0
+        loading.value = false
+        error.value = null
+    }
+
     fun loadUsers() {
         val s = session ?: return
         viewModelScope.launch {

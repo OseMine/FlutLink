@@ -17,7 +17,7 @@ kmp/
 ├── gradle/libs.versions.toml    — Versionskatalog (mirror android/)
 ├── gradle/wrapper/              — Gradle 8.13 Wrapper (kopiert aus android/)
 └── shared/
-    ├── build.gradle.kts         — KMP-Modul: androidTarget() + jvm()
+    ├── build.gradle.kts         — KMP-Modul: androidTarget() + jvm() + iOS-Targets
     └── src/
         ├── commonMain/          — plattformagnostischer Kotlin-Code
         │   └── com/flutcloud/flutlink/
@@ -40,7 +40,11 @@ kmp/
   `com.flutcloud.flutlink.kmp`
 - `jvm()` — JVM-Target; kompiliert `commonMain` (derzeit ohne
   `jvmMain`-Quellen, nur für die Plattform-Validierung der gemeinsamen
-  Module). iOS-Targets sind bewusst nicht eingerichtet — der iOS-Port lebt in
+  Module).
+- `iosX64()`/`iosArm64()`/`iosSimulatorArm64()` — iOS-Targets als statisches
+  `Shared`-Framework (deklariert in `shared/build.gradle.kts`). Sie können nur
+  auf macOS/Xcode-Hosts kompiliert werden; der CI-Build (Linux) übt nur
+  `androidTarget()` + `jvm()` aus. Der produktive iOS-Port lebt zusätzlich in
   `ios/` als Swift/SwiftUI-App.
 
 Der Gradle-Wrapper (8.13) und der Versionskatalog sind bewusst identisch mit

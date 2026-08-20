@@ -40,6 +40,41 @@ nutzten `anomalyco/opencode/github@latest` — `opencode.yml:92`,
 `opencode-todo-issues.yml:38` und `opencode-review.yml:38` pinnen jetzt auf
 den vollen Commit-SHA `31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18`.
 
+### KMP-Fix 2026-08-20 (Lauf 14 — K1/K2/K4/K6–K9 umgesetzt)
+
+Die KMP-Befunde des Laufs 14 (Fokus KMP) wurden in diesem Lauf umgesetzt und
+verifiziert. `cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest
+:shared:compileKotlinJvm` → BUILD SUCCESSFUL, **30 Tests grün** (7+11+5+7);
+`cd android && ./gradlew :app:assembleDebug` → BUILD SUCCESSFUL (Fix-Spiegelung);
+`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` und
+`npm run build` grün. Folgende Punkte sind damit erledigt und aus todo.md nach
+hier verschoben (K3 CI und K5 Architektur bleiben in todo.md offen):
+
+- [x] **K1 (Build):** `androidx-datastore-preferences` (1.2.1) in
+      `kmp/gradle/libs.versions.toml` aufgenommen und in
+      `androidMain.dependencies` (`kmp/shared/build.gradle.kts`) ergänzt →
+      `SettingsStore.kt` kompiliert, `:shared:compileDebugKotlinAndroid` grün.
+- [x] **K2 (Tests):** `xpp3:xpp3:1.1.4c` als `androidUnitTest`-Dependency
+      ergänzt (`kmp/gradle/libs.versions.toml` + `kmp/shared/build.gradle.kts`)
+      → die 7 `WebDavApiTest`-Fälle laufen auf der JVM (30 Tests grün).
+- [x] **K4 (Doku):** `kmp/README.md` „Targets" beschreibt jetzt die
+      deklarierten `iosX64()/iosArm64()/iosSimulatorArm64()`-Targets
+      (Framework-Binary, macOS/Xcode-Host) statt „bewusst nicht eingerichtet".
+- [x] **K6 (Bug):** `AdminScreen.kt` lädt per debounced `LaunchedEffect(search)`
+      (300 ms) bei Such-Eingabe; die Suche filtert damit bei jeder Eingabe
+      (Desktop-Parität). Fix in `android/` gespiegelt.
+- [x] **K7 (Bug):** `FilesViewModel.downloadAndOpen` reicht `targetUser` jetzt
+      an `downloadToFile` weiter (`targetUser = targetUser.value`) — Admin-
+      Impersonation lädt die Datei aus dem Ziel-Namespace. Fix in `android/`
+      gespiegelt.
+- [x] **K8 (Perf):** `ListCache` kappt den Bestand auf `MAX_CACHE_ENTRIES =
+      500` (mtime-basiertes LRU in `evictOldest()`, Spiegel von
+      `cache.rs::evict_oldest`). Fix in `android/` gespiegelt.
+- [x] **K9 (Perf):** Admin lädt ohne Suchbegriff keine Benutzer mehr
+      (`clearSearch()` bei leerem Suchfeld, kein Mount-`loadUsers`) — die
+      N+1-Kette (200 IDs + 200 `getUser`-Requests) greift nur noch bei einer
+      aktiven Suche. Fix in `android/` gespiegelt.
+
 ### Review 2026-08-20 (Issue #246 — KMP-Subprojekt umgesetzt & verifiziert)
 
 Kotlin-Multiplatform-Subprojekt `kmp/` angelegt und den gesamten Kotlin-Code

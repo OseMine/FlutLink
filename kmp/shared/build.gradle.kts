@@ -61,6 +61,7 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.security.crypto)
+            implementation(libs.androidx.datastore.preferences)
 
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.android)
@@ -70,6 +71,7 @@ kotlin {
         }
         androidUnitTest.dependencies {
             implementation(libs.junit)
+            implementation(libs.xpp3)
             implementation(libs.ktor.client.okhttp)
         }
     }
