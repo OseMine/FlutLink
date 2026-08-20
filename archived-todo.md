@@ -4,6 +4,24 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes)
+
+Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
+(`kmp/README.md`), die iOS-Targets bleiben bestehen:
+
+- [x] **K4 (Doku):** README-Abschnitt „Targets" beschreibt jetzt korrekt, dass
+      `iosX64()/iosArm64()/iosSimulatorArm64()` in `build.gradle.kts`
+      deklariert sind (Framework `Shared`, `iosMain.dependencies` mit
+      `ktor-client-darwin`), aber derzeit **funktionslos** sind (kein
+      `iosMain`-Quellverzeichnis, Kompilierung nur auf macOS/Xcode-Hosts).
+      Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
+      entfernt; der iOS-Port lebt weiter in `ios/` (Swift/SwiftUI).
+- [x] **K5 (Architektur):** README-Einleitung und Struktur-Baum spiegeln jetzt
+      den tatsächlichen `commonMain`-Stand (4 Dateien: `AuthSession.kt`,
+      `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`), dass der übrige Code
+      in `androidMain` liegt und `jvmMain`/`iosMain` noch leer sind; der
+      Desktop-JVM-Client (`jvmMain`) ist als Folgearbeit notiert.
+
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits

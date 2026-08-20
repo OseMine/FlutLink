@@ -316,20 +316,22 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `kmp/**` in die `android.yml`-Paths aufnehmen oder einen KMP-Job
       (`:shared:assembleDebug` + `:shared:testDebugUnitTest` +
       `:shared:compileKotlinJvm`) ergänzen.
-- [ ] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptet „iOS-Targets sind
-      bewusst nicht eingerichtet", aber `kmp/shared/build.gradle.kts:20-32`
-      deklariert `iosX64()/iosArm64()/iosSimulatorArm64()` (Framework-Binary,
-      `iosMain.dependencies` mit `ktor-client-darwin`). README widerspricht
+- [x] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptete „iOS-Targets sind
+      bewusst nicht eingerichtet", obwohl `kmp/shared/build.gradle.kts:20-32`
+      `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
+      `iosMain.dependencies` mit `ktor-client-darwin`). README widersprach
       dem Build-Skript; die Targets sind aktuell funktionslos (kein
-      `iosMain`-Quellcode). Fix: README anpassen oder iOS-Targets entfernen.
-- [ ] **K5 (Architektur, minor):** `commonMain` enthält nur 4 Dateien
+      `iosMain`-Quellcode). Fix: README angepasst (statt iOS-Targets zu
+      entfernen) — siehe Archiv.
+- [x] **K5 (Architektur, minor):** `commonMain` enthält nur 4 Dateien
       (`AuthSession.kt`, `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`);
       der gesamte übrige Code liegt in `androidMain` (Android-APIs: OkHttp,
       Context, SharedPreferences, Compose). `jvmMain`/`iosMain` sind leer —
       der „Multiplatform"-Mehrwert ist derzeit nur der JVM-Kompilier-Check
       (`:shared:compileKotlinJvm`, grün). Die README-Aussage „stellt den
-      gemeinsamen Kotlin-Code in einem KMP-Modul bereit" überschätzt den
-      Stand (Desktop-JVM-Client ist als Folgearbeit notiert).
+      gemeinsamen Kotlin-Code in einem KMP-Modul bereit" überschätzte den
+      Stand. Fix: README korrigiert (tatsächlicher `commonMain`-Stand +
+      Desktop-JVM-Client als Folgearbeit) — siehe Archiv.
 - [ ] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
       nicht: `AdminScreen.kt:106-112` bindet die Search-TextField an
       `vm.search.value` (`onValueChange = { vm.search.value = it }`), aber es
