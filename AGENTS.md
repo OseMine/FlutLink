@@ -17,11 +17,10 @@ Desktop-only (Plattform-Gründe, s. `android/README.md` „Consciously not on
 mobile"). Änderungen an Features/Verhalten müssen dort mitgezogen werden
 (CI: `.github/workflows/android.yml`).
 
-**TEST — `ios/` ist ein Port des Desktop-Clients auf Swift + SwiftUI,
-erstellt mit opencode.** Es spiegelt den Desktop-Funktionsumfang wider
-(kein Zwei-Wege-Sync). Dies ist ein Test und kein Produktions-Build.
-CI: `.github/workflows/ios.yml`. Änderungen an Features/Verhalten müssen
-dort mitgezogen werden.
+**`kmp/` ist ein Kotlin-Multiplatform-Subprojekt, das den Kotlin-Code des
+Android-Clients (`android/`) als Multiplattform-Modul spiegelt (Android,
+JVM und iOS-Targets).** Es ersetzt den früheren iOS-Port (`ios/`, Swift +
+SwiftUI), der entfernt wurde. Details in `kmp/README.md`.
 
 ## Struktur
 
@@ -73,10 +72,8 @@ dort mitgezogen werden.
   `nextcloud/`-Modulen)
 - `cd android && ./gradlew :app:assembleDebug` — Android-Client bauen
   (JDK 17; CI siehe `.github/workflows/android.yml`)
-- `cd ios && xcodegen generate && xcodebuild -scheme FlutLink -destination "generic/platform=iOS" build` — iOS-Client bauen
-  (Xcode 16+, XcodeGen; CI siehe `.github/workflows/ios.yml`)
-- `./scripts/build-ipa.sh` — Unsigned IPA erzeugen (Debug)
-- `./scripts/build-ipa.sh --release` — Unsigned IPA erzeugen (Release)
+- `cd kmp && ./gradlew :shared:build` — KMP-Modul bauen (Android + JVM +
+  Unit-Tests; iOS-Targets nur auf macOS/Xcode-Hosts kompilierbar)
 
 ## Konventionen
 
@@ -101,6 +98,5 @@ Vor dem Abschluss einer Änderung immer ausführen:
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `cargo test` (jeweils mit `--manifest-path src-tauri/Cargo.toml`) und
 `npm run build`. Bei Änderungen an `android/` zusätzlich
-`cd android && ./gradlew :app:assembleDebug`. Bei Änderungen an `ios/`
-zusätzlich `cd ios && xcodegen generate && xcodebuild -scheme FlutLink
--destination "generic/platform=iOS" build`.
+`cd android && ./gradlew :app:assembleDebug`. Bei Änderungen an `kmp/`
+zusätzlich `cd kmp && ./gradlew :shared:build`.
