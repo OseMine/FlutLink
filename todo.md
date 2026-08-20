@@ -20,7 +20,7 @@ PR #247 brachte das auf main). Gegenstand dieses Laufs: das komplette
 KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
 `jvm()` + iOS-Targets). Neu gefunden:
 
-- [ ] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
+- [x] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
       `SettingsStore.kt:13,19,21-23,40-54` (`core/`) nutzt
       `androidx.datastore.preferences.*` (`preferencesDataStore`,
       `stringPreferencesKey`/`booleanPreferencesKey`/`intPreferencesKey`,
@@ -32,7 +32,7 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `SettingsStore.kt`). `android/gradle/libs.versions.toml` hat sie als
       `datastore = "1.2.1"`. Fix: `androidx-datastore-preferences` (1.2.1) in
       Katalog + `androidMain.dependencies` aufnehmen.
-- [ ] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
+- [x] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
       `WebDavApi.parseMultistatus` (`WebDavApi.kt:499-501`) nutzt
       `XmlPullParserFactory.newInstance()`; die `androidUnitTest`-Dependencies
       enthalten nur `junit` + `ktor-client-okhttp` — **kein `xpp3`**.

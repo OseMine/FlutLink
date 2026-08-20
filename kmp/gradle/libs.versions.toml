@@ -4,6 +4,7 @@ kotlin = "2.3.21"
 coreKtx = "1.17.0"
 activityCompose = "1.12.4"
 securityCrypto = "1.1.0"
+datastore = "1.2.1"
 okhttp = "5.4.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
@@ -17,6 +18,7 @@ junit = "4.13.2"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
@@ -31,6 +33,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version.ref = "kotlinxCoroutines" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+xpp3 = { group = "xpp3", name = "xpp3", version = "1.1.4c" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
