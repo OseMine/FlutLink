@@ -5,6 +5,132 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Review 2026-08-20 (Lauf 14, Fokus KMP — neue Befunde)
+
+Verifikation frisch ausgeführt: `cargo test --manifest-path
+src-tauri/Cargo.toml` → **83 passed / 0 failed**; `npm run build`
+(vue-tsc + vite) grün (nur die bekannte Chunk-Size-Warnung, L12-N6).
+**Der KMP-Build ist dagegen kaputt:** `cd kmp && ./gradlew
+:shared:testDebugUnitTest` (und `:shared:assembleDebug`) failen bei HEAD
+(`52447bd`) mit `Unresolved reference`-Fehlern in `SettingsStore.kt`. Der in
+todo.md/archivierte Claim „Build + 30 Tests grün" (Issue #246) gilt damit
+**nicht** für den aktuellen Stand (im Archiv gegen `d75b4c0` verifiziert; der
+Katalog-Umbau `d183b27` entfernte die nötige Dependency, Merge `bacc4f0`/
+PR #247 brachte das auf main). Gegenstand dieses Laufs: das komplette
+KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
+`jvm()` + iOS-Targets). Neu gefunden:
+
+- [ ] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
+      `SettingsStore.kt:13,19,21-23,40-54` (`core/`) nutzt
+      `androidx.datastore.preferences.*` (`preferencesDataStore`,
+      `stringPreferencesKey`/`booleanPreferencesKey`/`intPreferencesKey`,
+      `edit`), aber die Dependency `androidx-datastore-preferences` fehlt im
+      Versionskatalog (`kmp/gradle/libs.versions.toml`) **und** in
+      `androidMain.dependencies` (`kmp/shared/build.gradle.kts`). `d183b27`
+      entfernte sie (mit `xpp3`) aus dem Katalog, der Code nutzt sie weiter →
+      `:shared:compileDebugKotlinAndroid` failt (30 Fehler, alle in
+      `SettingsStore.kt`). `android/gradle/libs.versions.toml` hat sie als
+      `datastore = "1.2.1"`. Fix: `androidx-datastore-preferences` (1.2.1) in
+      Katalog + `androidMain.dependencies` aufnehmen.
+- [ ] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
+      `WebDavApi.parseMultistatus` (`WebDavApi.kt:499-501`) nutzt
+      `XmlPullParserFactory.newInstance()`; die `androidUnitTest`-Dependencies
+      enthalten nur `junit` + `ktor-client-okhttp` — **kein `xpp3`**.
+      `android/` deklariert dafür explizit `testImplementation(libs.xpp3)`
+      (dieselben Tests). Ohne XmlPull-Implementierung wirft die Mockable-
+      Android-JAR bei den 7 `WebDavApiTest`-Fällen „not mocked". Fix:
+      `xpp3:xpp3:1.1.4c` als `androidUnitTest`-Dependency ergänzen.
+- [ ] **K3 (CI, mittel):** `kmp/` hat **keinerlei** CI-Abdeckung —
+      `android.yml` triggert nur auf `android/**`, `build.yml`/`lint.yml` nur
+      auf Frontend/Rust. Der kaputte KMP-Build (K1) wird von keinem Workflow
+      erkannt und landete so ungetestet auf main (`bacc4f0`). Fix:
+      `kmp/**` in die `android.yml`-Paths aufnehmen oder einen KMP-Job
+      (`:shared:assembleDebug` + `:shared:testDebugUnitTest` +
+      `:shared:compileKotlinJvm`) ergänzen.
+- [ ] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptet „iOS-Targets sind
+      bewusst nicht eingerichtet", aber `kmp/shared/build.gradle.kts:20-32`
+      deklariert `iosX64()/iosArm64()/iosSimulatorArm64()` (Framework-Binary,
+      `iosMain.dependencies` mit `ktor-client-darwin`). README widerspricht
+      dem Build-Skript; die Targets sind aktuell funktionslos (kein
+      `iosMain`-Quellcode). Fix: README anpassen oder iOS-Targets entfernen.
+- [ ] **K5 (Architektur, minor):** `commonMain` enthält nur 4 Dateien
+      (`AuthSession.kt`, `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`);
+      der gesamte übrige Code liegt in `androidMain` (Android-APIs: OkHttp,
+      Context, SharedPreferences, Compose). `jvmMain`/`iosMain` sind leer —
+      der „Multiplatform"-Mehrwert ist derzeit nur der JVM-Kompilier-Check
+      (`:shared:compileKotlinJvm`, grün). Die README-Aussage „stellt den
+      gemeinsamen Kotlin-Code in einem KMP-Modul bereit" überschätzt den
+      Stand (Desktop-JVM-Client ist als Folgearbeit notiert).
+- [ ] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
+      nicht: `AdminScreen.kt:106-112` bindet die Search-TextField an
+      `vm.search.value` (`onValueChange = { vm.search.value = it }`), aber es
+      gibt keinen Trigger (kein `LaunchedEffect(search)`, kein Debounce), der
+      `vm.loadUsers()` bei Eingabe aufruft; `loadUsers`
+      (`AdminViewModel.kt:33-52`) läuft nur beim Mount
+      (`LaunchedEffect(Unit)`, `AdminScreen.kt:86`). Desktop `AdminPanel.vue`
+      sucht bei jeder Eingabe. Fix: `LaunchedEffect(vm.search.value)` mit
+      Debounce → `loadUsers()`.
+- [ ] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
+      „Öffnen": `FilesViewModel.downloadAndOpen` (`FilesViewModel.kt:162-189`)
+      reicht `targetUser` **nicht** an `downloadToFile` weiter — anders als
+      `downloadAndShare` (`:239-246`) und `downloadToDownloads` (`:202-211`).
+      Beim Admin-Impersonation-Browsing lädt „Open" die Datei aus dem eigenen
+      Namespace des Admins statt aus dem des Zielnutzers (falsche Datei/404).
+      Fix: `targetUser = targetUser.value` ergänzen.
+- [ ] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
+      Maximalbestand/keine Eviction — jede (Account, Pfad)-Kombination wird
+      dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
+      evicted LRU (`MAX_CACHE_ENTRIES=500`); iOS-Befund I1-11 nennt dasselbe.
+      Fix: Bestand begrenzen (mtime/LRU).
+- [ ] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
+      (`AdminViewModel.kt:72-81`) holt pro Seite 200 Benutzer-IDs und danach
+      200 Einzel-`getUser`-OCS-Requests (N+1); `AdminScreen.kt:86` lädt beim
+      Mount ohne Suchbegriff den ersten Block. Desktop verlangt einen
+      Suchbegriff (D3/U-R8-12, L12-N1). Fix: Suchpflicht analog Desktop oder
+      Detail-Batch.
+
+**todo.md-Nachprüfung (Schritt 5):** Die iOS-Befunde des Laufs 13 wurden in
+den Fix-Commits `33f3cd9` („resolve GH issues #232-244 …"), `78fbc24`,
+`0c78139`, `006fee3`, `c1ecd9f`, `319592a`, `fea2cd2`, `3ae4868` und
+`23eda61`–`88ee296` adressiert. Per Code-Inspektion (Xcode-Build auf dem
+Linux-Runner nicht möglich) sind **erledigt** und in `archived-todo.md`
+verschoben: I1-1 (`viewModel.search("")`, `FilesView.swift:57`), I1-2
+(`setTargetUser`, `FilesViewModel.swift:49`), I1-3 (`@StateObject`,
+`HomeView.swift:13-24`), I1-4 (`accounts` aus `sessionManager`,
+`SettingsViewModel.swift:27,32`), I1-7 (`Localizable.strings` en+de), I1-8
+(kein Auto-Load beim Appear, `AdminView.swift:76`), I1-9 (`contextMenu` in
+`searchResultsList`, `FilesView.swift:140`), I1-11 (`evictIfNeeded`,
+`ListCache.swift:38`), I1-12 (Namespace-Guard, `WebDavApi.swift:45-46`).
+**Weiter offen (Restlücken):** I1-5 (Key in `Info.plist` vorhanden, aber
+`ios.yml` setzt kein `env.FLUTCLOUD_URL` → `$(FLUTCLOUD_URL)` ist im CI-Build
+leer, `urlLocked` bleibt false), I1-6 („Open" leert `downloadedData` ohne
+Präsentation, `FilesView.swift:100`; Downloads weiter im RAM), I1-10
+(`uploadStream` weiter nicht-streamender Wrapper, `WebDavApi.swift:104-113`;
+`downloadToFile` liest in den Speicher, `:118-127`). Ebenfalls erledigt: der
+Lauf-13-Hinweis `anomalyco/opencode/github@latest` — alle drei opencode-
+Workflows pinnen jetzt auf den vollen SHA `31406ccc… # v1.18.18`
+(`opencode.yml:92`, `opencode-todo-issues.yml:38`, `opencode-review.yml:38`).
+Desktop-Frontend-Punkte L12-N1 … L12-N6 sind unverändert offen (L12-N1:
+`AdminPanel.vue:188` ruft weiter `adminListUsers(query)` ohne Limit/Offset;
+L12-N2: `SettingsModal.vue:144` löscht ohne Confirm; L12-N3:
+`FileExplorer.vue:648` `adminListUsers("")`; L12-N4: `files.ts` setzt
+`error` und rethrowt; L12-N5: doppelter Komparator
+`FileExplorer.vue:54`/`EntryList.vue:52`; L12-N6: keine Code-Splitting-
+Maßnahme).
+
+Keine neuen Befunde im Desktop-Backend (`commands.rs`, `webdav.rs`, `ocs.rs`,
+`sync.rs`, `accounts.rs`, `error.rs`, `cache.rs`, `updater.rs`) über die
+bekannten Punkte hinaus; der Android-Port ist von K6–K9 ebenfalls betroffen
+(gleicher Code).
+
+**GitHub-Issues (Schritt 6, nur lokale Quellen — keine gh/API-Aufrufe):**
+Der Merge-Branch `opencode/issue246-20260820094635` → PR #247 (`bacc4f0`)
+belegt die Umsetzung von Issue #246 (KMP-Subprojekt) — diese Umsetzung ist
+allerdings mit K1/K2/K3 nicht bau-/testbar. `33f3cd9` belegt die iOS-Issues
+#232–#244 (s. oben; Restlücken I1-5/I1-6/I1-10 offen). Der
+`opencode-todo-issues`-Workflow sollte die KMP-Folgearbeit (K1–K9) beim
+nächsten Lauf als Issues erfassen.
+
 ### KMP-Subprojekt (Issue #246) — erledigt 2026-08-20
 
 Kotlin-Multiplatform-Subprojekt `kmp/` erstellt und den gesamten Kotlin-Code
@@ -26,13 +152,13 @@ CI-Build bestätigt werden. Gegenstand dieses Laufs: der komplette iOS-Port
 (`ios/`, Test-Port, 26 Swift-Dateien) gegen Desktop-Parität, Swift-Korrektheit,
 Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
 
-- [ ] **I1-1 (Build, hoch):** Die iOS-App kompiliert bei HEAD **nicht** —
+- [x] **I1-1 (Build, hoch):** Die iOS-App kompiliert bei HEAD **nicht** —
       `FilesView.swift:57` (`Button("search".localized) { viewModel.search = " " }`)
       weist einer **Methode** einen String zu: `FilesViewModel.search(_:)`
       (`FilesViewModel.swift:293`) ist eine `func`, keine Property → Compile-
       Fehler „cannot assign to property: 'search' is a method". Der Menüpunkt
       „Search" müsste `viewModel.search("")` aufrufen bzw. die SearchBar fokussieren.
-- [ ] **I1-2 (Build, hoch):** `AdminView.swift:42` ruft `viewModel.setTargetUser(user.id)`
+- [x] **I1-2 (Build, hoch):** `AdminView.swift:42` ruft `viewModel.setTargetUser(user.id)`
       auf — `AdminViewModel` hat **keine** solche Methode (nur `FilesViewModel.swift:49`,
       kein `extension AdminViewModel` im Projekt) → Compile-Fehler „value of type
       'AdminViewModel' has no member 'setTargetUser'". Damit failt der `ios.yml`-Build
@@ -40,14 +166,14 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       Ursprungs-Commit `7f1a95f` und wurden von den „fix(ios): … compilation errors"-
       Commits `ba4c484`/`c854dad` nicht abgedeckt). Fix: Impersonation-Flow über
       geteilten State verdrahten (siehe I1-3).
-- [ ] **I1-3 (Architektur, mittel):** `HomeView.swift:15-17` erzeugt **bei jeder**
+- [x] **I1-3 (Architektur, mittel):** `HomeView.swift:15-17` erzeugt **bei jeder**
       `body`-Auswertung neue ViewModel-Instanzen (`private var filesVM: FilesViewModel
       { FilesViewModel(sessionManager:) }`). Jeder Re-Render (Tab-Wechsel, Accent-Slider-
       Zug in den Settings, Kontowechsel) liefert frische VMs → Dateiliste, Ordnerpfad,
       Suche, Shares und Quota setzen zurück; `FilesView` verliert laufend den Zustand.
       Fix: `@StateObject` einmalig im Parent erzeugen (z. B. in `init`) bzw. die VMs
       persistent in `SessionManager`/`AppContainer` halten.
-- [ ] **I1-4 (Bug, mittel):** `SettingsViewModel.accounts` (`SettingsViewModel.swift:11`)
+- [x] **I1-4 (Bug, mittel):** `SettingsViewModel.accounts` (`SettingsViewModel.swift:11`)
       wird **nie** befüllt (kein Assignment, keine Spiegelung von
       `sessionManager.accounts`). `SettingsView.swift:16`/`:65` sieht daher immer leer
       aus → die Account-Sektion zeigt dauerhaft „not_signed_in", Kontenwechsel/-entfernen
@@ -70,7 +196,7 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       schreibt nur ins Temp-Verzeichnis (kein Downloads-Ordner, kein Share-Sheet). Die
       README-Behauptung „download + share via the iOS share sheet" ist nicht implementiert.
       Fix: `.sheet`/QuickLook bzw. `UIActivityViewController`-Bridge verdrahten.
-- [ ] **I1-7 (i18n, mittel):** Keinerlei Lokalisierungs-Ressourcen im iOS-Port — es gibt
+- [x] **I1-7 (i18n, mittel):** Keinerlei Lokalisierungs-Ressourcen im iOS-Port — es gibt
       keine `Localizable.strings`/`.lproj`-Dateien. `.localized` (`LoginView.swift:95-97`,
       `NSLocalizedString(self, …)`) fällt auf den rohen Key zurück → lange Keys erscheinen
       wörtlich in der UI (z. B. „files_offline_banner", „impersonation_notice",
@@ -79,13 +205,13 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       `:32-36` „Name"/„Version"/„Features"/„Load", `Components.swift:182` „Type".
       Desktop + Android sind lokalisiert (en/de), iOS nicht. Fix: `Localizable.strings`
       (en/de) anlegen und alle Keys + die hartkodierten Texte aufnehmen.
-- [ ] **I1-8 (Perf, mittel):** Admin-Tab lädt ohne Suchbegriff alle Benutzer:
+- [x] **I1-8 (Perf, mittel):** Admin-Tab lädt ohne Suchbegriff alle Benutzer:
       `AdminView.swift:75` `.onAppear { viewModel.loadUsers() }` mit leerem Suchfeld;
       `AdminViewModel.loadPage` (`:54-68`) holt pro Seite 200 Benutzer-IDs und danach
       **200 Einzel-`getUser`-OCS-Requests** (N+1). Desktop verlangt seit D3/U-R8-12 einen
       Suchbegriff. Fix: Suchpflicht analog Desktop oder `loadUsers()` beim Appear ohne
       Suchbegriff unterbinden.
-- [ ] **I1-9 (UX, minor):** Suchergebnisse sind nur lesbar — `searchResultsList`
+- [x] **I1-9 (UX, minor):** Suchergebnisse sind nur lesbar — `searchResultsList`
       (`FilesView.swift:131-143`) rendert `FileRow` ohne `contextMenu`; Download/Share/
       Rename/Delete fehlen in Treffern. Desktop (und Android nach A9-15) erlauben die
       Aktionen. Fix: `contextMenu` auch in der Ergebnisliste anbieten.
@@ -97,10 +223,10 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       streamt chunked (>10 MiB), Android 64-KiB-Puffer (A9-5). `uploadStream`
       (`WebDavApi.swift:91-101`) ist Dead Code und streamt nicht. Fix: echte
       `uploadTask`/Download-Streams; `uploadStream` implementieren oder entfernen.
-- [ ] **I1-11 (Cache, minor):** `ListCache.swift` hat kein Limit — pro (Account, Pfad)
+- [x] **I1-11 (Cache, minor):** `ListCache.swift` hat kein Limit — pro (Account, Pfad)
       eine JSON-Datei, keine Eviction, kein Maximalbestand. Desktop `cache.rs` evicted
       LRU (`MAX_CACHE_ENTRIES=500`). Fix: Bestand begrenzen (mtime/LRU-basiert).
-- [ ] **I1-12 (Parität, minor):** Kein Impersonation-Namespace-Guard: Desktop
+- [x] **I1-12 (Parität, minor):** Kein Impersonation-Namespace-Guard: Desktop
       `webdav.rs:160-167` verwirft SEARCH-/List-Ergebnisse, wenn der Server den
       `Impersonate-User`-Header ignoriert (Admin-Namespace-Pfade); iOS `WebDavApi.list`/
       `search` prüfen das nicht → ein Admin bekäme bei nicht ehrendem Server still die
