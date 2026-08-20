@@ -341,6 +341,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (`LaunchedEffect(Unit)`, `AdminScreen.kt:86`). Desktop `AdminPanel.vue`
       sucht bei jeder Eingabe. Fix: `LaunchedEffect(vm.search.value)` mit
       Debounce → `loadUsers()`.
+      → erledigt: `AdminScreen.kt` nutzt `LaunchedEffect(search)` mit
+      300-ms-Debounce (`delay(300)`) vor `loadUsers()`; die Suche filtert
+      live bei jeder Eingabe (android/ + kmp/).
 - [x] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
       „Öffnen": `FilesViewModel.downloadAndOpen` (`FilesViewModel.kt:162-189`)
       reicht `targetUser` **nicht** an `downloadToFile` weiter — anders als
@@ -363,6 +366,11 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       Mount ohne Suchbegriff den ersten Block. Desktop verlangt einen
       Suchbegriff (D3/U-R8-12, L12-N1). Fix: Suchpflicht analog Desktop oder
       Detail-Batch.
+      → erledigt: Suchpflicht analog Desktop (D3/U-R8-12): `loadUsers()`
+      bricht bei leerem Suchbegriff ab (leert Liste, keine OCS-Requests);
+      `AdminScreen.kt` zeigt bei leerer Suche den Hinweis
+      `search_users_required`. Kein ungefilterter N+1-Block beim Mount mehr
+      (android/ + kmp/).
 
 **KMP-Fix-Lauf (Issue „IOS Build doesnt build" → Kommentar „/oc fix it
 (kmp)"):** K1, K2, K4 und K6–K9 wurden in diesem Lauf umgesetzt (Details im

@@ -124,8 +124,8 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
                 }
                 users.isEmpty() -> EmptyState(
                     icon = Icons.Default.Person,
-                    title = stringResource(R.string.no_users_found),
-                    hint = stringResource(R.string.no_users_hint)
+                    title = stringResource(if (search.isBlank()) R.string.search_users_required else R.string.no_users_found),
+                    hint = if (search.isBlank()) null else stringResource(R.string.no_users_hint)
                 )
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(users, key = { it.id }) { user ->

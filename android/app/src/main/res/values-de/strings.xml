@@ -75,6 +75,7 @@
     <string name="user_administration">Benutzerverwaltung</string>
     <string name="add_user">Benutzer hinzufügen</string>
     <string name="search_users">Benutzer suchen…</string>
+    <string name="search_users_required">Gib mindestens ein Zeichen ein, um Benutzer zu suchen.</string>
     <string name="no_users_found">Keine Benutzer gefunden</string>
     <string name="no_users_hint">Erstelle einen Benutzer oder leere die Suche.</string>
     <string name="quota_unknown">Kontingent unbekannt</string>

@@ -42,13 +42,22 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     fun loadUsers() {
         val s = session ?: return
+        val term = search.value.trim()
+        if (term.isEmpty()) {
+            searchTerm = ""
+            offset = 0
+            users.value = emptyList()
+            hasMore.value = false
+            loading.value = false
+            return
+        }
+        searchTerm = term
+        offset = 0
         viewModelScope.launch {
             loading.value = true
             error.value = null
             users.value = emptyList()
             hasMore.value = false
-            searchTerm = search.value.trim()
-            offset = 0
             try {
                 loadPage(s, append = false)
             } catch (e: NetworkException) {
