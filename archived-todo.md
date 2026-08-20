@@ -150,8 +150,6 @@ dem Entfernen der Pfade wirkungslos.
 
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
-### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
-
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
 `33f3cd9` („fix(ios): resolve GH issues #232-244, build fixes, localization"),
 `78fbc24`, `0c78139`, `006fee3`, `c1ecd9f`, `319592a`, `fea2cd2`, `3ae4868`
