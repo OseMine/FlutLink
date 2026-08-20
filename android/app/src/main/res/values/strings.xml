@@ -77,6 +77,7 @@
     <string name="user_administration">User administration</string>
     <string name="add_user">Add user</string>
     <string name="search_users">Search users…</string>
+    <string name="search_users_required">Enter at least one character to search users.</string>
     <string name="no_users_found">No users found</string>
     <string name="no_users_hint">Create a user or clear the search.</string>
     <string name="quota_unknown">quota unknown</string>

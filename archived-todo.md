@@ -4,7 +4,29 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
-### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
+### Review 2026-08-20 (Issue — K6 & K9 Admin-Suche/N+1 erledigt)
+
+Die Lauf-14-Befunde K6 (Admin-Suche filtert nicht) und K9 (N+1 in
+`AdminViewModel.loadPage`) wurden am 2026-08-20 umgesetzt — in `android/`
+**und** im KMP-Subprojekt `kmp/` (identischer Code), analog Desktop
+`AdminPanel.vue`:
+
+- [x] **K6 (Bug):** `AdminScreen.kt` bindet die Suche jetzt an
+      `LaunchedEffect(search)` mit 300-ms-Debounce (`delay(300)` → `loadUsers()`)
+      statt nur `LaunchedEffect(Unit)` beim Mount. Die Admin-Suche filtert live
+      bei jeder Eingabe (ersetzt den Mount-Load `LaunchedEffect(Unit)`).
+- [x] **K9 (Perf):** Suchpflicht analog Desktop (D3/U-R8-12, L12-N1):
+      `AdminViewModel.loadUsers()` bricht bei leerem Suchbegriff ab
+      (leert `users`/`hasMore`, setzt `loading=false`, keine OCS-Requests).
+      Damit wird beim Mount ohne Suchbegriff kein ungefilterter
+      200-ID + 200-`getUser`-Block mehr geladen. Die UI zeigt bei leerer
+      Suche den neuen Hinweis `search_users_required` (`values/` + `values-de/`,
+      en + de, identisch zum Desktop-Key `searchUsersRequired`).
+
+Verifikation: `cd android && ./gradlew :app:assembleDebug` sowie
+`cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest`
+grün; `cargo fmt`/`cargo clippy`/`npm run build` unverändert grün (kein
+Rust-/Frontend-Touch).
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
 `33f3cd9` („fix(ios): resolve GH issues #232-244, build fixes, localization"),

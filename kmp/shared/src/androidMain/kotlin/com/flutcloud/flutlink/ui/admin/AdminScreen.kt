@@ -62,6 +62,7 @@ import com.flutcloud.flutlink.ui.components.EmptyState
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.AdminViewModel
+import kotlinx.coroutines.delay
 
 private const val GB = 1024L * 1024 * 1024
 private const val MB = 1024L * 1024
@@ -83,7 +84,10 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
     var deleteTarget by remember { mutableStateOf<ManagedUser?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) { vm.loadUsers() }
+    LaunchedEffect(search) {
+        delay(300)
+        vm.loadUsers()
+    }
     LaunchedEffect(error) {
         error?.let {
             snackbar.showSnackbar(it.resolve(context))
@@ -116,8 +120,8 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
                 }
                 users.isEmpty() -> EmptyState(
                     icon = Icons.Default.Person,
-                    title = stringResource(R.string.no_users_found),
-                    hint = stringResource(R.string.no_users_hint)
+                    title = stringResource(if (search.isBlank()) R.string.search_users_required else R.string.no_users_found),
+                    hint = if (search.isBlank()) null else stringResource(R.string.no_users_hint)
                 )
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(users, key = { it.id }) { user ->

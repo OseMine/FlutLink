@@ -61,7 +61,7 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (`:shared:compileKotlinJvm`, grün). Die README-Aussage „stellt den
       gemeinsamen Kotlin-Code in einem KMP-Modul bereit" überschätzt den
       Stand (Desktop-JVM-Client ist als Folgearbeit notiert).
-- [ ] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
+- [x] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
       nicht: `AdminScreen.kt:106-112` bindet die Search-TextField an
       `vm.search.value` (`onValueChange = { vm.search.value = it }`), aber es
       gibt keinen Trigger (kein `LaunchedEffect(search)`, kein Debounce), der
@@ -70,6 +70,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (`LaunchedEffect(Unit)`, `AdminScreen.kt:86`). Desktop `AdminPanel.vue`
       sucht bei jeder Eingabe. Fix: `LaunchedEffect(vm.search.value)` mit
       Debounce → `loadUsers()`.
+      → erledigt: `AdminScreen.kt` nutzt `LaunchedEffect(search)` mit
+      300-ms-Debounce (`delay(300)`) vor `loadUsers()`; die Suche filtert
+      live bei jeder Eingabe (android/ + kmp/).
 - [ ] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
       „Öffnen": `FilesViewModel.downloadAndOpen` (`FilesViewModel.kt:162-189`)
       reicht `targetUser` **nicht** an `downloadToFile` weiter — anders als
@@ -82,12 +85,17 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
       evicted LRU (`MAX_CACHE_ENTRIES=500`); iOS-Befund I1-11 nennt dasselbe.
       Fix: Bestand begrenzen (mtime/LRU).
-- [ ] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
+- [x] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
       (`AdminViewModel.kt:72-81`) holt pro Seite 200 Benutzer-IDs und danach
       200 Einzel-`getUser`-OCS-Requests (N+1); `AdminScreen.kt:86` lädt beim
       Mount ohne Suchbegriff den ersten Block. Desktop verlangt einen
       Suchbegriff (D3/U-R8-12, L12-N1). Fix: Suchpflicht analog Desktop oder
       Detail-Batch.
+      → erledigt: Suchpflicht analog Desktop (D3/U-R8-12): `loadUsers()`
+      bricht bei leerem Suchbegriff ab (leert Liste, keine OCS-Requests);
+      `AdminScreen.kt` zeigt bei leerer Suche den Hinweis
+      `search_users_required`. Kein ungefilterter N+1-Block beim Mount mehr
+      (android/ + kmp/).
 
 **todo.md-Nachprüfung (Schritt 5):** Die iOS-Befunde des Laufs 13 wurden in
 den Fix-Commits `33f3cd9` („resolve GH issues #232-244 …"), `78fbc24`,
