@@ -348,6 +348,7 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       Beim Admin-Impersonation-Browsing lädt „Open" die Datei aus dem eigenen
       Namespace des Admins statt aus dem des Zielnutzers (falsche Datei/404).
       Fix: `targetUser = targetUser.value` ergänzen.
+      → erledigt (siehe Archiv „Review 2026-08-20 (Lauf 14, Issue-Fix K7)").
 - [x] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
       Maximalbestand/keine Eviction — jede (Account, Pfad)-Kombination wird
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`

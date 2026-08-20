@@ -22,6 +22,23 @@ Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
       in `androidMain` liegt und `jvmMain`/`iosMain` noch leer sind; der
       Desktop-JVM-Client (`jvmMain`) ist als Folgearbeit notiert.
 
+### Review 2026-08-20 (Lauf 14 — Issue-Fix K7, Impersonation beim „Öffnen")
+
+Fix der Impersonation-Lücke beim „Öffnen" im Android-Port und im KMP-Modul:
+`FilesViewModel.downloadAndOpen` reichte `targetUser` **nicht** an
+`downloadToFile` weiter — anders als `downloadAndShare` und
+`downloadToDownloads`. Beim Admin-Impersonation-Browsing läd „Open" die Datei
+aus dem eigenen Namespace des Admins statt aus dem des Zielnutzers
+(falsche Datei/404). Fix: `targetUser = targetUser.value` als zusätzliches
+Argument an `downloadToFile` übergeben (analog `downloadAndShare`/`downloadToDownloads`).
+Angewendet in beiden Kopien des Codes:
+`kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`
+und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`.
+
+- [x] **K7 (Bug):** `downloadAndOpen` reicht `targetUser = targetUser.value`
+      an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
+      Datei aus dem Namespace des Zielnutzers.
+
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
