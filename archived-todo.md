@@ -4,6 +4,23 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-20 (Lauf 14 — Issue-Fix K7, Impersonation beim „Öffnen")
+
+Fix der Impersonation-Lücke beim „Öffnen" im Android-Port und im KMP-Modul:
+`FilesViewModel.downloadAndOpen` reichte `targetUser` **nicht** an
+`downloadToFile` weiter — anders als `downloadAndShare` und
+`downloadToDownloads`. Beim Admin-Impersonation-Browsing läd „Open" die Datei
+aus dem eigenen Namespace des Admins statt aus dem des Zielnutzers
+(falsche Datei/404). Fix: `targetUser = targetUser.value` als zusätzliches
+Argument an `downloadToFile` übergeben (analog `downloadAndShare`/`downloadToDownloads`).
+Angewendet in beiden Kopien des Codes:
+`kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`
+und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`.
+
+- [x] **K7 (Bug):** `downloadAndOpen` reicht `targetUser = targetUser.value`
+      an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
+      Datei aus dem Namespace des Zielnutzers.
+
 ### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes)
 
 Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
