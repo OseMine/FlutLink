@@ -70,13 +70,14 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (`LaunchedEffect(Unit)`, `AdminScreen.kt:86`). Desktop `AdminPanel.vue`
       sucht bei jeder Eingabe. Fix: `LaunchedEffect(vm.search.value)` mit
       Debounce → `loadUsers()`.
-- [ ] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
+- [x] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
       „Öffnen": `FilesViewModel.downloadAndOpen` (`FilesViewModel.kt:162-189`)
       reicht `targetUser` **nicht** an `downloadToFile` weiter — anders als
       `downloadAndShare` (`:239-246`) und `downloadToDownloads` (`:202-211`).
       Beim Admin-Impersonation-Browsing lädt „Open" die Datei aus dem eigenen
       Namespace des Admins statt aus dem des Zielnutzers (falsche Datei/404).
       Fix: `targetUser = targetUser.value` ergänzen.
+      → erledigt (siehe Archiv „Review 2026-08-20 (Lauf 14, Issue-Fix K7)").
 - [ ] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
       Maximalbestand/keine Eviction — jede (Account, Pfad)-Kombination wird
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
