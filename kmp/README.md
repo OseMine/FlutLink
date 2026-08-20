@@ -3,8 +3,12 @@
 `kmp/` ist ein Kotlin-Multiplatform-Subprojekt, das den Kotlin-Code des
 Android-Clients (`android/`) als Multiplattform-Modul spiegelt. Es ist kein
 separates Produkt — es übernimmt den Funktionsumfang des Desktop-Clients
-(Tauri) und des Android-Ports und stellt den gemeinsamen Kotlin-Code in einem
-KMP-Modul bereit.
+(Tauri) und des Android-Ports. `commonMain` enthält derzeit nur einen kleinen
+plattformagnostischen Kern (`AuthSession.kt`, `ApiException.kt`,
+`JsonUtil.kt`, `dto/Models.kt`); der gesamte übrige Code liegt in
+`androidMain` (Android-APIs: OkHttp, Context, SharedPreferences, Compose),
+`jvmMain`/`iosMain` sind noch leer. Ein Desktop-JVM-Client (`jvmMain`) ist als
+Folgearbeit notiert.
 
 > Bewusste Ausnahme (wie beim Android-Port): Zwei-Wege-Sync ist Desktop-only.
 
@@ -17,9 +21,9 @@ kmp/
 ├── gradle/libs.versions.toml    — Versionskatalog (mirror android/)
 ├── gradle/wrapper/              — Gradle 8.13 Wrapper (kopiert aus android/)
 └── shared/
-    ├── build.gradle.kts         — KMP-Modul: androidTarget() + jvm()
+    ├── build.gradle.kts         — KMP-Modul: androidTarget() + jvm() + iOS-Targets
     └── src/
-        ├── commonMain/          — plattformagnostischer Kotlin-Code
+        ├── commonMain/          — plattformagnostischer Kotlin-Code (nur 4 Dateien)
         │   └── com/flutcloud/flutlink/
         │       ├── data/AuthSession.kt, ApiException.kt, JsonUtil.kt
         │       └── data/dto/Models.kt
@@ -31,6 +35,8 @@ kmp/
         │       ├── core/        — AccountStore, SessionManager, SettingsStore
         │       ├── data/        — FlutCloudApi, WebDavApi, HttpClientFactory, …
         │       └── ui/          — Compose-Screens (Home, Files, Admin, Settings)
+        ├── jvmMain/             — (noch leer; Desktop-JVM-Client als Folgearbeit)
+        ├── iosMain/             — (noch leer; iOS-Targets derzeit funktionslos)
         └── androidUnitTest/     — JVM-Unit-Tests (aus android/app/src/test)
 ```
 
