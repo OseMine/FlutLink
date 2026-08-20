@@ -174,7 +174,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     dest = file,
                     onProgress = { transferred, total ->
                         _transferProgress.value = TransferProgress(transferred, total)
-                    }
+                    },
+                    targetUser = targetUser.value
                 )
                 _downloaded.value = file.absolutePath
             } catch (e: NetworkException) {
