@@ -4,7 +4,33 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
-### Review 2026-08-20 (Lauf 14 — K1/K2 KMP-Build-Fixes abgehakt)
+### Issue #248 — KMP-Build-Blocker behoben (2026-08-20)
+
+Die Workflows/gh-actions sollen die **KMP-Version** (`kmp/`) bauen (Issue
+#248). Voraussetzung dafür war ein grüner KMP-Build. Verifiziert frisch gegen
+HEAD: `cd kmp && ./gradlew :shared:compileDebugKotlinAndroid
+:shared:compileKotlinJvm :shared:testDebugUnitTest` → **BUILD SUCCESSFUL**
+(nur bekannte Deprecation-Warnungen). Damit erledigt und aus todo.md
+verschoben:
+
+- [x] **K1 (Build, hoch):** `androidx-datastore-preferences` (1.2.1) im
+      Versionskatalog (`kmp/gradle/libs.versions.toml`) und in
+      `androidMain.dependencies` (`kmp/shared/build.gradle.kts`) ergänzt —
+      `SettingsStore.kt` (DataStore-Preferences) kompiliert wieder.
+- [x] **K2 (Tests, hoch):** `xpp3:xpp3:1.1.4c` als `androidUnitTest`-
+      Dependency (Katalog + `kmp/shared/build.gradle.kts`) ergänzt —
+      `WebDavApiTest` (`XmlPullParserFactory`) läuft auf der JVM.
+- [x] **K4 (Doku, minor):** `kmp/README.md`-Targets-Abschnitt korrigiert —
+      die iOS-Targets sind deklariert (macOS-only kompilierbar, ohne
+      `iosMain`-Code); der produktive iOS-Port bleibt `ios/`.
+
+**Nicht angefasst (weiter offen, K3):** die Workflow-Dateien
+(`android.yml`/`build.yml`/`ios.yml`) — Workflows sind für automatisierte
+Läufe tabu (Security-Regel). Empfehlung an den Maintainer: `kmp/**` in die
+`android.yml`-Paths aufnehmen und den `build`-Job auf
+`cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest
+:shared:compileKotlinJvm` umstellen; analog für `build.yml`/`ios.yml`, damit
+die KMP-Version in CI gebaut und getestet wird.
 
 Die Lauf-14-Befunde K1 (fehlende `androidx-datastore-preferences`-
 Dependency) und K2 (fehlendes `xpp3` für die JVM-Unit-Tests) wurden behoben
@@ -101,6 +127,8 @@ grün; `cargo fmt`/`cargo clippy`/`npm run build` unverändert grün (kein
 Rust-/Frontend-Touch).
 
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
+
+Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
 `33f3cd9` („fix(ios): resolve GH issues #232-244, build fixes, localization"),
 `78fbc24`, `0c78139`, `006fee3`, `c1ecd9f`, `319592a`, `fea2cd2`, `3ae4868`
 und `23eda61`–`88ee296` adressiert und am 2026-08-20 per Code-Inspektion gegen

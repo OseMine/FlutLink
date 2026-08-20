@@ -47,13 +47,13 @@ kmp/
 - `jvm()` — JVM-Target; kompiliert `commonMain` (derzeit ohne
   `jvmMain`-Quellen, nur für die Plattform-Validierung der gemeinsamen
   Module).
-- `iosX64()`/`iosArm64()`/`iosSimulatorArm64()` — iOS-Targets als statisches
-  `Shared`-Framework (deklariert in `shared/build.gradle.kts`,
-  `iosMain.dependencies` mit `ktor-client-darwin`). Sie können nur auf
-  macOS/Xcode-Hosts kompiliert werden; der CI-Build (Linux) übt nur
-  `androidTarget()` + `jvm()` aus. Der produktive iOS-Port lebt weiterhin in
-  `ios/` als Swift/SwiftUI-App; die Targets bleiben als Vorbereitung für
-  künftige gemeinsame iOS-Logik bestehen.
+- `iosX64()` / `iosArm64()` / `iosSimulatorArm64()` — iOS-Targets als
+  statisches `Shared`-Framework (deklariert in `shared/build.gradle.kts`,
+  `iosMain.dependencies` mit `ktor-client-darwin`). Sie enthalten derzeit
+  noch keinen `iosMain`-Code und können nur auf macOS/Xcode-Hosts kompiliert
+  werden; der CI-Build (Linux) übt nur `androidTarget()` + `jvm()` aus. Der
+  produktive iOS-Port lebt weiterhin in `ios/` als Swift/SwiftUI-App; die
+  Targets bleiben als Vorbereitung für künftige gemeinsame iOS-Logik bestehen.
 
 Der Gradle-Wrapper (8.13) und der Versionskatalog sind bewusst identisch mit
 `android/`, damit beide Projekte mit demselben Tooling bauen.

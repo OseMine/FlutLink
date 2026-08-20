@@ -287,7 +287,11 @@ todo.md/archivierte Claim „Build + 30 Tests grün" (Issue #246) gilt damit
 Katalog-Umbau `d183b27` entfernte die nötige Dependency, Merge `bacc4f0`/
 PR #247 brachte das auf main). Gegenstand dieses Laufs: das komplette
 KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
-`jvm()` + iOS-Targets). Neu gefunden:
+`jvm()` + iOS-Targets). Neu gefunden — die Build-Blocker K1/K2 und der
+README-Widerspruch K4 wurden in diesem Lauf (Issue #248, „gh actions/
+Workflows auf die kmp-Version") behoben: `:shared:compileDebugKotlinAndroid`,
+`:shared:compileKotlinJvm` und `:shared:testDebugUnitTest` sind grün
+(Details im Archiv):
 
 - [x] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
       `SettingsStore.kt:13,19,21-23,40-54` (`core/`) nutzt
@@ -301,6 +305,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `SettingsStore.kt`). `android/gradle/libs.versions.toml` hat sie als
       `datastore = "1.2.1"`. Fix: `androidx-datastore-preferences` (1.2.1) in
       Katalog + `androidMain.dependencies` aufnehmen.
+      → erledigt: `androidx-datastore-preferences` (1.2.1) im Katalog und in
+      `androidMain.dependencies` aufgenommen; `:shared:compileDebugKotlinAndroid`
+      grün (Details im Archiv).
 - [x] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
       `WebDavApi.parseMultistatus` (`WebDavApi.kt:499-501`) nutzt
       `XmlPullParserFactory.newInstance()`; die `androidUnitTest`-Dependencies
@@ -309,6 +316,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (dieselben Tests). Ohne XmlPull-Implementierung wirft die Mockable-
       Android-JAR bei den 7 `WebDavApiTest`-Fällen „not mocked". Fix:
       `xpp3:xpp3:1.1.4c` als `androidUnitTest`-Dependency ergänzen.
+      → erledigt: `xpp3` (1.1.4c) im Katalog und in
+      `androidUnitTest.dependencies` ergänzt; `:shared:testDebugUnitTest`
+      grün (Details im Archiv).
 - [ ] **K3 (CI, mittel):** `kmp/` hat **keinerlei** CI-Abdeckung —
       `android.yml` triggert nur auf `android/**`, `build.yml`/`lint.yml` nur
       auf Frontend/Rust. Der kaputte KMP-Build (K1) wird von keinem Workflow
@@ -316,6 +326,13 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `kmp/**` in die `android.yml`-Paths aufnehmen oder einen KMP-Job
       (`:shared:assembleDebug` + `:shared:testDebugUnitTest` +
       `:shared:compileKotlinJvm`) ergänzen.
+      → weiter offen: Workflow-Dateien sind für automatisierte Läufe tabu
+      (Security-Regel); die KMP-Build-Blocker K1/K2 sind behoben, sodass ein
+      KMP-CI-Job jetzt grün laufen würde. Die Workflow-Anpassung (Issue #248)
+      muss manuell erfolgen — Vorschlag: `kmp/**` in die `android.yml`-Paths
+      aufnehmen und den `build`-Job auf `cd kmp && ./gradlew
+      :shared:assembleDebug :shared:testDebugUnitTest :shared:compileKotlinJvm`
+      umstellen (analog für `build.yml`/`ios.yml`).
 - [x] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptete „iOS-Targets sind
       bewusst nicht eingerichtet", obwohl `kmp/shared/build.gradle.kts:20-32`
       `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
