@@ -4,6 +4,28 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Issue #255 — iOS-Port (Swift) entfernt (2026-08-20)
+
+Der iOS-Port `ios/` (Swift + SwiftUI, Test-Port von opencode) wurde entfernt,
+weil `kmp/` ihn ersetzt. Damit sind die zuletzt in todo.md offenen iOS-Befunde
+aus Lauf 13 obsolet und erledigt:
+
+- [x] **I1-5 (Policy):** `FLUTCLOUD_URL` im iOS-`Info.plist` — obsolet, iOS-Client entfernt.
+- [x] **I1-6 (Feature):** „Open"/„Download"/„Share" auf iOS — obsolet, iOS-Client entfernt.
+- [x] **I1-10 (Perf):** RAM-Upload/-Download auf iOS — obsolet, iOS-Client entfernt.
+
+Zusätzlich erledigt: **K4 (Doku)** — `kmp/README.md` beschreibt die
+iOS-Targets jetzt korrekt als Ersatz für den entfernten Swift-iOS-Port
+(kein „bewusst nicht eingerichtet"-Widerspruch zum Build-Skript mehr).
+
+Gelöscht: `ios/` (26 Swift-Dateien, `ios/README.md`, `project.yml`, Assets,
+l10n), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
+(AltStore-Quellen für den iOS-Test-Port) und `.github/ISSUE_TEMPLATE/ios.yml`.
+`AGENTS.md` referenziert KMP statt iOS. Die iOS-CI-Workflows
+(`.github/workflows/ios.yml`, `ios`-Job in `release.yml`) wurden bewusst
+nicht angefasst (Workflows sind für automatisierte Läufe tabu) und sind nach
+dem Entfernen der Pfade wirkungslos.
+
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits

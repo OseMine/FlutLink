@@ -40,8 +40,12 @@ kmp/
   `com.flutcloud.flutlink.kmp`
 - `jvm()` — JVM-Target; kompiliert `commonMain` (derzeit ohne
   `jvmMain`-Quellen, nur für die Plattform-Validierung der gemeinsamen
-  Module). iOS-Targets sind bewusst nicht eingerichtet — der iOS-Port lebt in
-  `ios/` als Swift/SwiftUI-App.
+  Module)
+- `iosX64()`/`iosArm64()`/`iosSimulatorArm64()` — iOS-Targets
+  (Framework `Shared`, `iosMain.dependencies` mit `ktor-client-darwin`).
+  Sie ersetzen den früheren Swift/SwiftUI-iOS-Port (`ios/`, entfernt) und
+  sind nur auf macOS/Xcode-Hosts kompilierbar; die Linux-CI (android.yml,
+  JVM-Build) übt nur `androidTarget()` + `jvm()` aus.
 
 Der Gradle-Wrapper (8.13) und der Versionskatalog sind bewusst identisch mit
 `android/`, damit beide Projekte mit demselben Tooling bauen.
