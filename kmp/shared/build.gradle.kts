@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose)
 }
 
 kotlin {
@@ -16,47 +17,62 @@ kotlin {
 
     jvm()
 
+    // iOS targets mirror the desktop client's feature set on Apple devices.
+    // They can only be compiled on macOS/Xcode hosts; the CI (android.yml /
+    // jvm builds) only exercises androidTarget() + jvm() on Linux.
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "Shared"
+            isStatic = true
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
+
+            implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.lifecycle.runtime.compose)
+            implementation(libs.navigation.compose)
+
+            implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.coroutines.core)
         }
         jvmMain.dependencies {
             // The Kotlin Compose compiler plugin is applied module-wide and runs
             // for every target; give the JVM target the Compose runtime so the
-            // version check passes even though jvmMain contains no Compose code.
-            implementation(libs.compose.jb.runtime)
+            // version check passes even though jvmMain only holds expect/actual
+            // glue code.
+            implementation(compose.runtime)
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.kotlinx.coroutines.swing)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.lifecycle.runtime.ktx)
-            implementation(libs.androidx.lifecycle.viewmodel.compose)
-            implementation(libs.androidx.navigation.compose)
-            implementation(libs.androidx.datastore.preferences)
             implementation(libs.androidx.security.crypto)
 
-            implementation(libs.okhttp)
-            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.android)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         androidUnitTest.dependencies {
             implementation(libs.junit)
-            implementation(libs.xpp3)
-            implementation(libs.okhttp)
+            implementation(libs.ktor.client.okhttp)
         }
     }
-}
-
-dependencies {
-    // Compose BOM alignment must go through Gradle's `platform()` — the KMP
-    // dependency DSL removed its own `platform` overload in Kotlin 2.3.
-    add("androidMainImplementation", platform(libs.compose.bom))
-    add("androidMainImplementation", libs.compose.ui)
-    add("androidMainImplementation", libs.compose.ui.graphics)
-    add("androidMainImplementation", libs.compose.ui.tooling.preview)
-    add("androidMainImplementation", libs.compose.material3)
-    add("androidMainImplementation", libs.compose.material.icons)
 }
 
 android {
@@ -102,4 +118,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+// The Compose Multiplatform plugin generates a `Res` class for the shared
+// composeResources (see src/commonMain/composeResources); expose it under the
+// app namespace so common code can reference `com.flutcloud.flutlink.resources.*`.
+compose.resources {
+    packageOfResClass = "com.flutcloud.flutlink.resources"
 }
