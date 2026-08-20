@@ -354,6 +354,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
       evicted LRU (`MAX_CACHE_ENTRIES=500`); iOS-Befund I1-11 nennt dasselbe.
       Fix: Bestand begrenzen (mtime/LRU).
+      → erledigt 2026-08-20 (siehe Archiv): `ListCache.kt` in `android/` und
+      `kmp/` evicted per mtime/LRU (`MAX_CACHE_ENTRIES = 500`, Eviction
+      nach jedem `write`, `touch` auf `read`).
 - [x] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
       (`AdminViewModel.kt:72-81`) holt pro Seite 200 Benutzer-IDs und danach
       200 Einzel-`getUser`-OCS-Requests (N+1); `AdminScreen.kt:86` lädt beim

@@ -31,9 +31,11 @@ class ListCache(private val context: Context) {
     fun read(accountKey: String, path: String): List<WebDavEntry>? {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         if (!file.exists()) return null
-        return runCatching {
+        val entries = runCatching {
             json.decodeFromString<CachedListing>(file.readText()).entries
         }.getOrNull()
+        if (entries != null) touch(file)
+        return entries
     }
 
     /** Persist a successful listing so it survives offline folder opens. */
@@ -41,6 +43,10 @@ class ListCache(private val context: Context) {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         file.writeText(json.encodeToString(CachedListing(path, entries)))
         evictOldest()
+    }
+
+    private fun touch(file: File) {
+        file.setLastModified(System.currentTimeMillis())
     }
 
     /**

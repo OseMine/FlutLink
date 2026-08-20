@@ -39,6 +39,25 @@ und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewMode
       an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
       Datei aus dem Namespace des Zielnutzers.
 
+### Review 2026-08-20 (Lauf 14 — K8 Cache-Eviction umgesetzt)
+
+**K8 (Perf, minor):** `ListCache.kt` hatte keinen Maximalbestand/keine
+Eviction — jede (Account, Pfad)-Kombination wurde dauerhaft als JSON im
+App-`filesDir` gehalten. Behoben analog Desktop `cache.rs`
+(`MAX_CACHE_ENTRIES=500`, mtime/LRU-Aging) und dem iOS-Fix I1-11:
+
+- `android/app/src/main/java/com/flutcloud/flutlink/data/ListCache.kt` und
+  `kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/data/ListCache.kt`
+  (identischer Code) haben jetzt `MAX_CACHE_ENTRIES = 500`,
+  Eviction nach jedem `write` (sortiert die Cache-Dateien nach mtime und
+  löscht die ältesten über dem Limit) und `touch` auf `read`
+  (Recency wird bei erfolgreichem Lesen aktualisiert → echtes LRU).
+- Verifikation: `cd android && ./gradlew :app:compileDebugKotlin` grün. Der
+  `kmp/`-`compileDebugKotlinAndroid`-Lauf failt weiterhin ausschließlich am
+  bekannten K1-Befund (`SettingsStore.kt`, fehlende
+  `androidx-datastore-preferences`-Dependency) — unabhängig von dieser
+  Änderung (keine ListCache-Fehler).
+
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
