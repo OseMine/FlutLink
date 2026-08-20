@@ -4,6 +4,42 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
+
+Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
+`33f3cd9` („fix(ios): resolve GH issues #232-244, build fixes, localization"),
+`78fbc24`, `0c78139`, `006fee3`, `c1ecd9f`, `319592a`, `fea2cd2`, `3ae4868`
+und `23eda61`–`88ee296` adressiert und am 2026-08-20 per Code-Inspektion gegen
+HEAD (`52447bd`) verifiziert (Xcode-Build auf dem Linux-Runner nicht möglich;
+die Build-Korrektheit bestätigt der `ios.yml`-CI-Build). Folgende Punkte sind
+damit erledigt und aus todo.md nach hier verschoben (Restlücken I1-5, I1-6,
+I1-10 bleiben in todo.md offen):
+
+- [x] **I1-1 (Build):** `FilesView.swift:57` ruft jetzt `viewModel.search("")`
+      (Methodenaufruf statt Property-Zuweisung).
+- [x] **I1-2 (Build):** `FilesViewModel.swift:49` definiert `func
+      setTargetUser(_:)`; der Impersonation-Flow ist über den geteilten
+      ViewModel-State verdrahtet.
+- [x] **I1-3 (Architektur):** `HomeView.swift:13-24` erzeugt die drei
+      ViewModels einmalig als `@StateObject` (kein Re-Render-Reset mehr).
+- [x] **I1-4 (Bug):** `SettingsViewModel.accounts` wird aus
+      `sessionManager.accounts` befüllt (`SettingsViewModel.swift:27,32`).
+- [x] **I1-7 (i18n):** `Localizable.strings` in `en.lproj` + `de.lproj`
+      vorhanden; `.localized`-Keys aufgelöst.
+- [x] **I1-8 (Perf):** `AdminView.swift:76` lädt beim Appear keine Benutzer
+      mehr („require search term"); Suche über `onSubmit`/Button.
+- [x] **I1-9 (UX):** `searchResultsList` bietet jetzt `contextMenu`
+      (`FilesView.swift:140`).
+- [x] **I1-11 (Cache):** `ListCache.swift` hat `evictIfNeeded()`-Eviction.
+- [x] **I1-12 (Parität):** `WebDavApi.swift:45-46,70-71` verwirft
+      SEARCH-/List-Antworten, die nicht im Ziel-Namespace
+      (`/remote.php/dav/files/<target>`) liegen (Impersonation-Guard).
+
+Ebenfalls erledigt (Lauf 14): der Lauf-13-Hinweis, die drei opencode-Workflows
+nutzten `anomalyco/opencode/github@latest` — `opencode.yml:92`,
+`opencode-todo-issues.yml:38` und `opencode-review.yml:38` pinnen jetzt auf
+den vollen Commit-SHA `31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18`.
+
 ### Review 2026-08-20 (Issue #246 — KMP-Subprojekt umgesetzt & verifiziert)
 
 Kotlin-Multiplatform-Subprojekt `kmp/` angelegt und den gesamten Kotlin-Code
