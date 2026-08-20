@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FlutLink launcher foreground: a stylized "link" chain node in the
+     OperationFlut brand hue (blue-violet), centered on the safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- outer link ring -->
+    <path
+        android:fillColor="#8B9CFF"
+        android:pathData="M54,30.5
+            C41.02,30.5 30.5,41.02 30.5,54
+            C30.5,66.98 41.02,77.5 54,77.5
+            C66.98,77.5 77.5,66.98 77.5,54
+            C77.5,41.02 66.98,30.5 54,30.5
+            Z
+            M54,39.5
+            C62.01,39.5 68.5,45.99 68.5,54
+            C68.5,62.01 62.01,68.5 54,68.5
+            C45.99,68.5 39.5,62.01 39.5,54
+            C39.5,45.99 45.99,39.5 54,39.5
+            Z" />
+    <!-- inner link bar -->
+    <path
+        android:fillColor="#FAFAFA"
+        android:pathData="M50,49 L58,49 L58,59 L50,59 Z" />
+</vector>

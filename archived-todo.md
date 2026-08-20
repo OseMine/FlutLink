@@ -4,6 +4,46 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-20 (Issue #246 — KMP-Subprojekt umgesetzt & verifiziert)
+
+Kotlin-Multiplatform-Subprojekt `kmp/` angelegt und den gesamten Kotlin-Code
+des Android-Clients (`android/`) in die KMP-Source-Sets übernommen
+(`androidTarget()` + `jvm()`; Desktop-Port folgt in einem Folge-Ticket).
+Verifiziert gegen HEAD (`d75b4c0`):
+
+- [x] **KMP-Scaffolding:** `kmp/` mit `settings.gradle.kts` (rootProject
+      „FlutLinkKmp", Modul `:shared`), `build.gradle.kts` (Plugin-Aliases
+      apply false), `gradle.properties`, `gradle/libs.versions.toml`
+      (Versions-Spiegel von `android/`: AGP 8.13.2, Kotlin 2.3.21,
+      composeBom 2025.06.00, okhttp 5.4.0, …), `.gitignore`, Gradle-Wrapper
+      aus `android/` übernommen.
+- [x] **`kmp/shared/build.gradle.kts`:** `androidTarget()` + `jvm()`;
+      Compose BOM via top-level `dependencies {}` (`platform()` im KMP-DSL
+      ist ab Kotlin 2.3 entfernt, KT-58759); `compose-jb-runtime`
+      (`org.jetbrains.compose.runtime:runtime:1.11.0`) für `jvmMain`;
+      `android {}`-Block (namespace `com.flutcloud.flutlink`, applicationId
+      `com.flutcloud.flutlink.kmp`, compileSdk 36, minSdk 26, targetSdk 36,
+      versionCode 2, versionName 1.0.0, `FLUTCLOUD_URL`-BuildConfig,
+      buildFeatures compose+buildConfig, Java 17).
+- [x] **Code-Kopie in Source-Sets:** `commonMain` = plattformneutral
+      (`data/AuthSession.kt`, `ApiException.kt`, `JsonUtil.kt`,
+      `data/dto/Models.kt`); `androidMain` = gesamter restlicher Code
+      (`core/`, `data/`, `ui/`, `AppContainer.kt`, `FlutLinkApplication.kt`,
+      `MainActivity.kt`) + `AndroidManifest.xml` + `res/`; `androidUnitTest`
+      = alle 5 Testklassen (`AccountStoreTest`, `SessionManagerTest`,
+      `FlutCloudApiTest`, `WebDavApiTest`, `InMemorySharedPreferences`).
+- [x] **Build & Tests grün:** `:shared:assembleDebug` OK,
+      `:shared:compileKotlinJvm` OK, `:shared:testDebugUnitTest` OK —
+      30 Tests, 0 Failures (AccountStoreTest 7, SessionManagerTest 11,
+      FlutCloudApiTest 5, WebDavApiTest 7). Nur Deprecation-Warnungen
+      (`EncryptedSharedPreferences`/`MasterKey`).
+- [x] **README:** `kmp/README.md` (DE) mit Struktur, Targets und
+      Build-Befehlen.
+- [x] **Verifikation (AGENTS.md):** `cargo fmt --check` grün, `cargo clippy
+      --all-targets -- -D warnings` grün (Tauri-Linux-Systemdeps
+      `libwebkit2gtk-4.1-dev`/`libgtk-3-dev`/… nachinstalliert).
+      `npm run build` nicht nötig (kein Frontend-Touch). Kein Commit/Push.
+
 ### Review 2026-08-18 (Lauf 13 — R8-C1 & R7-7 abgeschlossen)
 
 In Lauf 13 gegen den aktuellen Stand von `release.yml` verifiziert und damit

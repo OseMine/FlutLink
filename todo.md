@@ -5,6 +5,14 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### KMP-Subprojekt (Issue #246) — erledigt 2026-08-20
+
+Kotlin-Multiplatform-Subprojekt `kmp/` erstellt und den gesamten Kotlin-Code
+aus `android/` übernommen (`commonMain`/`androidMain`/`androidUnitTest`).
+Build + 30 Tests grün, `cargo fmt`/`cargo clippy` verifiziert. Details in
+`archived-todo.md` („Review 2026-08-20 (Issue #246 …)"). Offene Folgearbeit
+(nicht Teil dieses Tickets): Desktop-JVM-Client in `kmp/shared` aufbauen.
+
 ### Review 2026-08-18 (Lauf 13, Fokus iOS — neue Befunde)
 
 Verifikation in diesem Lauf frisch durchgeführt: `cargo test --manifest-path
