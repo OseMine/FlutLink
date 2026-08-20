@@ -4,6 +4,28 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Issue #255 — iOS-Port (Swift) entfernt (2026-08-20)
+
+Der iOS-Port `ios/` (Swift + SwiftUI, Test-Port von opencode) wurde entfernt,
+weil `kmp/` ihn ersetzt. Damit sind die zuletzt in todo.md offenen iOS-Befunde
+aus Lauf 13 obsolet und erledigt:
+
+- [x] **I1-5 (Policy):** `FLUTCLOUD_URL` im iOS-`Info.plist` — obsolet, iOS-Client entfernt.
+- [x] **I1-6 (Feature):** „Open"/„Download"/„Share" auf iOS — obsolet, iOS-Client entfernt.
+- [x] **I1-10 (Perf):** RAM-Upload/-Download auf iOS — obsolet, iOS-Client entfernt.
+
+Zusätzlich erledigt: **K4 (Doku)** — `kmp/README.md` beschreibt die
+iOS-Targets jetzt korrekt als Ersatz für den entfernten Swift-iOS-Port
+(kein „bewusst nicht eingerichtet"-Widerspruch zum Build-Skript mehr).
+
+Gelöscht: `ios/` (26 Swift-Dateien, `ios/README.md`, `project.yml`, Assets,
+l10n), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
+(AltStore-Quellen für den iOS-Test-Port) und `.github/ISSUE_TEMPLATE/ios.yml`.
+`AGENTS.md` referenziert KMP statt iOS. Die iOS-CI-Workflows
+(`.github/workflows/ios.yml`, `ios`-Job in `release.yml`) wurden bewusst
+nicht angefasst (Workflows sind für automatisierte Läufe tabu) und sind nach
+dem Entfernen der Pfade wirkungslos.
+
 ### Review 2026-08-20 (Lauf 14 — Issue-Fix K7, Impersonation beim „Öffnen")
 
 Fix der Impersonation-Lücke beim „Öffnen" im Android-Port und im KMP-Modul:
@@ -31,8 +53,10 @@ Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
       deklariert sind (Framework `Shared`, `iosMain.dependencies` mit
       `ktor-client-darwin`), aber derzeit **funktionslos** sind (kein
       `iosMain`-Quellverzeichnis, Kompilierung nur auf macOS/Xcode-Hosts).
-      Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
-      entfernt; der iOS-Port lebt weiter in `ios/` (Swift/SwiftUI).
+Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
+       entfernt. Hinweis: der iOS-Port in `ios/` (Swift/SwiftUI) wurde später
+       mit Issue #255 (PR #263) entfernt; seither beschreibt die README die
+       iOS-Targets als Ersatz für den Swift-Port.
 - [x] **K5 (Architektur):** README-Einleitung und Struktur-Baum spiegeln jetzt
       den tatsächlichen `commonMain`-Stand (4 Dateien: `AuthSession.kt`,
       `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`), dass der übrige Code

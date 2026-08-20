@@ -5,6 +5,20 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Issue #255 — iOS-Port (Swift) entfernt, ersetzt durch KMP (2026-08-20)
+
+Der iOS-Port (`ios/`, Swift + SwiftUI) wurde **entfernt**, weil `kmp/` ihn
+ersetzt (siehe `kmp/README.md`). Gelöscht: `ios/` (inkl. `ios/README.md`,
+`project.yml`), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
+(AltStore-Quellen für den iOS-Test-Port) und `.github/ISSUE_TEMPLATE/ios.yml`.
+`AGENTS.md` und `kmp/README.md` sind angepasst. Damit sind die noch offenen
+iOS-Befunde aus Lauf 13 **obsolet** und abgehakt: I1-5 (FLUTCLOUD_URL im
+Info.plist), I1-6 (Dateiaktionen), I1-10 (RAM-Upload/-Download). Details im
+Archiv. Hinweis: `.github/workflows/ios.yml` (iOS-CI) und der `ios`-Job in
+`release.yml` sind **bewusst nicht** angefasst (Workflows sind für
+automatisierte Läufe tabu); sie referenzieren gelöschte Pfade und sind
+wirkungslos, bis jemand mit `workflows`-Berechtigung sie entfernt.
+
 ### Review 2026-08-20 (Lauf 15, ganzes Projekt — in Arbeit)
 
 Verifikation in diesem Lauf frisch ausgeführt (Details am Abschnittsende).
@@ -233,15 +247,15 @@ und -Komponenten. Neu gefunden (alle gegen HEAD `d79eb98` verifiziert):
 - K1/K2 (KMP-Build) bei HEAD **weiterhin kaputt** — `cd kmp && ./gradlew
   :shared:assembleDebug :shared:testDebugUnitTest` failt erneut an
   `SettingsStore.kt` (unresolved datastore, 30+ Fehler), s. Lauf 14.
-- K3–K9 (KMP) per Code-Inspektion unverändert offen; K4/K5 (README-
-  iOS-Targets/commonMain) gelten weiterhin.
+- K3, K6, K8, K9 (KMP) per Code-Inspektion unverändert offen; K4/K5
+  (README-iOS-Targets/commonMain) sind inzwischen erledigt (s. u.).
 - L12-N1 (AdminPanel-Pagination tot) von der Frontend-Prüfung **bestätigt**
   (`AdminPanel.vue:175-195` ruft `adminListUsers(query)` ohne limit/offset,
   `hasMore` nie gesetzt, „Load more" unerreichbar); L12-N4 (doppelte
   Fehleranzeige bei Suche) ebenfalls bestätigt (`files.ts:167-169` +
   `FileExplorer.vue:97-103`). L12-N2/N3/N5/N6 unverändert.
-- I1-5/I1-6/I1-10 (iOS) bleiben offen (Xcode-Build auf Linux nicht
-  möglich; Code-Inspektion unverändert).
+- I1-5/I1-6/I1-10 (iOS) sind mit dem Merge von Issue #255 (PR #263)
+  **obsolet** — der Swift-iOS-Port `ios/` wurde entfernt (s. oben).
 
 Keine neuen Befunde in `commands.rs`, `updater.rs`, `accounts.rs`,
 `state.rs`, `lib.rs` über die oben genannten Punkte hinaus; Workflows
@@ -264,8 +278,8 @@ löscht `ios/` und das `ios.yml`-Issue-Template). Keiner dieser Commits ist
 Ancestor von main (`merge-base --is-ancestor` = NOT MERGED) → die KMP-
 Befunde sind trotz vorhandener Fix-Arbeit **auf main ungelöst**; K1–K9
 bleiben offen, bis die zugehörigen PRs gemergt sind. `opencode/issue255`
-(„iOS entfernen") steht im Konflikt zur AGENTS.md-Aussage (iOS als
-TEST-Port) und sollte bewusst entschieden werden.
+(„iOS entfernen") wurde mit **PR #263 gemergt** — die Entscheidung ist
+damit gefallen: der iOS-Test-Port ist entfernt, `kmp/` ersetzt ihn.
 
 Verifikation dieses Laufs (frisch ausgeführt, HEAD `d79eb98`):
 `cargo test --manifest-path src-tauri/Cargo.toml` → **83 passed / 0 failed**
@@ -321,8 +335,10 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
       `iosMain.dependencies` mit `ktor-client-darwin`). README widersprach
       dem Build-Skript; die Targets sind aktuell funktionslos (kein
-      `iosMain`-Quellcode). Fix: README angepasst (statt iOS-Targets zu
-      entfernen) — siehe Archiv.
+      `iosMain`-Quellcode). Zuerst via PR #256 („Fixed K4/K5") durch eine
+      README-Anpassung behoben; mit Issue #255 (PR #263) erneut angepasst,
+      weil `ios/` entfernt wurde: die README beschreibt die iOS-Targets
+      jetzt als Ersatz für den entfernten Swift-iOS-Port.
 - [x] **K5 (Architektur, minor):** `commonMain` enthält nur 4 Dateien
       (`AuthSession.kt`, `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`);
       der gesamte übrige Code liegt in `androidMain` (Android-APIs: OkHttp,
@@ -373,12 +389,9 @@ verschoben: I1-1 (`viewModel.search("")`, `FilesView.swift:57`), I1-2
 (kein Auto-Load beim Appear, `AdminView.swift:76`), I1-9 (`contextMenu` in
 `searchResultsList`, `FilesView.swift:140`), I1-11 (`evictIfNeeded`,
 `ListCache.swift:38`), I1-12 (Namespace-Guard, `WebDavApi.swift:45-46`).
-**Weiter offen (Restlücken):** I1-5 (Key in `Info.plist` vorhanden, aber
-`ios.yml` setzt kein `env.FLUTCLOUD_URL` → `$(FLUTCLOUD_URL)` ist im CI-Build
-leer, `urlLocked` bleibt false), I1-6 („Open" leert `downloadedData` ohne
-Präsentation, `FilesView.swift:100`; Downloads weiter im RAM), I1-10
-(`uploadStream` weiter nicht-streamender Wrapper, `WebDavApi.swift:104-113`;
-`downloadToFile` liest in den Speicher, `:118-127`). Ebenfalls erledigt: der
+**Weiter offen (Restlücken):** I1-5, I1-6 und I1-10 waren die verbliebenen
+iOS-Befunde — sie sind mit Issue #255 **obsolet** (der Swift-iOS-Port `ios/`
+wurde entfernt, s. oben). Ebenfalls erledigt: der
 Lauf-13-Hinweis `anomalyco/opencode/github@latest` — alle drei opencode-
 Workflows pinnen jetzt auf den vollen SHA `31406ccc… # v1.18.18`
 (`opencode.yml:92`, `opencode-todo-issues.yml:38`, `opencode-review.yml:38`).
@@ -399,7 +412,8 @@ bekannten Punkte hinaus; der Android-Port ist von K6–K9 ebenfalls betroffen
 Der Merge-Branch `opencode/issue246-20260820094635` → PR #247 (`bacc4f0`)
 belegt die Umsetzung von Issue #246 (KMP-Subprojekt) — diese Umsetzung ist
 allerdings mit K1/K2/K3 nicht bau-/testbar. `33f3cd9` belegt die iOS-Issues
-#232–#244 (s. oben; Restlücken I1-5/I1-6/I1-10 offen). Der
+#232–#244 (s. oben; Restlücken I1-5/I1-6/I1-10 sind mit Issue #255 obsolet,
+iOS-Port entfernt). Der
 `opencode-todo-issues`-Workflow sollte die KMP-Folgearbeit (K1–K9) beim
 nächsten Lauf als Issues erfassen.
 
@@ -451,7 +465,7 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       aus → die Account-Sektion zeigt dauerhaft „not_signed_in", Kontenwechsel/-entfernen
       sind unbenutzbar. Fix: `accounts` aus `sessionManager` spiegeln (didSet-Publisher
       oder onAppear-Sync).
-- [ ] **I1-5 (Policy, mittel):** `FLUTCLOUD_URL` erreicht die iOS-App **nicht**:
+- [x] **I1-5 (Policy, mittel):** `FLUTCLOUD_URL` erreicht die iOS-App **nicht**:
       `project.yml:32` setzt nur die Build-Setting `FLUTCLOUD_URL: "$(FLUTCLOUD_URL)"`,
       aber `Info.plist` enthält **keinen** `FLUTCLOUD_URL`-Key. Damit ist
       `Bundle.main.object(forInfoDictionaryKey: "FLUTCLOUD_URL")` (`LoginViewModel.swift:27,42,76`)
@@ -460,7 +474,7 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       via `app/build.gradle.kts`, A9-11 erledigt) gibt es keine wirksame FlutCloud-only-
       Erzwingung. Fix: `FLUTCLOUD_URL` als `$(FLUTCLOUD_URL)`-Entry in `Info.plist`
       (bzw. `INFOPLIST_KEY_FLUTCLOUD_URL`) und `env.FLUTCLOUD_URL` im `ios.yml` setzen.
-- [ ] **I1-6 (Feature, mittel):** Dateiaktionen „Open"/„Download"/„Share" enden im
+- [x] **I1-6 (Feature, mittel):** Dateiaktionen „Open"/„Download"/„Share" enden im
       Leeren: `downloadAndOpen` (`FilesViewModel.swift:113-129`) und `downloadAndShare`
       (`:150-164`) setzen `downloadedData`/`shareData`, aber **keine** View/Sheet/QuickLook/
       `UIActivityViewController` präsentiert sie; `FilesView.swift:100-102` `.onChange(of:
@@ -487,7 +501,7 @@ Security (Keychain/FLUTCLOUD_URL) und CI. Neu gefunden:
       (`FilesView.swift:131-143`) rendert `FileRow` ohne `contextMenu`; Download/Share/
       Rename/Delete fehlen in Treffern. Desktop (und Android nach A9-15) erlauben die
       Aktionen. Fix: `contextMenu` auch in der Ergebnisliste anbieten.
-- [ ] **I1-10 (Perf/Robustheit, mittel):** Upload/Download komplett im RAM: der
+- [x] **I1-10 (Perf/Robustheit, mittel):** Upload/Download komplett im RAM: der
       `fileImporter`-Handler (`FilesView.swift:92-99`) liest die Datei mit
       `Data(contentsOf:)` komplett ein, `WebDavApi.upload` (`:82-89`) setzt die ganze
       `Data` als `httpBody`, `downloadToFile` (`:105-117`) lädt per Download-Task auf
