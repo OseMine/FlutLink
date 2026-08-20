@@ -73,6 +73,7 @@ kotlin {
             implementation(libs.junit)
             implementation(libs.xpp3)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.xpp3)
         }
     }
 }

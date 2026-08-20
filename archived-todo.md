@@ -4,6 +4,24 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Review 2026-08-20 (Lauf 14 — K1/K2 KMP-Build-Fixes abgehakt)
+
+Die Lauf-14-Befunde K1 (fehlende `androidx-datastore-preferences`-
+Dependency) und K2 (fehlendes `xpp3` für die JVM-Unit-Tests) wurden behoben
+und verifiziert. `cd kmp && ./gradlew :shared:assembleDebug` und
+`:shared:testDebugUnitTest` bauen bzw. laufen grün. K3–K9 bleiben in todo.md
+offen (K3 betrifft CI-Workflows, die von der Aufgabe ausgenommen sind).
+
+- [x] **K1 (Build):** `androidx-datastore-preferences` (1.2.1) ist im
+      Versionskatalog `kmp/gradle/libs.versions.toml` (`datastore = "1.2.1"`,
+      Library-Eintrag analog `android/`) und in `androidMain.dependencies`
+      (`kmp/shared/build.gradle.kts`) aufgenommen — `:shared:assembleDebug`
+      ist grün.
+- [x] **K2 (Tests):** `xpp3:xpp3:1.1.4c` ist als `androidUnitTest`-Dependency
+      ergänzt (Katalog + `kmp/shared/build.gradle.kts`) — die 7
+      `WebDavApiTest`-Fälle laufen, kein „not mocked", `:shared:testDebugUnitTest`
+      ist grün.
+
 ### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes)
 
 Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
