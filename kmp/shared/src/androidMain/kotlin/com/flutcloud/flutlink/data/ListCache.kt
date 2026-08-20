@@ -16,6 +16,9 @@ import java.security.MessageDigest
  */
 class ListCache(private val context: Context) {
 
+    /** Maximum number of cache files kept on disk, mirroring `cache.rs`. */
+    private val maxEntries = 500
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val dir: File
@@ -25,15 +28,32 @@ class ListCache(private val context: Context) {
     fun read(accountKey: String, path: String): List<WebDavEntry>? {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         if (!file.exists()) return null
-        return runCatching {
+        val entries = runCatching {
             json.decodeFromString<CachedListing>(file.readText()).entries
         }.getOrNull()
+        if (entries != null) touch(file)
+        return entries
     }
 
     /** Persist a successful listing so it survives offline folder opens. */
     fun write(accountKey: String, path: String, entries: List<WebDavEntry>) {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         file.writeText(json.encodeToString(CachedListing(path, entries)))
+        evictIfNeeded()
+    }
+
+    private fun touch(file: File) {
+        file.setLastModified(System.currentTimeMillis())
+    }
+
+    /** Remove the oldest cache files so the directory holds at most [maxEntries] files. */
+    private fun evictIfNeeded() {
+        val files = dir.listFiles { f -> f.isFile } ?: return
+        if (files.size <= maxEntries) return
+        files.sortBy { it.lastModified() }
+        for (file in files.take(files.size - maxEntries)) {
+            file.delete()
+        }
     }
 
     private fun sha256(text: String): String =

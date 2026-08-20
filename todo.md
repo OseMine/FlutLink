@@ -77,11 +77,16 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       Beim Admin-Impersonation-Browsing lädt „Open" die Datei aus dem eigenen
       Namespace des Admins statt aus dem des Zielnutzers (falsche Datei/404).
       Fix: `targetUser = targetUser.value` ergänzen.
-- [ ] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
+- [x] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
       Maximalbestand/keine Eviction — jede (Account, Pfad)-Kombination wird
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
       evicted LRU (`MAX_CACHE_ENTRIES=500`); iOS-Befund I1-11 nennt dasselbe.
       Fix: Bestand begrenzen (mtime/LRU).
+      → erledigt 2026-08-20 (siehe Archiv): `ListCache.kt` in `android/` und
+      `kmp/` evicted per mtime/LRU (`maxEntries = 500`, `evictIfNeeded()`
+      nach jedem `write`, `touch` auf `read`). `:app:compileDebugKotlin`
+      grün; der KMP-`compileDebugKotlinAndroid`-Fehler ist ausschließlich der
+      bekannte K1-`SettingsStore.kt`-Befund (unabhängig von dieser Änderung).
 - [ ] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
       (`AdminViewModel.kt:72-81`) holt pro Seite 200 Benutzer-IDs und danach
       200 Einzel-`getUser`-OCS-Requests (N+1); `AdminScreen.kt:86` lädt beim
