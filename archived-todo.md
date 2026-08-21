@@ -4,6 +4,113 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Issue #248 — KMP-Build-Blocker behoben (2026-08-20)
+
+Die Workflows/gh-actions sollen die **KMP-Version** (`kmp/`) bauen (Issue
+#248). Voraussetzung dafür war ein grüner KMP-Build. Verifiziert frisch gegen
+HEAD: `cd kmp && ./gradlew :shared:compileDebugKotlinAndroid
+:shared:compileKotlinJvm :shared:testDebugUnitTest` → **BUILD SUCCESSFUL**
+(nur bekannte Deprecation-Warnungen). Damit erledigt und aus todo.md
+verschoben:
+
+- [x] **K1 (Build, hoch):** `androidx-datastore-preferences` (1.2.1) im
+      Versionskatalog (`kmp/gradle/libs.versions.toml`) und in
+      `androidMain.dependencies` (`kmp/shared/build.gradle.kts`) ergänzt —
+      `SettingsStore.kt` (DataStore-Preferences) kompiliert wieder.
+- [x] **K2 (Tests, hoch):** `xpp3:xpp3:1.1.4c` als `androidUnitTest`-
+      Dependency (Katalog + `kmp/shared/build.gradle.kts`) ergänzt —
+      `WebDavApiTest` (`XmlPullParserFactory`) läuft auf der JVM.
+- [x] **K4 (Doku, minor):** `kmp/README.md`-Targets-Abschnitt korrigiert —
+      die iOS-Targets sind deklariert (macOS-only kompilierbar, ohne
+      `iosMain`-Code); der produktive iOS-Port bleibt `ios/`.
+
+**Nicht angefasst (weiter offen, K3):** die Workflow-Dateien
+(`android.yml`/`build.yml`/`ios.yml`) — Workflows sind für automatisierte
+Läufe tabu (Security-Regel). Empfehlung an den Maintainer: `kmp/**` in die
+`android.yml`-Paths aufnehmen und den `build`-Job auf
+`cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest
+:shared:compileKotlinJvm` umstellen; analog für `build.yml`/`ios.yml`, damit
+die KMP-Version in CI gebaut und getestet wird.
+
+Die Lauf-14-Befunde K1 (fehlende `androidx-datastore-preferences`-
+Dependency) und K2 (fehlendes `xpp3` für die JVM-Unit-Tests) wurden behoben
+und verifiziert. `cd kmp && ./gradlew :shared:assembleDebug` und
+`:shared:testDebugUnitTest` bauen bzw. laufen grün. K3–K9 bleiben in todo.md
+offen (K3 betrifft CI-Workflows, die von der Aufgabe ausgenommen sind).
+
+- [x] **K1 (Build):** `androidx-datastore-preferences` (1.2.1) ist im
+      Versionskatalog `kmp/gradle/libs.versions.toml` (`datastore = "1.2.1"`,
+      Library-Eintrag analog `android/`) und in `androidMain.dependencies`
+      (`kmp/shared/build.gradle.kts`) aufgenommen — `:shared:assembleDebug`
+      ist grün.
+- [x] **K2 (Tests):** `xpp3:xpp3:1.1.4c` ist als `androidUnitTest`-Dependency
+      ergänzt (Katalog + `kmp/shared/build.gradle.kts`) — die 7
+      `WebDavApiTest`-Fälle laufen, kein „not mocked", `:shared:testDebugUnitTest`
+      ist grün.
+
+### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes, aktualisiert)
+
+Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
+(`kmp/README.md`):
+
+- [x] **K4 (Doku):** README-Abschnitt „Targets" beschreibt jetzt korrekt, dass
+      `iosX64()/iosArm64()/iosSimulatorArm64()` in `build.gradle.kts`
+      deklariert sind (Framework `Shared`, `iosMain.dependencies` mit
+      `ktor-client-darwin`), aber derzeit **funktionslos** sind (kein
+      `iosMain`-Quellverzeichnis, Kompilierung nur auf macOS/Xcode-Hosts).
+Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
+       entfernt. Hinweis: der iOS-Port in `ios/` (Swift/SwiftUI) wurde später
+       mit Issue #255 (PR #263) entfernt; seither beschreibt die README die
+       iOS-Targets als Ersatz für den Swift-Port.
+- [x] **K5 (Architektur):** README-Einleitung und Struktur-Baum spiegeln jetzt
+      den tatsächlichen `commonMain`-Stand (4 Dateien: `AuthSession.kt`,
+      `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`), dass der übrige Code
+      in `androidMain` liegt und `jvmMain`/`iosMain` noch leer sind; der
+      Desktop-JVM-Client (`jvmMain`) ist als Folgearbeit notiert.
+
+### Review 2026-08-20 (Lauf 14 — K8 Cache-Eviction umgesetzt)
+
+**K8 (Perf, minor):** `ListCache.kt` hatte keinen Maximalbestand/keine
+Eviction — jede (Account, Pfad)-Kombination wurde dauerhaft als JSON im
+App-`filesDir` gehalten. Behoben analog Desktop `cache.rs`
+(`MAX_CACHE_ENTRIES=500`, mtime/LRU-Aging) und dem iOS-Fix I1-11:
+
+- `android/app/src/main/java/com/flutcloud/flutlink/data/ListCache.kt` und
+  `kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/data/ListCache.kt`
+  (identischer Code) haben jetzt `MAX_CACHE_ENTRIES = 500`,
+  Eviction nach jedem `write` (sortiert die Cache-Dateien nach mtime und
+  löscht die ältesten über dem Limit) und `touch` auf `read`
+  (Recency wird bei erfolgreichem Lesen aktualisiert → echtes LRU).
+- Verifikation: `cd android && ./gradlew :app:compileDebugKotlin` grün. Der
+  `kmp/`-`compileDebugKotlinAndroid`-Lauf failt weiterhin ausschließlich am
+  bekannten K1-Befund (`SettingsStore.kt`, fehlende
+  `androidx-datastore-preferences`-Dependency) — unabhängig von dieser
+  Änderung (keine ListCache-Fehler).
+
+### Review 2026-08-20 (Issue — K6 & K9 Admin-Suche/N+1 erledigt)
+
+Die Lauf-14-Befunde K6 (Admin-Suche filtert nicht) und K9 (N+1 in
+`AdminViewModel.loadPage`) wurden am 2026-08-20 umgesetzt — in `android/`
+**und** im KMP-Subprojekt `kmp/` (identischer Code), analog Desktop
+`AdminPanel.vue`:
+
+- [x] **K6 (Bug):** `AdminScreen.kt` bindet die Suche jetzt an
+      `LaunchedEffect(search)` mit 300-ms-Debounce (`delay(300)` → `loadUsers()`)
+      statt nur `LaunchedEffect(Unit)` beim Mount. Die Admin-Suche filtert live
+      bei jeder Eingabe (ersetzt den Mount-Load `LaunchedEffect(Unit)`).
+- [x] **K9 (Perf):** Suchpflicht analog Desktop (D3/U-R8-12, L12-N1):
+      `AdminViewModel.loadUsers()` bricht bei leerem Suchbegriff ab
+      (leert `users`/`hasMore`, setzt `loading=false`, keine OCS-Requests).
+      Damit wird beim Mount ohne Suchbegriff kein ungefilterter
+      200-ID + 200-`getUser`-Block mehr geladen. Die UI zeigt bei leerer
+      Suche den neuen Hinweis `search_users_required` (`values/` + `values-de/`,
+      en + de, identisch zum Desktop-Key `searchUsersRequired`).
+
+Verifikation: `cd android && ./gradlew :app:assembleDebug` sowie
+`cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest`
+grün; `cargo fmt`/`cargo clippy`/`npm run build` unverändert grün (kein
+Rust-/Frontend-Touch).
+
 ### Issue #255 — iOS-Port (Swift) entfernt (2026-08-20)
 
 Der iOS-Port `ios/` (Swift + SwiftUI, Test-Port von opencode) wurde entfernt,
@@ -43,26 +150,6 @@ und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewMode
       an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
       Datei aus dem Namespace des Zielnutzers.
 
-### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes)
-
-Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
-(`kmp/README.md`), die iOS-Targets bleiben bestehen:
-
-- [x] **K4 (Doku):** README-Abschnitt „Targets" beschreibt jetzt korrekt, dass
-      `iosX64()/iosArm64()/iosSimulatorArm64()` in `build.gradle.kts`
-      deklariert sind (Framework `Shared`, `iosMain.dependencies` mit
-      `ktor-client-darwin`), aber derzeit **funktionslos** sind (kein
-      `iosMain`-Quellverzeichnis, Kompilierung nur auf macOS/Xcode-Hosts).
-Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
-       entfernt. Hinweis: der iOS-Port in `ios/` (Swift/SwiftUI) wurde später
-       mit Issue #255 (PR #263) entfernt; seither beschreibt die README die
-       iOS-Targets als Ersatz für den Swift-Port.
-- [x] **K5 (Architektur):** README-Einleitung und Struktur-Baum spiegeln jetzt
-      den tatsächlichen `commonMain`-Stand (4 Dateien: `AuthSession.kt`,
-      `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`), dass der übrige Code
-      in `androidMain` liegt und `jvmMain`/`iosMain` noch leer sind; der
-      Desktop-JVM-Client (`jvmMain`) ist als Folgearbeit notiert.
-
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
 Die Lauf-13-Befunde I1-1 … I1-12 (Fokus iOS) wurden in den Fix-Commits
@@ -98,6 +185,41 @@ Ebenfalls erledigt (Lauf 14): der Lauf-13-Hinweis, die drei opencode-Workflows
 nutzten `anomalyco/opencode/github@latest` — `opencode.yml:92`,
 `opencode-todo-issues.yml:38` und `opencode-review.yml:38` pinnen jetzt auf
 den vollen Commit-SHA `31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18`.
+
+### KMP-Fix 2026-08-20 (Lauf 14 — K1/K2/K4/K6–K9 umgesetzt)
+
+Die KMP-Befunde des Laufs 14 (Fokus KMP) wurden in diesem Lauf umgesetzt und
+verifiziert. `cd kmp && ./gradlew :shared:assembleDebug :shared:testDebugUnitTest
+:shared:compileKotlinJvm` → BUILD SUCCESSFUL, **30 Tests grün** (7+11+5+7);
+`cd android && ./gradlew :app:assembleDebug` → BUILD SUCCESSFUL (Fix-Spiegelung);
+`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` und
+`npm run build` grün. Folgende Punkte sind damit erledigt und aus todo.md nach
+hier verschoben (K3 CI und K5 Architektur bleiben in todo.md offen):
+
+- [x] **K1 (Build):** `androidx-datastore-preferences` (1.2.1) in
+      `kmp/gradle/libs.versions.toml` aufgenommen und in
+      `androidMain.dependencies` (`kmp/shared/build.gradle.kts`) ergänzt →
+      `SettingsStore.kt` kompiliert, `:shared:compileDebugKotlinAndroid` grün.
+- [x] **K2 (Tests):** `xpp3:xpp3:1.1.4c` als `androidUnitTest`-Dependency
+      ergänzt (`kmp/gradle/libs.versions.toml` + `kmp/shared/build.gradle.kts`)
+      → die 7 `WebDavApiTest`-Fälle laufen auf der JVM (30 Tests grün).
+- [x] **K4 (Doku):** `kmp/README.md` „Targets" beschreibt jetzt die
+      deklarierten `iosX64()/iosArm64()/iosSimulatorArm64()`-Targets
+      (Framework-Binary, macOS/Xcode-Host) statt „bewusst nicht eingerichtet".
+- [x] **K6 (Bug):** `AdminScreen.kt` lädt per debounced `LaunchedEffect(search)`
+      (300 ms) bei Such-Eingabe; die Suche filtert damit bei jeder Eingabe
+      (Desktop-Parität). Fix in `android/` gespiegelt.
+- [x] **K7 (Bug):** `FilesViewModel.downloadAndOpen` reicht `targetUser` jetzt
+      an `downloadToFile` weiter (`targetUser = targetUser.value`) — Admin-
+      Impersonation lädt die Datei aus dem Ziel-Namespace. Fix in `android/`
+      gespiegelt.
+- [x] **K8 (Perf):** `ListCache` kappt den Bestand auf `MAX_CACHE_ENTRIES =
+      500` (mtime-basiertes LRU in `evictOldest()`, Spiegel von
+      `cache.rs::evict_oldest`). Fix in `android/` gespiegelt.
+- [x] **K9 (Perf):** Admin lädt ohne Suchbegriff keine Benutzer mehr
+      (`clearSearch()` bei leerem Suchfeld, kein Mount-`loadUsers`) — die
+      N+1-Kette (200 IDs + 200 `getUser`-Requests) greift nur noch bei einer
+      aktiven Suche. Fix in `android/` gespiegelt.
 
 ### Review 2026-08-20 (Issue #246 — KMP-Subprojekt umgesetzt & verifiziert)
 

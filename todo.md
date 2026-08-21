@@ -301,9 +301,13 @@ todo.md/archivierte Claim „Build + 30 Tests grün" (Issue #246) gilt damit
 Katalog-Umbau `d183b27` entfernte die nötige Dependency, Merge `bacc4f0`/
 PR #247 brachte das auf main). Gegenstand dieses Laufs: das komplette
 KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
-`jvm()` + iOS-Targets). Neu gefunden:
+`jvm()` + iOS-Targets). Neu gefunden — die Build-Blocker K1/K2 und der
+README-Widerspruch K4 wurden in diesem Lauf (Issue #248, „gh actions/
+Workflows auf die kmp-Version") behoben: `:shared:compileDebugKotlinAndroid`,
+`:shared:compileKotlinJvm` und `:shared:testDebugUnitTest` sind grün
+(Details im Archiv):
 
-- [ ] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
+- [x] **K1 (Build, hoch):** KMP-Android-Kompilierung ist kaputt —
       `SettingsStore.kt:13,19,21-23,40-54` (`core/`) nutzt
       `androidx.datastore.preferences.*` (`preferencesDataStore`,
       `stringPreferencesKey`/`booleanPreferencesKey`/`intPreferencesKey`,
@@ -315,7 +319,10 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `SettingsStore.kt`). `android/gradle/libs.versions.toml` hat sie als
       `datastore = "1.2.1"`. Fix: `androidx-datastore-preferences` (1.2.1) in
       Katalog + `androidMain.dependencies` aufnehmen.
-- [ ] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
+      → erledigt: `androidx-datastore-preferences` (1.2.1) im Katalog und in
+      `androidMain.dependencies` aufgenommen; `:shared:compileDebugKotlinAndroid`
+      grün (Details im Archiv).
+- [x] **K2 (Tests, hoch):** Die JVM-Unit-Tests wären auch nach K1 rot:
       `WebDavApi.parseMultistatus` (`WebDavApi.kt:499-501`) nutzt
       `XmlPullParserFactory.newInstance()`; die `androidUnitTest`-Dependencies
       enthalten nur `junit` + `ktor-client-okhttp` — **kein `xpp3`**.
@@ -323,6 +330,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (dieselben Tests). Ohne XmlPull-Implementierung wirft die Mockable-
       Android-JAR bei den 7 `WebDavApiTest`-Fällen „not mocked". Fix:
       `xpp3:xpp3:1.1.4c` als `androidUnitTest`-Dependency ergänzen.
+      → erledigt: `xpp3` (1.1.4c) im Katalog und in
+      `androidUnitTest.dependencies` ergänzt; `:shared:testDebugUnitTest`
+      grün (Details im Archiv).
 - [ ] **K3 (CI, mittel):** `kmp/` hat **keinerlei** CI-Abdeckung —
       `android.yml` triggert nur auf `android/**`, `build.yml`/`lint.yml` nur
       auf Frontend/Rust. Der kaputte KMP-Build (K1) wird von keinem Workflow
@@ -330,6 +340,13 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       `kmp/**` in die `android.yml`-Paths aufnehmen oder einen KMP-Job
       (`:shared:assembleDebug` + `:shared:testDebugUnitTest` +
       `:shared:compileKotlinJvm`) ergänzen.
+      → weiter offen: Workflow-Dateien sind für automatisierte Läufe tabu
+      (Security-Regel); die KMP-Build-Blocker K1/K2 sind behoben, sodass ein
+      KMP-CI-Job jetzt grün laufen würde. Die Workflow-Anpassung (Issue #248)
+      muss manuell erfolgen — Vorschlag: `kmp/**` in die `android.yml`-Paths
+      aufnehmen und den `build`-Job auf `cd kmp && ./gradlew
+      :shared:assembleDebug :shared:testDebugUnitTest :shared:compileKotlinJvm`
+      umstellen (analog für `build.yml`/`ios.yml`).
 - [x] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptete „iOS-Targets sind
       bewusst nicht eingerichtet", obwohl `kmp/shared/build.gradle.kts:20-32`
       `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
@@ -348,7 +365,7 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       gemeinsamen Kotlin-Code in einem KMP-Modul bereit" überschätzte den
       Stand. Fix: README korrigiert (tatsächlicher `commonMain`-Stand +
       Desktop-JVM-Client als Folgearbeit) — siehe Archiv.
-- [ ] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
+- [x] **K6 (Bug, mittel, aus android/ übernommen):** Admin-Suche filtert
       nicht: `AdminScreen.kt:106-112` bindet die Search-TextField an
       `vm.search.value` (`onValueChange = { vm.search.value = it }`), aber es
       gibt keinen Trigger (kein `LaunchedEffect(search)`, kein Debounce), der
@@ -357,6 +374,9 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       (`LaunchedEffect(Unit)`, `AdminScreen.kt:86`). Desktop `AdminPanel.vue`
       sucht bei jeder Eingabe. Fix: `LaunchedEffect(vm.search.value)` mit
       Debounce → `loadUsers()`.
+      → erledigt: `AdminScreen.kt` nutzt `LaunchedEffect(search)` mit
+      300-ms-Debounce (`delay(300)`) vor `loadUsers()`; die Suche filtert
+      live bei jeder Eingabe (android/ + kmp/).
 - [x] **K7 (Bug, mittel, aus android/ übernommen):** Impersonation-Lücke beim
       „Öffnen": `FilesViewModel.downloadAndOpen` (`FilesViewModel.kt:162-189`)
       reicht `targetUser` **nicht** an `downloadToFile` weiter — anders als
@@ -365,17 +385,33 @@ KMP-Subprojekt (`kmp/`; Kotlin 2.3.21, AGP 8.13.2, `androidTarget()` +
       Namespace des Admins statt aus dem des Zielnutzers (falsche Datei/404).
       Fix: `targetUser = targetUser.value` ergänzen.
       → erledigt (siehe Archiv „Review 2026-08-20 (Lauf 14, Issue-Fix K7)").
-- [ ] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
+- [x] **K8 (Perf, minor, aus android/ übernommen):** `ListCache.kt` hat keinen
       Maximalbestand/keine Eviction — jede (Account, Pfad)-Kombination wird
       dauerhaft als JSON im App-`filesDir` gehalten. Desktop `cache.rs`
       evicted LRU (`MAX_CACHE_ENTRIES=500`); iOS-Befund I1-11 nennt dasselbe.
       Fix: Bestand begrenzen (mtime/LRU).
-- [ ] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
+      → erledigt 2026-08-20 (siehe Archiv): `ListCache.kt` in `android/` und
+      `kmp/` evicted per mtime/LRU (`MAX_CACHE_ENTRIES = 500`, Eviction
+      nach jedem `write`, `touch` auf `read`).
+- [x] **K9 (Perf, mittel, aus android/ übernommen):** `AdminViewModel.loadPage`
       (`AdminViewModel.kt:72-81`) holt pro Seite 200 Benutzer-IDs und danach
       200 Einzel-`getUser`-OCS-Requests (N+1); `AdminScreen.kt:86` lädt beim
       Mount ohne Suchbegriff den ersten Block. Desktop verlangt einen
       Suchbegriff (D3/U-R8-12, L12-N1). Fix: Suchpflicht analog Desktop oder
       Detail-Batch.
+      → erledigt: Suchpflicht analog Desktop (D3/U-R8-12): `loadUsers()`
+      bricht bei leerem Suchbegriff ab (leert Liste, keine OCS-Requests);
+      `AdminScreen.kt` zeigt bei leerer Suche den Hinweis
+      `search_users_required`. Kein ungefilterter N+1-Block beim Mount mehr
+      (android/ + kmp/).
+
+**KMP-Fix-Lauf (Issue „IOS Build doesnt build" → Kommentar „/oc fix it
+(kmp)"):** K1, K2, K4 und K6–K9 wurden in diesem Lauf umgesetzt (Details im
+Archiv-Abschnitt „KMP-Fix 2026-08-20"). K3 (CI) bleibt offen: Workflow-Dateien
+sind für automatisierte Läufe tabu (Security-Regel) — der `opencode-todo-issues`-
+Workflow soll die KMP-Folgearbeit beim nächsten Lauf als Issue erfassen. K5
+(Architektur) bleibt offen: `commonMain` enthält weiterhin nur 4 Dateien; eine
+Aufteilung von `androidMain` in gemeinsamen Code ist als Folgearbeit zu planen.
 
 **todo.md-Nachprüfung (Schritt 5):** Die iOS-Befunde des Laufs 13 wurden in
 den Fix-Commits `33f3cd9` („resolve GH issues #232-244 …"), `78fbc24`,

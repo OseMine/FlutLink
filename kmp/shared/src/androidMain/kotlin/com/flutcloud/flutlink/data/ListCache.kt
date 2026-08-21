@@ -13,6 +13,8 @@ import java.security.MessageDigest
  * Small offline cache for folder listings, mirroring the desktop client's
  * `cache.rs`: every successful listing is persisted under the app files dir
  * (keyed by account + path hash) and served when the server is unreachable.
+ * The number of cached listings is capped; the oldest entries are evicted on
+ * every write (mtime-based LRU, mirroring `cache.rs::evict_oldest`).
  */
 class ListCache(private val context: Context) {
 
@@ -21,19 +23,43 @@ class ListCache(private val context: Context) {
     private val dir: File
         get() = File(context.filesDir, "cache/listings").apply { mkdirs() }
 
+    companion object {
+        private const val MAX_CACHE_ENTRIES = 500
+    }
+
     /** Read the last successful listing for `path`, or null if none was cached. */
     fun read(accountKey: String, path: String): List<WebDavEntry>? {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         if (!file.exists()) return null
-        return runCatching {
+        val entries = runCatching {
             json.decodeFromString<CachedListing>(file.readText()).entries
         }.getOrNull()
+        if (entries != null) touch(file)
+        return entries
     }
 
     /** Persist a successful listing so it survives offline folder opens. */
     fun write(accountKey: String, path: String, entries: List<WebDavEntry>) {
         val file = File(dir, "${sha256("$accountKey|$path")}.json")
         file.writeText(json.encodeToString(CachedListing(path, entries)))
+        evictOldest()
+    }
+
+    private fun touch(file: File) {
+        file.setLastModified(System.currentTimeMillis())
+    }
+
+    /**
+     * Remove the oldest cache files so the directory holds at most
+     * [MAX_CACHE_ENTRIES] entries (mtime-based LRU, mirroring `cache.rs`).
+     */
+    private fun evictOldest() {
+        val files = dir.listFiles { f -> f.isFile && f.extension == "json" }
+            ?.sortedBy { it.lastModified() }
+            ?: return
+        val remove = files.size - MAX_CACHE_ENTRIES
+        if (remove <= 0) return
+        files.take(remove).forEach { it.delete() }
     }
 
     private fun sha256(text: String): String =
