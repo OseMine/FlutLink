@@ -5,6 +5,20 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Issue #255 — iOS-Port (Swift) entfernt, ersetzt durch KMP (2026-08-20)
+
+Der iOS-Port (`ios/`, Swift + SwiftUI) wurde **entfernt**, weil `kmp/` ihn
+ersetzt (siehe `kmp/README.md`). Gelöscht: `ios/` (inkl. `ios/README.md`,
+`project.yml`), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
+(AltStore-Quellen für den iOS-Test-Port) und `.github/ISSUE_TEMPLATE/ios.yml`.
+`AGENTS.md` und `kmp/README.md` sind angepasst. Damit sind die noch offenen
+iOS-Befunde aus Lauf 13 **obsolet** und abgehakt: I1-5 (FLUTCLOUD_URL im
+Info.plist), I1-6 (Dateiaktionen), I1-10 (RAM-Upload/-Download). Details im
+Archiv. Hinweis: `.github/workflows/ios.yml` (iOS-CI) und der `ios`-Job in
+`release.yml` sind **bewusst nicht** angefasst (Workflows sind für
+automatisierte Läufe tabu); sie referenzieren gelöschte Pfade und sind
+wirkungslos, bis jemand mit `workflows`-Berechtigung sie entfernt.
+
 ### Review 2026-08-20 (Lauf 15, ganzes Projekt — in Arbeit)
 
 Verifikation in diesem Lauf frisch ausgeführt (Details am Abschnittsende).
@@ -233,15 +247,15 @@ und -Komponenten. Neu gefunden (alle gegen HEAD `d79eb98` verifiziert):
 - K1/K2 (KMP-Build) bei HEAD **weiterhin kaputt** — `cd kmp && ./gradlew
   :shared:assembleDebug :shared:testDebugUnitTest` failt erneut an
   `SettingsStore.kt` (unresolved datastore, 30+ Fehler), s. Lauf 14.
-- K3–K9 (KMP) per Code-Inspektion unverändert offen; K4/K5 (README-
-  iOS-Targets/commonMain) gelten weiterhin.
+- K3, K6, K8, K9 (KMP) per Code-Inspektion unverändert offen; K4/K5
+  (README-iOS-Targets/commonMain) sind inzwischen erledigt (s. u.).
 - L12-N1 (AdminPanel-Pagination tot) von der Frontend-Prüfung **bestätigt**
   (`AdminPanel.vue:175-195` ruft `adminListUsers(query)` ohne limit/offset,
   `hasMore` nie gesetzt, „Load more" unerreichbar); L12-N4 (doppelte
   Fehleranzeige bei Suche) ebenfalls bestätigt (`files.ts:167-169` +
   `FileExplorer.vue:97-103`). L12-N2/N3/N5/N6 unverändert.
-- I1-5/I1-6/I1-10 (iOS) bleiben offen (Xcode-Build auf Linux nicht
-  möglich; Code-Inspektion unverändert).
+- I1-5/I1-6/I1-10 (iOS) sind mit dem Merge von Issue #255 (PR #263)
+  **obsolet** — der Swift-iOS-Port `ios/` wurde entfernt (s. oben).
 
 Keine neuen Befunde in `commands.rs`, `updater.rs`, `accounts.rs`,
 `state.rs`, `lib.rs` über die oben genannten Punkte hinaus; Workflows
@@ -264,8 +278,8 @@ löscht `ios/` und das `ios.yml`-Issue-Template). Keiner dieser Commits ist
 Ancestor von main (`merge-base --is-ancestor` = NOT MERGED) → die KMP-
 Befunde sind trotz vorhandener Fix-Arbeit **auf main ungelöst**; K1–K9
 bleiben offen, bis die zugehörigen PRs gemergt sind. `opencode/issue255`
-(„iOS entfernen") steht im Konflikt zur AGENTS.md-Aussage (iOS als
-TEST-Port) und sollte bewusst entschieden werden.
+(„iOS entfernen") wurde mit **PR #263 gemergt** — die Entscheidung ist
+damit gefallen: der iOS-Test-Port ist entfernt, `kmp/` ersetzt ihn.
 
 Verifikation dieses Laufs (frisch ausgeführt, HEAD `d79eb98`):
 `cargo test --manifest-path src-tauri/Cargo.toml` → **83 passed / 0 failed**
@@ -273,20 +287,6 @@ Verifikation dieses Laufs (frisch ausgeführt, HEAD `d79eb98`):
 --check` grün; `cargo clippy --all-targets -- -D warnings` grün; `npm run
 build` (vue-tsc + vite) grün (nur die bekannte Chunk-Size-Warnung, L12-N6);
 **KMP-Build kaputt** (K1/K2, s. o.).
-
-### Issue #255 — iOS-Port (Swift) entfernt, ersetzt durch KMP (2026-08-20)
-
-Der iOS-Port (`ios/`, Swift + SwiftUI) wurde **entfernt**, weil `kmp/` ihn
-ersetzt (siehe `kmp/README.md`). Gelöscht: `ios/` (inkl. `ios/README.md`,
-`project.yml`), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
-(AltStore-Quellen für den iOS-Test-Port) und `.github/ISSUE_TEMPLATE/ios.yml`.
-`AGENTS.md` und `kmp/README.md` sind angepasst. Damit sind die noch offenen
-iOS-Befunde aus Lauf 13 **obsolet** und abgehakt: I1-5 (FLUTCLOUD_URL im
-Info.plist), I1-6 (Dateiaktionen), I1-10 (RAM-Upload/-Download). Details im
-Archiv. Hinweis: `.github/workflows/ios.yml` (iOS-CI) und der `ios`-Job in
-`release.yml` sind **bewusst nicht** angefasst (Workflows sind für
-automatisierte Läufe tabu); sie referenzieren gelöschte Pfade und sind
-wirkungslos, bis jemand mit `workflows`-Berechtigung sie entfernt.
 
 ### Review 2026-08-20 (Lauf 14, Fokus KMP — neue Befunde)
 
@@ -352,9 +352,10 @@ Workflows auf die kmp-Version") behoben: `:shared:compileDebugKotlinAndroid`,
       `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
       `iosMain.dependencies` mit `ktor-client-darwin`). README widersprach
       dem Build-Skript; die Targets sind aktuell funktionslos (kein
-      `iosMain`-Quellcode). Fix: README angepasst — mit Issue #255 beschreibt
-      `kmp/README.md` die iOS-Targets als Ersatz für den entfernten
-      Swift-iOS-Port (`ios/`).
+      `iosMain`-Quellcode). Zuerst via PR #256 („Fixed K4/K5") durch eine
+      README-Anpassung behoben; mit Issue #255 (PR #263) erneut angepasst,
+      weil `ios/` entfernt wurde: die README beschreibt die iOS-Targets
+      jetzt als Ersatz für den entfernten Swift-iOS-Port.
 - [x] **K5 (Architektur, minor):** `commonMain` enthält nur 4 Dateien
       (`AuthSession.kt`, `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`);
       der gesamte übrige Code liegt in `androidMain` (Android-APIs: OkHttp,

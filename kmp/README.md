@@ -46,7 +46,7 @@ kmp/
   `com.flutcloud.flutlink.kmp`
 - `jvm()` — JVM-Target; kompiliert `commonMain` (derzeit ohne
   `jvmMain`-Quellen, nur für die Plattform-Validierung der gemeinsamen
-Module)
+  Module)
 - `iosX64()`/`iosArm64()`/`iosSimulatorArm64()` — iOS-Targets
   (Framework `Shared`, `iosMain.dependencies` mit `ktor-client-darwin`).
   Sie ersetzen den früheren Swift/SwiftUI-iOS-Port (`ios/`, entfernt) und

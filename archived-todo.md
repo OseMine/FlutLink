@@ -48,40 +48,25 @@ offen (K3 betrifft CI-Workflows, die von der Aufgabe ausgenommen sind).
       `WebDavApiTest`-Fälle laufen, kein „not mocked", `:shared:testDebugUnitTest`
       ist grün.
 
-### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes)
+### Review 2026-08-20 (Lauf 14 — KMP-K4/K5-Doku-Fixes, aktualisiert)
 
 Die KMP-README-Widersprüche aus todo.md (Lauf 14) sind per Doku-Fix behoben
-(`kmp/README.md`), die iOS-Targets bleiben bestehen:
+(`kmp/README.md`):
 
 - [x] **K4 (Doku):** README-Abschnitt „Targets" beschreibt jetzt korrekt, dass
       `iosX64()/iosArm64()/iosSimulatorArm64()` in `build.gradle.kts`
       deklariert sind (Framework `Shared`, `iosMain.dependencies` mit
       `ktor-client-darwin`), aber derzeit **funktionslos** sind (kein
       `iosMain`-Quellverzeichnis, Kompilierung nur auf macOS/Xcode-Hosts).
-      Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
-      entfernt; der iOS-Port lebt weiter in `ios/` (Swift/SwiftUI).
+Die Falschaussage „iOS-Targets sind bewusst nicht eingerichtet" ist
+       entfernt. Hinweis: der iOS-Port in `ios/` (Swift/SwiftUI) wurde später
+       mit Issue #255 (PR #263) entfernt; seither beschreibt die README die
+       iOS-Targets als Ersatz für den Swift-Port.
 - [x] **K5 (Architektur):** README-Einleitung und Struktur-Baum spiegeln jetzt
       den tatsächlichen `commonMain`-Stand (4 Dateien: `AuthSession.kt`,
       `ApiException.kt`, `JsonUtil.kt`, `dto/Models.kt`), dass der übrige Code
       in `androidMain` liegt und `jvmMain`/`iosMain` noch leer sind; der
       Desktop-JVM-Client (`jvmMain`) ist als Folgearbeit notiert.
-
-### Review 2026-08-20 (Lauf 14 — Issue-Fix K7, Impersonation beim „Öffnen")
-
-Fix der Impersonation-Lücke beim „Öffnen" im Android-Port und im KMP-Modul:
-`FilesViewModel.downloadAndOpen` reichte `targetUser` **nicht** an
-`downloadToFile` weiter — anders als `downloadAndShare` und
-`downloadToDownloads`. Beim Admin-Impersonation-Browsing läd „Open" die Datei
-aus dem eigenen Namespace des Admins statt aus dem des Zielnutzers
-(falsche Datei/404). Fix: `targetUser = targetUser.value` als zusätzliches
-Argument an `downloadToFile` übergeben (analog `downloadAndShare`/`downloadToDownloads`).
-Angewendet in beiden Kopien des Codes:
-`kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`
-und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`.
-
-- [x] **K7 (Bug):** `downloadAndOpen` reicht `targetUser = targetUser.value`
-      an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
-      Datei aus dem Namespace des Zielnutzers.
 
 ### Review 2026-08-20 (Lauf 14 — K8 Cache-Eviction umgesetzt)
 
@@ -147,6 +132,23 @@ l10n), `scripts/build-ipa.sh`, `ClassicSource.json`/`PALSource.json`
 (`.github/workflows/ios.yml`, `ios`-Job in `release.yml`) wurden bewusst
 nicht angefasst (Workflows sind für automatisierte Läufe tabu) und sind nach
 dem Entfernen der Pfade wirkungslos.
+
+### Review 2026-08-20 (Lauf 14 — Issue-Fix K7, Impersonation beim „Öffnen")
+
+Fix der Impersonation-Lücke beim „Öffnen" im Android-Port und im KMP-Modul:
+`FilesViewModel.downloadAndOpen` reichte `targetUser` **nicht** an
+`downloadToFile` weiter — anders als `downloadAndShare` und
+`downloadToDownloads`. Beim Admin-Impersonation-Browsing läd „Open" die Datei
+aus dem eigenen Namespace des Admins statt aus dem des Zielnutzers
+(falsche Datei/404). Fix: `targetUser = targetUser.value` als zusätzliches
+Argument an `downloadToFile` übergeben (analog `downloadAndShare`/`downloadToDownloads`).
+Angewendet in beiden Kopien des Codes:
+`kmp/shared/src/androidMain/kotlin/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`
+und `android/app/src/main/java/com/flutcloud/flutlink/ui/viewmodel/FilesViewModel.kt`.
+
+- [x] **K7 (Bug):** `downloadAndOpen` reicht `targetUser = targetUser.value`
+      an `downloadToFile` weiter; „Open" lädt im Impersonation-Browsing die
+      Datei aus dem Namespace des Zielnutzers.
 
 ### Review 2026-08-20 (Lauf 14 — iOS-I1-Befunde aus Lauf 13 abgehakt)
 
