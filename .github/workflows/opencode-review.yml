@@ -162,7 +162,7 @@ jobs:
 
             echo "$REVIEW_PROMPT" > /tmp/review-prompt.txt
 
-            npx opencode-ai@latest run \
+            npx --yes opencode-ai@1.18.21 run \
               --model opencode/deepseek-v4-flash-free \
               --auto \
               "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
@@ -254,7 +254,7 @@ jobs:
           5. Speichere die Änderungen in todo.md
           6. Committen Sie die Datei"
 
-          npx opencode-ai@latest run \
+          npx --yes opencode-ai@1.18.21 run \
             --model opencode/deepseek-v4-flash-free \
             --auto \
             "$PROMPT" 2>&1 || echo "opencode finished with error"
