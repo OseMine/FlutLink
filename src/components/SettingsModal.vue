@@ -142,6 +142,9 @@ async function switchTo(username: string, instanceUrl: string) {
 }
 
 async function remove(username: string, instanceUrl: string) {
+  // F7: never delete an account without explicit confirmation (same dialog
+  // as App.vue removeActive / AccountBar remove).
+  if (!window.confirm(t("deleteAccountConfirm").replace("{name}", username))) return;
   try {
     await accounts.remove(username, instanceUrl);
     ui.toast(t("accountRemoved"), "success");

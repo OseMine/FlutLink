@@ -174,24 +174,14 @@ watch(
 
 async function listUsers(requireQuery = true) {
   const query = search.value.trim();
-  // U-R8-12: never load every user of a large instance at once — the OCS API
-  // would paginate through all of them with one request per page.
+  // U-R8-12: never load every user of a large instance at once — fetch only
+  // the first PAGE-sized page (offset reset); "load more" appends further
+  // pages sequentially via loadPage(true).
   if (!query) {
     if (requireQuery) error.value = t("searchUsersRequired");
     return;
   }
-  loading.value = true;
-  error.value = null;
-  editMsg.value = null;
-  users.value = [];
-  try {
-    const result = await api.adminListUsers(query);
-    users.value = result.users;
-  } catch (e) {
-    error.value = invokeError(e).message;
-  } finally {
-    loading.value = false;
-  }
+  await loadPage(false);
 }
 
 async function loadMore() {

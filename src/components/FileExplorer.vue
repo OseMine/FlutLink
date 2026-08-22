@@ -6,6 +6,7 @@ import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore } from "../stores/ui";
 import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
+import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
@@ -48,33 +49,14 @@ let unlistenDragDrop: (() => void) | null = null;
 const isSearching = computed(() => files.searchQuery.length > 0);
 const transferProgress = computed(() => files.transfer?.percent ?? null);
 
-const sortKey = ref<"name" | "size" | "mtime">("name");
+const sortKey = ref<EntrySortKey>("name");
 const sortAsc = ref(true);
 
-const sortedEntries = computed(() => {
-  const dirs = files.displayEntries.filter((e) => e.isDir);
-  const others = files.displayEntries.filter((e) => !e.isDir);
-  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey.value === "size") {
-      const av = a.size ?? 0;
-      const bv = b.size ?? 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    if (sortKey.value === "mtime") {
-      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
-      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc.value ? av - bv : bv - av;
-    }
-    const av = a.name.toLowerCase();
-    const bv = b.name.toLowerCase();
-    return sortAsc.value ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  dirs.sort(cmp);
-  others.sort(cmp);
-  return [...dirs, ...others];
-});
+const sortedEntries = computed(() =>
+  sortEntries(files.displayEntries, sortKey.value, sortAsc.value)
+);
 
-function toggleSort(key: "name" | "size" | "mtime") {
+function toggleSort(key: EntrySortKey) {
   if (sortKey.value === key) sortAsc.value = !sortAsc.value;
   else {
     sortKey.value = key;
@@ -95,11 +77,8 @@ watch(searchInput, (value) => {
 });
 
 async function runSearch() {
-  try {
-    await files.searchFiles(searchInput.value);
-  } catch (e) {
-    ui.toast(invokeError(e).message, "error");
-  }
+  // L12-N4: errors are surfaced once, via the store's error banner.
+  await files.searchFiles(searchInput.value);
 }
 
 function clearSearchInput() {
@@ -641,27 +620,27 @@ async function copyShareUrl(url: string) {
 const adminUsers = ref<string[]>([]);
 const adminViewAll = ref(true);
 const selectedUser = ref<string>("");
+const adminSearch = ref("");
+// U-R8-12/L12-N3: cap the impersonation user lookup at one OCS page instead
+// of paginating through every user of the instance.
+const ADMIN_PAGE = 200;
 
 async function loadAdminUsers() {
   if (!accounts.active?.isAdmin) return;
+  const query = adminSearch.value.trim();
+  // The impersonation dropdown must not fetch all users on mount or on
+  // account switches — it loads lazily, only for an explicit search term,
+  // limited to the first page.
+  if (!query) {
+    adminUsers.value = [];
+    ui.toast(t("searchUsersRequired"), "error");
+    return;
+  }
   try {
-    const res = await api.adminListUsers("");
+    const res = await api.adminListUsers(query, ADMIN_PAGE);
     adminUsers.value = res.users;
-    if (adminViewAll.value) {
-      if (files.targetUser) {
-        selectedUser.value = files.targetUser;
-      } else if (!selectedUser.value && adminUsers.value.length) {
-        const me = accounts.active.username;
-        selectedUser.value =
-          adminUsers.value.find((u) => u === me) ?? adminUsers.value[0];
-        // Only auto-select when the browser is still at its initial state. A
-        // slow user-list fetch must not yank an in-progress navigation back to
-        // the root via setTargetUser (which resets currentPath). The selected
-        // user is the admin's own account anyway, so browsing stays equivalent.
-        if (files.currentPath === "/") {
-          files.setTargetUser(selectedUser.value);
-        }
-      }
+    if (files.targetUser && res.users.includes(files.targetUser)) {
+      selectedUser.value = files.targetUser;
     }
   } catch {
     // user list unavailable; impersonation still selectable via retry button
@@ -671,10 +650,6 @@ async function loadAdminUsers() {
 function setAdminView(all: boolean) {
   adminViewAll.value = all;
   if (all) {
-    if (!selectedUser.value && adminUsers.value.length) {
-      const me = accounts.active?.username ?? "";
-      selectedUser.value = adminUsers.value.find((u) => u === me) ?? adminUsers.value[0];
-    }
     if (selectedUser.value) files.setTargetUser(selectedUser.value);
   } else {
     selectedUser.value = "";
@@ -722,7 +697,6 @@ watch(
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
-    void loadAdminUsers();
     void loadAllShares();
   }
   void files.bindProgress();
@@ -756,9 +730,10 @@ watch(
     kbdIndex.value = -1;
     adminViewAll.value = true;
     selectedUser.value = "";
+    adminUsers.value = [];
+    adminSearch.value = "";
     searchInput.value = "";
     await files.reset();
-    void loadAdminUsers();
   }
 );
 </script>
@@ -893,6 +868,13 @@ watch(
       </div>
 
       <template v-if="adminViewAll">
+        <md-outlined-text-field
+          :label="t('searchUsers')"
+          :value="adminSearch"
+          @input="adminSearch = ($event.target as HTMLInputElement).value"
+          @keyup.enter="loadAdminUsers"
+          class="w-44"
+        ></md-outlined-text-field>
         <div class="flex items-center gap-2">
           <span class="text-xs text-on-surface-variant">{{ t("filterUser") }}</span>
           <md-outlined-select

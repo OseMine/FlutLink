@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import AccountBar from "./components/AccountBar.vue";
 import FileExplorer from "./components/FileExplorer.vue";
-import AdminPanel from "./components/AdminPanel.vue";
-import SyncPanel from "./components/SyncPanel.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
-import LoginModal from "./components/LoginModal.vue";
-import SettingsModal from "./components/SettingsModal.vue";
 import ToastStack from "./components/ToastStack.vue";
 import Icon from "./components/Icon.vue";
+// L12-N6: panels and modals that are not visible on first paint are
+// code-split via dynamic imports so the initial chunk stays small.
+const AdminPanel = defineAsyncComponent(() => import("./components/AdminPanel.vue"));
+const SyncPanel = defineAsyncComponent(() => import("./components/SyncPanel.vue"));
+const LoginModal = defineAsyncComponent(() => import("./components/LoginModal.vue"));
+const SettingsModal = defineAsyncComponent(() => import("./components/SettingsModal.vue"));
 import { useAccountsStore } from "./stores/accounts";
 import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";

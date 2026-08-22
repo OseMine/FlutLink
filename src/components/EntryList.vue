@@ -4,6 +4,7 @@ import { useUiStore } from "../stores/ui";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
+import { sortEntries, type EntrySortKey } from "../lib/sort";
 import Icon from "./Icon.vue";
 
 const props = withDefaults(
@@ -19,7 +20,7 @@ const props = withDefaults(
     searching?: boolean;
     thumbs?: Map<string, string>;
     sharesByPath?: Map<string, Share[]>;
-    sortKey?: "name" | "size" | "mtime";
+    sortKey?: EntrySortKey;
     sortAsc?: boolean;
     kbdIndex?: number;
   }>(),
@@ -37,7 +38,7 @@ const emit = defineEmits<{
   download: [entry: WebDavEntry];
   delete: [entry: WebDavEntry];
   share: [entry: WebDavEntry];
-  toggleSort: [key: "name" | "size" | "mtime"];
+  toggleSort: [key: EntrySortKey];
 }>();
 
 const ui = useUiStore();
@@ -49,32 +50,11 @@ function formatMtime(mtime: string | null): string {
   return isNaN(date.getTime()) ? mtime : date.toLocaleString();
 }
 
-const sortedEntries = computed(() => {
-  const dirs = props.entries.filter((e) => e.isDir);
-  const others = props.entries.filter((e) => !e.isDir);
-  const sortKey = props.sortKey ?? "name";
-  const sortAsc = props.sortAsc ?? true;
-  const cmp = (a: WebDavEntry, b: WebDavEntry): number => {
-    if (sortKey === "size") {
-      const av = a.size ?? 0;
-      const bv = b.size ?? 0;
-      return sortAsc ? av - bv : bv - av;
-    }
-    if (sortKey === "mtime") {
-      const av = a.mtime ? new Date(a.mtime).getTime() : 0;
-      const bv = b.mtime ? new Date(b.mtime).getTime() : 0;
-      return sortAsc ? av - bv : bv - av;
-    }
-    const av = a.name.toLowerCase();
-    const bv = b.name.toLowerCase();
-    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  dirs.sort(cmp);
-  others.sort(cmp);
-  return [...dirs, ...others];
-});
+const sortedEntries = computed(() =>
+  sortEntries(props.entries, props.sortKey ?? "name", props.sortAsc ?? true)
+);
 
-function toggleSort(key: "name" | "size" | "mtime") {
+function toggleSort(key: EntrySortKey) {
   emit("toggleSort", key);
 }
 

@@ -165,8 +165,9 @@ export const useFilesStore = defineStore("files", () => {
       );
       if (seq === searchSeq) searchResults.value = results;
     } catch (e) {
+      // L12-N4: report a failed search exactly once — via the store's error
+      // banner; do not rethrow (the caller would otherwise toast it again).
       if (seq === searchSeq) error.value = invokeError(e).message;
-      throw e;
     } finally {
       if (seq === searchSeq) searching.value = false;
     }
