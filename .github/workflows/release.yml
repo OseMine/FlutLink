@@ -13,6 +13,12 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
+# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# override once via the repo variable OPENCODE_MODELS; entries are probed
+# in order and the first usable model wins.
+env:
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+
 jobs:
   release-notes:
     runs-on: ubuntu-latest
@@ -79,9 +85,7 @@ jobs:
           EOF
           )
 
-          opencode run \
-            --model "opencode/deepseek-v4-flash-free" \
-            --prompt "$PROMPT"
+          bash scripts/opencode-with-fallback.sh --prompt "$PROMPT"
 
       - name: Read release notes
         id: read
@@ -107,8 +111,52 @@ jobs:
 
       - uses: ./.github/actions/checks
 
+  security-gate:
+    name: Security gate (scan + rating 0-10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      rating: ${{ steps.gate.outputs.rating }}
+      verdict: ${{ steps.gate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run security scan
+        id: gate
+        uses: ./.github/actions/security
+        with:
+          min-rating: "7"
+          opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
+          models: ${{ env.OPENCODE_MODELS }}
+
+  abort-insecure-release:
+    name: Abort insecure release (delete tag)
+    needs: security-gate
+    if: always() && needs.security-gate.result == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Delete release and tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::notice::Kein Tag-Push (workflow_dispatch) - nichts zu loeschen"
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" 2>/dev/null \
+            || echo "::warning::Tag ${TAG} war bereits geloescht"
+          echo "::error title=Release abgebrochen::Security-Gate fehlgeschlagen (Bewertung ${{ needs.security-gate.outputs.rating }}/10) - Release ${TAG} gestoppt und Tag ${TAG} geloescht"
+
   build-and-release:
-    needs: [release-notes, checks]
+    needs: [release-notes, checks, security-gate]
     strategy:
       fail-fast: false
       matrix:
@@ -155,7 +203,7 @@ jobs:
 
   android:
     name: Build Android APK (signed)
-    needs: checks
+    needs: [checks, security-gate]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -175,7 +223,7 @@ jobs:
 
   ios:
     name: Build iOS IPA (unsigned)
-    needs: checks
+    needs: [checks, security-gate]
     runs-on: macos-latest
     steps:
       - name: Checkout repository

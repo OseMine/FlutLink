@@ -18,6 +18,11 @@ permissions:
   contents: write
   issues: write
 
+# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# override once via the repo variable OPENCODE_MODELS.
+env:
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+
 jobs:
   create-issues:
     runs-on: ubuntu-latest
@@ -34,6 +39,13 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Pick OpenCode model
+        id: model
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: echo "model=$(bash scripts/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+
       - name: Run opencode to create issues from todo.md
         uses: anomalyco/opencode/github@31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18
         env:
@@ -45,7 +57,7 @@ jobs:
           GIT_COMMITTER_NAME: GitHub Actions
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         with:
-          model: opencode/deepseek-v4-flash-free
+          model: ${{ steps.model.outputs.model }}
           use_github_token: true
           prompt: |
             Aufgabe: Erzeuge GitHub-Issues aus den offenen Aufgaben in todo.md.

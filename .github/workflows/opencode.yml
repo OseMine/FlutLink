@@ -12,6 +12,11 @@ concurrency:
   group: opencode-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
+# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# override once via the repo variable OPENCODE_MODELS.
+env:
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+
 jobs:
   # Tauri backend checks, stored as reusable actions (see .github/actions/):
   # formatting, clippy (-D warnings), full test suite. Runs before the agent
@@ -88,6 +93,13 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Pick OpenCode model
+        id: model
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: echo "model=$(bash scripts/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+
       - name: Run opencode
         uses: anomalyco/opencode/github@31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18
         env:
@@ -98,7 +110,7 @@ jobs:
           GIT_COMMITTER_NAME: GitHub Actions
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         with:
-          model: opencode/deepseek-v4-flash-free
+          model: ${{ steps.model.outputs.model }}
           use_github_token: true
           prompt: |
             You are working on the FlutLink repository. A user commented on an

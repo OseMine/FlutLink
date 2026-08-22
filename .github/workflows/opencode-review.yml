@@ -14,6 +14,11 @@ concurrency:
   group: opencode-review
   cancel-in-progress: true
 
+# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# override once via the repo variable OPENCODE_MODELS.
+env:
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+
 jobs:
   review:
     name: Code review
@@ -34,6 +39,13 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Pick OpenCode model
+        id: model
+        shell: bash
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: echo "model=$(bash scripts/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+
       - name: Run OpenCode review
         uses: anomalyco/opencode/github@31406ccc51b4bd2a4e1e086b2bcaa5f7f804f26d # v1.18.18
         id: review
@@ -45,7 +57,7 @@ jobs:
           GIT_COMMITTER_NAME: GitHub Actions
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         with:
-          model: opencode/deepseek-v4-flash-free
+          model: ${{ steps.model.outputs.model }}
           use_github_token: true
           prompt: |
             Automatisiertes Code-Review des FlutLink-Projekts (Tauri v2 Desktop-App:
@@ -162,10 +174,8 @@ jobs:
 
             echo "$REVIEW_PROMPT" > /tmp/review-prompt.txt
 
-            npx --yes opencode-ai@1.18.21 run \
-              --model opencode/deepseek-v4-flash-free \
-              --auto \
-              "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
+            OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
+              bash scripts/opencode-with-fallback.sh --auto "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
 
             RESULT=$(grep -E '^(MERGE|APPROVE|REJECT)' /tmp/review-result.txt | head -1 || echo "REJECT")
             RATIONALE=$(tail -n +2 /tmp/review-result.txt 2>/dev/null | tr '\n' ' ' || echo "Review execution failed")
@@ -254,10 +264,8 @@ jobs:
           5. Speichere die Änderungen in todo.md
           6. Committen Sie die Datei"
 
-          npx --yes opencode-ai@1.18.21 run \
-            --model opencode/deepseek-v4-flash-free \
-            --auto \
-            "$PROMPT" 2>&1 || echo "opencode finished with error"
+          OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
+            bash scripts/opencode-with-fallback.sh --auto "$PROMPT" 2>&1 || echo "opencode finished with error"
 
           if [ -n "$(git status --porcelain todo.md)" ]; then
             git add todo.md
