@@ -1,0 +1,140 @@
+name: kmp
+
+# CI for the FlutLink KMP module (`kmp/`). The module mirrors the Android
+# client's Kotlin code as a Kotlin Multiplatform library (Android + JVM +
+# iOS targets, see kmp/README.md).
+#
+# Linux runners exercise androidTarget(), jvm() and the unit tests; the iOS
+# targets are only compilable on macOS/Xcode hosts and are intentionally not
+# built here. The ubuntu-24.04 runners ship an Android SDK (ANDROID_HOME is
+# preset), so the gradle wrapper builds directly.
+
+on:
+  push:
+    paths:
+      - 'kmp/**'
+      - '.github/workflows/kmp.yml'
+  pull_request:
+    paths:
+      - 'kmp/**'
+      - '.github/workflows/kmp.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kmp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (assembleDebug)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Build debug APK
+        working-directory: kmp
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:assembleDebug --console=plain
+
+  test:
+    name: Unit tests (testDebugUnitTest)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Run unit tests
+        working-directory: kmp
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:testDebugUnitTest --console=plain
+
+  jvm:
+    name: JVM target (compileKotlinJvm)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Compile JVM target
+        working-directory: kmp
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:compileKotlinJvm --console=plain
+
+  lint:
+    name: Lint (lintDebug)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Run Android lint
+        working-directory: kmp
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:lintDebug --console=plain
+
+  complete:
+    name: KMP CI complete
+    needs: [build, test, jvm, lint]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All checks passed
+        run: echo "kmp build + tests + jvm + lint passed"

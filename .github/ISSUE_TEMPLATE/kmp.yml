@@ -1,0 +1,117 @@
+name: KMP
+description: Bug report or feature request for the FlutLink KMP module
+labels: ["android"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue or suggesting a feature for the FlutLink KMP module (`kmp/`)!
+        The module mirrors the Android client's Kotlin code as a Kotlin Multiplatform library.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Issue type
+      options:
+        - Bug report
+        - Feature request
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: Affected target(s)
+      description: "Which KMP target(s) does this affect?"
+      multiple: true
+      options:
+        - Android
+        - JVM (desktop)
+        - iOS
+        - Shared code / build
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: "Version or commit the issue was observed on."
+      placeholder: "e.g. 1.0.0 or commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: host
+    attributes:
+      label: Build/run environment
+      description: "OS and toolchain used to build or run the module."
+      placeholder: "e.g. Ubuntu 24.04, JDK 17, Gradle 8.13"
+    validations:
+      required: false
+
+  - type: input
+    id: nextcloud-version
+    attributes:
+      label: FlutCloud server version
+      placeholder: "e.g. 30"
+    validations:
+      required: false
+
+  # --- Bug-only fields ---
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: "How can we reproduce this bug?"
+      placeholder: |
+        1. cd kmp && ./gradlew :shared:build
+        2. Observe the error
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: "What actually happened? Include screenshots if possible."
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "Paste relevant Gradle/compiler output here."
+      render: shell
+
+  # --- Feature-only fields ---
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: "What problem does this feature solve?"
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: "How should the feature work?"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: "Any other context, mockups, or references."

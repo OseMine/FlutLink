@@ -51,7 +51,7 @@ body:
       label: Installation method
       options:
         - Bundled app (from release)
-        - `npm run tauri dev`
+        - "`npm run tauri dev`"
         - Android APK (from GitHub release)
         - Android APK (built locally)
     validations:
