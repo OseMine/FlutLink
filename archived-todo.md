@@ -4,6 +4,50 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Fix-Lauf 2026-08-22 — GitHub-Issues #225–#230, #243, #255-Rest, #267 (abgeschlossen)
+
+Aus `todo.md` verschoben (Lauf 16, 2026-08-22): alle neun Punkte waren
+abgehakt und gegen HEAD verifiziert (`cargo fmt --check` /
+`cargo clippy --all-targets -- -D warnings` / `cargo test` grün;
+`npm run build` grün ohne Chunk-Size-Warnung; `:shared:compileKotlinJvm`
+grün).
+
+- [x] **L12-N1 (#225):** `AdminPanel.vue listUsers` ruft nach dem Suchpflicht-
+      Guard jetzt `loadPage(false)` (Offset-Reset) statt eines unlimitierten
+      `adminListUsers(query)`-Vollabrufs; `hasMore` wird aus dem
+      `AdminUsersResult` gesetzt und die PAGE=200-Paginierung über
+      „Load more" ist erreichbar.
+- [x] **L12-N2 (#226):** `SettingsModal.vue remove` verlangt denselben F7-
+      Confirm wie `App.vue removeActive` / `AccountBar.vue remove`
+      (`window.confirm(t("deleteAccountConfirm").replace("{name}", …))`).
+- [x] **L12-N3 (#227):** `FileExplorer.vue loadAdminUsers` lädt nicht mehr beim
+      Mount/Kontowechsel: die Impersonation-Auswahl ist lazy — Sucheingabe im
+      Admin-Bar (Enter/Button), Abruf gebremst auf eine OCS-Seite (Limit 200);
+      Mount-/Watcher-Vollabrufe entfernt.
+- [x] **L12-N4 (#228):** `stores/files.ts searchFiles` rethrowt nicht mehr —
+      der Fehler erscheint genau einmal (Store-Fehler-Banner); `runSearch`
+      tost nicht zusätzlich.
+- [x] **L12-N5 (#229):** Sortierkomparator in `src/lib/sort.ts` ausgelagert
+      (`compareEntries`/`sortEntries`, Ordner zuerst); FileExplorer (kbdIndex)
+      und EntryList nutzen dieselbe Implementierung.
+- [x] **L12-N6 (#230):** Code-Splitting umgesetzt: `main.ts` importiert nur
+      noch die tatsächlich genutzten `@material/web/*`-Module (statt
+      `all.js`; fehlende Registrierungen ergänzt), LoginModal/SettingsModal/
+      AdminPanel/SyncPanel laufen via `defineAsyncComponent`. Haupt-Chunk:
+      691 kB → 117 kB (29 kB gzip), keine Chunk-Size-Warnung mehr.
+- [x] **#243:** Die drei opencode-Workflows pinnen `anomalyco/opencode/github`
+      bereits auf den vollen SHA (`31406ccc… # v1.18.18`); zusätzlich sind die
+      beiden `npx opencode-ai@latest`-Aufrufe in `opencode-review.yml` auf
+      `opencode-ai@1.18.21` gepinnt — kein bewegliches `@latest` mehr.
+- [x] **#255-Rest:** `.github/workflows/ios.yml` gelöscht; `ios`- und
+      `upload-ios`-Jobs aus `release.yml` entfernt (iOS-CI-Reste, s. o.).
+- [x] **K3 / #267:** KMP-CI ergänzt: neuer Workflow `.github/workflows/kmp.yml`
+      (build `:shared:assembleDebug`, tests `:shared:testDebugUnitTest`,
+      JVM-Check `:shared:compileKotlinJvm`, lint `:shared:lintDebug`;
+      Trigger `kmp/**`) + Issue-Template `.github/ISSUE_TEMPLATE/kmp.yml`.
+      Zusätzlich YAML-Fix in `.github/ISSUE_TEMPLATE/bug_report.yml`
+      (Backtick-Option war ungültiges YAML).
+
 ### Issue #248 — KMP-Build-Blocker behoben (2026-08-20)
 
 Die Workflows/gh-actions sollen die **KMP-Version** (`kmp/`) bauen (Issue
