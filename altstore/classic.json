@@ -1,0 +1,38 @@
+{
+  "name": "FlutLink",
+  "subtitle": "FlutCloud client for iOS",
+  "description": "Official FlutLink source. FlutLink is a dedicated FlutCloud client — files, sharing and administration, built with Kotlin Multiplatform. Distributed as an unsigned IPA for sideloading via AltStore Classic (AltServer signs it with your Apple ID).",
+  "iconURL": "https://raw.githubusercontent.com/OseMine/FlutLink/main/app-icon.png",
+  "website": "https://github.com/OseMine/FlutLink",
+  "tintColor": "#7C5CFC",
+  "nsfw": false,
+  "apps": [
+    {
+      "name": "FlutLink",
+      "bundleIdentifier": "com.flutcloud.flutlink.ios",
+      "developerName": "OseMine",
+      "subtitle": "Files, sharing and admin for your FlutCloud server.",
+      "localizedDescription": "FlutLink is the mobile client for the FlutCloud server (Nextcloud + FlutCloud app). It connects exclusively to servers running the FlutCloud Nextcloud app.\n\n- Files: WebDAV browsing, upload/download, share sheet, folder management, global search\n- Admin: OCS user & group administration\n- Security: tokens are stored securely, never logged\n\nThis build is distributed unsigned; AltStore Classic signs it on install.",
+      "iconURL": "https://raw.githubusercontent.com/OseMine/FlutLink/main/app-icon.png",
+      "tintColor": "#7C5CFC",
+      "category": "utilities",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "buildVersion": "2",
+          "date": "2026-08-22",
+          "localizedDescription": "Initial AltStore release of the FlutLink iOS app.",
+          "downloadURL": "https://github.com/OseMine/FlutLink/releases/download/v1.0.0/FlutLink-unsigned-arm64.ipa",
+          "size": 0,
+          "minOSVersion": "15.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
+    }
+  ],
+  "news": []
+}

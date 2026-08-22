@@ -2,6 +2,14 @@ name: Build KMP iOS IPA (unsigned)
 description: Build the shared KMP framework and archive the iosApp Xcode shell into an UNSIGNED .ipa (macOS runners only).
 
 inputs:
+  version:
+    description: "Marketing version (CFBundleShortVersionString); a leading 'v' is stripped. Empty = Config.xcconfig default."
+    required: false
+    default: ""
+  build-number:
+    description: "Build number (CFBundleVersion). Empty = project default."
+    required: false
+    default: ""
   artifact-name:
     description: "Name for the uploaded artifact"
     required: false
@@ -43,7 +51,16 @@ runs:
     - name: Archive app (unsigned)
       shell: bash
       working-directory: kmp/iosApp
+      env:
+        EXPECTED_VERSION: ${{ inputs.version }}
       run: |
+        VERSION_ARGS=()
+        if [ -n "$EXPECTED_VERSION" ]; then
+          VERSION_ARGS+=("MARKETING_VERSION=${EXPECTED_VERSION#v}")
+        fi
+        if [ -n "${{ inputs.build-number }}" ]; then
+          VERSION_ARGS+=("CURRENT_PROJECT_VERSION=${{ inputs.build-number }}")
+        fi
         xcodebuild \
           -project iosApp.xcodeproj \
           -scheme iosApp \
@@ -51,6 +68,7 @@ runs:
           -destination 'generic/platform=iOS' \
           -archivePath "$RUNNER_TEMP/FlutLink.xcarchive" \
           archive \
+          "${VERSION_ARGS[@]}" \
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
     - name: Package unsigned IPA
@@ -61,6 +79,21 @@ runs:
         cp -R "$RUNNER_TEMP/FlutLink.xcarchive/Products/Applications/"*.app build/Payload/
         cd build
         zip -qry FlutLink-ios-unsigned.ipa Payload
+
+    - name: Verify Info.plist version
+      shell: bash
+      working-directory: kmp/iosApp
+      env:
+        EXPECTED_VERSION: ${{ inputs.version }}
+      run: |
+        APP=$(find "$RUNNER_TEMP/FlutLink.xcarchive/Products/Applications" -type d -name "*.app" | head -n1)
+        BAKED=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
+        WANT="${EXPECTED_VERSION#v}"
+        echo "IPA version: $BAKED (expected: ${WANT:-Config.xcconfig default})"
+        if [ -n "$WANT" ] && [ "$BAKED" != "$WANT" ]; then
+          echo "Version mismatch" >&2
+          exit 1
+        fi
 
     - name: Upload IPA
       uses: actions/upload-artifact@v7
