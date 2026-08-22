@@ -47,10 +47,12 @@ kmp/
 - `jvm()` — JVM-Target; kompiliert `commonMain` (derzeit ohne
   `jvmMain`-Quellen, nur für die Plattform-Validierung der gemeinsamen
   Module)
-- `iosX64()`/`iosArm64()`/`iosSimulatorArm64()` — iOS-Targets
+- `iosArm64()`/`iosSimulatorArm64()` — iOS-Targets
   (Framework `Shared`, `iosMain.dependencies` mit `ktor-client-darwin`).
-  Sie ersetzen den früheren Swift/SwiftUI-iOS-Port (`ios/`, entfernt) und
-  sind nur auf macOS/Xcode-Hosts kompilierbar; die Linux-CI (android.yml,
+  `iosX64()` ist bewusst nicht deklariert — Compose Multiplatform 1.11.0
+  hat die x64-Apple-Artefakte eingestellt. Die Targets ersetzen den
+  früheren Swift/SwiftUI-iOS-Port (`ios/`, entfernt) und sind nur auf
+  macOS/Xcode-Hosts kompilierbar; die Linux-CI (android.yml,
   JVM-Build) übt nur `androidTarget()` + `jvm()` aus.
 
 Der Gradle-Wrapper (8.13) und der Versionskatalog sind bewusst identisch mit

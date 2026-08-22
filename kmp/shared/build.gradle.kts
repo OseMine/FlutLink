@@ -20,8 +20,10 @@ kotlin {
     // iOS targets mirror the desktop client's feature set on Apple devices.
     // They can only be compiled on macOS/Xcode hosts; the CI (android.yml /
     // jvm builds) only exercises androidTarget() + jvm() on Linux.
+    // Note: iosX64 is not declared — Compose Multiplatform 1.11.0 dropped
+    // x64 Apple artifacts (only 1.11.0-alpha01 publishes them), so resolving
+    // commonMain deps for iosX64 fails on every host.
     listOf(
-        iosX64(),
         iosArm64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
