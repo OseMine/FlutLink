@@ -1,0 +1,71 @@
+name: Build KMP iOS IPA (unsigned)
+description: Build the shared KMP framework and archive the iosApp Xcode shell into an UNSIGNED .ipa (macOS runners only).
+
+inputs:
+  artifact-name:
+    description: "Name for the uploaded artifact"
+    required: false
+    default: "flutlink-ios-unsigned"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK 17
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: 17
+
+    # The shared Gradle module applies the Android application plugin, so AGP
+    # needs an SDK even when only linking iOS frameworks.
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android platform
+      shell: bash
+      run: sdkmanager --install "platforms;android-36" > /dev/null
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v6
+      with:
+        gradle-home-cache-cleanup: true
+
+    # Pre-link the device framework so the Xcode script phase's Gradle call
+    # is a cheap up-to-date check, with memory settings we control.
+    - name: Link Shared framework (iosArm64, release)
+      shell: bash
+      working-directory: kmp
+      run: |
+        chmod +x gradlew
+        ./gradlew :shared:linkReleaseFrameworkIosArm64 --console=plain \
+          "-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8"
+
+    - name: Archive app (unsigned)
+      shell: bash
+      working-directory: kmp/iosApp
+      run: |
+        xcodebuild \
+          -project iosApp.xcodeproj \
+          -scheme iosApp \
+          -configuration Release \
+          -destination 'generic/platform=iOS' \
+          -archivePath "$RUNNER_TEMP/FlutLink.xcarchive" \
+          archive \
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+    - name: Package unsigned IPA
+      shell: bash
+      working-directory: kmp/iosApp
+      run: |
+        mkdir -p build/Payload
+        cp -R "$RUNNER_TEMP/FlutLink.xcarchive/Products/Applications/"*.app build/Payload/
+        cd build
+        zip -qry FlutLink-ios-unsigned.ipa Payload
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: kmp/iosApp/build/*.ipa
+        if-no-files-found: error
+        retention-days: 14

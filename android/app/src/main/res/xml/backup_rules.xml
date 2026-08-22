@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- FlutLink stores only account metadata + settings in auto-backup; the app
-     token lives in EncryptedSharedPreferences and is excluded below. -->
-<full-backup-content>
-    <exclude domain="sharedpref" path="flutlink_secure.xml" />
-</full-backup-content>

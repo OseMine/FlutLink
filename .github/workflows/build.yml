@@ -111,6 +111,39 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  android:
+    name: Mobile artifacts (Android APK, unsigned debug)
+    if: github.event_name == 'push'
+    needs: [frontend, rust]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build unsigned debug APK (from KMP project)
+        uses: ./.github/actions/kmp-android-build
+        with:
+          signed: "false"
+          artifact-name: flutlink-android-debug
+
+  ios:
+    name: Mobile artifacts (iOS IPA, unsigned)
+    if: github.event_name == 'push'
+    needs: [frontend, rust]
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build unsigned iOS IPA (from KMP project)
+        uses: ./.github/actions/kmp-ios-build
+        with:
+          artifact-name: flutlink-ios-unsigned
+
   complete:
     name: CI complete
     needs: [frontend, rust]

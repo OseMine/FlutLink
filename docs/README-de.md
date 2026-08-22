@@ -8,9 +8,9 @@ Zwei-Wege-Sync, wobei der komplette HTTP-Stack (WebDAV + OCS) im Rust-Backend
 liegt. FlutLink verbindet sich ausschließlich mit dem FlutCloud-Server und
 lehnt Server ohne die FlutCloud-Nextcloud-App (`flutcloud-app/`) ab.
 
-> **Android-Client:** `android/` ist ein Port des Desktop-Clients auf Kotlin +
-> Jetpack Compose, generiert mit opencode (siehe
-> [`android/README.md`](../android/README.md)). Er spiegelt den
+> **Mobiler Client:** `kmp/` ist ein Kotlin-Multiplatform-Port des
+> Desktop-Clients (Android + iOS in einer Codebasis), generiert mit opencode
+> (siehe [`kmp/README.md`](../kmp/README.md)). Er spiegelt den
 > Desktop-Funktionsumfang und ist kein separates Produkt.
 
 Die Dokumentation wird in **zwei Sprachen** (Englisch und Deutsch) gepflegt.

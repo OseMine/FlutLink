@@ -14,3 +14,12 @@ local.properties
 # App build
 shared/build/
 shared/release/
+
+# iOS (Xcode)
+iosApp/iosApp.xcodeproj/project.xcworkspace/
+iosApp/iosApp.xcodeproj/xcuserdata/
+**/*.xcuserstate
+DerivedData/
+iosApp/build/
+*.ipa
+*.dSYM.zip

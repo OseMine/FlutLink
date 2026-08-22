@@ -75,7 +75,6 @@ kotlin {
             implementation(libs.junit)
             implementation(libs.xpp3)
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.xpp3)
         }
     }
 }
@@ -85,7 +84,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.flutcloud.flutlink.kmp"
+        applicationId = "com.flutcloud.flutlink"
         minSdk = 26
         targetSdk = 36
         versionCode = 2
@@ -105,6 +104,37 @@ android {
 
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let { file(it) }
+            if (keystoreFile?.exists() == true) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_STORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEYSTORE_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            val keystoreFile = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let { file(it) }
+            if (keystoreFile?.exists() == true) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
     }
 

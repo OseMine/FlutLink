@@ -1,0 +1,6 @@
+// Build settings for the iosApp Xcode shell. The Gradle side of the KMP
+// build lives in ../shared/build.gradle.kts; keep both in sync.
+TEAM_ID =
+APP_NAME = FlutLink
+APP_BUNDLE_ID = com.flutcloud.flutlink
+APP_VERSION = 1.0.0

@@ -154,7 +154,7 @@ jobs:
           args: ${{ matrix.args }}
 
   android:
-    name: Build Android APK
+    name: Build Android APK (signed)
     needs: checks
     runs-on: ubuntu-24.04
     steps:
@@ -163,8 +163,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build signed release APK
-        uses: ./.github/actions/android-build
+      - name: Build signed release APK (from KMP project)
+        uses: ./.github/actions/kmp-android-build
         with:
           signed: "true"
           keystore: ${{ secrets.ANDROID_KEYSTORE }}
@@ -173,9 +173,24 @@ jobs:
           keystore-key-password: ${{ secrets.ANDROID_KEYSTORE_KEY_PASSWORD }}
           artifact-name: flutlink-android-release-v__VERSION__
 
-  upload-android:
-    name: Upload Android APK to release
-    needs: [build-and-release, android]
+  ios:
+    name: Build iOS IPA (unsigned)
+    needs: checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build unsigned iOS IPA (from KMP project)
+        uses: ./.github/actions/kmp-ios-build
+        with:
+          artifact-name: flutlink-ios-release
+
+  upload-mobile:
+    name: Upload mobile artifacts to release
+    needs: [build-and-release, android, ios]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -189,10 +204,16 @@ jobs:
           name: flutlink-android-release
           path: apk
 
-      - name: Upload APK to release
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flutlink-ios-release
+          path: ipa
+
+      - name: Upload mobile artifacts to release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          gh release upload "$TAG" apk/*.apk --clobber
+          gh release upload "$TAG" apk/*.apk ipa/*.ipa --clobber

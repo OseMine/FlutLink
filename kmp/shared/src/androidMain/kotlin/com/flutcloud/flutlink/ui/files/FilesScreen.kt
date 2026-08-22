@@ -124,6 +124,7 @@ fun FilesScreen(
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val downloadPermissionDeniedText = stringResource(R.string.download_permission_denied)
 
     val downloadPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -133,7 +134,7 @@ fun FilesScreen(
                 vm.downloadToDownloads(target)
             } else {
                 scope.launch {
-                    snackbar.showSnackbar(context.getString(R.string.download_permission_denied))
+                    snackbar.showSnackbar(downloadPermissionDeniedText)
                 }
             }
         }
@@ -174,26 +175,31 @@ fun FilesScreen(
             vm.clearToast()
         }
     }
+    val downloadedText = downloaded?.let { stringResource(R.string.downloaded_to_downloads, it) }
     LaunchedEffect(downloaded) {
         downloaded?.let { path ->
             if (!FileOpener.open(context, path)) {
-                snackbar.showSnackbar(context.getString(R.string.downloaded_to_downloads, path))
+                snackbar.showSnackbar(downloadedText.orEmpty())
             }
             vm.clearDownloaded()
         }
     }
+    val shareFailedText = sharePath?.let { stringResource(R.string.share_failed, it) }
     LaunchedEffect(sharePath) {
         sharePath?.let { path ->
             if (!ShareSheet.share(context, path)) {
-                snackbar.showSnackbar(context.getString(R.string.share_failed, path))
+                snackbar.showSnackbar(shareFailedText.orEmpty())
             }
             vm.clearSharePath()
         }
     }
+    val noUrlText = stringResource(R.string.no_url)
+    val linkCreatedText = lastShare?.let {
+        stringResource(R.string.link_created, it.url ?: noUrlText)
+    }
     LaunchedEffect(lastShare) {
         lastShare?.let {
-            val url = it.url ?: context.getString(R.string.no_url)
-            snackbar.showSnackbar(context.getString(R.string.link_created, url))
+            snackbar.showSnackbar(linkCreatedText.orEmpty())
             vm.clearLastShare()
         }
     }

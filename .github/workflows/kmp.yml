@@ -1,23 +1,28 @@
 name: kmp
 
-# CI for the FlutLink KMP module (`kmp/`). The module mirrors the Android
-# client's Kotlin code as a Kotlin Multiplatform library (Android + JVM +
-# iOS targets, see kmp/README.md).
+# CI for the FlutLink mobile client (`kmp/`) — Kotlin Multiplatform with
+# Android, JVM and iOS targets in one codebase (see kmp/README.md).
 #
-# Linux runners exercise androidTarget(), jvm() and the unit tests; the iOS
-# targets are only compilable on macOS/Xcode hosts and are intentionally not
-# built here. The ubuntu-24.04 runners ship an Android SDK (ANDROID_HOME is
-# preset), so the gradle wrapper builds directly.
+# Linux runners exercise androidTarget(), jvm() and the unit tests; macOS
+# runners additionally compile the iOS Kotlin targets. The ubuntu-24.04
+# runners ship an Android SDK (ANDROID_HOME is preset), so the gradle wrapper
+# builds directly; the macOS job installs commandline tools via
+# android-actions/setup-android because AGP needs an SDK even for iOS-only
+# Gradle invocations.
 
 on:
   push:
     paths:
       - 'kmp/**'
       - '.github/workflows/kmp.yml'
+      - '.github/actions/kmp-android-build/**'
+      - '.github/actions/kmp-ios-build/**'
   pull_request:
     paths:
       - 'kmp/**'
       - '.github/workflows/kmp.yml'
+      - '.github/actions/kmp-android-build/**'
+      - '.github/actions/kmp-ios-build/**'
 
 permissions:
   contents: read
@@ -105,6 +110,39 @@ jobs:
           chmod +x gradlew
           ./gradlew :shared:compileKotlinJvm --console=plain
 
+  ios:
+    name: iOS targets (compile, macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager --install "platforms;android-36" > /dev/null
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Compile iOS targets
+        working-directory: kmp
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:compileKotlinIosArm64 :shared:compileKotlinIosSimulatorArm64 --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8"
+
   lint:
     name: Lint (lintDebug)
     runs-on: ubuntu-24.04
@@ -133,8 +171,8 @@ jobs:
 
   complete:
     name: KMP CI complete
-    needs: [build, test, jvm, lint]
+    needs: [build, test, jvm, ios, lint]
     runs-on: ubuntu-24.04
     steps:
       - name: All checks passed
-        run: echo "kmp build + tests + jvm + lint passed"
+        run: echo "kmp build + tests + jvm + iOS compile + lint passed"

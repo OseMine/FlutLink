@@ -10,17 +10,12 @@ Servern, die die FlutCloud-Nextcloud-App
 (keyring). Das Frontend ist Vue 3 + TypeScript + Tailwind v4 und läuft in
 einem Tauri WebView.
 
-**`android/` ist ein Port des Desktop-Clients auf Kotlin + Jetpack Compose,
-generiert mit opencode** — es spiegelt den Desktop-Funktionsumfang und ist
-kein separates Produkt. Bewusste Ausnahme: der Zwei-Wege-Sync ist
-Desktop-only (Plattform-Gründe, s. `android/README.md` „Consciously not on
-mobile"). Änderungen an Features/Verhalten müssen dort mitgezogen werden
-(CI: `.github/workflows/android.yml`).
-
-**`kmp/` ist ein Kotlin-Multiplatform-Subprojekt, das den Kotlin-Code des
-Android-Clients (`android/`) als Multiplattform-Modul spiegelt (Android,
-JVM und iOS-Targets).** Es ersetzt den früheren iOS-Port (`ios/`, Swift +
-SwiftUI), der entfernt wurde. Details in `kmp/README.md`.
+**`kmp/` ist der mobile Client (Kotlin Multiplatform): Android, JVM und
+iOS-Targets in einer Codebasis.** Er ist ein Port des Desktop-Funktionsumfangs
+und kein separates Produkt. Bewusste Ausnahme: der Zwei-Wege-Sync ist
+Desktop-only (Plattform-Gründe, s. `kmp/README.md`). Der frühere separate
+Android-Port (`android/`, entfernt) und iOS-Port (`ios/`, Swift + SwiftUI,
+entfernt) sind in `kmp/` aufgegangen. Details in `kmp/README.md`.
 
 ## Struktur
 
@@ -44,9 +39,9 @@ SwiftUI), der entfernt wurde. Details in `kmp/README.md`.
   - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
     Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)
   - `nextcloud/ocs.rs` — OCS Provisioning API (User-Liste, Details, Quota, Shares)
-- `android/` — Port des Desktop-Clients auf Kotlin + Jetpack Compose
-  (generiert mit opencode, siehe oben); `android/README.md` beschreibt
-  Struktur und Build
+- `kmp/` — mobiler Client (Kotlin Multiplatform): Android-APK, JVM und
+  iOS-Framework in einer Codebasis; `kmp/iosApp/` ist die Xcode-Hülle für
+  den iOS-Build; `kmp/README.md` beschreibt Struktur, Build und CI
 - `flutcloud-app/` — Nextcloud-Server-App (PHP) für die Nicht-Standard-Funktionen
   des FlutCloud-Servers (Capability, `resources`/`parts`-Virtuelle-Links,
   Projektordner). FlutLink verbindet sich nur mit Servern, die diese App
@@ -70,8 +65,8 @@ SwiftUI), der entfernt wurde. Details in `kmp/README.md`.
 - `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings`
 - `cargo test --manifest-path src-tauri/Cargo.toml` (Unit-Tests in
   `nextcloud/`-Modulen)
-- `cd android && ./gradlew :app:assembleDebug` — Android-Client bauen
-  (JDK 17; CI siehe `.github/workflows/android.yml`)
+- `cd kmp && ./gradlew :shared:assembleDebug` — Android-APK bauen
+  (JDK 17; CI siehe `.github/workflows/kmp.yml`)
 - `cd kmp && ./gradlew :shared:build` — KMP-Modul bauen (Android + JVM +
   Unit-Tests; iOS-Targets nur auf macOS/Xcode-Hosts kompilierbar)
 
@@ -97,6 +92,5 @@ SwiftUI), der entfernt wurde. Details in `kmp/README.md`.
 Vor dem Abschluss einer Änderung immer ausführen:
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `cargo test` (jeweils mit `--manifest-path src-tauri/Cargo.toml`) und
-`npm run build`. Bei Änderungen an `android/` zusätzlich
-`cd android && ./gradlew :app:assembleDebug`. Bei Änderungen an `kmp/`
-zusätzlich `cd kmp && ./gradlew :shared:build`.
+`npm run build`. Bei Änderungen an `kmp/` zusätzlich
+`cd kmp && ./gradlew :shared:build`.

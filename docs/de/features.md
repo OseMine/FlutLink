@@ -92,15 +92,16 @@ Siehe [Tray & CLI](tray-and-cli.md).
   synchronisierte Dateien, über alle Ordner aggregiert, kein Spam bei
   Leerläufen) und wenn ein Update verfügbar ist.
 
-## Android-Client
+## Mobiler Client (KMP)
 
-Ein begleitender **Android-Client** (`android/`) portiert den
-Desktop-Funktionsumfang auf Kotlin + Jetpack Compose (Material 3). Er wurde
-mit opencode generiert, spiegelt die Desktop-App und ist kein separates
-Produkt. Es gilt dieselbe FlutCloud-only-Policy: Vor der Annahme eines Kontos
-wird die `flutcloud`-Capability geprüft, und wenn eine Server-URL ins Build
-eingebaut ist (`FLUTCLOUD_URL` / `-PflutcloudUrl`), ist das URL-Feld im
-Login-Screen gesperrt.
+Ein begleitender **mobiler Client** (`kmp/`) portiert den
+Desktop-Funktionsumfang auf Kotlin Multiplatform (Material 3) — Android-,
+JVM- und iOS-Targets in einer Codebasis. Er wurde mit opencode generiert,
+spiegelt die Desktop-App und ist kein separates Produkt. Es gilt dieselbe
+FlutCloud-only-Policy: Vor der Annahme eines Kontos wird die
+`flutcloud`-Capability geprüft, und wenn eine Server-URL ins Build eingebaut
+ist (`FLUTCLOUD_URL` / `-PflutcloudUrl`), ist das URL-Feld im Login-Screen
+gesperrt.
 
 Auf Android verfügbar:
 
@@ -119,10 +120,12 @@ Auf Android verfügbar:
 - **Sicherheit** — Tokens liegen in `EncryptedSharedPreferences`
   (Android-Keystore), Kontometadaten in einer separaten Preferences-Datei;
   kein Token wird jemals geloggt oder im Klartext gespeichert.
+- **iOS** — Targets und Xcode-Hülle (`kmp/iosApp/`) sind eingerichtet und
+  werden in CI gebaut (unsignierte IPA); volle UI-Parität mit dem
+  Android-Target ist Folgearbeit.
 
 Nicht portiert (vorerst nur Desktop): Zwei-Wege-Sync (bewusste
-Produktentscheidung, Abschnitt „Consciously not on mobile" in
-[`android/README.md`](../../android/README.md)), Admin-Impersonation sowie
+Produktentscheidung, siehe `kmp/README.md`), Admin-Impersonation sowie
 Tray-/CLI-Verhalten.
 
-Build und Details siehe [`android/README.md`](../../android/README.md).
+Build, Signing und CI siehe [`kmp/README.md`](../../kmp/README.md).
