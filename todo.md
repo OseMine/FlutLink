@@ -5,48 +5,143 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Review 2026-08-22 (Lauf 16, ganzes Projekt — neue Befunde)
+
+Verifikation dieses Laufs (frisch ausgeführt, HEAD `b4324bf`): `cargo fmt
+--check` grün; `cargo clippy --all-targets -- -D warnings` grün;
+`cargo test --manifest-path src-tauri/Cargo.toml` → **83 passed / 0 failed**
+(Tauri-Linux-Systemdeps nachinstalliert); `npm run build` (vue-tsc + vite)
+grün, Haupt-Chunk 117 kB, keine Chunk-Size-Warnung mehr (L12-N6 hält).
+Gegenstand: gesamtes Projekt — Backend `src-tauri/` (lib.rs, commands.rs,
+accounts.rs, state.rs, error.rs, cache.rs, flutcloud.rs, updater.rs,
+sync.rs, nextcloud/webdav.rs, nextcloud/ocs.rs), Frontend `src/`
+(Komponenten, Stores, lib/ipc.ts, lib/i18n.ts, lib/sort.ts) und
+Workflows/Actions `.github/`.
+
+**Status der offenen Lauf-15-Befunde — alle gegen HEAD geprüft, weiterhin
+offen (nichts neu abzuhaken):**
+
+- L15-S1…S10 unverändert: `walk_local` schluckt weiter alle Lese-Fehler
+  (`sync.rs:206`, `else { continue }`); `persist_journal` weiter
+  nicht-atomar via `std::fs::write` (`sync.rs:905-909`); Uploads ohne
+  `If-Match`, Downloads/Local-Deletes ohne Re-Check; Sekunden-mtimes,
+  `etag` ungenutzt; Erst-Sync-Skip ohne Journal-Eintrag (`decide`,
+  `sync.rs:380-390`); `plan_ops` sortiert `dir_ops` weiterhin vor
+  `MoveRemoteConflict` (`sync.rs:512-517`); `DeleteRemoteDir` prüft nur
+  sichtbare Kinder (`sync.rs:481`); `notify()` feuert pro Fehl-Pass
+  (`sync.rs:1192-1204`); `rel_from` verwirft Nicht-UTF-8-Namen.
+- L15-W1…W9 unverändert: `search()`-Guard nur `starts_with("/remote.php/")`
+  (`webdav.rs:162`) statt `is_namespace_mismatch()`; False-Positives des
+  Guards (`webdav.rs:1076-1078`); `create_share`/`list_shares` ohne
+  uid_owner-Gegenprüfung; Chunked-Upload liest ohne Fill-Loop
+  (`webdav.rs:409`); PUT ohne `Overwrite: F` bei `overwrite=false`;
+  `list_users` dedupliziert nur den Fortschritts-Wächter
+  (`all.extend(users)`, `ocs.rs:113`); PROPFIND-Parser ohne
+  `Event::CData`; Cache-Schreibvorgänge nicht atomar + `Parse`-Fehler
+  bricht den Offline-Fallback (`cache.rs:86-108`);
+  `DefaultHasher`-Cache-Keys (`cache.rs:32-36`).
+- L15-F1…F10 unverändert: New-folder/Rename-Dialoge ohne
+  `type="button"`/busy-Guard (`FileExplorer.vue:1203/1230` in
+  `<form @submit.prevent>`); `goBack`/Breadcrumb-Navigation leert die
+  Suche nicht (`FileExplorer.vue:294-299, 771`); `AdminPanel.selectUser`
+  ohne Sequenz-Guard (`AdminPanel.vue:220-235`); `clearTransfer()` nur im
+  Erfolgszweig; `doRename` ohne die mkdir-Namensvalidierung
+  (`FileExplorer.vue:408-414`); `refresh()` pro Einzel-Upload
+  (`stores/files.ts:220-233`); `kbdIndex` läuft über `displayEntries`,
+  Split-View links rendert aber `files.entries` (`FileExplorer.vue:1033`);
+  `pairOf` tauscht jedes Segment (`stores/files.ts:17-32`);
+  `searchTimer` wird in `onUnmounted` nicht geleert
+  (`FileExplorer.vue:718-720`); `accounts.load()` ohne seq-Zähler
+  (`stores/accounts.ts:29-42`).
+
+**Neue Befunde (Frontend/Backend/CI):**
+
+- [ ] **L16-F1 (Konsistenz, mittel):** Der Admin-Tab im Einstellungsdialog
+      holt weiterhin **alle** Benutzer-Seiten: `loadUsers`
+      (`SettingsModal.vue:116-133`) ruft `api.adminListUsers(query)` ohne
+      `limit` → `commands.rs admin_list_users` reicht `None` an
+      `ocs.rs list_users` durch, das ohne Limit alle Seiten à 200
+      abruft (`ocs.rs:98-118`). Genau dieses Muster eliminierten
+      U-R8-12/L12-N1 (AdminPanel: Load-more-Paginierung) und L12-N3
+      (FileExplorer: `ADMIN_PAGE = 200`, eine Seite) — SettingsModal wurde
+      übersehen. Fix: eine Seite mit `limit=200` wie in
+      `FileExplorer.vue loadAdminUsers`.
+- [ ] **L16-F2 (i18n, minor):** `ERROR_CODE_KEYS`
+      (`src/lib/i18n.ts:621-638`) mappt `sync_folder_conflict` nicht —
+      `AppError::SyncFolderConflict` (`error.rs:29-32`) fällt durch
+      `translateError` auf „Unbekannter Fehler.". Nur
+      `SyncPanel.vue pickFolder` fängt den Code separat ab; jeder andere
+      Anzeigepfad via `invokeError()` zeigt den generischen Text. Fix:
+      `sync_folder_conflict:` auf einen eigenen `err*`-Schlüssel mappen.
+- [ ] **L16-A1 (Keyring/Accounts, minor):** `load_accounts`
+      (`accounts.rs:106-108`) überspringt Konten mit fehlgeschlagener
+      Keyring-Token-Abfrage stillschweigend (`if let Ok(token)`) — anders
+      als URL-gefilterte Konten (F8, `LoadAccountsResult::dropped` +
+      AccountBar-Hint) verschwinden sie ohne jeden Hinweis. Nutzer mit
+      verlorenem Schlüsselbund-Eintrag sehen das Konto einfach weg. Fix:
+      Token-Miss analog `dropped` sammeln und über
+      `account_filter_info` melden.
+- [ ] **L16-C1 (Supply Chain, mittel):** `opencode-review.yml` Job
+      `review-prs` (Z. 112-204) merged jeden offenen PR per
+      `gh pr merge --squash --delete-branch` allein auf das „MERGE"-Urteil
+      eines einzelnen LLM-Runs (Z. 188-192), mit
+      `permissions: contents: write`. PR-Titel/-Beschreibung/-Code sind
+      unbeaufsichtigtes Modelleingabematerial → Prompt-Injection kann ein
+      Auto-Merge nach main erwirken. Fix: MERGE nur als Kommentar/Label,
+      Merge durch Menschen; mindestens keine Auto-Merge-Pipeline für
+      fremde Contributor-PRs.
+- [ ] **L16-C2 (CI, minor):** `release.yml` Job `upload-mobile`
+      (Z. 241-269) hat keinen Tag-Guard und läuft auch bei
+      `workflow_dispatch` (Trigger Z. 7): `gh release upload "$TAG"`
+      nutzt dann `GITHUB_REF_NAME=<Branch>` und failt. Der
+      nachgelagerte `altstore`-Job hat den Guard bereits
+      (`if: startsWith(github.ref, 'refs/tags/v')`, Z. 274). Fix:
+      denselben Guard auf `upload-mobile` setzen.
+- [ ] **L16-C3 (CI, minor):** `.github/actions/kmp-android-build/
+      action.yml` erzeugt bei `signed=true` mit leerem Keystore-Secret
+      trotzdem ein Artefakt: „Decode keystore" (Z. 44-49) und
+      `KEYSTORE_PATH` (Z. 55) werden übersprungen, `kmp/shared/
+      build.gradle.kts` (Z. 110-132) fällt ohne Keystore auf ungesigned
+      zurück — das unsignierte „release"-APK landet als
+      `flutlink-android-release` im GitHub-Release. Fix: bei
+      `signed=true && keystore==''` früh mit klarer Fehlermeldung
+      abbrechen.
+
+Keine neuen Befunde in `lib.rs`, `commands.rs`, `state.rs`, `error.rs`,
+`cache.rs`, `flutcloud.rs`, `updater.rs`, `nextcloud/mod.rs` über die
+genannten Punkte hinaus. Positiv geprüft: `kmp.yml` (iOS-Job kompiliert
+`compileKotlinIosArm64` + `compileKotlinIosSimulatorArm64`) ist konsistent
+mit `kmp/shared/build.gradle.kts` nach dem iosX64-Drop (`4c2946f`); die
+Release-Artefakt-Kette (IPA-Name `FlutLink-ios-unsigned.ipa` in
+`kmp-ios-build/action.yml` ↔ `altstore`-Job) stimmt zusammen.
+
+**GitHub-Issues (Schritt 6, nur lokale Quellen — keine gh/API-Aufrufe):**
+Die Commits auf HEAD (`b4324bf…9f93b06`) referenzieren ausschließlich die
+im Fix-Lauf oben abgehakten Issues (#225–#230, #243, #255-Rest, #267) plus
+PR #266/#265 — keine neuen offenen Issue-Nummern erkennbar. Lokal
+existieren zwei alte Remote-Dispatch-Branches ohne Merge nach main
+(`origin/opencode/dispatch-2e1f6b-20260817180824` → nur Lauf-12-Report,
+`origin/opencode/dispatch-59910d-20260817193316` → nur Release-Notes-
+Commits); reine Aufräumkandidaten für den `branch-cleanup`-Job, hier
+nicht angefasst. Das offene iOS-Issue-Paket (#232–#242/#244, oben)
+bleibt als ausstehende „not planned"-Schließung vermerkt — ohne gh/API
+hier weder prüfbar noch ausführbar.
+
+**Schritt 5:** In diesem Lauf wurde kein zuvor offener Punkt erledigt
+(alle L15-Befunde gegen HEAD bestätigt offen). Die sechs bereits
+abgehakten Punkte des Fix-Laufs 2026-08-22 (#225–#230, #243, #255-Rest,
+#267) wurden gemäß Konvention in `archived-todo.md` verschoben (Details
+dort).
+
 ### Fix-Lauf 2026-08-22 — GitHub-Issues #225–#230, #243, #255-Rest, #267
 
 Alle offenen GitHub-Issues bearbeitet; die Code-Fixes sind gegen HEAD
 verifiziert (`cargo fmt --check` / `cargo clippy --all-targets -- -D warnings`
 / `cargo test` grün; `npm run build` grün — jetzt **ohne** Chunk-Size-Warnung,
-s. L12-N6; `:shared:compileKotlinJvm` grün):
+s. L12-N6; `:shared:compileKotlinJvm` grün). Die neun abgehakten Punkte
+(L12-N1–N6, #243, #255-Rest, K3/#267) sind in `archived-todo.md`
+verschoben (Abschnitt „Fix-Lauf 2026-08-22 … abgeschlossen").
 
-- [x] **L12-N1 (#225):** `AdminPanel.vue listUsers` ruft nach dem Suchpflicht-
-      Guard jetzt `loadPage(false)` (Offset-Reset) statt eines unlimitierten
-      `adminListUsers(query)`-Vollabrufs; `hasMore` wird aus dem
-      `AdminUsersResult` gesetzt und die PAGE=200-Paginierung über
-      „Load more" ist erreichbar.
-- [x] **L12-N2 (#226):** `SettingsModal.vue remove` verlangt denselben F7-
-      Confirm wie `App.vue removeActive` / `AccountBar.vue remove`
-      (`window.confirm(t("deleteAccountConfirm").replace("{name}", …))`).
-- [x] **L12-N3 (#227):** `FileExplorer.vue loadAdminUsers` lädt nicht mehr beim
-      Mount/Kontowechsel: die Impersonation-Auswahl ist lazy — Sucheingabe im
-      Admin-Bar (Enter/Button), Abruf gebremst auf eine OCS-Seite (Limit 200);
-      Mount-/Watcher-Vollabrufe entfernt.
-- [x] **L12-N4 (#228):** `stores/files.ts searchFiles` rethrowt nicht mehr —
-      der Fehler erscheint genau einmal (Store-Fehler-Banner); `runSearch`
-      tost nicht zusätzlich.
-- [x] **L12-N5 (#229):** Sortierkomparator in `src/lib/sort.ts` ausgelagert
-      (`compareEntries`/`sortEntries`, Ordner zuerst); FileExplorer (kbdIndex)
-      und EntryList nutzen dieselbe Implementierung.
-- [x] **L12-N6 (#230):** Code-Splitting umgesetzt: `main.ts` importiert nur
-      noch die tatsächlich genutzten `@material/web/*`-Module (statt
-      `all.js`; fehlende Registrierungen ergänzt), LoginModal/SettingsModal/
-      AdminPanel/SyncPanel laufen via `defineAsyncComponent`. Haupt-Chunk:
-      691 kB → 117 kB (29 kB gzip), keine Chunk-Size-Warnung mehr.
-- [x] **#243:** Die drei opencode-Workflows pinnen `anomalyco/opencode/github`
-      bereits auf den vollen SHA (`31406ccc… # v1.18.18`); zusätzlich sind die
-      beiden `npx opencode-ai@latest`-Aufrufe in `opencode-review.yml` auf
-      `opencode-ai@1.18.21` gepinnt — kein bewegliches `@latest` mehr.
-- [x] **#255-Rest:** `.github/workflows/ios.yml` gelöscht; `ios`- und
-      `upload-ios`-Jobs aus `release.yml` entfernt (iOS-CI-Reste, s. o.).
-- [x] **K3 / #267:** KMP-CI ergänzt: neuer Workflow `.github/workflows/kmp.yml`
-      (build `:shared:assembleDebug`, tests `:shared:testDebugUnitTest`,
-      JVM-Check `:shared:compileKotlinJvm`, lint `:shared:lintDebug`;
-      Trigger `kmp/**`) + Issue-Template `.github/ISSUE_TEMPLATE/kmp.yml`.
-      Zusätzlich YAML-Fix in `.github/ISSUE_TEMPLATE/bug_report.yml`
-      (Backtick-Option war ungültiges YAML).
 - [ ] iOS-Issues #232–#242/#244: mit #255 obsolet (Swift-Port entfernt) —
       werden als „not planned" geschlossen; Parität lebt in `android/`+`kmp/`.
 
