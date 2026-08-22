@@ -5,6 +5,51 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
+### Fix-Lauf 2026-08-22 — GitHub-Issues #225–#230, #243, #255-Rest, #267
+
+Alle offenen GitHub-Issues bearbeitet; die Code-Fixes sind gegen HEAD
+verifiziert (`cargo fmt --check` / `cargo clippy --all-targets -- -D warnings`
+/ `cargo test` grün; `npm run build` grün — jetzt **ohne** Chunk-Size-Warnung,
+s. L12-N6; `:shared:compileKotlinJvm` grün):
+
+- [x] **L12-N1 (#225):** `AdminPanel.vue listUsers` ruft nach dem Suchpflicht-
+      Guard jetzt `loadPage(false)` (Offset-Reset) statt eines unlimitierten
+      `adminListUsers(query)`-Vollabrufs; `hasMore` wird aus dem
+      `AdminUsersResult` gesetzt und die PAGE=200-Paginierung über
+      „Load more" ist erreichbar.
+- [x] **L12-N2 (#226):** `SettingsModal.vue remove` verlangt denselben F7-
+      Confirm wie `App.vue removeActive` / `AccountBar.vue remove`
+      (`window.confirm(t("deleteAccountConfirm").replace("{name}", …))`).
+- [x] **L12-N3 (#227):** `FileExplorer.vue loadAdminUsers` lädt nicht mehr beim
+      Mount/Kontowechsel: die Impersonation-Auswahl ist lazy — Sucheingabe im
+      Admin-Bar (Enter/Button), Abruf gebremst auf eine OCS-Seite (Limit 200);
+      Mount-/Watcher-Vollabrufe entfernt.
+- [x] **L12-N4 (#228):** `stores/files.ts searchFiles` rethrowt nicht mehr —
+      der Fehler erscheint genau einmal (Store-Fehler-Banner); `runSearch`
+      tost nicht zusätzlich.
+- [x] **L12-N5 (#229):** Sortierkomparator in `src/lib/sort.ts` ausgelagert
+      (`compareEntries`/`sortEntries`, Ordner zuerst); FileExplorer (kbdIndex)
+      und EntryList nutzen dieselbe Implementierung.
+- [x] **L12-N6 (#230):** Code-Splitting umgesetzt: `main.ts` importiert nur
+      noch die tatsächlich genutzten `@material/web/*`-Module (statt
+      `all.js`; fehlende Registrierungen ergänzt), LoginModal/SettingsModal/
+      AdminPanel/SyncPanel laufen via `defineAsyncComponent`. Haupt-Chunk:
+      691 kB → 117 kB (29 kB gzip), keine Chunk-Size-Warnung mehr.
+- [x] **#243:** Die drei opencode-Workflows pinnen `anomalyco/opencode/github`
+      bereits auf den vollen SHA (`31406ccc… # v1.18.18`); zusätzlich sind die
+      beiden `npx opencode-ai@latest`-Aufrufe in `opencode-review.yml` auf
+      `opencode-ai@1.18.21` gepinnt — kein bewegliches `@latest` mehr.
+- [x] **#255-Rest:** `.github/workflows/ios.yml` gelöscht; `ios`- und
+      `upload-ios`-Jobs aus `release.yml` entfernt (iOS-CI-Reste, s. o.).
+- [x] **K3 / #267:** KMP-CI ergänzt: neuer Workflow `.github/workflows/kmp.yml`
+      (build `:shared:assembleDebug`, tests `:shared:testDebugUnitTest`,
+      JVM-Check `:shared:compileKotlinJvm`, lint `:shared:lintDebug`;
+      Trigger `kmp/**`) + Issue-Template `.github/ISSUE_TEMPLATE/kmp.yml`.
+      Zusätzlich YAML-Fix in `.github/ISSUE_TEMPLATE/bug_report.yml`
+      (Backtick-Option war ungültiges YAML).
+- [ ] iOS-Issues #232–#242/#244: mit #255 obsolet (Swift-Port entfernt) —
+      werden als „not planned" geschlossen; Parität lebt in `android/`+`kmp/`.
+
 ### Issue #255 — iOS-Port (Swift) entfernt, ersetzt durch KMP (2026-08-20)
 
 Der iOS-Port (`ios/`, Swift + SwiftUI) wurde **entfernt**, weil `kmp/` ihn
@@ -14,10 +59,10 @@ ersetzt (siehe `kmp/README.md`). Gelöscht: `ios/` (inkl. `ios/README.md`,
 `AGENTS.md` und `kmp/README.md` sind angepasst. Damit sind die noch offenen
 iOS-Befunde aus Lauf 13 **obsolet** und abgehakt: I1-5 (FLUTCLOUD_URL im
 Info.plist), I1-6 (Dateiaktionen), I1-10 (RAM-Upload/-Download). Details im
-Archiv. Hinweis: `.github/workflows/ios.yml` (iOS-CI) und der `ios`-Job in
-`release.yml` sind **bewusst nicht** angefasst (Workflows sind für
-automatisierte Läufe tabu); sie referenzieren gelöschte Pfade und sind
-wirkungslos, bis jemand mit `workflows`-Berechtigung sie entfernt.
+Archiv. Nachtrag: Die iOS-CI-Reste sind inzwischen entfernt —
+`.github/workflows/ios.yml` gelöscht, `ios`-/`upload-ios`-Jobs aus
+`release.yml` entfernt (referenzierten gelöschte Pfade und failten sonst bei
+jedem Release).
 
 ### Review 2026-08-20 (Lauf 15, ganzes Projekt — in Arbeit)
 
@@ -254,6 +299,7 @@ und -Komponenten. Neu gefunden (alle gegen HEAD `d79eb98` verifiziert):
   `hasMore` nie gesetzt, „Load more" unerreichbar); L12-N4 (doppelte
   Fehleranzeige bei Suche) ebenfalls bestätigt (`files.ts:167-169` +
   `FileExplorer.vue:97-103`). L12-N2/N3/N5/N6 unverändert.
+  → alle sechs Punkte am 2026-08-22 erledigt (#225–#230, s. Fix-Lauf oben).
 - I1-5/I1-6/I1-10 (iOS) sind mit dem Merge von Issue #255 (PR #263)
   **obsolet** — der Swift-iOS-Port `ios/` wurde entfernt (s. oben).
 
@@ -333,20 +379,16 @@ Workflows auf die kmp-Version") behoben: `:shared:compileDebugKotlinAndroid`,
       → erledigt: `xpp3` (1.1.4c) im Katalog und in
       `androidUnitTest.dependencies` ergänzt; `:shared:testDebugUnitTest`
       grün (Details im Archiv).
-- [ ] **K3 (CI, mittel):** `kmp/` hat **keinerlei** CI-Abdeckung —
+- [x] **K3 (CI, mittel):** `kmp/` hat **keinerlei** CI-Abdeckung —
       `android.yml` triggert nur auf `android/**`, `build.yml`/`lint.yml` nur
       auf Frontend/Rust. Der kaputte KMP-Build (K1) wird von keinem Workflow
       erkannt und landete so ungetestet auf main (`bacc4f0`). Fix:
       `kmp/**` in die `android.yml`-Paths aufnehmen oder einen KMP-Job
       (`:shared:assembleDebug` + `:shared:testDebugUnitTest` +
       `:shared:compileKotlinJvm`) ergänzen.
-      → weiter offen: Workflow-Dateien sind für automatisierte Läufe tabu
-      (Security-Regel); die KMP-Build-Blocker K1/K2 sind behoben, sodass ein
-      KMP-CI-Job jetzt grün laufen würde. Die Workflow-Anpassung (Issue #248)
-      muss manuell erfolgen — Vorschlag: `kmp/**` in die `android.yml`-Paths
-      aufnehmen und den `build`-Job auf `cd kmp && ./gradlew
-      :shared:assembleDebug :shared:testDebugUnitTest :shared:compileKotlinJvm`
-      umstellen (analog für `build.yml`/`ios.yml`).
+      → erledigt 2026-08-22 (#267): eigener Workflow
+      `.github/workflows/kmp.yml` (build/tests/jvm/lint) + Issue-Template
+      `.github/ISSUE_TEMPLATE/kmp.yml` (s. Fix-Lauf oben).
 - [x] **K4 (Doku, minor):** `kmp/README.md:41-44` behauptete „iOS-Targets sind
       bewusst nicht eingerichtet", obwohl `kmp/shared/build.gradle.kts:20-32`
       `iosX64()/iosArm64()/iosSimulatorArm64()` deklariert (Framework-Binary,
@@ -568,6 +610,9 @@ Beide wurden in das Archiv verschoben (unten). Hinweis: In den drei opencode-
 Workflows (`opencode.yml:92`, `opencode-todo-issues.yml:38`,
 `opencode-review.yml:38`) bleibt `anomalyco/opencode/github@latest` ein
 bewegliches `@latest`-Tag (Supply-Chain-Thema wie R8-C1, CI-Pinning).
+→ erledigt (#243): alle drei Workflows pinnen auf
+`31406ccc… # v1.18.18`; zusätzlich sind die `npx opencode-ai@latest`-Aufrufe
+in `opencode-review.yml` auf `1.18.21` gepinnt (2026-08-22).
 
 Verifikation dieses Laufs (frisch ausgeführt): `cargo test --manifest-path
 src-tauri/Cargo.toml` → **83 passed / 0 failed**; `cargo fmt --check` grün;
@@ -589,7 +634,7 @@ wurden **während dieses Laufs** über die gemergten Issue-PRs (#202, #204,
 (Details in „A9-Nachprüfung (Lauf 12)" unten). Offen bleiben nur R8-C1
 (CI-Pin) und R7-7 (Release-Draft-Hinweis). Neu gefunden:
 
-- [ ] **L12-N1 (Perf, mittel):** AdminPanel-Pagination ist unerreichbarer
+- [x] **L12-N1 (Perf, mittel):** AdminPanel-Pagination ist unerreichbarer
       toter Code und die Suche lädt alle Treffer in einer Blocking-Kette.
       `AdminPanel.vue:175-195` (`listUsers`) ruft `api.adminListUsers(query)`
       **ohne** `limit`/`offset`; `admin_list_users` (`commands.rs:1229-1248`)
@@ -601,26 +646,30 @@ wurden **während dieses Laufs** über die gemergten Issue-PRs (#202, #204,
       nie. Auf großen Instanzen blockiert eine Suche wie „a" hunderte OCS-
       Requests. Fix: `listUsers` auf `loadPage(false)` umstellen (Offset-
       Reset, `hasMore` aus `AdminUsersResult` setzen).
-- [ ] **L12-N2 (Policy, minor):** `SettingsModal.vue:144-151` (`remove`)
+      → erledigt 2026-08-22 (#225, s. Fix-Lauf oben).
+- [x] **L12-N2 (Policy, minor):** `SettingsModal.vue:144-151` (`remove`)
       löscht ein Konto ohne Bestätigungsdialog — inkonsistent mit F7, das in
       `App.vue:104` (`removeActive`) und `AccountBar.vue:27` (`remove`) via
       `window.confirm(t("deleteAccountConfirm"))` durchgesetzt wird. Ein
       Klick auf „Remove account" im Settings-Tab entfernt das Konto sofort.
       Fix: denselben Confirm wie F7 ergänzen.
-- [ ] **L12-N3 (Perf, mittel):** `FileExplorer.vue:645-669` (`loadAdminUsers`)
+      → erledigt 2026-08-22 (#226, s. Fix-Lauf oben).
+- [x] **L12-N3 (Perf, mittel):** `FileExplorer.vue:645-669` (`loadAdminUsers`)
       ruft `api.adminListUsers("")` beim Mount und bei jedem Kontowechsel —
       ungefilterter Komplettabruf aller Benutzer (alle Seiten, `ocs::list_users`
       ohne Limit). Für die Impersonation-Dropdown nötig, aber auf großen
       Instanzen derselbe unbounded-Fetch, den D3/U-R8-12 für den Admin-Tab
       unterbinden. Fix: Paginierung oder Sucheingabe im Filter (mindestens
       Lazy-Load statt sofortiger Vollabruf).
-- [ ] **L12-N4 (UX, minor):** Doppelte Fehleranzeige bei der Suche:
+      → erledigt 2026-08-22 (#227, s. Fix-Lauf oben).
+- [x] **L12-N4 (UX, minor):** Doppelte Fehleranzeige bei der Suche:
       `src/stores/files.ts:151-173` (`searchFiles`) setzt `error.value` **und**
       wirft weiter (`throw e`); `FileExplorer.vue:97-103` (`runSearch`) fängt
       und zeigt zusätzlich einen Toast. Ein Suchfehler erscheint dadurch
       doppelt (Fehler-Banner + Toast). Fix: entweder nicht rethrowen oder im
       Aufrufer nicht zusätzlich tosten.
-- [ ] **L12-N5 (Code-Qualität, minor):** Sortierkomparator ist doppelt
+      → erledigt 2026-08-22 (#228, s. Fix-Lauf oben).
+- [x] **L12-N5 (Code-Qualität, minor):** Sortierkomparator ist doppelt
       implementiert: `FileExplorer.vue:54-75` (`sortedEntries`) und
       `EntryList.vue:52-75` (`sortedEntries`) enthalten identische Logik
       (Ordner zuerst, dann `size`/`mtime`/`name`). Da `kbdIndex` die
@@ -628,7 +677,8 @@ wurden **während dieses Laufs** über die gemergten Issue-PRs (#202, #204,
       können künftige Änderungen (z. B. veränderte Sortierreihenfolge)
       auseinanderdriften. Fix: Komparator in eine geteilte Utility
       (z. B. `src/lib/`) auslagern.
-- [ ] **L12-N6 (Perf, minor):** Das Frontend-Bundle ist eine einzige große
+      → erledigt 2026-08-22 (#229, `src/lib/sort.ts`, s. Fix-Lauf oben).
+- [x] **L12-N6 (Perf, minor):** Das Frontend-Bundle ist eine einzige große
       JS-Chunk (691 kB minifiziert, 154 kB gzip; `vite build` meldet
       „Some chunks are larger than 500 kB"). `main.ts` importiert alle
       `@material/web/*`-Module statisch; Login/Settings/Admin-Modale und der
@@ -636,6 +686,7 @@ wurden **während dieses Laufs** über die gemergten Issue-PRs (#202, #204,
       dynamische Imports („Beim Start nur das laden, was sichtbar ist").
       Fix: Code-Splitting (Routen/Modale lazy), `chunkSizeWarningLimit`
       nicht einfach erhöhen.
+      → erledigt 2026-08-22 (#230, s. Fix-Lauf oben).
 
 Keine neuen Befunde im Backend (`commands.rs`, `webdav.rs`, `ocs.rs`,
 `sync.rs`, `updater.rs`, `accounts.rs`, `cache.rs`) und in den
