@@ -5,13 +5,23 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 
 ## Offen
 
-### Review 2026-08-22 (Lauf 16, ganzes Projekt — neue Befunde)
+### Review 2026-08-22 (Lauf 16, ganzes Projekt — v1-Readiness & neue Befunde)
+
+*(Zusammenführung zweier paralleler Lauf-16-Sichtungen auf HEAD `b4324bf` —
+PR #270 und lokaler Review; Duplikate dedupliziert, N16-5 ist in L16-C1
+eingearbeitet. Kein Anwendungscode geändert.)*
 
 Verifikation dieses Laufs (frisch ausgeführt, HEAD `b4324bf`): `cargo fmt
 --check` grün; `cargo clippy --all-targets -- -D warnings` grün;
 `cargo test --manifest-path src-tauri/Cargo.toml` → **83 passed / 0 failed**
 (Tauri-Linux-Systemdeps nachinstalliert); `npm run build` (vue-tsc + vite)
 grün, Haupt-Chunk 117 kB, keine Chunk-Size-Warnung mehr (L12-N6 hält).
+Ergänzend ein Windows-Lokallauf: `cargo test` → **79 passed / 0 failed**
+(abweichende Testzahl plattformabhängig; aws-lc-sys brach zunächst mit
+„No space left on device" ab — Workaround: `cargo clean`,
+`CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=0`). KMP
+`./gradlew :shared:build` lokal nicht ausgeführt (Plattenplatz),
+Abdeckung über `.github/workflows/kmp.yml`; `gh`-CLI lokal nicht verfügbar.
 Gegenstand: gesamtes Projekt — Backend `src-tauri/` (lib.rs, commands.rs,
 accounts.rs, state.rs, error.rs, cache.rs, flutcloud.rs, updater.rs,
 sync.rs, nextcloud/webdav.rs, nextcloud/ocs.rs), Frontend `src/`
@@ -73,6 +83,18 @@ offen (nichts neu abzuhaken):**
       `SyncPanel.vue pickFolder` fängt den Code separat ab; jeder andere
       Anzeigepfad via `invokeError()` zeigt den generischen Text. Fix:
       `sync_folder_conflict:` auf einen eigenen `err*`-Schlüssel mappen.
+- [ ] **N16-1 (Bug, mittel):** `src/components/SettingsModal.vue` — der
+      Update-State `"installing"` wird **nie gesetzt** (Typ-Union Z. 54;
+      einzige Zuweisungen: Z. 157 `"checking"`, Z. 162 `"available"`/`"idle"`,
+      Z. 165/192 `"error"`, Z. 170 `"downloading"`). Die Template-Zweige
+      Z. 205 (Label-Mapping) und Z. 412
+      (`v-else-if="updateState === 'downloading' || updateState === 'installing'"`)
+      sind damit toter Code. Nach `downloadAndInstall()` bleibt
+      `updateState === "downloading"` hängen: die Progress-Anzeige
+      (Z. 416–422) verschwindet nie, ein „Installation gestartet"-Feedback
+      fehlt. Fix: `updateState.value = "installing"` beim Start von
+      `install_update` setzen bzw. den Zweig entfernen und einen
+      Completion-State ergänzen.
 - [ ] **L16-A1 (Keyring/Accounts, minor):** `load_accounts`
       (`accounts.rs:106-108`) überspringt Konten mit fehlgeschlagener
       Keyring-Token-Abfrage stillschweigend (`if let Ok(token)`) — anders
@@ -81,6 +103,13 @@ offen (nichts neu abzuhaken):**
       verlorenem Schlüsselbund-Eintrag sehen das Konto einfach weg. Fix:
       Token-Miss analog `dropped` sammeln und über
       `account_filter_info` melden.
+- [ ] **N16-6 (Backend-Doku, niedrig):** `src-tauri/src/commands.rs` — die
+      Konstante `FLUTCLOUD_README` (Z. 132–167) verweist in EN (Z. 147) und
+      DE (Z. 167) auf den Android-Client unter `android/`; das Verzeichnis
+      wurde nach `kmp/` migriert. Der Text wird beim Projekt-Setup als
+      README in den FlutCloud-Projektordner geschrieben (Z. 237–238) →
+      toter Link auf dem Server. Fix: Referenz auf den KMP-Client
+      aktualisieren.
 - [ ] **L16-C1 (Supply Chain, mittel):** `opencode-review.yml` Job
       `review-prs` (Z. 112-204) merged jeden offenen PR per
       `gh pr merge --squash --delete-branch` allein auf das „MERGE"-Urteil
@@ -89,7 +118,21 @@ offen (nichts neu abzuhaken):**
       unbeaufsichtigtes Modelleingabematerial → Prompt-Injection kann ein
       Auto-Merge nach main erwirken. Fix: MERGE nur als Kommentar/Label,
       Merge durch Menschen; mindestens keine Auto-Merge-Pipeline für
-      fremde Contributor-PRs.
+      fremde Contributor-PRs. Ergänzend (zweite Sichtung, N16-5 hier
+      aufgegangen): der `issues-to-todo`-Job pusht direkt auf `main`
+      (Konfliktrisiko bei parallelen Merges); der Branch-Cleanup-Regex
+      `^(.+)-[0-9]+$` hat Kantenfälle; die OpenCode-CLI wird
+      uneinheitlich installiert (`curl | bash` im release-notes-Job,
+      `npx opencode-ai@1.18.21` in den Workflows, gemountete Action
+      v1.18.18 — Version-Skew).
+- [ ] **N16-4 (CI/Härtung, niedrig):** Action-Pinning inkonsistent:
+      `actions/checkout@v7`/`actions/setup-node@v7` als bewegliche
+      Major-Tags in build.yml/lint.yml/release.yml gegenüber SHA-Pins in den
+      opencode*-Workflows; im Security-Gate selbst sind `trivy-action@0.28.0`
+      und `taiki-e/install-action@v2` beweglich
+      (`.github/actions/security/action.yml`). Vorbildlich:
+      `tauri-apps/tauri-action` ist SHA-gepinnt (`release.yml:193`). Fix:
+      einheitlich auf Commit-SHA pinnen (+ Versionskommentar).
 - [ ] **L16-C2 (CI, minor):** `release.yml` Job `upload-mobile`
       (Z. 241-269) hat keinen Tag-Guard und läuft auch bei
       `workflow_dispatch` (Trigger Z. 7): `gh release upload "$TAG"`
@@ -106,14 +149,50 @@ offen (nichts neu abzuhaken):**
       `flutlink-android-release` im GitHub-Release. Fix: bei
       `signed=true && keystore==''` früh mit klarer Fehlermeldung
       abbrechen.
+- [ ] **N16-3 (CI, mittel):** `.github/workflows/build.yml` — der
+      Sammel-Job `complete` hat nur `needs: [frontend, rust]`. Failures der
+      push-gegateten Artefakt-/Mobile-Jobs spiegeln sich nicht im
+      Gesamtergebnis wider → verzerrtes CI-Signal. Fix: alle Jobs in
+      `needs` aufnehmen.
+- [ ] **N16-2 (CI, mittel):** `.github/dependabot.yml` pflegt nur `npm`
+      (Repo-Wurzel) und `github-actions`. Es fehlen das `cargo`-Ecosystem
+      für `/src-tauri` (reqwest/rustls/aws-lc-sys/tauri erhalten keine
+      automatisierten Security-Bumps) und `gradle` für `/kmp`. Fix: zwei
+      zusätzliche `updates:`-Einträge.
 
-Keine neuen Befunde in `lib.rs`, `commands.rs`, `state.rs`, `error.rs`,
+Keine weiteren neuen Befunde in `lib.rs`, `state.rs`, `error.rs`,
 `cache.rs`, `flutcloud.rs`, `updater.rs`, `nextcloud/mod.rs` über die
 genannten Punkte hinaus. Positiv geprüft: `kmp.yml` (iOS-Job kompiliert
 `compileKotlinIosArm64` + `compileKotlinIosSimulatorArm64`) ist konsistent
 mit `kmp/shared/build.gradle.kts` nach dem iosX64-Drop (`4c2946f`); die
 Release-Artefakt-Kette (IPA-Name `FlutLink-ios-unsigned.ipa` in
-`kmp-ios-build/action.yml` ↔ `altstore`-Job) stimmt zusammen.
+  `kmp-ios-build/action.yml` ↔ `altstore`-Job) stimmt zusammen.
+
+Kleinere Punkte (minor, aus der zweiten Sichtung):
+
+- `src/components/SyncPanel.vue` `syncNow()`: der Catch zeigt den rohen
+  Fehlertext statt der `invokeError`-Aufbereitung wie die übrigen Handler
+  (Konsistenz).
+- `src/components/FileExplorer.vue` `loadAdminUsers`: eine leere Suchanfrage
+  erzeugt einen Toast vom Typ Error statt eines neutralen Hinweises — die
+  Suchpflicht selbst ist korrekt (U-R8-12/L12-N3), nur der Meldungstyp ist
+  irreführend.
+- `AdminPanel.vue createUser`: Passwort-Länge wird geprüft, kein
+  Zeichensatz-Zwang — bewusst okay fürs M3-Token-Modell, nur als Hinweis
+  dokumentiert.
+- `release.yml:200` (`releaseDraft: false`): die Release-Seite erscheint
+  unmittelbar nach dem Desktop-Build; APK/IPA/AltStore-Quellen werden erst
+  von `upload-mobile`/`altstore` danach angehängt — kurzes Fenster mit
+  unvollständigen Assets (verwandt zu L16-C2). Optional Draft + finaler
+  Publish-Step.
+
+Statuskorrekturen an Altbeständen:
+
+- R8-C1 (tauri-action-Pin) ist **erledigt** — bereits in Lauf 13 am
+  Lauf-8-Abschnitt annotiert; hier erneut bestätigt: `release.yml:193`
+  pinnt den vollen SHA (`1deb371b… # v1.0.0`).
+- R7-7 (Release-Draft manuell publizieren) ist **obsolet**: `release.yml`
+  veröffentlicht inzwischen direkt (`releaseDraft: false`, Z. 200).
 
 **GitHub-Issues (Schritt 6, nur lokale Quellen — keine gh/API-Aufrufe):**
 Die Commits auf HEAD (`b4324bf…9f93b06`) referenzieren ausschließlich die
@@ -132,6 +211,18 @@ hier weder prüfbar noch ausführbar.
 abgehakten Punkte des Fix-Laufs 2026-08-22 (#225–#230, #243, #255-Rest,
 #267) wurden gemäß Konvention in `archived-todo.md` verschoben (Details
 dort).
+
+**Urteil (v1-Readiness):** Technisch auf v1-Niveau: Checks/Tests/Build in
+beiden Sichten grün; Kernfunktionen (Zwei-Wege-Sync inkl.
+Journal/Konfliktkopien, WebDAV/OCS, Keyring, Offline-Cache, Updater,
+zweisprachiges UI, FlutCloud-only-Durchsetzung) sind implementiert und
+getestet; die Release-Pipeline baut Desktop/APK/IPA + AltStore-Quellen mit
+Security-Gate. Vor dem Tag empfohlen: die datenintegritätsrelevanten
+Sync-/Transfer-Befunde schließen (L15-S* sowie F4/F5) und N16-1
+(Updater-Feedback) sowie L16-F1 (unpaginierter Admin-Abruf im
+SettingsModal). CI-Härtung (N16-2 bis N16-4, L16-C*) und die Minors können
+parallel zum Release laufen. Kein Blocker aus Sicht dieses Laufs, sofern die
+genannten Punkte vor dem v1-Tag adressiert werden.
 
 ### Fix-Lauf 2026-08-22 — GitHub-Issues #225–#230, #243, #255-Rest, #267
 
@@ -977,6 +1068,9 @@ formal bestehen; hier der aktuelle Status):
 
 Weiterhin offen aus früheren Läufen: R8-C1 (tauri-action auf `@v1` gepinnt)
 und R7-7 (Release-Draft manuell publizieren, als Schritt 3 dokumentiert).
+→ erledigt/obsolet (Lauf 16): R8-C1 erledigt — SHA-Pin `release.yml:193`
+(bereits Lauf 13 verifiziert); R7-7 obsolet — `releaseDraft: false`
+(`release.yml:200`), Details im Review 2026-08-22 (Lauf 16).
 D1–D4 (Lauf 10) sind im aktuellen Code verifiziert und **erledigt**: D1
 `updater.rs` emittiert `UpdateStatus { code: "checksum_warning" }` statt
 String; D2 die hartkodierten deutschen Notification-Texte sind entfernt
@@ -1297,6 +1391,8 @@ Namen), U-R8-11 (Login-Formular wird geleert), U-R8-12 (AdminPanel verlangt
 einen Suchbegriff) und R8-B1 (`webdav_bulk_download` erhält die relative
 Verzeichnisstruktur). R8-C1 (CI-Pin `tauri-action`) bleibt offen — Workflow-
 Dateien sind von der automatisierten Aufgabe ausgenommen.
+(→ erledigt seit Lauf 13, in Lauf 16 bestätigt: voller SHA in
+`release.yml:193`.)
 
 Checks: `cargo test --manifest-path src-tauri/Cargo.toml` → 78 passed /
 0 failed; `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
