@@ -3,6 +3,7 @@ package com.flutcloud.flutlink.ui
 import androidx.compose.runtime.Composable
 import com.flutcloud.flutlink.core.IosPresenter
 import com.flutcloud.flutlink.data.PickedFile
+import kotlinx.cinterop.ExperimentalForeignApi
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import platform.Foundation.NSFileManager
@@ -10,16 +11,17 @@ import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.UIKit.UIDocumentPickerDelegateProtocol
-import platform.UIKit.UIDocumentPickerMode
 import platform.UIKit.UIDocumentPickerViewController
+import platform.UniformTypeIdentifiers.UTType
 import platform.darwin.NSObject
 
 private val fileManager = NSFileManager.defaultManager
 
 /**
  * UIDocumentPickerViewController presented from the Compose host controller.
- * The `Import` mode hands us a copy of the file inside our own container, so
- * uploads can stream from the returned path without security-scope handling.
+ * `asCopy = true` (the successor of the old `.Import` mode) hands us a copy
+ * of the file inside our own container, so uploads can stream from the
+ * returned path without security-scope handling.
  */
 @Composable
 actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit {
@@ -29,8 +31,8 @@ actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit
             onPicked(null)
         } else {
             val picker = UIDocumentPickerViewController(
-                documentTypes = listOf("public.data", "public.content"),
-                mode = UIDocumentPickerMode.Import
+                forOpeningContentTypes = listOf(UTType.data, UTType.content),
+                asCopy = true
             )
             picker.delegate = object : NSObject(), UIDocumentPickerDelegateProtocol {
                 override fun documentPicker(
@@ -56,7 +58,7 @@ actual fun rememberDownloadsPermissionRequester(
     onResult: (granted: Boolean) -> Unit
 ): (() -> Unit)? = null
 
-@kotlinx.cinterop.ExperimentalForeignApi
+@OptIn(ExperimentalForeignApi::class)
 private fun NSURL.toPickedFile(): PickedFile {
     val localPath = path ?: "/"
     var size: Long? = null
