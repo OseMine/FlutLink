@@ -1,0 +1,4 @@
+# glib 0.18 VariantStrIter soundness notice (GHSA-wrw7-89jp-8q8g).
+# Transitive through Tauri 2's gtk-rs 0.18 stack; fixing requires a major
+# gtk-rs bump owned by upstream Tauri. Same rationale as .cargo/audit.toml.
+GHSA-wrw7-89jp-8q8g

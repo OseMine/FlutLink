@@ -104,6 +104,7 @@ runs:
     - name: Cargo audit (Rust dependencies)
       shell: bash
       run: |
+        # Advisory ignores live in .cargo/audit.toml (repo root, documented).
         cargo audit --json --file src-tauri/Cargo.lock \
           > security-results/cargo-audit.json 2>security-results/cargo-audit.log || true
         echo "cargo audit exit: $? (results parsed regardless)"

@@ -1,0 +1,34 @@
+# cargo-audit configuration for FlutLink (repo root; CI runs
+# `cargo audit --file src-tauri/Cargo.lock` from here).
+#
+# The entries below are NOT vulnerabilities but maintenance-status notices
+# for crates that are transitive dependencies of Tauri 2's own Linux UI
+# stack (tauri -> wry/tao -> gtk-rs 0.18 / atk / gdk*). They are owned and
+# shipped by upstream Tauri and cannot be resolved from this repository
+# short of a framework migration. Revisit when Tauri moves past the
+# gtk-rs 0.18 stack.
+[advisories]
+ignore = [
+    # GTK3 Linux bindings stack (unmaintained, shipped by Tauri 2)
+    "RUSTSEC-2024-0413", # atk
+    "RUSTSEC-2024-0416", # atk-sys
+    "RUSTSEC-2024-0412", # gdk
+    "RUSTSEC-2024-0418", # gdk-sys
+    "RUSTSEC-2024-0411", # gdkwayland-sys
+    "RUSTSEC-2024-0417", # gdkx11
+    "RUSTSEC-2024-0414", # gdkx11-sys
+    "RUSTSEC-2024-0415", # gtk
+    "RUSTSEC-2024-0420", # gtk-sys
+    "RUSTSEC-2024-0419", # gtk3-macros
+    # proc-macro-error: pulled by glib-macros 0.18 (same stack)
+    "RUSTSEC-2024-0370",
+    # unic-*: pulled by tauri-utils -> urlpattern
+    "RUSTSEC-2025-0081", # unic-char-property
+    "RUSTSEC-2025-0075", # unic-char-range
+    "RUSTSEC-2025-0080", # unic-common
+    "RUSTSEC-2025-0100", # unic-ucd-ident
+    "RUSTSEC-2025-0098", # unic-ucd-version
+    # glib 0.18 VariantStrIter soundness notice (same stack; GHSA-wrw7-89jp-8q8g
+    # is tracked separately in .trivyignore)
+    "RUSTSEC-2024-0429",
+]
