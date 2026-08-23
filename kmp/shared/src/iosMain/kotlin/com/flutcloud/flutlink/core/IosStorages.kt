@@ -1,18 +1,26 @@
 package com.flutcloud.flutlink.core
 
+import kotlinx.cinterop.COpaquePointer
+import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.readBytes
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.value
+import platform.CoreFoundation.CFDataCreate
+import platform.CoreFoundation.CFDataGetBytePtr
+import platform.CoreFoundation.CFDataGetLength
+import platform.CoreFoundation.CFDictionaryCreate
+import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFStringRef
+import platform.CoreFoundation.CFStringCreateWithCString
+import platform.CoreFoundation.__CFData
 import platform.CoreFoundation.kCFBooleanTrue
-import platform.Foundation.NSData
-import platform.Foundation.NSString
+import platform.CoreFoundation.kCFStringEncodingUTF8
 import platform.Foundation.NSUserDefaults
-import platform.Foundation.NSUTF8StringEncoding
-import platform.Foundation.create
-import platform.Foundation.dataUsingEncoding
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
@@ -26,8 +34,11 @@ import platform.Security.kSecValueData
 
 /** [KeyValueStorage] backed by NSUserDefaults (plain, non-secret data). */
 class IosDefaultsStorage(
-    private val defaults: NSUserDefaults = NSUserDefaults.standardUserDefaults
+    private val suiteName: String? = null
 ) : KeyValueStorage {
+
+    private val defaults = suiteName?.let { NSUserDefaults(suiteName = it) }
+        ?: NSUserDefaults.standardUserDefaults
 
     override fun getString(key: String): String? =
         defaults.stringForKey(key)
@@ -43,38 +54,81 @@ class IosDefaultsStorage(
 
 /**
  * [KeyValueStorage] backed by the iOS Keychain (generic password items).
- * Holds account tokens; values are device-encrypted and never leave the
- * app's keychain access group.
+ * Holds account tokens; values are device-encrypted and scoped to the app's
+ * keychain access group.
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosKeychainStorage(
     private val service: String = "com.flutcloud.flutlink.ios"
 ) : KeyValueStorage {
 
-    private fun baseQuery(account: String): Map<Any?, Any?> = mapOf(
-        kSecClass to kSecClassGenericPassword,
-        kSecAttrService to service,
-        kSecAttrAccount to account
-    )
-
-    override fun getString(key: String): String? {
-        val query = baseQuery(key) + mapOf(kSecReturnData to kCFBooleanTrue)
-        val data = memScoped {
-            val out = alloc<ObjCObjectVar<Any?>>()
-            val status = SecItemCopyMatching(query, out.ptr)
-            if (status == errSecSuccess) out.value as? NSData else null
-        } ?: return null
-        return NSString.create(data = data, encoding = NSUTF8StringEncoding) as String?
+    override fun getString(key: String): String? = memScoped {
+        val query = cfDictionaryOf(
+            kSecClass to kSecClassGenericPassword,
+            kSecAttrService to cfString(service),
+            kSecAttrAccount to cfString(key),
+            kSecReturnData to kCFBooleanTrue
+        )
+        val out = alloc<CPointerVar<COpaquePointer>>()
+        if (SecItemCopyMatching(query, out.ptr) != errSecSuccess) return@memScoped null
+        val data = out.value?.reinterpret<__CFData>() ?: return@memScoped null
+        val length = CFDataGetLength(data)
+        val bytes = CFDataGetBytePtr(data) ?: return@memScoped null
+        bytes.readBytes(length.toInt())?.decodeToString()
     }
 
     override fun putString(key: String, value: String) {
         remove(key)
-        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
-        val attributes = baseQuery(key) + mapOf(kSecValueData to data)
-        SecItemAdd(attributes, null)
+        memScoped {
+            val bytes = value.encodeToByteArray()
+            val data = CFDataCreate(null, bytes.refTo(0), bytes.size.toLong())
+                ?: return@memScoped
+            val attributes = cfDictionaryOf(
+                kSecClass to kSecClassGenericPassword,
+                kSecAttrService to cfString(service),
+                kSecAttrAccount to cfString(key),
+                kSecValueData to data
+            )
+            SecItemAdd(attributes, null)
+        }
     }
 
     override fun remove(key: String) {
-        SecItemDelete(baseQuery(key))
+        memScoped {
+            val query = cfDictionaryOf(
+                kSecClass to kSecClassGenericPassword,
+                kSecAttrService to cfString(service),
+                kSecAttrAccount to cfString(key)
+            )
+            SecItemDelete(query)
+        }
     }
+
+    /**
+     * Build a CFDictionary of raw CF pointers (strings / booleans / CFData).
+     * NULL callbacks: the dictionary does not retain — every referenced value
+     * stays alive for the duration of the synchronous Security call.
+     */
+    private fun memScoped.cfDictionaryOf(
+        vararg pairs: Pair<String, COpaquePointer?>
+    ): CFDictionaryRef? {
+        val count = pairs.size
+        val keys = allocArray<CPointerVar<COpaquePointer>>(count)
+        val values = allocArray<CPointerVar<COpaquePointer>>(count)
+        pairs.forEachIndexed { index, (key, value) ->
+            keys[index] = cfString(key)
+            value?.let { values[index] = it }
+        }
+        return CFDictionaryCreate(
+            allocator = null,
+            keys = keys,
+            values = values,
+            numEntries = count.toLong(),
+            keyCallBacks = null,
+            valueCallBacks = null
+        )
+    }
+
+    private fun cfString(text: String): CFStringRef =
+        CFStringCreateWithCString(null, text, kCFStringEncodingUTF8)
 }

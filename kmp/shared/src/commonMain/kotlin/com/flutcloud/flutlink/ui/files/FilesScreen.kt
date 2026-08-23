@@ -65,7 +65,7 @@ import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
-import com.flutcloud.flutlink.resources.Res
+import okio.Path.Companion.toPath
 import com.flutcloud.flutlink.ui.components.EmptyState
 import com.flutcloud.flutlink.ui.components.QuotaBar
 import com.flutcloud.flutlink.ui.components.fileIcon
@@ -76,6 +76,60 @@ import com.flutcloud.flutlink.ui.rememberFilePickLauncher
 import com.flutcloud.flutlink.ui.viewmodel.FilesViewModel
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.actions
+import com.flutcloud.flutlink.resources.back
+import com.flutcloud.flutlink.resources.cancel
+import com.flutcloud.flutlink.resources.close_search
+import com.flutcloud.flutlink.resources.create
+import com.flutcloud.flutlink.resources.delete
+import com.flutcloud.flutlink.resources.delete_confirm
+import com.flutcloud.flutlink.resources.delete_file_confirm
+import com.flutcloud.flutlink.resources.delete_folder_confirm
+import com.flutcloud.flutlink.resources.download
+import com.flutcloud.flutlink.resources.download_permission_denied
+import com.flutcloud.flutlink.resources.downloaded_to_downloads
+import com.flutcloud.flutlink.resources.file_exists_confirm
+import com.flutcloud.flutlink.resources.files_offline_banner
+import com.flutcloud.flutlink.resources.folder
+import com.flutcloud.flutlink.resources.folder_empty_hint
+import com.flutcloud.flutlink.resources.folder_empty_title
+import com.flutcloud.flutlink.resources.folder_name
+import com.flutcloud.flutlink.resources.impersonation_notice
+import com.flutcloud.flutlink.resources.jump_to_writable_part
+import com.flutcloud.flutlink.resources.link_created
+import com.flutcloud.flutlink.resources.new_folder
+import com.flutcloud.flutlink.resources.new_name
+import com.flutcloud.flutlink.resources.new_share
+import com.flutcloud.flutlink.resources.no_matches
+import com.flutcloud.flutlink.resources.no_matches_hint
+import com.flutcloud.flutlink.resources.no_url
+import com.flutcloud.flutlink.resources.overwrite
+import com.flutcloud.flutlink.resources.rename
+import com.flutcloud.flutlink.resources.search
+import com.flutcloud.flutlink.resources.search_placeholder
+import com.flutcloud.flutlink.resources.share
+import com.flutcloud.flutlink.resources.share_existing_shares
+import com.flutcloud.flutlink.resources.share_expiry_optional
+import com.flutcloud.flutlink.resources.share_failed
+import com.flutcloud.flutlink.resources.share_link
+import com.flutcloud.flutlink.resources.share_loading_shares
+import com.flutcloud.flutlink.resources.share_meta_expires
+import com.flutcloud.flutlink.resources.share_meta_has_password
+import com.flutcloud.flutlink.resources.share_no_shares_yet
+import com.flutcloud.flutlink.resources.share_password_optional
+import com.flutcloud.flutlink.resources.share_public_upload
+import com.flutcloud.flutlink.resources.share_recipient
+import com.flutcloud.flutlink.resources.share_revoke
+import com.flutcloud.flutlink.resources.share_type_generic
+import com.flutcloud.flutlink.resources.share_type_group
+import com.flutcloud.flutlink.resources.share_type_public_link
+import com.flutcloud.flutlink.resources.share_type_user
+import com.flutcloud.flutlink.resources.stop_impersonation
+import com.flutcloud.flutlink.resources.tab_files
+import com.flutcloud.flutlink.resources.upload
+import com.flutcloud.flutlink.resources.virtual
+
 
 internal const val ROOT = "/"
 
@@ -359,7 +413,7 @@ fun FilesScreen(
 }
 
 /** Convert a platform-provided file path string back into an okio [okio.Path]. */
-private fun toOkioPath(path: String): okio.Path = okio.Path(path)
+private fun toOkioPath(path: String): okio.Path = path.toPath()
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilesTopBar(
@@ -824,4 +878,3 @@ internal fun parentOf(path: String): String? {
     val idx = trimmed.lastIndexOf('/')
     return if (idx <= 0) ROOT else trimmed.substring(0, idx)
 }
-

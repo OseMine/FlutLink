@@ -55,13 +55,56 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.data.dto.ManagedUser
 import com.flutcloud.flutlink.ui.components.EmptyState
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.AdminViewModel
+import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.actions
+import com.flutcloud.flutlink.resources.add_user
+import com.flutcloud.flutlink.resources.admin_add_to_group
+import com.flutcloud.flutlink.resources.admin_create_group
+import com.flutcloud.flutlink.resources.admin_group_name_label
+import com.flutcloud.flutlink.resources.admin_groups_hint
+import com.flutcloud.flutlink.resources.admin_groups_title
+import com.flutcloud.flutlink.resources.admin_load_more
+import com.flutcloud.flutlink.resources.admin_manage_groups
+import com.flutcloud.flutlink.resources.admin_no_groups
+import com.flutcloud.flutlink.resources.cancel
+import com.flutcloud.flutlink.resources.close
+import com.flutcloud.flutlink.resources.create
+import com.flutcloud.flutlink.resources.create_user
+import com.flutcloud.flutlink.resources.delete
+import com.flutcloud.flutlink.resources.delete_user
+import com.flutcloud.flutlink.resources.delete_user_confirm
+import com.flutcloud.flutlink.resources.disabled
+import com.flutcloud.flutlink.resources.display_name_optional
+import com.flutcloud.flutlink.resources.no_email
+import com.flutcloud.flutlink.resources.no_users_found
+import com.flutcloud.flutlink.resources.no_users_hint
+import com.flutcloud.flutlink.resources.password
+import com.flutcloud.flutlink.resources.quota_10gb
+import com.flutcloud.flutlink.resources.quota_1gb
+import com.flutcloud.flutlink.resources.quota_5gb
+import com.flutcloud.flutlink.resources.quota_custom
+import com.flutcloud.flutlink.resources.quota_custom_title
+import com.flutcloud.flutlink.resources.quota_custom_value
+import com.flutcloud.flutlink.resources.quota_set
+import com.flutcloud.flutlink.resources.quota_unit_gb
+import com.flutcloud.flutlink.resources.quota_unit_mb
+import com.flutcloud.flutlink.resources.quota_unknown
+import com.flutcloud.flutlink.resources.quota_unlimited
+import com.flutcloud.flutlink.resources.remove
+import com.flutcloud.flutlink.resources.search_users
+import com.flutcloud.flutlink.resources.search_users_required
+import com.flutcloud.flutlink.resources.unlimited
+import com.flutcloud.flutlink.resources.user_administration
+import com.flutcloud.flutlink.resources.user_id
+import com.flutcloud.flutlink.resources.view_files
+
 
 private const val GB = 1024L * 1024 * 1024
 private const val MB = 1024L * 1024
@@ -478,6 +521,14 @@ private fun DeleteUserDialog(
     )
 }
 
+
+/** "12.5" style one-decimal formatting without java.text/Locale. */
+private fun formatOneDecimal(value: Double): String {
+    val rounded = (value * 10).roundToLong()
+    val whole = rounded / 10
+    val frac = rounded % 10
+    return if (frac == 0L) "$whole" else "$whole.$frac"
+}
 private enum class QuotaUnit(val factor: Long) {
     GB(1024L * 1024 * 1024),
     MB(1024L * 1024)
@@ -493,7 +544,7 @@ private fun quotaPrefill(total: Long?): Pair<String, QuotaUnit>? {
     } else {
         val mb = total.toDouble() / MB
         val text = if (mb % 1.0 == 0.0) mb.toLong().toString()
-        else "%.1f".format(mb).trimEnd('0').trimEnd('.')
+        else formatOneDecimal(mb)
         text to QuotaUnit.MB
     }
 }
@@ -558,7 +609,7 @@ private fun CustomQuotaDialog(
             TextButton(
                 onClick = {
                     val num = valueNum
-                    if (num != null && num > 0) onConfirm(Math.round(num * unit.factor))
+                    if (num != null && num > 0) onConfirm((num * unit.factor).roundToLong())
                 },
                 enabled = valid
             ) { Text(stringResource(Res.string.quota_set)) }
@@ -568,4 +619,3 @@ private fun CustomQuotaDialog(
         }
     )
 }
-

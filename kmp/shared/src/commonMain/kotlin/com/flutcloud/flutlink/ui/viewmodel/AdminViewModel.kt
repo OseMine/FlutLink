@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.cannot_delete_self
+import com.flutcloud.flutlink.resources.cannot_disable_self
+
 
 class AdminViewModel(private val container: AppContainer) : ViewModel() {
 

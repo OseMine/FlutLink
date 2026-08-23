@@ -32,11 +32,27 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.ui.components.ErrorBanner
 import com.flutcloud.flutlink.ui.components.ScrollableColumn
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.viewmodel.LoginViewModel
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.admin_credentials
+import com.flutcloud.flutlink.resources.admin_password
+import com.flutcloud.flutlink.resources.admin_username
+import com.flutcloud.flutlink.resources.app_name
+import com.flutcloud.flutlink.resources.app_token
+import com.flutcloud.flutlink.resources.display_name_optional
+import com.flutcloud.flutlink.resources.login_new_username
+import com.flutcloud.flutlink.resources.login_password
+import com.flutcloud.flutlink.resources.login_tab_register
+import com.flutcloud.flutlink.resources.login_tab_sign_in
+import com.flutcloud.flutlink.resources.login_tagline
+import com.flutcloud.flutlink.resources.register_description
+import com.flutcloud.flutlink.resources.server_url
+import com.flutcloud.flutlink.resources.server_url_placeholder
+import com.flutcloud.flutlink.resources.username
+
 
 @Composable
 fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {

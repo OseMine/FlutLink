@@ -21,12 +21,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.ui.admin.AdminScreen
 import com.flutcloud.flutlink.ui.files.FilesScreen
 import com.flutcloud.flutlink.ui.settings.SettingsScreen
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.tab_admin
+import com.flutcloud.flutlink.resources.tab_files
+import com.flutcloud.flutlink.resources.tab_settings
+
 
 private enum class Tab(val labelRes: StringResource, val icon: ImageVector) {
     Files(Res.string.tab_files, Icons.Default.Folder),

@@ -2,8 +2,19 @@ package com.flutcloud.flutlink.ui
 
 import androidx.compose.runtime.Composable
 import com.flutcloud.flutlink.data.ApiException
-import com.flutcloud.flutlink.resources.Res
 import org.jetbrains.compose.resources.stringResource
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.error_api
+import com.flutcloud.flutlink.resources.error_flutcloud_app_missing
+import com.flutcloud.flutlink.resources.error_generic
+import com.flutcloud.flutlink.resources.error_generic_detail
+import com.flutcloud.flutlink.resources.error_http
+import com.flutcloud.flutlink.resources.error_network_reach
+import com.flutcloud.flutlink.resources.error_network_reach_detail
+import com.flutcloud.flutlink.resources.error_not_flutcloud
+import com.flutcloud.flutlink.resources.error_ocs
+import com.flutcloud.flutlink.resources.error_target_exists
+
 
 /**
  * A user-facing message that is resolved at render time so the device

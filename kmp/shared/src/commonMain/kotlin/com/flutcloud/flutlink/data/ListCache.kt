@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okio.FileSystem
+import okio.buffer
+import okio.use
 import okio.Path
 
 /**
@@ -28,7 +30,7 @@ class ListCache(private val baseDir: Path, private val fs: FileSystem = systemFi
         val file = fileFor(accountKey, path)
         if (!fs.exists(file)) return null
         val entries = runCatching {
-            json.decodeFromString<CachedListing>(fs.readUtf8(file)).entries
+            fs.source(file).buffer().use { src -> json.decodeFromString<CachedListing>(src.readUtf8()) }.entries
         }.getOrNull()
         return entries
     }
@@ -36,7 +38,9 @@ class ListCache(private val baseDir: Path, private val fs: FileSystem = systemFi
     /** Persist a successful listing so it survives offline folder opens. */
     fun write(accountKey: String, path: String, entries: List<WebDavEntry>) {
         try {
-            fs.writeUtf8(fileFor(accountKey, path), json.encodeToString(CachedListing(path, entries)))
+            fs.sink(fileFor(accountKey, path)).buffer().use { sink ->
+                sink.writeUtf8(json.encodeToString(CachedListing(path, entries)))
+            }
             evictOldest()
         } catch (_: Exception) {
             // Cache failures must never break the actual operation.

@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -20,7 +21,7 @@ internal const val MIDNIGHT_DEFAULT_HUE = 220
 
 /** Convert an OKLCH color (CSS Color 4) to an sRGB [Color]. */
 internal fun oklch(l: Double, c: Double, hue: Double): Color {
-    val h = Math.toRadians(((hue % 360.0) + 360.0) % 360.0)
+    val h = (((hue % 360.0) + 360.0) % 360.0) * PI / 180.0
     val a = c * cos(h)
     val b = c * sin(h)
 

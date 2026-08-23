@@ -45,12 +45,14 @@ interface Platform {
      * Download an update package for installation. Only called when
      * [updatesEnabled] is true.
      */
-    suspend fun downloadUpdate(url: String, destDir: Path): Path =
+    suspend fun downloadUpdate(url: String, destDir: Path): Path {
         throw UnsupportedOperationException("Updates are not supported on this platform")
+    }
 
     /** Hand a downloaded update package to the system installer. */
-    fun installUpdate(apk: Path) =
+    fun installUpdate(apk: Path) {
         throw UnsupportedOperationException("Updates are not supported on this platform")
+    }
 
     /** Whether Material You dynamic color is available (Android 12+). */
     val supportsDynamicColor: Boolean get() = false

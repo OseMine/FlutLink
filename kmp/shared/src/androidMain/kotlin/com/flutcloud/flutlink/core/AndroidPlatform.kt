@@ -8,6 +8,9 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import com.flutcloud.flutlink.data.FileOpener
+import com.flutcloud.flutlink.data.NetworkException
+import com.flutcloud.flutlink.data.ShareSheet
 import com.flutcloud.flutlink.data.createPlatformClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
@@ -19,7 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.Path
 import okio.Path.Companion.toOkioPath
-import okio.toFile
 
 /**
  * Android implementation of [Platform]: SharedPreferences/Encrypted-
@@ -119,7 +121,7 @@ class AndroidPlatform(context: Context) : Platform {
                 if (!response.status.isSuccess()) {
                     throw IOException("Download failed: HTTP ${response.status.value}")
                 }
-                target.toFile().outputStream().use { output ->
+                File(target.toString()).outputStream().use { output ->
                     val channel = response.bodyAsChannel()
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
@@ -140,7 +142,7 @@ class AndroidPlatform(context: Context) : Platform {
         val uri: Uri = FileProvider.getUriForFile(
             appContext,
             "${appContext.packageName}.fileprovider",
-            apk.toFile()
+            File(apk.toString())
         )
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
@@ -150,3 +152,4 @@ class AndroidPlatform(context: Context) : Platform {
         appContext.startActivity(intent)
     }
 }
+

@@ -4,22 +4,22 @@ import androidx.compose.runtime.Composable
 import com.flutcloud.flutlink.core.IosPresenter
 import com.flutcloud.flutlink.data.PickedFile
 import okio.FileSystem
-import okio.Path
+import okio.Path.Companion.toPath
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
-import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIDocumentPickerDelegateProtocol
-import platform.UniformTypeIdentifiers.UTType
+import platform.UIKit.UIDocumentPickerMode
+import platform.UIKit.UIDocumentPickerViewController
 import platform.darwin.NSObject
 
 private val fileManager = NSFileManager.defaultManager
 
 /**
  * UIDocumentPickerViewController presented from the Compose host controller.
- * `asCopy = true` hands us a plain file URL outside the origin sandbox, so
- * uploads can stream from the returned path without scope bookkeeping.
+ * The `Import` mode hands us a copy of the file inside our own container, so
+ * uploads can stream from the returned path without security-scope handling.
  */
 @Composable
 actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit {
@@ -29,8 +29,8 @@ actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit
             onPicked(null)
         } else {
             val picker = UIDocumentPickerViewController(
-                forContentTypes = listOf(UTType.data),
-                asCopy = true
+                documentTypes = listOf("public.data", "public.content"),
+                mode = UIDocumentPickerMode.Import
             )
             picker.delegate = object : NSObject(), UIDocumentPickerDelegateProtocol {
                 override fun documentPicker(
@@ -45,7 +45,7 @@ actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit
                     onPicked(null)
                 }
             }
-            top.presentViewControllerAnimatedCompletion(picker, true, null)
+            top.presentViewController(picker, animated = true, completion = null)
         }
     }
 }
@@ -56,6 +56,7 @@ actual fun rememberDownloadsPermissionRequester(
     onResult: (granted: Boolean) -> Unit
 ): (() -> Unit)? = null
 
+@kotlinx.cinterop.ExperimentalForeignApi
 private fun NSURL.toPickedFile(): PickedFile {
     val localPath = path ?: "/"
     var size: Long? = null
@@ -72,7 +73,7 @@ private fun NSURL.toPickedFile(): PickedFile {
         displayName = lastPathComponent ?: "upload.bin",
         contentType = contentType,
         size = size,
-        openStream = { FileSystem.SYSTEM.source(Path(localPath)) }
+        openStream = { FileSystem.SYSTEM.source(localPath.toPath()) }
     )
 }
 

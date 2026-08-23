@@ -3,7 +3,6 @@ package com.flutcloud.flutlink.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.AppUpdate
 import com.flutcloud.flutlink.data.NetworkException
@@ -13,6 +12,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.account_switched_to
+import com.flutcloud.flutlink.resources.update_check_failed
+import com.flutcloud.flutlink.resources.update_check_failed_detail
+import com.flutcloud.flutlink.resources.update_download_failed
+import com.flutcloud.flutlink.resources.update_download_failed_detail
+import com.flutcloud.flutlink.resources.update_up_to_date
+
 
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 

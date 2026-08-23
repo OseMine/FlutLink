@@ -6,11 +6,13 @@ import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.PickedFile
+import com.flutcloud.flutlink.data.createShare
+import com.flutcloud.flutlink.data.deleteShare
+import com.flutcloud.flutlink.data.listShares
 import com.flutcloud.flutlink.data.systemFileSystem
 import com.flutcloud.flutlink.data.dto.Quota
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.ui.UiMessage
 import com.flutcloud.flutlink.ui.networkUiMessage
 import com.flutcloud.flutlink.ui.toUiMessage
@@ -23,6 +25,12 @@ import kotlinx.coroutines.launch
 import okio.Path
 import okio.buffer
 import okio.use
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.downloaded_to_downloads
+import com.flutcloud.flutlink.resources.error_invalid_folder_name
+import com.flutcloud.flutlink.resources.error_not_admin_impersonation
+import com.flutcloud.flutlink.resources.share_recipient_required
+
 
 /** Bytes copied so far vs. total bytes of a streaming transfer. */
 data class TransferProgress(val transferred: Long, val total: Long)
@@ -437,7 +445,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                         path = remotePath,
                         openStream = { picked.open() },
                         contentLength = size,
-                        contentType = picked.contentType,
+                        contentTypeValue = picked.contentType,
                         onProgress = { transferred, total ->
                             _transferProgress.value = TransferProgress(transferred, total)
                         },
@@ -461,7 +469,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                             path = remotePath,
                             openStream = { fs.source(tmp) },
                             contentLength = fs.metadata(tmp).size ?: 0L,
-                            contentType = picked.contentType,
+                            contentTypeValue = picked.contentType,
                             onProgress = { transferred, total ->
                                 _transferProgress.value = TransferProgress(transferred, total)
                             },

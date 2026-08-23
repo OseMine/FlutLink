@@ -3,7 +3,6 @@ package com.flutcloud.flutlink.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.*
 import com.flutcloud.flutlink.data.ApiException
@@ -18,6 +17,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.error_fill_fields
+import com.flutcloud.flutlink.resources.error_fill_fields_register
+import com.flutcloud.flutlink.resources.error_flutcloud_app_missing
+import com.flutcloud.flutlink.resources.error_wrong_server_url
+import com.flutcloud.flutlink.resources.signing_in
+import com.flutcloud.flutlink.resources.step_creating_account
+import com.flutcloud.flutlink.resources.step_setting_up_folder
+import com.flutcloud.flutlink.resources.step_verifying_server
+import com.flutcloud.flutlink.resources.verifying_server
+
 
 class LoginViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -170,7 +180,7 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             container.webDavApi.upload(
                 adminSession,
                 "$FLUTCLOUD_PROJECT_PATH/README.md",
-                FLUTCLOUD_README.toByteArray()
+                FLUTCLOUD_README.encodeToByteArray()
             )
         }
     }

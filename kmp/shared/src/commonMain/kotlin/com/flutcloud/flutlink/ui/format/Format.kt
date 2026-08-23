@@ -1,8 +1,13 @@
 package com.flutcloud.flutlink.ui.format
 
 import androidx.compose.runtime.Composable
-import com.flutcloud.flutlink.resources.Res
+import kotlin.math.roundToLong
 import org.jetbrains.compose.resources.stringResource
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.quota_of
+import com.flutcloud.flutlink.resources.quota_unknown
+import com.flutcloud.flutlink.resources.quota_used
+
 
 fun formatBytes(bytes: Long?): String {
     if (bytes == null) return ""
@@ -14,7 +19,7 @@ fun formatBytes(bytes: Long?): String {
         value /= 1024.0
         unit++
     }
-    return "%.1f %s".format(value, units[unit])
+    return "${formatOneDecimal(value)} ${units[unit]}"
 }
 
 /** "1.2 GB of 5.0 GB (24%)" style quota label. */
@@ -30,6 +35,14 @@ fun formatQuota(used: Long?, total: Long?): String {
     }
 }
 
+
+/** "12.5" style one-decimal formatting without Locale-dependent APIs. */
+internal fun formatOneDecimal(value: Double): String {
+    val rounded = (value * 10).roundToLong()
+    val whole = rounded / 10
+    val frac = rounded % 10
+    return if (frac == 0L) "$whole" else "$whole.$frac"
+}
 private val MONTHS = listOf(
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"

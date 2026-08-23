@@ -51,13 +51,51 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.ui.components.SectionHeader
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.theme.defaultAccentHue
 import com.flutcloud.flutlink.ui.viewmodel.SettingsViewModel
 import kotlin.math.roundToInt
+import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.accent_color
+import com.flutcloud.flutlink.resources.accent_color_hint
+import com.flutcloud.flutlink.resources.accent_reset
+import com.flutcloud.flutlink.resources.account
+import com.flutcloud.flutlink.resources.account_active
+import com.flutcloud.flutlink.resources.accounts
+import com.flutcloud.flutlink.resources.appearance
+import com.flutcloud.flutlink.resources.cancel
+import com.flutcloud.flutlink.resources.check_for_updates
+import com.flutcloud.flutlink.resources.checking
+import com.flutcloud.flutlink.resources.downloading
+import com.flutcloud.flutlink.resources.dynamic_color
+import com.flutcloud.flutlink.resources.dynamic_color_hint
+import com.flutcloud.flutlink.resources.feature_count
+import com.flutcloud.flutlink.resources.flut_cloud_app
+import com.flutcloud.flutlink.resources.flutcloud_only_note
+import com.flutcloud.flutlink.resources.flutlink_mobile
+import com.flutcloud.flutlink.resources.not_signed_in
+import com.flutcloud.flutlink.resources.remove
+import com.flutcloud.flutlink.resources.remove_account
+import com.flutcloud.flutlink.resources.remove_account_confirm
+import com.flutcloud.flutlink.resources.remove_account_confirm_text
+import com.flutcloud.flutlink.resources.settings
+import com.flutcloud.flutlink.resources.sign_out
+import com.flutcloud.flutlink.resources.switch_account
+import com.flutcloud.flutlink.resources.theme
+import com.flutcloud.flutlink.resources.theme_hint
+import com.flutcloud.flutlink.resources.theme_midnight
+import com.flutcloud.flutlink.resources.theme_operationflut
+import com.flutcloud.flutlink.resources.theme_system
+import com.flutcloud.flutlink.resources.theme_system_note
+import com.flutcloud.flutlink.resources.update
+import com.flutcloud.flutlink.resources.update_available
+import com.flutcloud.flutlink.resources.update_available_text
+import com.flutcloud.flutlink.resources.update_downloading_name
+import com.flutcloud.flutlink.resources.updates
+import com.flutcloud.flutlink.resources.version_format
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -327,4 +365,3 @@ private fun AccountRow(
         )
     }
 }
-
