@@ -11,7 +11,7 @@ kotlinxCoroutines = "1.11.0"
 composeMultiplatform = "1.11.0"
 multiplatformLifecycle = "2.10.0"
 multiplatformNavigation = "2.9.2"
-ktor = "3.5.1"
+ktor = "3.5.2"
 junit = "4.13.2"
 
 [libraries]
