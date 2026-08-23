@@ -20,11 +20,11 @@
       "versions": [
         {
           "version": "1.0.0",
-          "buildVersion": "2",
-          "date": "2026-08-22",
-          "localizedDescription": "Initial AltStore release of the FlutLink iOS app.",
-          "downloadURL": "https://github.com/OseMine/FlutLink/releases/download/v1.0.0/FlutLink-unsigned-arm64.ipa",
-          "size": 0,
+          "buildVersion": "92",
+          "date": "2026-08-23",
+          "localizedDescription": "Release 1.0.0 — see the release page for details.",
+          "downloadURL": "https://github.com/OseMine/FlutLink/releases/download/v1.0.0/FlutLink-ios-unsigned.ipa",
+          "size": 9390982,
           "minOSVersion": "15.0"
         }
       ],
