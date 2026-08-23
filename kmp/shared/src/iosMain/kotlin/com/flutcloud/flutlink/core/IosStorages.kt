@@ -1,11 +1,10 @@
 package com.flutcloud.flutlink.core
 
-import kotlinx.cinterop.COpaquePointer
-import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.MemScope
 import kotlinx.cinterop.alloc
-import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.allocArrayOf
+import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
@@ -21,6 +20,7 @@ import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.CFStringCreateWithCString
 import platform.CoreFoundation.CFTypeRef
 import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFAllocatorDefault
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
 import platform.Foundation.NSUserDefaults
@@ -85,7 +85,7 @@ class IosKeychainStorage(
         remove(key)
         memScoped {
             val bytes = value.encodeToByteArray()
-            val data = CFDataCreate(null, bytes.toCValues(), bytes.size.toLong())
+            val data = CFDataCreate(null, bytes.asUByteArray().toCValues(), bytes.size.toLong())
                 ?: return@memScoped
             val attributes = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,
@@ -117,22 +117,18 @@ class IosKeychainStorage(
         vararg pairs: Pair<CFStringRef?, CFTypeRef?>
     ): CFDictionaryRef? {
         val count = pairs.size
-        val keys = allocArray<CPointerVar<COpaquePointer>>(count)
-        val values = allocArray<CPointerVar<COpaquePointer>>(count)
-        pairs.forEachIndexed { index, (key, value) ->
-            keys[index] = key
-            value?.let { values[index] = it }
-        }
+        val keys = allocArrayOf(*pairs.map { it.first }.toTypedArray())
+        val values = allocArrayOf(*pairs.map { it.second }.toTypedArray())
         return CFDictionaryCreate(
-            allocator = null,
-            keys = keys,
-            values = values,
-            numEntries = count.toLong(),
-            keyCallBacks = null,
-            valueCallBacks = null
+            kCFAllocatorDefault,
+            keys.reinterpret(),
+            values.reinterpret(),
+            count.convert(),
+            null,
+            null
         )
     }
 
-    private fun cfString(text: String): CFStringRef =
+    private fun cfString(text: String): CFStringRef? =
         CFStringCreateWithCString(null, text, kCFStringEncodingUTF8)
 }

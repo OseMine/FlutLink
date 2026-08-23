@@ -12,7 +12,8 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
-import platform.UniformTypeIdentifiers.UTType
+import platform.UniformTypeIdentifiers.UTTypeContent
+import platform.UniformTypeIdentifiers.UTTypeData
 import platform.darwin.NSObject
 
 private val fileManager = NSFileManager.defaultManager
@@ -31,7 +32,7 @@ actual fun rememberFilePickLauncher(onPicked: (PickedFile?) -> Unit): () -> Unit
             onPicked(null)
         } else {
             val picker = UIDocumentPickerViewController(
-                forOpeningContentTypes = listOf(UTType.data, UTType.content),
+                forOpeningContentTypes = listOf(UTTypeData, UTTypeContent),
                 asCopy = true
             )
             picker.delegate = object : NSObject(), UIDocumentPickerDelegateProtocol {
