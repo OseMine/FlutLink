@@ -1,4 +1,4 @@
-package com.flutcloud.flutlink
+package com.flutcloud.flutlink.android
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.navigation.AppNavigation
 import com.flutcloud.flutlink.ui.theme.FlutLinkTheme
 

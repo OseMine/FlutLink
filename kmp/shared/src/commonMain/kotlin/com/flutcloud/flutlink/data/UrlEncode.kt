@@ -10,8 +10,8 @@ private fun isUnreserved(c: Char): Boolean =
     c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || c == '-' || c == '_' || c == '.' || c == '~'
 
 /** Hex digits, upper case like java.net.URLEncoder output. */
-private fun Char.hex(): String = "0123456789ABCDEF"[toInt() shr 4 and 0xF].toString() +
-    "0123456789ABCDEF"[toInt() and 0xF]
+private fun Char.hex(): String = "0123456789ABCDEF"[(code shr 4) and 0xF].toString() +
+    "0123456789ABCDEF"[code and 0xF]
 
 /** URL-encode a single path segment (space becomes %20, not +). */
 fun encodeSegment(segment: String): String = buildString {

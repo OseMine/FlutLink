@@ -23,6 +23,7 @@ import okio.FileSystem
 import okio.Path
 import okio.Source
 import okio.buffer
+import okio.use
 
 /** Reports `(transferred, total)` bytes during a streaming transfer. */
 fun interface ProgressCallback {
@@ -184,7 +185,7 @@ class WebDavApi(private val client: HttpClient) {
         session: AuthSession,
         path: String,
         dest: Path,
-        fs: FileSystem = FileSystem.SYSTEM,
+        fs: FileSystem = systemFileSystem(),
         onProgress: ProgressCallback? = null,
         targetUser: String? = null
     ): Path {

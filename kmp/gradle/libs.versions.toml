@@ -6,6 +6,7 @@ activityCompose = "1.13.0"
 datastore = "1.2.1"
 securityCrypto = "1.1.0"
 okhttp = "5.4.0"
+okio = "3.17.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 composeMultiplatform = "1.11.0"
@@ -21,6 +22,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okio = { group = "com.squareup.okio", name = "okio", version.ref = "okio" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-darwin = { group = "io.ktor", name = "ktor-client-darwin", version.ref = "ktor" }

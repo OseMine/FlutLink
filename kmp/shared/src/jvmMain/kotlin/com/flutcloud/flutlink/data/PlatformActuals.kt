@@ -3,6 +3,7 @@ package com.flutcloud.flutlink.data
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
+import okio.FileSystem
 
 /** OkHttp powers HTTP on the desktop JVM target. */
 internal actual fun createPlatformClient(
@@ -10,6 +11,8 @@ internal actual fun createPlatformClient(
 ): HttpClient = HttpClient(OkHttp) {
     configure(this)
 }
+
+internal actual fun systemFileSystem(): FileSystem = FileSystem.SYSTEM
 
 internal actual fun flutLog(tag: String, message: String) {
     println("INFO [$tag] $message")

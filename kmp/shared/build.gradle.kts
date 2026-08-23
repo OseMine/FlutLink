@@ -66,6 +66,8 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.coroutines.core)
+            // WebDavApi uses okio Paths/FileSystem directly in common code.
+            implementation(libs.okio)
         }
         jvmMain.dependencies {
             // The Kotlin Compose compiler plugin is applied module-wide and runs

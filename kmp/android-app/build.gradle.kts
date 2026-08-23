@@ -8,7 +8,7 @@ plugins {
 // ships built-in Kotlin support, so this module applies no Kotlin plugin —
 // the multiplatform code lives in :shared and is consumed as a library.
 android {
-    namespace = "com.flutcloud.flutlink"
+    namespace = "com.flutcloud.flutlink.android"
     compileSdk = 37
 
     defaultConfig {
