@@ -84,7 +84,9 @@ runs:
 
     # --- Dependency & secret scanning ---
     - name: Trivy filesystem scan (dependencies + secrets)
-      uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+      # v0.36.0 — older pins referenced `aquasecurity/setup-trivy@v0.2.1`
+      # by tag, which no longer resolves and failed the whole release gate.
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: fs
         scan-ref: .

@@ -51,10 +51,9 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install OpenCode CLI
-        shell: bash
-        run: |
-          curl -fsSL https://opencode.ai/install.sh | bash
-          echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+        # opencode.ai/install.sh returns 404 since the installer was
+        # retired; install the same pinned version the review workflows use.
+        run: npm install -g opencode-ai@1.18.21
 
       - name: Generate release notes
         shell: bash
