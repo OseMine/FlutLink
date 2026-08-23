@@ -1,5 +1,23 @@
 name: Release
 
+# Release automation — triggered by pushing a `v*` tag (or manually via
+# workflow_dispatch for dry-run validation of notes/gate/mobile builds).
+#
+# Pipeline stages:
+#   1. release-notes        OpenCode generates German notes from git log
+#   2. checks               Rust lint/format/test gate
+#   3. security-gate        Trivy/VirusTotal scan + OpenCode rating >= 7
+#      abort-insecure-release  deletes tag+release when the gate fails
+#   4. prepare-release      creates the DRAFT release page once (gh CLI,
+#                           idempotent) — matrix legs never race-create
+#   5. build-and-release    desktop installers (Win MSI/NSIS, macOS dmg,
+#                           Linux deb/AppImage) uploaded into that draft
+#   6. android / ios        signed APK + unsigned IPA artifacts
+#   7. virustotal-mobile    scans APK/IPA (blocks on detections)
+#   8. upload-mobile        attaches APK + IPA to the draft
+#   9. altstore             updates AltStore source JSONs on main, attaches them
+#  10. publish-release      flips the draft public once every asset is in
+
 on:
   push:
     tags:
@@ -158,8 +176,45 @@ jobs:
             || echo "::warning::Tag ${TAG} war bereits geloescht"
           echo "::error title=Release abgebrochen::Security-Gate fehlgeschlagen (Bewertung ${{ needs.security-gate.outputs.rating }}/10) - Release ${TAG} gestoppt und Tag ${TAG} geloescht"
 
-  build-and-release:
+  prepare-release:
+    name: Create release page (draft)
     needs: [release-notes, checks, security-gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Determine tag
+        id: tag
+        shell: bash
+        run: echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release (idempotent)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::notice::Kein Tag-Push (workflow_dispatch) - keine Release-Seite"
+            exit 0
+          fi
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" --json id >/dev/null 2>&1; then
+            echo "::notice::Release ${TAG} existiert bereits - wird wiederverwendet"
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --draft \
+            --title "FlutLink ${TAG}" \
+            --notes "${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}"
+
+  build-and-release:
+    # Desktop installers only for real tag releases; a stray workflow_dispatch
+    # must never let tauri-action create/publish a release page on its own.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [prepare-release]
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +229,9 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -199,13 +257,10 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
-          releaseBody: ${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}
-          # Released immediately (not as a draft): the release page goes
-          # public as soon as the first desktop build finishes, and the
-          # mobile/AltStore jobs attach their assets to it afterwards
-          # (gh release upload --clobber). The publish-release job becomes
-          # a no-op for non-draft releases.
-          releaseDraft: false
+          # Release page + German notes are created once by `prepare-release`;
+          # this action then finds the existing draft and uploads assets.
+          # releaseBody omitted on purpose — no matrix leg creates a release.
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -287,6 +342,8 @@ jobs:
     name: Upload mobile artifacts to release
     needs: [build-and-release, android, ios, virustotal-mobile]
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -318,6 +375,8 @@ jobs:
     name: Update AltStore sources (classic + PAL)
     needs: upload-mobile
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (main)
@@ -369,6 +428,8 @@ jobs:
     name: Publish release page
     needs: [build-and-release, upload-mobile, altstore]
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Publish draft release (all assets attached)
@@ -386,5 +447,27 @@ jobs:
             echo "::notice::Release $TAG ist bereits publiziert"
             exit 0
           fi
+
+          # Completeness gate: never publish a half-stocked release.
+          ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')
+          echo "$ASSETS"
+          missing=0
+          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "pal\.json$"; do
+            if ! echo "$ASSETS" | grep -Eq "$pattern"; then
+              echo "::error::Release $TAG unvollstaendig: kein Asset matcht $pattern"
+              missing=1
+            fi
+          done
+          if ! echo "$ASSETS" | grep -Eq "\.(msi|exe)$"; then
+            echo "::warning::Kein Windows-Installer (.msi/.exe) im Release"
+          fi
+          if ! echo "$ASSETS" | grep -Eq "\.dmg$"; then
+            echo "::warning::Kein macOS-Image (.dmg) im Release"
+          fi
+          if ! echo "$ASSETS" | grep -Eq "\.(deb|AppImage)$"; then
+            echo "::warning::Kein Linux-Paket (.deb/.AppImage) im Release"
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+
           gh release edit "$TAG" --draft=false
           echo "Release $TAG published with all assets"

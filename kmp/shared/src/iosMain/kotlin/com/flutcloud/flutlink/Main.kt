@@ -1,73 +1,40 @@
 package com.flutcloud.flutlink
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.ComposeUIViewController
+import com.flutcloud.flutlink.core.AppConfig
+import com.flutcloud.flutlink.core.IosPlatform
+import com.flutcloud.flutlink.core.IosPresenter
+import com.flutcloud.flutlink.ui.FlutLinkRoot
+import platform.Foundation.NSBundle
 import platform.UIKit.UIViewController
 
 /**
- * iOS entry point used by the `iosApp/` Xcode shell: instantiates a
- * [ComposeUIViewController] hosting the shared Compose UI.
+ * iOS entry point used by the `iosApp/` Xcode shell: hosts the full shared
+ * Compose UI (same feature set as the Android client) via [FlutLinkRoot].
  *
- * The feature-complete client UI lives in `androidMain` (it is coupled to
- * Android-only APIs: EncryptedSharedPreferences, Storage Access Framework,
- * Android string resources). Porting it to `commonMain` is tracked as
- * follow-up work — until then this hosts a branded placeholder so the
- * framework, Xcode shell and CI pipeline are exercised end to end.
+ * `enforceStrictPlistSanityCheck = false` disables CMP 1.11's runtime check
+ * for UILaunchScreen/UIApplicationSceneManifest in Info.plist — the Xcode
+ * shell generates the plist from INFOPLIST_KEY_* build settings, which the
+ * check does not recognize (false-positive crash at launch).
  */
-fun MainViewController(): UIViewController = androidx.compose.ui.window.ComposeUIViewController(
-    configure = { enforceStrictPlistSanityCheck = false }
-) {
-    IosPlaceholderApp()
-}
-
-@Composable
-private fun IosPlaceholderApp() {
-    MaterialTheme {
-        Scaffold { padding ->
-            Surface(modifier = Modifier.fillMaxSize().padding(padding)) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "FlutLink",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2F80ED)
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        text = "iOS (Kotlin Multiplatform)",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Text(
-                        text = "The shared KMP module is building. Feature parity",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "with the Android client is follow-up work.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+fun MainViewController(): UIViewController {
+    val platform = IosPlatform()
+    val version = NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
+        ?: "1.0.0"
+    val container = AppContainer(
+        userAgent = "FlutLink-iOS/$version",
+        config = AppConfig(
+            // No compile-time server URL on iOS yet; the user enters it once.
+            defaultServerUrl = "",
+            appVersion = version
+        ),
+        platform = platform
+    )
+    val controller = ComposeUIViewController(
+        configure = { enforceStrictPlistSanityCheck = false }
+    ) {
+        FlutLinkRoot(container)
     }
+    IosPresenter.hostController = controller
+    return controller
 }

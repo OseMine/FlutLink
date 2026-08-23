@@ -66,13 +66,23 @@ kmp/
 
 ### Stand der iOS-Parität
 
-Der Kern (Stores, Session, HTTP-APIs) liegt inzwischen in `commonMain`;
-die Compose-UI und plattformgebundene Teile (EncryptedSharedPreferences,
-Storage Access Framework, Updater) liegen noch in `androidMain`. Der
-verbleibende UI-Port nach `commonMain` ist als Folgearbeit notiert —
-bis dahin hostet das iOS-Framework einen Placeholder-Screen; die
-Build-/CI-Infrastruktur (Framework, Xcode-Projekt, IPA) ist vollständig
-eingerichtet.
+Die gesamte Compose-UI (Login, Dateien, Admin, Einstellungen) liegt in
+`commonMain`; plattformgebundene Dienste werden über das
+[`Platform`](shared/src/commonMain/kotlin/com/flutcloud/flutlink/core/Platform.kt)-
+Interface injiziert:
+
+| Funktion | Android | iOS |
+| --- | --- | --- |
+| Token-Speicher | EncryptedSharedPreferences (Keystore) | Keychain |
+| Einstellungen | SharedPreferences | NSUserDefaults |
+| Upload-Picker | SAF (`OpenDocument`) | `UIDocumentPickerViewController` |
+| Download-Ziel | MediaStore Downloads / öffentlicher Ordner | Documents (Files-App) |
+| Öffnen/Teilen | FileProvider + `ACTION_VIEW`/`ACTION_SEND` | QuickLook-Preview / Share-Sheet |
+| Self-Update | GitHub-Release-APK | nicht verfügbar (Zeile in Einstellungen ausgeblendet) |
+
+Zwei-Wege-Sync bleibt Desktop-only. Strings liegen zweisprachig in
+`shared/src/commonMain/composeResources/values{,-de}/strings.xml`
+(Generierung als `com.flutcloud.flutlink.resources.Res`).
 
 ## Befehle
 
@@ -122,8 +132,10 @@ Server.
 
 ## Hinweise
 
-- Neue UI-Texte brauchen Schlüssel in `shared/src/androidMain/res/values/strings.xml`
-  (en) und `res/values-de/strings.xml` (de).
+- Neue UI-Texte brauchen Schlüssel in
+  `shared/src/commonMain/composeResources/values/strings.xml`
+  (en) und `composeResources/values-de/strings.xml` (de); Zugriff über
+  `com.flutcloud.flutlink.resources.Res.string.*`.
 - Serde-Modelle: `dto/Models.kt` nutzt `kotlinx.serialization`
   (`@Serializable`) — keine Änderung nötig für KMP.
 - `jvmMain` braucht die JetBrains-Compose-Runtime, weil das
