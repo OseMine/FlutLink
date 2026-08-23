@@ -372,11 +372,22 @@ pub async fn download_update(
 /// Hex-encoded SHA-256 of a file.
 fn sha256_file(path: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
+    use std::io::Read;
     let mut file =
         std::fs::File::open(path).map_err(|e| format!("Cannot read downloaded file: {e}"))?;
     let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("Checksum error: {e}"))?;
-    Ok(format!("{:x}", hasher.finalize()))
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file
+            .read(&mut buf)
+            .map_err(|e| format!("Checksum error: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let digest = hasher.finalize();
+    Ok(digest.iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Launches the downloaded installer and exits the current process so that
