@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.3.21"
+kotlin = "2.4.10"
 coreKtx = "1.17.0"
 activityCompose = "1.13.0"
 datastore = "1.2.1"
