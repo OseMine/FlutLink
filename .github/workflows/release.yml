@@ -1,5 +1,23 @@
 name: Release
 
+# Release automation — triggered by pushing a `v*` tag (or manually via
+# workflow_dispatch for dry-run validation of notes/gate/mobile builds).
+#
+# Pipeline stages:
+#   1. release-notes        OpenCode generates German notes from git log
+#   2. checks               Rust lint/format/test gate
+#   3. security-gate        Trivy/VirusTotal scan + OpenCode rating >= 7
+#      abort-insecure-release  deletes tag+release when the gate fails
+#   4. prepare-release      creates the DRAFT release page once (gh CLI,
+#                           idempotent) — matrix legs never race-create
+#   5. build-and-release    desktop installers (Win MSI/NSIS, macOS dmg,
+#                           Linux deb/AppImage) uploaded into that draft
+#   6. android / ios        signed APK + unsigned IPA artifacts
+#   7. virustotal-mobile    scans APK/IPA (blocks on detections)
+#   8. upload-mobile        attaches APK + IPA to the draft
+#   9. altstore             updates AltStore source JSONs on main, attaches them
+#  10. publish-release      flips the draft public once every asset is in
+
 on:
   push:
     tags:
@@ -193,6 +211,9 @@ jobs:
             --notes "${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}"
 
   build-and-release:
+    # Desktop installers only for real tag releases; a stray workflow_dispatch
+    # must never let tauri-action create/publish a release page on its own.
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [prepare-release]
     strategy:
       fail-fast: false
@@ -426,5 +447,27 @@ jobs:
             echo "::notice::Release $TAG ist bereits publiziert"
             exit 0
           fi
+
+          # Completeness gate: never publish a half-stocked release.
+          ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')
+          echo "$ASSETS"
+          missing=0
+          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "pal\.json$"; do
+            if ! echo "$ASSETS" | grep -Eq "$pattern"; then
+              echo "::error::Release $TAG unvollstaendig: kein Asset matcht $pattern"
+              missing=1
+            fi
+          done
+          if ! echo "$ASSETS" | grep -Eq "\.(msi|exe)$"; then
+            echo "::warning::Kein Windows-Installer (.msi/.exe) im Release"
+          fi
+          if ! echo "$ASSETS" | grep -Eq "\.dmg$"; then
+            echo "::warning::Kein macOS-Image (.dmg) im Release"
+          fi
+          if ! echo "$ASSETS" | grep -Eq "\.(deb|AppImage)$"; then
+            echo "::warning::Kein Linux-Paket (.deb/.AppImage) im Release"
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+
           gh release edit "$TAG" --draft=false
           echo "Release $TAG published with all assets"
