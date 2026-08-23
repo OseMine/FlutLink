@@ -200,11 +200,12 @@ jobs:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
           releaseBody: ${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}
-          # Created as draft so the release page only becomes visible after
-          # all assets (desktop + APK/IPA/AltStore sources) are attached -
-          # published by the final "publish-release" job below. The updater
-          # skips drafts, so it only sees the release once fully assembled.
-          releaseDraft: true
+          # Released immediately (not as a draft): the release page goes
+          # public as soon as the first desktop build finishes, and the
+          # mobile/AltStore jobs attach their assets to it afterwards
+          # (gh release upload --clobber). The publish-release job becomes
+          # a no-op for non-draft releases.
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
