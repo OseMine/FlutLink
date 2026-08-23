@@ -4,6 +4,115 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Fix-Lauf 2026-08-23 (II) — KMP: AGP 9/Gradle 9, compileSdk 37, commonMain + Desktop-JVM (Issues #293/#317/#318) — abgeschlossen
+
+Aus `todo.md` verschoben: Die drei blockierten Dependabot-/Architektur-Issues
+wurden in einem koordinierten Lauf gelöst. Commits: `4cefb51` („refactor(kmp):
+split :android-app module; Gradle 9.7.1/AGP 9.3.1, lifecycle 2.11 on
+compileSdk 37"), `ff09ac1`/`7646740` (Launcher-Icon, Scratch-Test entfernt),
+`ef705c9` („fix(kmp): make the AGP 9 module split actually build").
+
+**#317 — Gradle 9 + AGP 9 (`gradle-wrapper.properties`, `libs.versions.toml`,
+`kmp/android-app/*`, `kmp/shared/build.gradle.kts`, CI):**
+
+- Gradle-Wrapper 8.13 → 9.7.1; AGP 8.13.2 → 9.3.1 (neuestes stabiles 9.x).
+- AGP 9 verbietet `org.jetbrains.kotlin.multiplatform` zusammen mit
+  `com.android.application` im selben Modul. Migration daher:
+  - Neues Modul **`kmp/android-app`**: wendet nur
+    `com.android.application` an (built-in Kotlin, kein Kotlin-/Compose-
+    Compiler-Plugin nötig — AGP liefert den Compose-Compiler selbst) und
+    enthält Manifest, Launcher-Ressourcen, `FlutLinkApplication`
+    (implementiert `ContainerHost`) und `MainActivity` im eigenen Paket
+    `com.flutcloud.flutlink.android`, dazu Signing (`KEYSTORE_*`),
+    R8/Shrink + `proguard-rules.pro`, `BuildConfig.FLUTCLOUD_URL`
+    (env `-PflutcloudUrl`), `versionCode/versionName`.
+  - **`:shared`** nutzt das neue `com.android.kotlin.multiplatform.library`
+    (Single-Variant, keine Build-Types mehr); Android-Konfiguration über
+    `kotlin { android { namespace/compileSdk/minSdk } }`; Host-Tests per
+    `withHostTestBuilder {}.configure {}` opt-in; Ressourcen-Verarbeitung
+    per `androidResources { enable = true }` (Strings bleiben im Modul,
+    die UI referenziert `R.string.*`).
+  - `AppContainer` nimmt jetzt `userAgent` + `AppConfig`
+    (defaultServerUrl/appVersion) injiziert — `BuildConfig` gibt es in der
+    Library nicht mehr; `LoginViewModel`/`SettingsViewModel` lesen
+    `container.config`.
+  - CI: `kmp.yml` build/test/lint auf die neuen Tasks umgestellt
+    (`:android-app:assembleDebug`, `:shared:testAndroidHostTest`,
+    `:android-app:lintDebug`); `kmp-android-build`-Action baut
+    `:android-app:*` und greift APKs aus `kmp/android-app/build/outputs`.
+
+**#318 — compileSdk 37 + lifecycle 2.11:**
+
+- `compileSdk = 37` in `:shared` und `:android-app`;
+  `multiplatformLifecycle` 2.10.0 → 2.11.0 (lifecycles AAR-Metadaten
+  verlangen ≥ 37).
+- Wichtiger Fund: API-37-Plattformen tragen in Googles Repo die neue
+  Extension-Level-Namensgebung — `platforms;android-37` existiert nicht,
+  installierbar ist **`platforms;android-37.0`** (Stable, ext-level 22;
+  daneben 37.1/37.2-beta). `kmp.yml` und `kmp-ios-build`-Action wurden
+  entsprechend umgestellt.
+
+**#293 — commonMain ausbauen + Desktop-JVM-Client:**
+
+- Portierungen nach `commonMain` (Ziel: plattformfreier Netzwerk-Kern):
+  - `FlutCloudApi` (+ OCS-Provisioning/Gruppen/Shares/Links/Parts als
+    Extensions in `FlutCloudOcs.kt`): OkHttp → **Ktor 3**
+    (`HttpClientFactory` mit HttpTimeout/UserAgent-Plugins, FormBody →
+    `FormDataContent`, Basic-Auth über eigene Base64-Routine statt
+    `okhttp3.Credentials`).
+  - `WebDavApi`: Ktor + **okio** (Streaming-Download/-Upload mit
+    Progress-Callbacks über `ByteReadChannel` ↔ `BufferedSink`/
+    `OutgoingContent.WriteChannelContent`); PROPFIND/SEARCH/MKCOL/MOVE
+    unverändert semantisch (207-Behandlung, `Impersonate-User`,
+    X-OC-MTime, 412 → `target_exists`).
+  - **MiniXmlParser** (commonMain) ersetzt `org.xmlpull`/xpp3:
+    Streaming-Pull-Parser für Multistatus (Start-/End-Tags mit Local-Names,
+    TEXT, CDATA, Kommentare, PIs, Entities, self-closing Tags); alle sieben
+    `WebDavApiTest`-Fälle laufen unverändert dagegen.
+  - `UrlEncode.kt`: RFC-3986-Encoder/Decoder ohne `java.net.URLEncoder`
+    (Literal-`+` bleibt Plus wie bisher).
+  - expect/actual: `createPlatformClient` (OkHttp auf Android/JVM, Darwin
+    auf iOS), `flutLog`/`flutLogError` (Logcat vs. stdout),
+    `systemFileSystem()` (okio-Zugriff ohne JVM-Annahme).
+- Core-Schicht nach commonMain: `AccountMeta`, `AccountStore` hinter dem
+  neuen `KeyValueStorage`-Vertrag, `SessionManager`, `AppConfig`. Android-
+  Actuals: `SharedPreferencesKeyValueStorage` +
+  `EncryptedKeyValueStorage` (EncryptedSharedPreferences/Keystore).
+- **Desktop-JVM-Client** (`jvmMain`): headless CLI `Main.kt`
+  (`com.flutcloud.flutlink.desktop.MainKt`) mit `whoami` (verifyServer +
+  User/Quota) und `ls` (WebDAV-Listing inkl. resources/parts-Flags);
+  Credentials ausschließlich aus Umgebung (`FLUTCLOUD_URL/_USERNAME/_TOKEN`);
+  `FileKeyValueStorage` (Properties unter `$XDG_CONFIG_HOME/flutlink`,
+  Token-Datei unter `$XDG_STATE_HOME/flutlink` mit 600-Rechten);
+  Gradle-Task `:shared:desktopCli` registriert.
+- **iOS-Fix:** `iosMain/MainViewController.kt` → **`Main.kt`** umbenannt.
+  Kotlin/Native exportiert Top-Level-Funktionen pro Datei als `<Datei>Kt`;
+  Swift erwartet aber `MainKt.MainViewController()` — deshalb war der
+  IPA-Job in `build.yml` seit dem KMP-Fold-in rot (zuerst K/N-OOM, dann
+  „cannot find 'MainKt' in scope"). Dateiname entspricht jetzt der
+  CMP-Templates-Konvention.
+- Tests: `androidUnitTest` → **`androidHostTest`** (neue Quellset-Namens-
+  konvention des Plugins); `InMemorySharedPreferences` →
+  `InMemoryKeyValueStorage`; `SessionManagerTest` baut die API mit
+  kurzzeitigem Ktor-OkHttp-Engine-Timeout. **30/30 Tests grün.**
+- Doku: `kmp/README.md` (Struktur, Targets, Befehle, CI) und `AGENTS.md`
+  aktualisiert.
+
+**Build-Fixes dabei (Commit `ef705c9`):** eigener Namespace/Package
+`com.flutcloud.flutlink.android` für `:android-app` (AAPT lehnt doppelt
+verwendete Namespaces ab), Launcher-/Theme-Ressourcen unter `res/values/`,
+explizite okio-Abhängigkeit für commonMain (iOS bekommt okio sonst nicht
+mit), `Char.code` statt verbotener `toInt()`-Konversion.
+
+**Verifikation (lokal, Linux-Codespace ohne vorinstallierten SDK):**
+Android-SDK 16.0 (cmdline-tools) + `platforms;android-37.0` +
+build-tools 36.0.0 nachinstalliert. Grün gelaufen:
+`:android-app:processDebugResources`, `:shared:testAndroidHostTest`
+(30 Tests), `:shared:compileKotlinJvm`, `:shared:compileKotlinIosArm64`
+(Kotlin/Native 2.4.10). Der vollständige APK-Dex-Schritt
+(`mergeExtDexDebug`) überschreitet das RAM-Limit des Codespace-Containers
+(OOM-Killer, kein Swap verfügbar) und wird von CI autoritativ geprüft.
+
 ### Fix-Lauf 2026-08-23 — L15/L16-Katalog abgeschlossen (Commit `59de00d` vom 2026-08-22)
 
 Aus `todo.md` verschoben: Der gesamte Befundkatalog aus Lauf 15 und Lauf 16

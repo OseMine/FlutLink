@@ -6,6 +6,68 @@ Erledigte Punkte werden in `archived-todo.md` verschoben.
 ## Offen
 
 
+### Fix-Lauf 2026-08-23 (II) — KMP: AGP 9/Gradle 9-Migration, compileSdk 37, commonMain-Ausbau (Issues #293/#317/#318)
+
+Umgesetzt in den lokalen Commits `4cefb51` (Modul-Split + Toolchain) und
+`ef705c9` (Build-Fixes: eigener Namespace/Paket für `:android-app`,
+res/values-Platzierung, okio in commonMain, `Char.code`); Details im Archiv
+(Abschnitt „Fix-Lauf 2026-08-23 (II) … abgeschlossen").
+
+- [x] **#317 (Gradle 9 + AGP 9):** gradle-wrapper 8.13 → **9.7.1**; AGP
+      8.13.2 → **9.3.1** mit der von AGP 9 vorgeschriebenen Migration: der
+      Android-Einstiegspunkt (Manifest, Launcher-Ressourcen,
+      `FlutLinkApplication`/`MainActivity`, Signing/R8/BuildConfig mit
+      `FLUTCLOUD_URL`) zog in das neue Modul `kmp/android-app` (built-in
+      Kotlin; Compose-Compiler liefert AGP), `:shared` ist jetzt eine
+      Bibliothek unter `com.android.kotlin.multiplatform.library`
+      (Single-Variant, Host-Tests per `withHostTestBuilder`). Dependabot-PR
+      #305 damit obsolet (von Dependabot geschlossen).
+- [x] **#318 (compileSdk 37):** `compileSdk = 37` in beiden Modulen;
+      multiplatformLifecycle 2.10.0 → **2.11.0**; CI (`kmp.yml` +
+      `kmp-ios-build`-Action) installiert **`platforms;android-37.0`**
+      (API-37-Plattformen tragen die neue Extension-Level-Namensgebung,
+      `platforms;android-37` existiert nicht). Dependabot-PR #313 damit
+      überholt.
+- [x] **#293 (commonMain ausbauen + Desktop-JVM-Client):** `FlutCloudApi`
+      (inkl. OCS-/Share-/Links-Endpunkten) und `WebDavApi` wurden auf
+      Ktor 3 + okio portiert und liegen komplett in `commonMain`
+      (handgeschriebener Mini-XML-Pull-Parser ersetzt xpp3,
+      Percent-Encoding ohne URLEncoder, Basic-Auth ohne okhttp-Credentials;
+      expect/actual für HTTP-Engine, Logging, FileSystem). `AccountMeta`/
+      `AccountStore` (neuer `KeyValueStorage`-Vertrag) und `SessionManager`
+      sind common; Android behält EncryptedSharedPreferences/DataStore als
+      Actuals. `jvmMain` enthält den funktionalen headless Desktop-Client
+      (Task `:shared:desktopCli`: `whoami`/`ls` gegen
+      FLUTCLOUD_URL/FLUTCLOUD_USERNAME/FLUTCLOUD_TOKEN aus der Umgebung,
+      Datei-basierte Stores unter `$XDG_CONFIG_HOME`/`$XDG_STATE_HOME`).
+      Zusätzlich exportiert `iosMain` jetzt `MainKt.MainViewController()`
+      (Datei `Main.kt`) — das behebt den seit dem KMP-Fold-in rot
+      iOS-IPA-Job in `build.yml` (`cannot find 'MainKt' in scope`).
+      Tests: `androidUnitTest` → `androidHostTest`, 30 Tests grün;
+      `kmp/README.md` + `AGENTS.md` beschreiben den neuen Stand.
+- [x] Verwaltung: iOS-Issues #232–#242/#244 sind geschlossen (not planned).
+
+Neu offen aus diesem Lauf:
+
+- [ ] Push bestätigen: `kmp.yml` (build/test/jvm/ios/lint) sowie
+      `build.yml`/`release.yml` (APK/IPA-Artefakte) nach dem AGP-9-Umbau
+      grün bekommen. Lokal verifiziert: `testAndroidHostTest` (30 Tests),
+      `compileKotlinJvm`, `compileKotlinIosArm64`,
+      `processDebugResources`; der APK-Dex-Schritt überschreitet das
+      Codespace-RAM-Limit und wird autoritativ von CI geprüft.
+- [ ] Issues #293/#317/#318 nach dem Push mit Commit-Referenz schließen.
+- [ ] Desktop-JVM: Token-Speicher härten — OS-Keyring-Anbindung statt
+      600er-Datei unter `$XDG_STATE_HOME/flutlink` (siehe
+      `FileKeyValueStorage`), Parität zum Tauri-Client (`keyring`).
+- [ ] `SettingsStore` nach `commonMain` heben (DataStore Preferences ist
+      multiplatform; der `Context`-Delegate bleibt androidMain-actual) —
+      Voraussetzung für Einstellungen im späteren iOS-/Desktop-UI.
+- [ ] iOS-Parität (Langläufer): die Compose-UI aus `androidMain`
+      (R.string-i18n, EncryptedSharedPreferences, SAF-Aktionen) nach
+      `commonMain` heben bzw. den iOS-Placeholder ersetzen; dokumentiert
+      in `kmp/README.md` („Stand der iOS-Parität").
+
+
 ### Fix-Lauf 2026-08-23 — L15/L16-Katalog geschlossen (Commit `59de00d`) — v1.0.0 release-ready
 
 Der komplette Befundkatalog aus Lauf 15 und Lauf 16 ist mit Commit `59de00d`
@@ -37,8 +99,10 @@ s. L12-N6; `:shared:compileKotlinJvm` grün). Die neun abgehakten Punkte
 (L12-N1–N6, #243, #255-Rest, K3/#267) sind in `archived-todo.md`
 verschoben (Abschnitt „Fix-Lauf 2026-08-22 … abgeschlossen").
 
-- [ ] iOS-Issues #232–#242/#244: mit #255 obsolet (Swift-Port entfernt) —
+- [x] iOS-Issues #232–#242/#244: mit #255 obsolet (Swift-Port entfernt) —
       werden als „not planned" geschlossen; Parität lebt in `android/`+`kmp/`.
+      → erledigt 2026-08-23: alle zwölf Issues sind geschlossen (geprüft
+      via `gh issue list`).
 
 ### Issue #255 — iOS-Port (Swift) entfernt, ersetzt durch KMP (2026-08-20)
 
