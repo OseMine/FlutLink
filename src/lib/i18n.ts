@@ -179,6 +179,7 @@ const dict: Record<Lang, Record<string, string>> = {
       "User provisioning via the OCS API of your FlutCloud server. Only available for admin accounts.",
     searchUsers: "Search users…",
     searchUsersRequired: "Enter at least one character to search users.",
+    searchUsersHint: "Enter a search term to look up users.",
     listUsers: "List users",
     loadMore: "Load more",
     loading: "Loading…",
@@ -292,15 +293,19 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
     errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
     errUpdate: "Update failed: {detail}",
-      errTargetExists:
-        "A file or folder named '{detail}' already exists. Choose a different name.",
-      errUnknown: "Unknown error.",
+    errTargetExists:
+      "A file or folder named '{detail}' already exists. Choose a different name.",
+    errSyncFolderConflict:
+      "This local folder is already connected to another FlutCloud folder ({detail}). Remove the existing sync connection first.",
+    errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
     filteredAccountsHintServer:
       "{count} saved account(s) were hidden because they belong to a different server than your configured FlutCloud server ({server}).",
     filteredAccountsHintNoServer:
       "FLUTCLOUD_URL is not configured — {count} saved account(s) could not be verified and were hidden.",
+    missingTokenAccountsHint:
+      "The login credential of {count} saved account(s) could not be restored from the system keychain. Re-add the account to sign in again.",
     linkCopyFailed:
       "Could not copy the link to the clipboard. Please copy it manually.",
     syncTriggerFailed: "Sync could not be started.",
@@ -477,6 +482,7 @@ const dict: Record<Lang, Record<string, string>> = {
       "Benutzerverwaltung über die OCS-API deines FlutCloud-Servers. Nur für Admin-Konten verfügbar.",
     searchUsers: "Benutzer suchen…",
     searchUsersRequired: "Gib mindestens ein Zeichen ein, um Benutzer zu suchen.",
+    searchUsersHint: "Gib einen Suchbegriff ein, um Benutzer zu suchen.",
     listUsers: "Benutzer auflisten",
     loadMore: "Mehr laden",
     loading: "Lädt…",
@@ -590,15 +596,19 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
     errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
     errUpdate: "Update fehlgeschlagen: {detail}",
-      errTargetExists:
-        "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
-      errUnknown: "Unbekannter Fehler.",
+    errTargetExists:
+      "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
+    errSyncFolderConflict:
+      "Dieser lokale Ordner ist bereits mit einem anderen FlutCloud-Ordner verbunden ({detail}). Bitte entferne zuerst die bestehende Sync-Verbindung.",
+    errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
     filteredAccountsHintServer:
       "{count} gespeicherte(s) Konto/Konten wurde(n) ausgeblendet, weil sie zu einem anderen Server gehören als deinem konfigurierten FlutCloud-Server ({server}).",
     filteredAccountsHintNoServer:
       "FLUTCLOUD_URL ist nicht konfiguriert — {count} gespeicherte(s) Konto/Konten konnte(n) nicht verifiziert werden und wurde(n) ausgeblendet.",
+    missingTokenAccountsHint:
+      "Die Zugangsdaten von {count} gespeicherte(n) Konto/Konten konnten nicht aus dem Schlüsselbund des Systems wiederhergestellt werden. Füge das Konto erneut hinzu, um dich anzumelden.",
     linkCopyFailed:
       "Der Link konnte nicht in die Zwischenablage kopiert werden. Bitte kopiere ihn manuell.",
     syncTriggerFailed: "Die Synchronisierung konnte nicht gestartet werden.",
@@ -635,6 +645,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   flutcloud_app_missing: "errFlutcloudAppMissing",
   update: "errUpdate",
   target_exists: "errTargetExists",
+  sync_folder_conflict: "errSyncFolderConflict",
 };
 
 export function translateError(lang: Lang, code: string, detail?: string | null): string {

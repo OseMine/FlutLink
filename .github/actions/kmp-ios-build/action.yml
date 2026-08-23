@@ -19,7 +19,7 @@ runs:
   using: composite
   steps:
     - name: Set up JDK 17
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
       with:
         distribution: temurin
         java-version: 17
@@ -27,14 +27,14 @@ runs:
     # The shared Gradle module applies the Android application plugin, so AGP
     # needs an SDK even when only linking iOS frameworks.
     - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
 
     - name: Install Android platform
       shell: bash
       run: sdkmanager --install "platforms;android-36" > /dev/null
 
     - name: Set up Gradle
-      uses: gradle/actions/setup-gradle@v6
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
       with:
         gradle-home-cache-cleanup: true
 
@@ -96,7 +96,7 @@ runs:
         fi
 
     - name: Upload IPA
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: ${{ inputs.artifact-name }}
         path: kmp/iosApp/build/*.ipa

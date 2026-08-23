@@ -216,6 +216,10 @@ pub fn run() {
             // saved accounts do not show up (server mismatch / missing FLUTCLOUD_URL).
             app.state::<AppState>()
                 .set_filtered_accounts(loaded.dropped);
+            // Surface accounts whose keyring token is gone so they never
+            // vanish without an explanation.
+            app.state::<AppState>()
+                .set_token_missing_accounts(loaded.token_missing);
             app.state::<AppState>().sync.load(&handle);
 
             setup_tray(app, quit_flag.clone())?;

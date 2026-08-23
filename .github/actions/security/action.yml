@@ -2,7 +2,8 @@ name: Security gate
 description: >-
   Scans the whole project for security issues and condenses them into a
   categorized report plus a security rating (0-10): dependency vulnerabilities
-  (Trivy across all lockfiles, npm audit, cargo-audit), hardcoded secrets
+  (Trivy across all lockfiles, npm audit, cargo-audit), VirusTotal artifact
+  reputation scans (optional, needs an API key), hardcoded secrets
   (Trivy), PHP syntax errors in flutcloud-app, verification tests
   (cargo test + frontend typecheck/build) and an optional AI code review via
   OpenCode. Findings are reported as run annotations and in the step summary.
@@ -24,6 +25,19 @@ inputs:
       review. See scripts/opencode-with-fallback.sh.
     required: false
     default: "deepseek-v4-flash-free,x-preview-f-free,big-pickle"
+  virustotal-api-key:
+    description: >-
+      VirusTotal API key (see virustotal.mjs). The VirusTotal scan is skipped
+      if empty.
+    required: false
+    default: ""
+  virustotal-files:
+    description: >-
+      Space-separated file paths/globs to scan with VirusTotal (optional).
+      Scanned files are looked up by sha256; unknown files up to 32 MiB are
+      uploaded and polled.
+    required: false
+    default: ""
 
 outputs:
   rating:
@@ -55,7 +69,7 @@ runs:
       uses: ./.github/actions/setup
 
     - name: Set up Node
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
       with:
         node-version: 22
         cache: npm
@@ -70,7 +84,7 @@ runs:
 
     # --- Dependency & secret scanning ---
     - name: Trivy filesystem scan (dependencies + secrets)
-      uses: aquasecurity/trivy-action@0.28.0
+      uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
       with:
         scan-type: fs
         scan-ref: .
@@ -81,7 +95,7 @@ runs:
         exit-code: "0"
 
     - name: Install cargo-audit
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@ba47c86ac325773530516bb756137ac718732518 # v2
       with:
         tool: cargo-audit
 
@@ -96,6 +110,22 @@ runs:
       shell: bash
       run: |
         npm audit --json > security-results/npm-audit.json 2>/dev/null || true
+
+    # --- Artifact reputation (VirusTotal, optional) ---
+    - name: VirusTotal scan
+      if: inputs.virustotal-api-key != ''
+      shell: bash
+      env:
+        VT_API_KEY: ${{ inputs.virustotal-api-key }}
+        VT_FILES: ${{ inputs.virustotal-files }}
+      run: |
+        # Findings land in security-results/virustotal.json and are weighted
+        # by score.mjs; the script itself exits non-zero on malicious hits,
+        # which fails this step and with it the gate.
+        node "${{ github.action_path }}/virustotal.mjs" \
+          --api-key "$VT_API_KEY" \
+          ${VT_FILES:+--files "$VT_FILES"} \
+          --results security-results/virustotal.json
 
     # --- Server app (PHP) ---
     - name: Lint flutcloud-app (php -l)

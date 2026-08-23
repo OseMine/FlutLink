@@ -110,12 +110,15 @@ jobs:
           delete-branch: true
 
   review-prs:
-    name: Review & merge PRs
+    name: Review PRs (no auto-merge)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      contents: write
+      # Reviews are advisory only: results land as comments/labels on the PR.
+      # Merging is always done by humans (see #271) - no contents:write here.
+      contents: read
       pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -139,7 +142,7 @@ jobs:
           echo "$PRS" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Review and merge PRs
+      - name: Review PRs
         if: steps.prs.outputs.prs != ''
         shell: bash
         env:
@@ -185,18 +188,28 @@ jobs:
 
             git checkout main 2>/dev/null || git checkout master 2>/dev/null
 
+            # Auto-merge ist bewusst deaktiviert (#271): PR-Titel/-Beschreibung/
+            # -Code sind unbeaufsichtigtes Modelleingabematerial; ein "MERGE"-
+            # Urteil allein per LLM darf niemals einen Merge ausloesen.
+            # Das Ergebnis wird nur als Kommentar + Label hinterlegt -
+            # der Merge erfolgt durch Menschen.
+            MERGE_NOTE="Hinweis: Auto-Merge ist deaktiviert (#271). Bitte von einem Menschen pruefen und mergen."
             case "$RESULT" in
               MERGE)
-                echo "Merging PR #$number"
-                gh pr merge "$number" --squash --delete-branch 2>&1 || echo "Failed to merge PR #$number"
+                echo "PR #$number: MERGE empfohlen (nur Kommentar/Label, kein Auto-Merge)"
+                BODY=$'Automated review: **MERGE recommended** — '"$RATIONALE"$'\n\n> '"$MERGE_NOTE"
+                gh pr comment "$number" --body "$BODY" 2>&1 || echo "Failed to comment on PR #$number"
+                gh pr edit "$number" --add-label "review:suggested-merge" 2>&1 || true
                 ;;
               APPROVE)
-                echo "Approving PR #$number"
+                echo "Approving PR #$number (advisory)"
                 gh pr review "$number" --approve --body "$RATIONALE" 2>&1 || echo "Failed to approve PR #$number"
+                gh pr edit "$number" --add-label "review:approved" 2>&1 || true
                 ;;
               *)
                 echo "Rejecting PR #$number"
-                gh pr comment "$number" --body "Automated review: $RATIONALE" 2>&1 || echo "Failed to comment on PR #$number"
+                gh pr comment "$number" --body "Automated review: **changes requested** — $RATIONALE" 2>&1 || echo "Failed to comment on PR #$number"
+                gh pr edit "$number" --add-label "review:changes-requested" 2>&1 || true
                 ;;
             esac
 

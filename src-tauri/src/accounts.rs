@@ -79,10 +79,15 @@ pub struct LoadAccountsResult {
     /// point to a different server than the configured FlutCloud server (or
     /// because `FLUTCLOUD_URL` is not set at all). The frontend shows a hint.
     pub dropped: Vec<String>,
+    /// `user@instance_url` identifiers of persisted accounts whose keyring
+    /// token could not be read. They are skipped, but reported so the UI can
+    /// explain the disappearance instead of the account silently vanishing.
+    pub token_missing: Vec<String>,
 }
 
 /// Load account metadata from disk, restoring tokens from the OS keychain.
-/// Accounts whose token is missing are skipped.
+/// Accounts whose token is missing are skipped — and reported through
+/// [`LoadAccountsResult::token_missing`] so they never disappear silently.
 ///
 /// FlutLink is a dedicated client for the FlutCloud server only, so any
 /// account persisted against a different instance is dropped — but the reason
@@ -97,15 +102,21 @@ pub fn load_accounts(app: &AppHandle) -> AppResult<LoadAccountsResult> {
     let metas: Vec<AccountMeta> =
         serde_json::from_str(&raw).map_err(|e| AppError::Parse(e.to_string()))?;
     let mut dropped = Vec::new();
+    let mut token_missing = Vec::new();
     let mut accounts = Vec::new();
     for meta in metas {
         if crate::flutcloud::assert_flutcloud_url(&meta.instance_url).is_err() {
             dropped.push(meta.instance_url);
             continue;
         }
-        if let Ok(token) = load_token(&meta) {
-            accounts.push(Account { meta, token });
+        match load_token(&meta) {
+            Ok(token) => accounts.push(Account { meta, token }),
+            Err(_) => token_missing.push(keyring_user(&meta)),
         }
     }
-    Ok(LoadAccountsResult { accounts, dropped })
+    Ok(LoadAccountsResult {
+        accounts,
+        dropped,
+        token_missing,
+    })
 }

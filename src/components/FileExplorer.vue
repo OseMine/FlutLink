@@ -121,11 +121,12 @@ async function bulkDownload() {
     const dest = await openDialog({ directory: true });
     if (typeof dest !== "string") return;
     await files.bulkDownload(selectedTargets.value, dest);
-    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
+    // L15-F4/#291: clear the banner in finally so it also disappears on errors.
+    files.clearTransfer();
     busyPath.value = null;
   }
 }
@@ -137,12 +138,12 @@ async function bulkDelete() {
   if (!window.confirm(t("deleteSelectedConfirm").replace("{count}", String(count)))) return;
   try {
     await files.bulkDelete([...selected.value]);
-    files.clearTransfer();
     clearSelection();
     ui.toast(t("fileDeleted"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
+    files.clearTransfer();
     busyPath.value = null;
   }
 }
@@ -152,7 +153,6 @@ async function dropUpload(paths: string[]) {
   busyPath.value = "drop";
   try {
     await files.uploadLocalPaths(paths);
-    files.clearTransfer();
     ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     if ((e as AppErrorLike)?.code === "target_exists") {
@@ -161,7 +161,6 @@ async function dropUpload(paths: string[]) {
       if (window.confirm(t("uploadOverwriteAllConfirm"))) {
         try {
           await files.uploadLocalPaths(paths, true);
-          files.clearTransfer();
           ui.toast(t("fileUploaded"), "success");
         } catch (e2) {
           ui.toast(invokeError(e2).message, "error");
@@ -171,6 +170,7 @@ async function dropUpload(paths: string[]) {
     }
     ui.toast(invokeError(e).message, "error");
   } finally {
+    files.clearTransfer();
     busyPath.value = null;
   }
 }
@@ -189,8 +189,7 @@ function closeCtx() {
 
 async function open(entry: WebDavEntry) {
   if (entry.isDir) {
-    if (isSearching.value) clearSearchInput();
-    await files.navigate(entry.path);
+    await navigateTo(entry.path);
     return;
   }
   if (busyPath.value) return;
@@ -204,14 +203,22 @@ async function open(entry: WebDavEntry) {
   }
 }
 
+/// L15-F2/#290: every navigation clears an active search first, otherwise
+/// `displayEntries` keeps showing stale results for a folder that no longer
+/// matches the breadcrumbs.
+async function navigateTo(path: string) {
+  if (isSearching.value) clearSearchInput();
+  await files.navigate(path);
+}
+
 /// Jump to the counterpart of a single entry (`/resources/…` ↔ `/parts/…`).
 function goToPaired(entry: WebDavEntry) {
-  if (entry.pairedPath) void files.navigate(entry.pairedPath);
+  if (entry.pairedPath) void navigateTo(entry.pairedPath);
 }
 
 /// Jump to an arbitrary path (used by the pairing bar / split-view swap).
 function goToPath(path: string | null) {
-  if (path) void files.navigate(path);
+  if (path) void navigateTo(path);
 }
 
 /// "virtual" (read-only `resources`) or "real" (write-enabled `parts`) pane
@@ -236,11 +243,11 @@ async function download(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name });
     if (typeof dest !== "string") return;
     await files.downloadFile(entry.path, dest);
-    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
+    files.clearTransfer();
     busyPath.value = null;
   }
 }
@@ -254,11 +261,11 @@ async function downloadZip(entry: WebDavEntry) {
     const dest = await save({ defaultPath: entry.name + ".zip" });
     if (typeof dest !== "string") return;
     await files.downloadZip(entry.path, dest);
-    files.clearTransfer();
     ui.toast(t("fileDownloaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
+    files.clearTransfer();
     busyPath.value = null;
   }
 }
@@ -295,7 +302,7 @@ function goBack() {
   const crumbs = files.crumbs;
   if (crumbs.length <= 1) return;
   const parent = crumbs[crumbs.length - 2].path;
-  void files.navigate(parent);
+  void navigateTo(parent);
 }
 
 /// Keyboard navigation over the entry list: arrows move the focus, Enter opens
@@ -350,7 +357,7 @@ async function uploadFiles() {
       const remote =
         (files.currentPath === "/" ? "" : files.currentPath) + "/" + name;
       try {
-        await files.uploadFile(local, remote);
+        await files.uploadFile(local, remote, false, false);
       } catch (e) {
         if ((e as AppErrorLike)?.code === "target_exists") {
           // Q9: never silently overwrite an existing remote file. Ask first,
@@ -359,7 +366,7 @@ async function uploadFiles() {
             window.confirm(t("uploadOverwriteConfirm").replace("{name}", name))
           ) {
             try {
-              await files.uploadFile(local, remote, true);
+              await files.uploadFile(local, remote, true, false);
               continue;
             } catch (e2) {
               failed += 1;
@@ -375,28 +382,51 @@ async function uploadFiles() {
         ui.toast(`${name}: ${invokeError(e).message}`, "error");
       }
     }
-    files.clearTransfer();
+    // L15-F6/#291: one refresh per batch instead of a full PROPFIND (+ shares/
+    // thumbs via the entries watcher) after every single upload.
+    await files.refresh();
     if (failed === 0) ui.toast(t("fileUploaded"), "success");
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
+    files.clearTransfer();
     uploading.value = false;
   }
 }
 
+/// L15-F5/#288: same entry-name rules for new-folder and rename dialogs.
+function isValidEntryName(name: string): boolean {
+  return (
+    !!name &&
+    name !== "." &&
+    name !== ".." &&
+    !name.includes("/") &&
+    !name.includes("\\")
+  );
+}
+
+// L15-F1/#288: md-buttons are form-associated submitters - a click inside the
+// <form> also fires submit, so handlers can run twice. The synchronous guard
+// collapses the duplicate call.
+let dialogBusy = false;
+
 async function createFolder() {
-  const name = nameInput.value.trim();
-  if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
-    ui.toast(t("folderNameInvalid"), "error");
-    return;
-  }
+  if (dialogBusy) return;
+  dialogBusy = true;
   try {
+    const name = nameInput.value.trim();
+    if (!isValidEntryName(name)) {
+      ui.toast(t("folderNameInvalid"), "error");
+      return;
+    }
     await files.createFolder(name);
     ui.toast(t("folderCreated"), "success");
     showNewFolder.value = false;
     nameInput.value = "";
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
+  } finally {
+    dialogBusy = false;
   }
 }
 
@@ -406,13 +436,20 @@ function startRename(entry: WebDavEntry) {
 }
 
 async function doRename() {
-  const target = renameTarget.value;
-  const name = nameInput.value.trim();
-  if (!target || !name || name === target.name) {
-    renameTarget.value = null;
-    return;
-  }
+  if (dialogBusy) return;
+  dialogBusy = true;
   try {
+    const target = renameTarget.value;
+    const name = nameInput.value.trim();
+    if (!target || !name || name === target.name) {
+      renameTarget.value = null;
+      return;
+    }
+    // L15-F5/#288: reject invalid names instead of building broken paths.
+    if (!isValidEntryName(name)) {
+      ui.toast(t("folderNameInvalid"), "error");
+      return;
+    }
     await files.renameEntry(target.path, name);
     const parent = target.path.slice(0, target.path.lastIndexOf("/"));
     const newPath = parent + "/" + name;
@@ -427,6 +464,7 @@ async function doRename() {
     ui.toast(invokeError(e).message, "error");
   } finally {
     renameTarget.value = null;
+    dialogBusy = false;
   }
 }
 
@@ -633,7 +671,9 @@ async function loadAdminUsers() {
   // limited to the first page.
   if (!query) {
     adminUsers.value = [];
-    ui.toast(t("searchUsersRequired"), "error");
+    // Neutral hint instead of an error toast (#301): the required search term
+    // is expected behaviour, not a failure.
+    ui.toast(t("searchUsersHint"), "info");
     return;
   }
   try {
@@ -681,7 +721,16 @@ watch(
     }
     void loadAllShares();
     for (const entry of files.entries) void loadThumb(entry);
-    if (kbdIndex.value >= files.entries.length) kbdIndex.value = -1;
+  }
+);
+
+// L15-F7/#290: keyboard navigation walks `sortedEntries` (i.e.
+// `displayEntries`), so clamp against that list — after a delete during an
+// active search the old `files.entries` length is the wrong bound.
+watch(
+  () => sortedEntries.value.length,
+  (len) => {
+    if (kbdIndex.value >= len) kbdIndex.value = len > 0 ? len - 1 : -1;
   }
 );
 
@@ -717,6 +766,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlistenDragDrop?.();
+  // L15-F9/#290: a pending 300 ms search debounce must not fire after the
+  // component is gone (tab switch destroys it via v-if).
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
 });
 
 watch(
@@ -768,7 +823,7 @@ watch(
           <button
             class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
             :class="i === files.crumbs.length - 1 ? 'font-semibold text-on-surface' : 'text-on-surface-variant'"
-            @click="files.navigate(crumb.path)"
+            @click="navigateTo(crumb.path)"
           >
             {{ crumb.path === "/" ? t("home") : crumb.label }}
           </button>
@@ -1031,7 +1086,7 @@ watch(
         </div>
         <div class="flex-1 overflow-y-auto">
           <EntryList
-            :entries="files.entries"
+            :entries="files.displayEntries"
             :view-mode="viewMode"
             :selected="selected"
             :share-state="shareState"
@@ -1197,10 +1252,14 @@ watch(
           class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
-          <md-outlined-button @click="showNewFolder = false">
+          <md-outlined-button type="button" @click="showNewFolder = false">
             {{ t("cancel") }}
           </md-outlined-button>
-          <md-filled-button :disabled="nameInput.trim().length === 0" @click="createFolder">
+          <md-filled-button
+            type="button"
+            :disabled="nameInput.trim().length === 0"
+            @click="createFolder"
+          >
             {{ t("create") }}
           </md-filled-button>
         </div>
@@ -1224,10 +1283,10 @@ watch(
           class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
-          <md-outlined-button @click="renameTarget = null">
+          <md-outlined-button type="button" @click="renameTarget = null">
             {{ t("cancel") }}
           </md-outlined-button>
-          <md-filled-button @click="doRename">
+          <md-filled-button type="button" @click="doRename">
             {{ t("save") }}
           </md-filled-button>
         </div>

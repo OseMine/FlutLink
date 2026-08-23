@@ -112,6 +112,9 @@ watch(
 );
 
 const adminSearch = ref("");
+// L16-F1/#274: cap the admin tab lookup at one OCS page (same as
+// FileExplorer.loadAdminUsers) instead of fetching every user page.
+const ADMIN_PAGE = 200;
 
 async function loadUsers() {
   if (!accounts.active?.isAdmin) return;
@@ -123,7 +126,7 @@ async function loadUsers() {
   adminLoading.value = true;
   adminError.value = null;
   try {
-    const res = await api.adminListUsers(query);
+    const res = await api.adminListUsers(query, ADMIN_PAGE);
     users.value = res.users;
   } catch (e) {
     adminError.value = invokeError(e).message;
@@ -181,6 +184,13 @@ async function downloadAndInstall() {
     unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
       updateStatusKey.value = e.payload.code;
       updateAssetName.value = e.payload.assetName ?? null;
+      // N16-1/#295: the backend emits "installing" once the download finished
+      // and the installer was launched - mirror it into the state machine so
+      // the template branches are live, the progress bar disappears and the
+      // user sees an "installation started" feedback.
+      if (e.payload.code === "installing") {
+        updateState.value = "installing";
+      }
     });
   } catch {
     // progress/status listeners are best-effort

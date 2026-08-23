@@ -26,17 +26,29 @@ export const useAccountsStore = defineStore("accounts", () => {
     });
   }
 
+  // L15-F10/#289: sequence guard — load() is triggered from mount,
+  // accounts-changed and after add/register/switchTo; two parallel loads can
+  // finish out of order, so an older snapshot must not overwrite a newer one
+  // (same pattern as files.refreshSeq).
+  let loadSeq = 0;
+
   async function load() {
+    const seq = ++loadSeq;
     loading.value = true;
     error.value = null;
     try {
-      accounts.value = await api.accountList();
-      active.value = accounts.value.find((a) => a.isActive) ?? accounts.value[0] ?? null;
-      filterInfo.value = await api.accountFilterInfo();
+      const list = await api.accountList();
+      if (seq !== loadSeq) return; // superseded by a newer load()
+      accounts.value = list;
+      active.value = list.find((a) => a.isActive) ?? list[0] ?? null;
+      const info = await api.accountFilterInfo();
+      if (seq !== loadSeq) return;
+      filterInfo.value = info;
     } catch (e) {
+      if (seq !== loadSeq) return;
       error.value = invokeError(e).message;
     } finally {
-      loading.value = false;
+      if (seq === loadSeq) loading.value = false;
     }
     await loadStorage();
   }
@@ -47,7 +59,11 @@ export const useAccountsStore = defineStore("accounts", () => {
       return;
     }
     try {
+      // Guard against stale quota snapshots after rapid account switches.
+      const owner = `${active.value.instanceUrl}/${active.value.username}`;
       const result = await api.accountStorage();
+      const current = active.value;
+      if (!current || `${current.instanceUrl}/${current.username}` !== owner) return;
       storage.value = result.quota;
     } catch {
       storage.value = null;

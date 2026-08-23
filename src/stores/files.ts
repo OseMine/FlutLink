@@ -12,21 +12,24 @@ import {
 } from "../lib/ipc";
 
 /// Pair a path under the FlutCloud virtual namespaces: `/resources/…`
-/// (read-only virtual links) ↔ `/parts/…` (write-enabled). The first segment
-/// matching either name is swapped, the rest of the path is preserved.
+/// (read-only virtual links) ↔ `/parts/…` (write-enabled). Only the
+/// top-level namespace segment (depth 1, `segments[1]`) is swapped — a real
+/// user folder named `resources`/`parts` deeper in the tree (e.g.
+/// `/Photos/resources/x`) must NOT be paired (L15-F8/#292).
 export function pairOf(path: string): string | null {
-  if (path === "/") return null;
+  if (!path || path === "/") return null;
   const segments = path.split("/");
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    if (seg.toLowerCase() === "resources") {
-      segments[i] = "parts";
-      return segments.join("/");
-    }
-    if (seg.toLowerCase() === "parts") {
-      segments[i] = "resources";
-      return segments.join("/");
-    }
+  // Depth 1 only (`segments[1]`): "/resources/…" ↔ "/parts/…". A real user
+  // folder named resources/parts deeper in the tree (e.g.
+  // "/Photos/resources/x") must NOT be paired (L15-F8/#292).
+  const seg = (segments[1] ?? "").toLowerCase();
+  if (seg === "resources") {
+    segments[1] = "parts";
+    return segments.join("/");
+  }
+  if (seg === "parts") {
+    segments[1] = "resources";
+    return segments.join("/");
   }
   return null;
 }
@@ -217,7 +220,14 @@ export const useFilesStore = defineStore("files", () => {
     }
   }
 
-  async function uploadFile(localPath: string, remotePath: string, overwrite = false) {
+  /// Upload one local file. `refreshAfter=false` skips the per-file PROPFIND
+  /// so batch uploads (L15-F6/#291) can refresh exactly once after the batch.
+  async function uploadFile(
+    localPath: string,
+    remotePath: string,
+    overwrite = false,
+    refreshAfter = true
+  ) {
     try {
       await api.webdavUploadFile(
         remotePath,
@@ -225,7 +235,7 @@ export const useFilesStore = defineStore("files", () => {
         targetUser.value ?? undefined,
         overwrite
       );
-      await refresh();
+      if (refreshAfter) await refresh();
     } catch (e) {
       error.value = invokeError(e).message;
       throw e;

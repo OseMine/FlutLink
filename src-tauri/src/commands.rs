@@ -103,24 +103,30 @@ pub async fn account_list(state: State<'_, AppState>) -> AppResult<Vec<AccountMe
 }
 
 /// F8: information about accounts that were hidden during startup because they
-/// point to a server other than the configured FlutCloud server. Returns `None`
-/// when every saved account was loaded.
+/// point to a server other than the configured FlutCloud server, plus accounts
+/// whose keyring token could not be restored. Returns `None` when every saved
+/// account was loaded.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountFilterInfo {
     pub dropped_count: usize,
     pub server_url: Option<String>,
+    /// `user@instance_url` of accounts whose keyring token is missing.
+    #[serde(default)]
+    pub token_missing: Vec<String>,
 }
 
 #[tauri::command]
 pub fn account_filter_info(state: State<'_, AppState>) -> AppResult<Option<AccountFilterInfo>> {
     let dropped = state.filtered_accounts();
-    if dropped.is_empty() {
+    let token_missing = state.token_missing_accounts();
+    if dropped.is_empty() && token_missing.is_empty() {
         return Ok(None);
     }
     Ok(Some(AccountFilterInfo {
         dropped_count: dropped.len(),
         server_url: crate::flutcloud::flutcloud_url().ok(),
+        token_missing,
     }))
 }
 
@@ -134,9 +140,10 @@ const FLUTCLOUD_README: &str = r#"# FlutCloud — Nextcloud App
 Shared project space of the **FlutCloud Nextcloud app**.
 
 ## Purpose
-- Feature requests for the FlutCloud app and the FlutLink desktop and Android client
+- Feature requests for the FlutCloud app and the FlutLink desktop and mobile
+  clients (Kotlin Multiplatform)
 - Connection notes between FlutCloud, FlutLink (desktop) and the FlutLink
-  Android client
+  mobile client (Android/iOS, `kmp/`)
 
 ## Feature requests
 Create one folder per request, e.g. `FR-001-share-links/`, containing a note
@@ -144,7 +151,7 @@ describing: what it should do, why (use case) and the expected behaviour.
 
 ## Connecting FlutLink
 - Desktop client: https://github.com/OseMine/FlutLink
-- Android client (Kotlin port, `android/`): https://github.com/OseMine/FlutLink
+- Mobile client (Kotlin Multiplatform, `kmp/`): https://github.com/OseMine/FlutLink
 
 ---
 
@@ -153,9 +160,10 @@ describing: what it should do, why (use case) and the expected behaviour.
 Gemeinsamer Projektbereich der **FlutCloud-Nextcloud-App**.
 
 ## Zweck
-- Feature-Requests für die FlutCloud-App sowie den FlutLink-Desktop- und Android-Client
+- Feature-Requests für die FlutCloud-App sowie den FlutLink-Desktop- und
+  Mobile-Client (Kotlin Multiplatform)
 - Verbindungsnotizen zwischen FlutCloud, FlutLink (Desktop) und dem
-  FlutLink-Android-Client
+  FlutLink-Mobile-Client (Android/iOS, `kmp/`)
 
 ## Feature-Requests
 Lege pro Request einen Ordner an, z. B. `FR-001-share-links/`, mit einer
@@ -164,7 +172,7 @@ erwartete Verhalten.
 
 ## FlutLink verbinden
 - Desktop-Client: https://github.com/OseMine/FlutLink
-- Android-Client (Kotlin-Port, `android/`): https://github.com/OseMine/FlutLink
+- Mobile-Client (Kotlin Multiplatform, `kmp/`): https://github.com/OseMine/FlutLink
 "#;
 
 /// Input for creating a real account via the register page.
@@ -665,14 +673,22 @@ pub async fn webdav_upload_file(
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     let progress = transfer_progress(app, "upload", &remote_path, 0, 1);
-    webdav::put_file_as_progress(
+    // TOCTOU guard: with overwrite=false the PUT itself carries
+    // `If-None-Match: *` (chunked uploads: `Overwrite: F` on the MOVE), so a
+    // file created between the exists() check and the upload is never
+    // silently replaced — the server answers 412 → `AppError::TargetExists`.
+    webdav::put_file_params(
         &state.http_client,
         &account,
-        &remote_path,
-        std::path::Path::new(&local_path),
-        mtime,
-        target.as_deref(),
-        Some(progress),
+        webdav::PutParams {
+            remote_rel: &remote_path,
+            local_path: std::path::Path::new(&local_path),
+            mtime_secs: mtime,
+            target_user: target.as_deref(),
+            on_progress: Some(progress),
+            if_match: None,
+            forbid_overwrite: !overwrite,
+        },
     )
     .await
 }

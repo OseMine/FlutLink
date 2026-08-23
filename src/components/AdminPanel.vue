@@ -217,20 +217,28 @@ async function loadPage(append: boolean) {
   }
 }
 
+// L15-F3/#289: request counter — a stale adminGetUser response (slow click on
+// A, fast click on B) must not overwrite the newer selection.
+let selectSeq = 0;
+
 async function selectUser(userId: string) {
+  const seq = ++selectSeq;
   detailsLoading.value = true;
   error.value = null;
   editMsg.value = null;
   try {
-    selected.value = await api.adminGetUser(userId);
-    edits.displayName = selected.value.displayName ?? "";
-    edits.email = selected.value.email ?? "";
+    const details = await api.adminGetUser(userId);
+    if (seq !== selectSeq) return; // out-of-order response, discard
+    selected.value = details;
+    edits.displayName = details.displayName ?? "";
+    edits.email = details.email ?? "";
     edits.password = "";
-    setQuotaFromTotal(selected.value.quota?.total ?? null);
+    setQuotaFromTotal(details.quota?.total ?? null);
   } catch (e) {
+    if (seq !== selectSeq) return;
     error.value = invokeError(e).message;
   } finally {
-    detailsLoading.value = false;
+    if (seq === selectSeq) detailsLoading.value = false;
   }
 }
 

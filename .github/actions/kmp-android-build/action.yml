@@ -31,15 +31,28 @@ runs:
   using: composite
   steps:
     - name: Set up JDK 17
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
       with:
         distribution: temurin
         java-version: 17
 
     - name: Set up Gradle
-      uses: gradle/actions/setup-gradle@v6
+      uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
       with:
         gradle-home-cache-cleanup: true
+
+    - name: Verify signing inputs
+      if: inputs.signed == 'true'
+      shell: bash
+      env:
+        KEYSTORE_B64: ${{ inputs.keystore }}
+      run: |
+        if [ -z "$KEYSTORE_B64" ]; then
+          echo "::error title=Signing aborted::signed=true, aber das Keystore-Secret ist leer."
+          echo "::error::Ohne Keystore wuerde Gradle still ein UNSIGNIERTES Release-APK erzeugen."
+          echo "::error::Bitte ANDROID_KEYSTORE (Base64) setzen oder den Build mit signed=false starten."
+          exit 1
+        fi
 
     - name: Decode keystore
       if: inputs.signed == 'true' && inputs.keystore != ''
@@ -65,7 +78,7 @@ runs:
         fi
 
     - name: Upload APK
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: ${{ inputs.artifact-name }}
         path: kmp/shared/build/outputs/apk/${{ inputs.signed == 'true' && 'release' || 'debug' }}/*.apk

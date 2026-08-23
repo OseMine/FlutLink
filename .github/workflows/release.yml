@@ -27,7 +27,7 @@ jobs:
     outputs:
       body: ${{ steps.read.outputs.body }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -103,7 +103,7 @@ jobs:
     env:
       FLUTCLOUD_URL: ${{ secrets.FLUTCLOUD_URL }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -119,7 +119,7 @@ jobs:
       rating: ${{ steps.gate.outputs.rating }}
       verdict: ${{ steps.gate.outputs.verdict }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -131,6 +131,7 @@ jobs:
           min-rating: "7"
           opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
           models: ${{ env.OPENCODE_MODELS }}
+          virustotal-api-key: ${{ secrets.VIRUSTOTAL_API_KEY }}
 
   abort-insecure-release:
     name: Abort insecure release (delete tag)
@@ -173,9 +174,9 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
@@ -197,7 +198,11 @@ jobs:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
           releaseBody: ${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}
-          releaseDraft: false
+          # Created as draft so the release page only becomes visible after
+          # all assets (desktop + APK/IPA/AltStore sources) are attached -
+          # published by the final "publish-release" job below. The updater
+          # skips drafts, so it only sees the release once fully assembled.
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -207,7 +212,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -227,7 +232,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
@@ -238,24 +243,62 @@ jobs:
           build-number: ${{ github.run_number }}
           artifact-name: flutlink-ios-release
 
-  upload-mobile:
-    name: Upload mobile artifacts to release
-    needs: [build-and-release, android, ios]
+  virustotal-mobile:
+    name: VirusTotal scan (APK/IPA)
+    needs: [android, ios]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
       - name: Download APK artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flutlink-android-release
           path: apk
 
       - name: Download IPA artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: flutlink-ios-release
+          path: ipa
+
+      - name: Scan mobile artifacts with VirusTotal
+        shell: bash
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          if [ -z "$VT_API_KEY" ]; then
+            echo "::notice::VIRUSTOTAL_API_KEY nicht gesetzt - VirusTotal-Scan uebersprungen"
+            exit 0
+          fi
+          # Fail (and thus block upload/publish) on malicious detections.
+          node .github/actions/security/virustotal.mjs \
+            --api-key "$VT_API_KEY" \
+            --files "apk/*.apk ipa/*.ipa" \
+            --results security-results/virustotal.json
+
+  upload-mobile:
+    name: Upload mobile artifacts to release
+    needs: [build-and-release, android, ios, virustotal-mobile]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: flutlink-android-release
+          path: apk
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flutlink-ios-release
           path: ipa
@@ -275,14 +318,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (main)
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
           persist-credentials: true
 
       - name: Download IPA artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: flutlink-ios-release
           path: ipa
@@ -318,3 +361,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${GITHUB_REF_NAME}" altstore/classic.json altstore/pal.json --clobber
+
+  publish-release:
+    name: Publish release page
+    needs: [build-and-release, upload-mobile, altstore]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish draft release (all assets attached)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          STATE=$(gh release view "$TAG" --json isDraft --jq '.isDraft')
+          if [ "$STATE" != "true" ]; then
+            echo "::notice::Release $TAG ist bereits publiziert"
+            exit 0
+          fi
+          gh release edit "$TAG" --draft=false
+          echo "Release $TAG published with all assets"

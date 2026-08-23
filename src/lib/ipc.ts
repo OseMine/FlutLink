@@ -86,6 +86,8 @@ export interface UserDetails {
 export interface AccountFilterInfo {
   droppedCount: number;
   serverUrl: string | null;
+  /** user@instance of saved accounts whose keyring token could not be read. */
+  tokenMissing: string[];
 }
 
 export type SyncState = "idle" | "syncing" | "paused" | "error";

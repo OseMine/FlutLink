@@ -126,6 +126,10 @@ pub struct Share {
     pub url: Option<String>,
     pub has_password: Option<bool>,
     pub expiration: Option<String>,
+    /// Owner of the shared file. Used to verify that an impersonated share
+    /// request really operated in the target user's namespace.
+    #[serde(default)]
+    pub uid_owner: Option<String>,
 }
 
 /// A persisted bidirectional sync between a local folder and a cloud folder.
@@ -193,6 +197,10 @@ pub struct AppState {
     /// Instance URLs of persisted accounts hidden by `load_accounts` because
     /// they point to a different server than the configured FlutCloud server.
     pub filtered_accounts: RwLock<Vec<String>>,
+    /// `user@instance_url` of persisted accounts whose keyring token could not
+    /// be read at startup (lost credential store entry). They stay hidden, but
+    /// the reason is surfaced to the UI.
+    pub token_missing_accounts: RwLock<Vec<String>>,
 }
 
 impl AppState {
@@ -212,6 +220,7 @@ impl AppState {
             accounts: RwLock::new(Vec::new()),
             sync: Arc::new(crate::sync::SyncEngine::default()),
             filtered_accounts: RwLock::new(Vec::new()),
+            token_missing_accounts: RwLock::new(Vec::new()),
         }
     }
 
@@ -229,6 +238,19 @@ impl AppState {
 
     pub fn filtered_accounts(&self) -> Vec<String> {
         self.filtered_accounts
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_token_missing_accounts(&self, keys: Vec<String>) {
+        if let Ok(mut guard) = self.token_missing_accounts.write() {
+            *guard = keys;
+        }
+    }
+
+    pub fn token_missing_accounts(&self) -> Vec<String> {
+        self.token_missing_accounts
             .read()
             .map(|guard| guard.clone())
             .unwrap_or_default()

@@ -104,19 +104,34 @@ pub async fn list_users(
             break;
         }
         let count = users.len();
-        let new_count = progress_count(&mut seen, &users);
+        // Deduplicate while appending: when users are created/deleted mid-
+        // pagination the offset shifts and pages overlap — a user id must
+        // never appear twice in the result (same guard as `list_groups`).
+        let new_count = extend_new(&mut seen, &mut all, &users);
         if new_count == 0 {
             // Progress guard: the server ignored `offset` and repeated an
             // already-seen page — stop instead of looping forever.
             break;
         }
-        all.extend(users);
         if count < PAGE {
             break;
         }
         offset += PAGE;
     }
     Ok((all, false))
+}
+
+/// Insert every element of `page` into `seen`, appending only the ones that
+/// were new to `dst`. Returns how many elements were new.
+fn extend_new(seen: &mut HashSet<String>, dst: &mut Vec<String>, page: &[String]) -> usize {
+    let mut new_count = 0usize;
+    for item in page {
+        if seen.insert(item.clone()) {
+            dst.push(item.clone());
+            new_count += 1;
+        }
+    }
+    new_count
 }
 
 /// Fetch a single page of users via the OCS `offset`/`limit` parameters.
@@ -151,14 +166,6 @@ async fn list_users_page(
                 .collect()
         })
         .unwrap_or_default())
-}
-
-/// Progress guard for the offset pagination in [`list_users`]. Inserts every
-/// user id into `seen` and returns how many of `users` were new. When a page
-/// yields no new users, the server ignored `offset` and pagination must stop
-/// to avoid an infinite loop.
-fn progress_count(seen: &mut HashSet<String>, users: &[String]) -> usize {
-    users.iter().filter(|u| seen.insert((*u).clone())).count()
 }
 
 pub async fn get_user(client: &Client, account: &Account, user_id: &str) -> AppResult<UserDetails> {
@@ -450,9 +457,30 @@ pub async fn create_share(
     if let Some(msg) = ocs_meta_error(&json) {
         return Err(AppError::Ocs(msg));
     }
-    json.pointer("/ocs/data")
+    let share = json
+        .pointer("/ocs/data")
         .and_then(parse_share)
-        .ok_or_else(|| AppError::Parse("share endpoint returned no share data".into()))
+        .ok_or_else(|| AppError::Parse("share endpoint returned no share data".into()))?;
+    verify_share_owner(&share, target_user)?;
+    Ok(share)
+}
+
+/// Impersonation guard for share responses: when operating as another user,
+/// the server must attribute the share to that user (`uid_owner`). A share
+/// owned by anyone else proves that `Impersonate-User` was ignored and the
+/// operation silently happened in the admin's namespace — refuse it instead
+/// of showing/creating wrong-namespace shares.
+fn verify_share_owner(share: &Share, target_user: Option<&str>) -> AppResult<()> {
+    let Some(target) = target_user else {
+        return Ok(());
+    };
+    if share.uid_owner.as_deref() != Some(target) {
+        return Err(AppError::App(format!(
+            "Server did not honor the impersonated namespace for '{}'.",
+            target
+        )));
+    }
+    Ok(())
 }
 
 /// Options controlling `create_share`. The defaults (read-only public link)
@@ -540,11 +568,22 @@ pub async fn list_shares(
     if let Some(msg) = ocs_meta_error(&json) {
         return Err(AppError::Ocs(msg));
     }
-    Ok(json
+    let shares: Vec<Share> = json
         .pointer("/ocs/data")
         .and_then(|data| data.as_array())
         .map(|arr| arr.iter().filter_map(parse_share).collect())
-        .unwrap_or_default())
+        .unwrap_or_default();
+    // Impersonation guard: while browsing as another user, drop every share
+    // that is not owned by the target user (the server ignored the
+    // `Impersonate-User` header and answered with the admin's shares).
+    let filtered: Vec<Share> = shares
+        .into_iter()
+        .filter(|share| match target_user {
+            Some(target) => share.uid_owner.as_deref() == Some(target),
+            None => true,
+        })
+        .collect();
+    Ok(filtered)
 }
 
 /// Revoke a share by id.
@@ -601,6 +640,10 @@ fn parse_share(value: &Value) -> Option<Share> {
         },
         expiration: value
             .get("expiration")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        uid_owner: value
+            .get("uid_owner")
             .and_then(|v| v.as_str())
             .map(String::from),
     })
@@ -744,14 +787,75 @@ mod tests {
         // must detect zero progress and stop the pagination.
         let page: Vec<String> = (0..200).map(|i| format!("user{i}")).collect();
         let mut seen = HashSet::new();
-        assert_eq!(progress_count(&mut seen, &page), 200);
-        assert_eq!(progress_count(&mut seen, &page), 0);
+        let mut dst = Vec::new();
+        assert_eq!(extend_new(&mut seen, &mut dst, &page), 200);
+        assert_eq!(extend_new(&mut seen, &mut dst, &page), 0);
     }
 
     #[test]
     fn progress_guard_counts_partial_new_users() {
         let mut seen = HashSet::from([String::from("a")]);
         let page = vec![String::from("a"), String::from("b")];
-        assert_eq!(progress_count(&mut seen, &page), 1);
+        let mut dst = Vec::new();
+        assert_eq!(extend_new(&mut seen, &mut dst, &page), 1);
+    }
+
+    #[test]
+    fn overlapping_pages_are_deduplicated() {
+        // L15-W6: users created/deleted mid-pagination shift the offset so
+        // pages overlap — ids must never appear twice in the merged result.
+        let mut seen = HashSet::new();
+        let mut all = Vec::new();
+        let page1: Vec<String> = (0..5).map(|i| format!("user{i}")).collect();
+        let page2: Vec<String> = (3..8).map(|i| format!("user{i}")).collect();
+        extend_new(&mut seen, &mut all, &page1);
+        extend_new(&mut seen, &mut all, &page2);
+        let expected: Vec<String> = (0..8).map(|i| format!("user{i}")).collect();
+        assert_eq!(all, expected);
+    }
+
+    #[test]
+    fn share_owner_verification_rejects_foreign_namespace() {
+        // Impersonation honored → ok.
+        let own = Share {
+            id: 1,
+            share_type: 3,
+            path: Some("/Album".into()),
+            share_with: None,
+            share_with_displayname: None,
+            permissions: Some(1),
+            url: None,
+            has_password: None,
+            expiration: None,
+            uid_owner: Some("target".into()),
+        };
+        assert!(verify_share_owner(&own, Some("target")).is_ok());
+
+        // Server ignored `Impersonate-User`: the share is owned by the admin.
+        let admin_owned = Share {
+            uid_owner: Some("admin".into()),
+            ..own.clone()
+        };
+        let err = verify_share_owner(&admin_owned, Some("target")).unwrap_err();
+        assert!(err.message().contains("target"));
+
+        // Without impersonation every owner is accepted.
+        assert!(verify_share_owner(&admin_owned, None).is_ok());
+        assert!(verify_share_owner(&own, None).is_ok());
+    }
+
+    #[test]
+    fn parse_share_reads_uid_owner() {
+        let value = serde_json::json!({
+            "id": 9,
+            "share_type": 0,
+            "uid_owner": "alice",
+        });
+        let share = parse_share(&value).expect("share parses");
+        assert_eq!(share.uid_owner.as_deref(), Some("alice"));
+
+        let legacy = serde_json::json!({ "id": 10 });
+        let share = parse_share(&legacy).expect("share parses");
+        assert_eq!(share.uid_owner, None);
     }
 }

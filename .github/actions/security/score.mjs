@@ -134,6 +134,18 @@ try {
   /* no php results */
 }
 
+// --- VirusTotal artifact reputation scan (optional) ---
+const vt = readJson("virustotal.json");
+for (const f of Array.isArray(vt?.findings) ? vt.findings : []) {
+  add(
+    "virustotal",
+    "malware",
+    normSev(f.severity, "medium"),
+    f.title ?? "VirusTotal-Finding",
+    f.file ?? "",
+  );
+}
+
 // --- AI review (OpenCode) ---
 const aiReport = readJson("ai-findings.json");
 for (const f of Array.isArray(aiReport?.findings) ? aiReport.findings : []) {

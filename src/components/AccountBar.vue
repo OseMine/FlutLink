@@ -36,12 +36,24 @@ const filterHint = computed(() => {
   const info = store.filterInfo;
   if (!info) return null;
   const count = info.droppedCount;
-  if (info.serverUrl) {
+  if (count > 0 && info.serverUrl) {
     return t("filteredAccountsHintServer")
       .replace("{count}", String(count))
       .replace("{server}", info.serverUrl);
   }
-  return t("filteredAccountsHintNoServer").replace("{count}", String(count));
+  if (count > 0) {
+    return t("filteredAccountsHintNoServer").replace("{count}", String(count));
+  }
+  return null;
+});
+
+const tokenMissingHint = computed(() => {
+  const info = store.filterInfo;
+  if (!info || info.tokenMissing.length === 0) return null;
+  return t("missingTokenAccountsHint").replace(
+    "{count}",
+    String(info.tokenMissing.length),
+  );
 });
 
 const storagePct = computed(() => {
@@ -87,6 +99,10 @@ const storageFreeLabel = computed(() => {
 
     <div v-if="filterHint" class="m-3 rounded-md border border-info bg-info-container/60 px-3 py-2 text-xs text-on-info-container">
       {{ filterHint }}
+    </div>
+
+    <div v-if="tokenMissingHint" class="m-3 rounded-md border border-error bg-error-container/60 px-3 py-2 text-xs text-on-error-container">
+      {{ tokenMissingHint }}
     </div>
 
     <div class="flex-1 overflow-y-auto p-3">

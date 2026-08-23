@@ -83,7 +83,9 @@ async function syncNow() {
     await sync.trigger();
     ui.toast(t("syncTriggered"), "success");
   } catch (e) {
-    ui.toast(e instanceof Error ? e.message : String(e), "error");
+    // Consistent error handling (#301): localized message via invokeError,
+    // like every other handler.
+    ui.toast(invokeError(e).message, "error");
   }
 }
 </script>
