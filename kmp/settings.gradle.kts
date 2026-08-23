@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "FlutLinkKmp"
 include(":shared")
+include(":android-app")

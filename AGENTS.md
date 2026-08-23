@@ -65,7 +65,7 @@ entfernt) sind in `kmp/` aufgegangen. Details in `kmp/README.md`.
 - `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings`
 - `cargo test --manifest-path src-tauri/Cargo.toml` (Unit-Tests in
   `nextcloud/`-Modulen)
-- `cd kmp && ./gradlew :shared:assembleDebug` — Android-APK bauen
+- `cd kmp && ./gradlew :android-app:assembleDebug` — Android-APK bauen
   (JDK 17; CI siehe `.github/workflows/kmp.yml`)
 - `cd kmp && ./gradlew :shared:build` — KMP-Modul bauen (Android + JVM +
   Unit-Tests; iOS-Targets nur auf macOS/Xcode-Hosts kompilierbar)

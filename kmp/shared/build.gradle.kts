@@ -2,14 +2,31 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose)
 }
 
 kotlin {
-    androidTarget {
+    // Android target of the KMP module, configured through the AGP 9
+    // `com.android.kotlin.multiplatform.library` plugin (single variant).
+    // The APK entry point lives in the sibling :android-app module.
+    android {
+        namespace = "com.flutcloud.flutlink"
+        compileSdk = 37
+        minSdk = 26
+
+        // Resource processing is opt-in with this plugin; the Android UI
+        // lives here, so string resources must stay enabled.
+        androidResources {
+            enable = true
+        }
+
+        // Host-side unit tests (formerly androidUnitTest) are opt-in with
+        // this plugin; enable them so the JVM test suite keeps running.
+        withHostTestBuilder {}.configure {}
+
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
@@ -19,7 +36,7 @@ kotlin {
 
     // iOS targets mirror the desktop client's feature set on Apple devices.
     // They can only be compiled on macOS/Xcode hosts; the CI (android.yml /
-    // jvm builds) only exercises androidTarget() + jvm() on Linux.
+    // jvm builds) only exercises android target + jvm on Linux.
     // Note: iosX64 is not declared — Compose Multiplatform 1.11.0 dropped
     // x64 Apple artifacts (only 1.11.0-alpha01 publishes them), so resolving
     // commonMain deps for iosX64 fails on every host.
@@ -35,11 +52,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.materialIconsExtended)
-            implementation(compose.ui)
+            api(compose.runtime)
+            api(compose.foundation)
+            api(compose.material3)
+            api(compose.materialIconsExtended)
+            api(compose.ui)
             implementation(compose.components.resources)
 
             implementation(libs.lifecycle.viewmodel.compose)
@@ -61,7 +78,6 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.androidx.core.ktx)
-            implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.security.crypto)
             implementation(libs.androidx.datastore.preferences)
 
@@ -71,86 +87,12 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
-        androidUnitTest.dependencies {
-            implementation(libs.junit)
-            implementation(libs.xpp3)
-            implementation(libs.ktor.client.okhttp)
-        }
-    }
-}
-
-android {
-    namespace = "com.flutcloud.flutlink"
-    compileSdk = 36
-
-    defaultConfig {
-        applicationId = "com.flutcloud.flutlink"
-        minSdk = 26
-        targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
-
-        // Optional compile-time FlutCloud server URL (never hard-coded in
-        // source). Mirrors the android subproject: the `FLUTCLOUD_URL`
-        // environment variable takes precedence and falls back to the local
-        // `-PflutcloudUrl=…` Gradle property for development builds.
-        val flutcloudUrl: String = System.getenv("FLUTCLOUD_URL")?.takeIf { it.isNotBlank() }
-            ?: providers.gradleProperty("flutcloudUrl").orNull.orEmpty()
-        buildConfigField(
-            "String",
-            "FLUTCLOUD_URL",
-            "\"$flutcloudUrl\""
-        )
-
-        vectorDrawables {
-            useSupportLibrary = true
-        }
-    }
-
-    signingConfigs {
-        create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let { file(it) }
-            if (keystoreFile?.exists() == true) {
-                storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_STORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEYSTORE_KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEYSTORE_KEY_PASSWORD") ?: ""
+        getByName("androidHostTest") {
+            dependencies {
+                implementation(libs.junit)
+                implementation(libs.xpp3)
+                implementation(libs.ktor.client.okhttp)
             }
-        }
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            val keystoreFile = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }?.let { file(it) }
-            if (keystoreFile?.exists() == true) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-        }
-        debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 }
@@ -160,4 +102,13 @@ android {
 // app namespace so common code can reference `com.flutcloud.flutlink.resources.*`.
 compose.resources {
     packageOfResClass = "com.flutcloud.flutlink.resources"
+}
+
+// Headless Desktop-JVM client (see src/jvmMain/.../desktop/Main.kt). Runs the
+// shared network stack against a FlutCloud server without any UI.
+tasks.register<JavaExec>("desktopCli") {
+    group = "flutlink"
+    description = "Run the headless Desktop-JVM client CLI."
+    mainClass.set("com.flutcloud.flutlink.desktop.MainKt")
+    classpath(sourceSets.named("jvmMain").map { it.runtimeClasspath })
 }

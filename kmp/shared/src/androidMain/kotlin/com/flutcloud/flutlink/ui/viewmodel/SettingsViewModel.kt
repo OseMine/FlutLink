@@ -3,7 +3,6 @@ package com.flutcloud.flutlink.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.BuildConfig
 import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.AppUpdate
@@ -23,7 +22,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     val accentHue = MutableStateFlow<Int?>(null)
     val serverInfo = MutableStateFlow<AppInfoDto?>(null)
 
-    val appVersion = BuildConfig.VERSION_NAME
+    val appVersion = container.config.appVersion
 
     private val _toast = MutableStateFlow<UiMessage?>(null)
     val toast: StateFlow<UiMessage?> = _toast.asStateFlow()

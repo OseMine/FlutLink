@@ -16,23 +16,32 @@ kmp/
 ├── settings.gradle.kts          — Gradle-Repo-Config (google/mavenCentral)
 ├── build.gradle.kts             — Plugin-Aliase (apply false)
 ├── gradle/libs.versions.toml    — Versionskatalog (AGP, Kotlin, Compose, Ktor)
-├── gradle/wrapper/              — Gradle 8.13 Wrapper
-├── shared/
-│   ├── build.gradle.kts         — KMP-Modul (android application + jvm + iOS);
+├── gradle/wrapper/              — Gradle 9.7.1 Wrapper
+├── android-app/                 — Android-Einstiegsmodul (APK):
+│   ├── build.gradle.kts         — Application-Plugin (AGP 9, eingebautes Kotlin),
 │   │                              Signing (KEYSTORE_PATH), R8, BuildConfig
 │   ├── proguard-rules.pro       — Release-Minify-Regeln (DTOs, OkHttp, Serialization)
+│   └── src/main/                — Manifest, res/, FlutLinkApplication, MainActivity
+├── shared/
+│   ├── build.gradle.kts         — KMP-Modul (Android-Library via AGP-KMP-Plugin
+│   │                              + jvm + iOS); Compose-Ressourcen, Host-Tests
 │   └── src/
-│       ├── commonMain/kotlin/   — plattformagnostischer Kern:
-│       │                          AuthSession, ApiException, JsonUtil, dto/Models
-│       ├── androidMain/         — komplette Android-App (Manifest, res/, Compose-UI,
-│       │                        Application/MainActivity, Stores, APIs)
-│       ├── androidUnitTest/     — JVM-Unit-Tests (WebDAV/OCS-Parsing, Stores)
-│       └── iosMain/kotlin/      — iOS-Einstiegspunkt (MainViewController →
+│       ├── commonMain/kotlin/   — plattformagnostischer Kern & Datenstack:
+│       │                          AuthSession, ApiException, JsonUtil, dto/Models,
+│       │                          AccountStore, SessionManager, FlutCloudApi,
+│       │                          WebDavApi, MiniXmlParser
+│       ├── jvmMain/kotlin/      — Headless-Desktop-JVM-Glue (`desktopCli`-Task)
+│       ├── androidMain/         — Compose-UI + plattformgebundene Stores/APIs
+│       │                          (EncryptedSharedPreferences, SAF, Updater)
+│       ├── androidUnitTest/     — JVM-Unit-Tests (WebDAV/OCS-Parsing, Stores;
+│       │                          Task `testAndroidHostTest`)
+│       └── iosMain/kotlin/      — iOS-Einstiegspunkt (Main →
 │                                  ComposeUIViewController mit Placeholder-UI)
 └── iosApp/                      — Xcode-Hülle für den iOS-Build
     ├── Config.xcconfig          — App-Name, Bundle-ID, Version
     ├── iosApp/                  — SwiftUI-Shell (iOSApp.swift, ContentView.swift,
-    │                              Assets.xcassets), hostet den Compose-ViewController
+    │                              Assets.xcassets inkl. App-Icon), hostet den
+    │                              Compose-ViewController
     └── iosApp.xcodeproj/        — Projekt + geteiltes Scheme; Script-Build-Phase
                                    ruft ./gradlew :shared:link*Framework* auf und
                                    bettet Shared.framework ein
@@ -40,8 +49,9 @@ kmp/
 
 ## Targets
 
-- **Android** — `androidTarget()` als *Application*-Modul
-  (`com.flutcloud.flutlink`, compileSdk/targetSdk 36, minSdk 26).
+- **Android** — APK-Einstiegsmodul `:android-app`
+  (`com.flutcloud.flutlink`, compileSdk 37 / targetSdk 36, minSdk 26);
+  der Multiplatform-Code liegt als `:shared`-Library bei.
   Release-Builds sind minifiziert (R8) und werden per Umgebungsvariable
   `KEYSTORE_PATH` (+ `_STORE_PASSWORD`, `_KEY_ALIAS`, `_KEY_PASSWORD`)
   signiert; ohne Keystore entsteht ein unsigniertes APK.
@@ -56,20 +66,21 @@ kmp/
 
 ### Stand der iOS-Parität
 
-Der funktionsvolle Client-Code liegt in `androidMain` (EncryptedSharedPreferences,
-Storage Access Framework, Android-Resourcen). Die Portierung dieser UI nach
-`commonMain` (expect/actual für Keychain, File-Access, Resourcen) ist als
-Folgearbeit notiert — bis dahin hostet das iOS-Framework einen
-Placeholder-Screen; die Build-/CI-Infrastruktur (Framework, Xcode-Projekt,
-IPA) ist vollständig eingerichtet.
+Der Kern (Stores, Session, HTTP-APIs) liegt inzwischen in `commonMain`;
+die Compose-UI und plattformgebundene Teile (EncryptedSharedPreferences,
+Storage Access Framework, Updater) liegen noch in `androidMain`. Der
+verbleibende UI-Port nach `commonMain` ist als Folgearbeit notiert —
+bis dahin hostet das iOS-Framework einen Placeholder-Screen; die
+Build-/CI-Infrastruktur (Framework, Xcode-Projekt, IPA) ist vollständig
+eingerichtet.
 
 ## Befehle
 
 ```sh
 cd kmp
-./gradlew :shared:assembleDebug         # Android-Debug-APK bauen
-./gradlew :shared:assembleRelease       # Android-Release-APK (unsigniert/minifiziert)
-./gradlew :shared:testDebugUnitTest     # Android-Unit-Tests auf der JVM
+./gradlew :android-app:assembleDebug    # Android-Debug-APK bauen
+./gradlew :android-app:assembleRelease  # Android-Release-APK (unsigniert/minifiziert)
+./gradlew :shared:testAndroidHostTest   # Android-Unit-Tests auf der JVM
 ./gradlew :shared:compileKotlinJvm      # JVM-Target kompilieren
 ./gradlew :shared:build                 # alles (android + jvm + Tests)
 

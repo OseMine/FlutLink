@@ -3,7 +3,8 @@ package com.flutcloud.flutlink.core
 import com.flutcloud.flutlink.data.AuthSession
 import com.flutcloud.flutlink.data.FlutCloudApi
 import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -15,8 +16,8 @@ import java.util.concurrent.TimeUnit
 class SessionManagerTest {
 
     private fun store() = AccountStore(
-        prefs = InMemorySharedPreferences(),
-        securePrefs = InMemorySharedPreferences()
+        prefs = InMemoryKeyValueStorage(),
+        securePrefs = InMemoryKeyValueStorage()
     )
 
     /**
@@ -25,10 +26,14 @@ class SessionManagerTest {
      * probe fails — so a short connect timeout keeps the tests hermetic.
      */
     private fun ocsApi() = FlutCloudApi(
-        OkHttpClient.Builder()
-            .connectTimeout(50, TimeUnit.MILLISECONDS)
-            .readTimeout(50, TimeUnit.MILLISECONDS)
-            .build()
+        HttpClient(OkHttp) {
+            engine {
+                config {
+                    connectTimeout(50, TimeUnit.MILLISECONDS)
+                    readTimeout(50, TimeUnit.MILLISECONDS)
+                }
+            }
+        }
     )
 
     private fun meta(

@@ -56,10 +56,10 @@ jobs:
         working-directory: kmp
         run: |
           chmod +x gradlew
-          ./gradlew :shared:assembleDebug --console=plain
+          ./gradlew :android-app:assembleDebug --console=plain
 
   test:
-    name: Unit tests (testDebugUnitTest)
+    name: Unit tests (testAndroidHostTest)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -82,7 +82,7 @@ jobs:
         working-directory: kmp
         run: |
           chmod +x gradlew
-          ./gradlew :shared:testDebugUnitTest --console=plain
+          ./gradlew :shared:testAndroidHostTest --console=plain
 
   jvm:
     name: JVM target (compileKotlinJvm)
@@ -129,7 +129,8 @@ jobs:
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
       - name: Install Android platform
-        run: sdkmanager --install "platforms;android-36" > /dev/null
+        # API 37 platforms ship under the new extension-level naming.
+        run: sdkmanager --install "platforms;android-37.0" > /dev/null
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
@@ -167,7 +168,7 @@ jobs:
         working-directory: kmp
         run: |
           chmod +x gradlew
-          ./gradlew :shared:lintDebug --console=plain
+          ./gradlew :android-app:lintDebug --console=plain
 
   complete:
     name: KMP CI complete

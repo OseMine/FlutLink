@@ -3,9 +3,9 @@ package com.flutcloud.flutlink.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
-import com.flutcloud.flutlink.BuildConfig
 import com.flutcloud.flutlink.R
 import com.flutcloud.flutlink.core.AccountMeta
+import com.flutcloud.flutlink.data.*
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.AuthSession
 import com.flutcloud.flutlink.data.FlutCloudAppMissing
@@ -38,12 +38,12 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             val saved = container.settingsStore.defaultServerUrlOrEmpty()
-            serverUrl.value = saved.ifEmpty { BuildConfig.FLUTCLOUD_URL }
+            serverUrl.value = saved.ifEmpty { container.config.defaultServerUrl }
         }
     }
 
     /** When a build-time URL is configured, the server field is locked. */
-    val urlLocked: Boolean get() = BuildConfig.FLUTCLOUD_URL.isNotBlank()
+    val urlLocked: Boolean get() = container.config.defaultServerUrl.isNotBlank()
 
     fun toggleMode() {
         registerMode.value = !registerMode.value
@@ -58,8 +58,8 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             error.value = UiMessage(R.string.error_fill_fields)
             return
         }
-        if (BuildConfig.FLUTCLOUD_URL.isNotBlank() &&
-            url.trimEnd('/') != BuildConfig.FLUTCLOUD_URL.trimEnd('/')
+        if (container.config.defaultServerUrl.isNotBlank() &&
+            url.trimEnd('/') != container.config.defaultServerUrl.trimEnd('/')
         ) {
             error.value = UiMessage(R.string.error_wrong_server_url)
             return
@@ -116,8 +116,8 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
             error.value = UiMessage(R.string.error_fill_fields_register)
             return
         }
-        if (BuildConfig.FLUTCLOUD_URL.isNotBlank() &&
-            url.trimEnd('/') != BuildConfig.FLUTCLOUD_URL.trimEnd('/')
+        if (container.config.defaultServerUrl.isNotBlank() &&
+            url.trimEnd('/') != container.config.defaultServerUrl.trimEnd('/')
         ) {
             error.value = UiMessage(R.string.error_wrong_server_url)
             return

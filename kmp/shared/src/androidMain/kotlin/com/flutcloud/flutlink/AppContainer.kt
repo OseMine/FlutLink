@@ -8,8 +8,11 @@ import android.os.Environment
 import android.provider.OpenableColumns
 import android.provider.MediaStore
 import com.flutcloud.flutlink.core.AccountStore
+import com.flutcloud.flutlink.core.AppConfig
+import com.flutcloud.flutlink.core.EncryptedKeyValueStorage
 import com.flutcloud.flutlink.core.SessionManager
 import com.flutcloud.flutlink.core.SettingsStore
+import com.flutcloud.flutlink.core.SharedPreferencesKeyValueStorage
 import com.flutcloud.flutlink.data.FlutCloudApi
 import com.flutcloud.flutlink.data.HttpClientFactory
 import com.flutcloud.flutlink.data.ListCache
@@ -20,15 +23,33 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 
-/** Simple service locator for the single-activity app. */
-class AppContainer(context: Context) {
+/**
+ * Implemented by the platform Application class so shared UI code can reach
+ * the [container] without depending on the concrete Application type
+ * (which lives in the :android-app module since the AGP 9 split).
+ */
+interface ContainerHost {
+    val container: AppContainer
+}
 
-    private val httpClient = HttpClientFactory.create("FlutLink-Android/${BuildConfig.VERSION_NAME}")
+/** Simple service locator for the single-activity app. */
+class AppContainer(
+    context: Context,
+    userAgent: String,
+    val config: AppConfig
+) {
+
+    private val httpClient = HttpClientFactory.create(userAgent)
 
     private val appContext = context.applicationContext
 
     val settingsStore = SettingsStore(context)
-    val accountStore = AccountStore(context)
+    val accountStore = AccountStore(
+        prefs = SharedPreferencesKeyValueStorage(
+            appContext.getSharedPreferences(EncryptedKeyValueStorage.PREFS_NAME, Context.MODE_PRIVATE)
+        ),
+        securePrefs = EncryptedKeyValueStorage(appContext)
+    )
     val sessionManager = SessionManager(accountStore)
 
     val ocsApi = FlutCloudApi(httpClient)

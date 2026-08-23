@@ -72,15 +72,15 @@ runs:
       run: |
         chmod +x gradlew
         if [ "${{ inputs.signed }}" = "true" ]; then
-          ./gradlew :shared:assembleRelease --console=plain
+          ./gradlew :android-app:assembleRelease --console=plain
         else
-          ./gradlew :shared:assembleDebug --console=plain
+          ./gradlew :android-app:assembleDebug --console=plain
         fi
 
     - name: Upload APK
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: ${{ inputs.artifact-name }}
-        path: kmp/shared/build/outputs/apk/${{ inputs.signed == 'true' && 'release' || 'debug' }}/*.apk
+        path: kmp/android-app/build/outputs/apk/${{ inputs.signed == 'true' && 'release' || 'debug' }}/*.apk
         if-no-files-found: error
         retention-days: 14

@@ -10,8 +10,8 @@ import org.junit.Test
 class AccountStoreTest {
 
     private val store = AccountStore(
-        prefs = InMemorySharedPreferences(),
-        securePrefs = InMemorySharedPreferences()
+        prefs = InMemoryKeyValueStorage(),
+        securePrefs = InMemoryKeyValueStorage()
     )
 
     @Test
@@ -83,9 +83,9 @@ class AccountStoreTest {
     fun `corrupt stored json falls back to empty list`() {
         store.saveAccounts(listOf(account("admin")))
         // Simulate a corrupt payload in the backing preferences.
-        val prefs = InMemorySharedPreferences()
-        prefs.edit().putString("accounts_meta", "{not valid json").apply()
-        val corrupt = AccountStore(prefs, InMemorySharedPreferences())
+        val prefs = InMemoryKeyValueStorage()
+        prefs.putString(AccountStore.ACCOUNTS_KEY, "{not valid json")
+        val corrupt = AccountStore(prefs, InMemoryKeyValueStorage())
 
         assertTrue(corrupt.loadAccounts().isEmpty())
     }

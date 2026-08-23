@@ -3,7 +3,8 @@ package com.flutcloud.flutlink.data
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -13,7 +14,7 @@ import org.junit.Test
 /** JVM tests for the OCS meta parser in [FlutCloudApi]. */
 class FlutCloudApiTest {
 
-    private val api = FlutCloudApi(OkHttpClient())
+    private val api = FlutCloudApi(HttpClient(OkHttp))
 
     @Test
     fun `parseOcs returns data for a successful response`() {

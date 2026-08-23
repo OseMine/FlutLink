@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.2"
+agp = "9.3.1"
 kotlin = "2.4.10"
 coreKtx = "1.17.0"
 activityCompose = "1.13.0"
@@ -9,7 +9,7 @@ okhttp = "5.4.0"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
 composeMultiplatform = "1.11.0"
-multiplatformLifecycle = "2.10.0"
+multiplatformLifecycle = "2.11.0"
 multiplatformNavigation = "2.9.2"
 ktor = "3.5.2"
 junit = "4.13.2"
@@ -37,6 +37,7 @@ xpp3 = { group = "xpp3", name = "xpp3", version = "1.1.4c" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
