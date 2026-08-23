@@ -68,7 +68,7 @@ class IosPlatform : Platform {
     private fun documentsDir(): String =
         NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
             .firstOrNull()?.toString()
-            ?: "$NSHomeDirectory/Documents"
+            ?: "${NSHomeDirectory()}/Documents"
 
     /**
      * Stream into a unique temp file under Documents/.flutlink-staging, then

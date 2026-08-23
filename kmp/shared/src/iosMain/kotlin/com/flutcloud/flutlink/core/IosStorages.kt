@@ -3,21 +3,24 @@ package com.flutcloud.flutlink.core
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.MemScope
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
-import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.toCValues
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFDataGetBytePtr
 import platform.CoreFoundation.CFDataGetLength
+import platform.CoreFoundation.CFDataRef
 import platform.CoreFoundation.CFDictionaryCreate
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.CFStringCreateWithCString
-import platform.CoreFoundation.__CFData
+import platform.CoreFoundation.CFTypeRef
+import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFStringEncodingUTF8
 import platform.Foundation.NSUserDefaults
@@ -69,9 +72,10 @@ class IosKeychainStorage(
             kSecAttrAccount to cfString(key),
             kSecReturnData to kCFBooleanTrue
         )
-        val out = alloc<CPointerVar<COpaquePointer>>()
+        val out = alloc<CFTypeRefVar>()
         if (SecItemCopyMatching(query, out.ptr) != errSecSuccess) return@memScoped null
-        val data = out.value?.reinterpret<__CFData>() ?: return@memScoped null
+        @Suppress("UNCHECKED_CAST")
+        val data = out.value as CFDataRef ?: return@memScoped null
         val length = CFDataGetLength(data)
         val bytes = CFDataGetBytePtr(data) ?: return@memScoped null
         bytes.readBytes(length.toInt())?.decodeToString()
@@ -81,7 +85,7 @@ class IosKeychainStorage(
         remove(key)
         memScoped {
             val bytes = value.encodeToByteArray()
-            val data = CFDataCreate(null, bytes.refTo(0), bytes.size.toLong())
+            val data = CFDataCreate(null, bytes.toCValues(), bytes.size.toLong())
                 ?: return@memScoped
             val attributes = cfDictionaryOf(
                 kSecClass to kSecClassGenericPassword,
@@ -109,14 +113,14 @@ class IosKeychainStorage(
      * NULL callbacks: the dictionary does not retain — every referenced value
      * stays alive for the duration of the synchronous Security call.
      */
-    private fun memScoped.cfDictionaryOf(
-        vararg pairs: Pair<String, COpaquePointer?>
+    private fun MemScope.cfDictionaryOf(
+        vararg pairs: Pair<CFStringRef?, CFTypeRef?>
     ): CFDictionaryRef? {
         val count = pairs.size
         val keys = allocArray<CPointerVar<COpaquePointer>>(count)
         val values = allocArray<CPointerVar<COpaquePointer>>(count)
         pairs.forEachIndexed { index, (key, value) ->
-            keys[index] = cfString(key)
+            keys[index] = key
             value?.let { values[index] = it }
         }
         return CFDictionaryCreate(
