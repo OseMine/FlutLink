@@ -4,6 +4,381 @@ Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 ## Archiv (erledigt)
 
+### Fix-Lauf 2026-08-23 — L15/L16-Katalog abgeschlossen (Commit `59de00d` vom 2026-08-22)
+
+Aus `todo.md` verschoben: Der gesamte Befundkatalog aus Lauf 15 und Lauf 16
+wurde in Commit `59de00d` umgesetzt und am 2026-08-23 gegen HEAD verifiziert
+(`cargo fmt --check` / `cargo clippy --all-targets -- -D warnings` grün;
+`cargo test` → 99 passed / 0 failed; `npm run build` grün, Haupt-Chunk
+117 kB). Die vollständigen Original-Befundbeschreibungen stehen im unten
+verschobenen Lauf-15-Abschnitt.
+
+**Sync-Engine (`sync.rs`):**
+
+- [x] **L15-S1:** `walk_local` ist fail-closed (`LocalWalk { map, complete }`);
+      `run_pass` unterdrückt bei unvollständigem Walk alle destruktiven Ops,
+      erhält das Journal und meldet `walk_incomplete`, statt unlesbare
+      Dateien als „lokal gelöscht" zu werten.
+- [x] **L15-S2:** TOCTOU-Guards: `exec_download`, `exec_delete_local` und
+      `exec_move_local_conflict` re-staten die Datei vor dem Eingriff und
+      liefern `ExecOutcome::Deferred`, wenn der Zustand nicht mehr dem
+      Journal entspricht (Replan im nächsten Pass).
+- [x] **L15-S3 (#279):** Journal-Persistenz atomar (Temp + fsync + Rename);
+      korrupte Journals werden quarantäniert (`.corrupt-*`) und mit leerem
+      Journal neu gestartet statt jeden Pass failen zu lassen.
+- [x] **L15-S4:** Sub-Sekunden-mtimes (`local_mtime_nanos`) + Remote-`etag`
+      im `JournalEntry`; Vergleich mit Legacy-Fallback auf ganze Sekunden.
+- [x] **L15-S5 (#281):** Erst-Sync-Seeding (`Action::Seed`/`exec_seed`) für
+      identische Dateien und Ordner; einseitige Deletes propagieren sauber.
+- [x] **L15-S6 (#278):** Uploads senden `If-Match` mit der gelisteten etag;
+      412 → `ExecOutcome::Deferred` (Neuplanung statt Überschreiben).
+- [x] **L15-S7:** `MoveRemoteConflict` läuft vor den `EnsureDir`s desselben
+      Pfads (kein 405-MKCOL mehr, keine Folge-409er).
+- [x] **L15-S8:** `DeleteRemoteDir` wird verweigert, wenn das Listing
+      versteckte Kinder enthielt (dirty-dir tracking) oder Kinder im
+      Snapshot bleiben.
+- [x] **L15-S9 (#283):** Benachrichtigungs-Dämpfung: Notify beim ok→error-
+      Übergang, danach nur alle `NOTIFY_FAILURE_EVERY` (10) Fehlpässe;
+      Resume setzt Dämpfung und stale Fehlerzustand zurück.
+- [x] **L15-S10:** Nicht-UTF-8-Namen markieren den Walk unvollständig
+      (konsistent auf beiden Seiten); dafür werden nie Deletes geplant.
+
+**WebDAV/OCS (`webdav.rs`, `ocs.rs`, `cache.rs`):**
+
+- [x] **L15-W1/W2:** Namespace-Guard in `list()` **und** `search()`, nur bei
+      aktiver Impersonation und segment-sicher — Ordner namens
+      `remote.php`/`https:` erzeugen keine False Positives mehr.
+- [x] **L15-W3 (#284):** `create_share` verifiziert `uid_owner == target`,
+      `list_shares` filtert fremde Owner; sonst harter Fehler.
+- [x] **L15-W4:** Chunked-Upload füllt Puffer per Fill-Loop — volle Chunks
+      außerhalb des letzten Segments garantiert.
+- [x] **L15-W5:** PUT/MOVE tragen `Overwrite: F` bzw. `If-Match`
+      (`put_file_params` vereinheitlicht); 412 → `TargetExists`.
+- [x] **L15-W6:** `list_users` dedupliziert via `seen.insert()` (wie
+      `list_groups`).
+- [x] **L15-W7:** PROPFIND-Parser behandelt `Event::CData`.
+- [x] **L15-W8/W9 (#286):** Cache schreibt atomar; kaputte Dateien werden
+      entfernt und als Miss gewertet; stabile SHA-256-Cache-Keys.
+
+**Frontend (`src/`):**
+
+- [x] **L15-F1/F5 (#288):** synchroner `dialogBusy`-Guard gegen Doppel-Submit
+      in New-folder/Rename-Dialogen; `doRename` nutzt dieselbe Namens-
+      Validierung wie `createFolder`.
+- [x] **L15-F2:** Pfadwechsel (Navigation/Breadcrumb/goBack) leeren die
+      Suche; `displayEntries` kann nicht mehr gegen den Pfad laufen.
+- [x] **L15-F3/F10 (#289):** Sequenz-Guards für `AdminPanel.selectUser` und
+      `accounts.load()` — out-of-order-Antworten werden verworfen.
+- [x] **L15-F4 (#291):** `files.clearTransfer()` in `finally` — das Transfer-
+      Banner verschwindet auch bei Fehlern.
+- [x] **L15-F6:** Refresh einmal nach dem Batch statt pro Einzel-Upload
+      (`refreshAfter`).
+- [x] **L15-F7:** Split-View rendert durchgängig `displayEntries`;
+      `kbdIndex` wird nach Löschen geklemmt.
+- [x] **L15-F8:** `pairOf` tauscht nur `segments[1]` (Tiefe 1).
+- [x] **L15-F9:** `searchTimer` wird in `onUnmounted` geleert.
+
+**Lauf-16-Befunde:**
+
+- [x] **L16-F1:** `SettingsModal.loadUsers` lädt genau eine OCS-Seite
+      (`adminListUsers(query, ADMIN_PAGE)`), kein Vollabruf mehr.
+- [x] **L16-F2:** `ERROR_CODE_KEYS` mappt `sync_folder_conflict`.
+- [x] **N16-1 (#295):** Updater-State `"installing"` wird gesetzt (Backend-
+      Event), Fortschrittsbalken endet sauber.
+- [x] **L16-A1 (#276):** Konten ohne Keyring-Token werden beim Start als
+      „dropped" gesammelt und über `account_filter_info` gemeldet.
+- [x] **N16-6:** `FLUTCLOUD_README` verweist auf den KMP-Mobile-Client.
+- [x] **L16-C1 (#271):** Auto-Merge im Review-Workflow deaktiviert — MERGE
+      nur noch als Kommentar/Hinweis, Merge durch Menschen.
+- [x] **N16-4:** Drittanbieter-Actions einheitlich auf Commit-SHA gepinnt.
+- [x] **L16-C2:** `upload-mobile` hat denselben Tag-Guard wie `altstore`.
+- [x] **L16-C3:** `kmp-android-build` bricht bei `signed=true` mit leerem
+      Keystore-Secret mit klarer Fehlermeldung ab.
+- [x] **N16-3:** `build.yml`-Sammeljob `complete` braucht alle Jobs.
+- [x] **N16-2:** Dependabot pflegt jetzt auch `cargo` (/src-tauri) und
+      `gradle` (/kmp).
+
+**Kleinere Punkte (Minors):**
+
+- [x] `SyncPanel.syncNow` nutzt `invokeError` (#301).
+- [x] `FileExplorer.loadAdminUsers` zeigt bei leerer Suche einen neutralen
+      Info-Hinweis statt eines Error-Toasts (#301).
+- [x] Release erscheint erst komplett: `releaseDraft: true` + abschließender
+      `publish-release`-Job nach Desktop-/APK-/IPA-/AltStore-Upload.
+- [x] Passwort-Zeichensatz im `AdminPanel.createUser`: bewusst ohne Zwang
+      (M3-Token-Modell), nur dokumentiert.
+
+### Review 2026-08-20 (Lauf 15, ganzes Projekt — abgeschlossen 2026-08-23, Commit `59de00d`)
+
+Verifikation in diesem Lauf frisch ausgeführt (Details am Abschnittsende).
+Gegenstand: gesamtes Projekt (Backend `src-tauri/`, Frontend `src/`,
+Stores/IPC, Workflows `.github/`). Nachprüfung der Lauf-14-Befunde
+K1–K9 (KMP) und der Restlücken aus Lauf 13 (I1-5/I1-6/I1-10) sowie
+L12-N1…L12-N6. Fokus: Sync-Engine, WebDAV/OCS-Client, Frontend-Stores
+und -Komponenten. Neu gefunden (alle gegen HEAD `d79eb98` verifiziert):
+
+**Sync-Engine (`sync.rs`) — neue Befunde:**
+
+- [x] **L15-S1 (Datenverlust, hoch):** `walk_local` (`sync.rs:206-235`)
+      schluckt **alle** Lese-Fehler (`read_dir`/`metadata` → `continue`).
+      Ein nicht lesbares Unterverzeichnis (EPERM, I/O auf Netzlaufwerk)
+      fällt still aus der lokalen Karte; `decide` sieht „lokal fehlt" +
+      Journal-Eintrag → `DeleteRemote` (`sync.rs:419-422`) bzw.
+      `DeleteRemoteDir`, `prune_journal` verwirft den Eintrag → die
+      **Remote-Kopie wird gelöscht** (im Extremfall ganze Bäume). Der
+      Remote-Walk (`list_remote`) ist fail-closed, der lokale nicht.
+      Fix: `walk_local` → `Result`, Pass abbrechen (keine Deletes) bei
+      Lese-Fehler; oder „walk incomplete"-Flag, das `DeleteRemote*`
+      unterbindet.
+- [x] **L15-S2 (Datenverlust, hoch):** TOCTOU zwischen Walk und Execute:
+      `exec_download` (`sync.rs:600-634`) überschreibt `local_root.join(rel)`
+      blind, `exec_delete_local` (`sync.rs:642-649`) löscht es blind —
+      ohne Re-Check gegen das Journal (size/mtime). Eine lokale Änderung
+      nach dem Walk (bei großen Dateien Minutenfenster, `MAX_OPS_PER_PASS=200`)
+      wird still zerstört. Fix: vor destruktiver Op Datei re-staten; bei
+      Abweichung Op abbrechen und nächsten Pass neu planen.
+- [x] **L15-S3 (Robustheit, hoch):** Journal-Persistenz nicht atomar und
+      Korruption irreparabel: `persist_journal` (`sync.rs:896-909`) nutzt
+      `std::fs::write` (truncate+write, kein fsync); ein Crash mitten im
+      Schreiben hinterlässt kaputtes JSON → `load_journal` failt **jeden**
+      Pass (`run_pass` reicht den Fehler durch), die Ordner-Sync ist
+      dauerhaft tot. Ohne Korruption: Verlust des Journals re-uploadet/
+      re-downloadet gelöschte Dateien; Crash nach Upload-vor-Journal-Write
+      erzeugt einen Schein-Konflikt. Fix: Temp-Datei + atomares `rename`
+      (+ fsync); bei JSON-Fehler Datei zur Seite legen und mit leerem
+      Journal starten.
+- [x] **L15-S4 (Korrektheit, mittel):** Sekunden-genaue mtimes:
+      lokal `as_secs()` (`sync.rs:256-261`), remote `parse_mtime`
+      (`sync.rs:90-96`), Vergleich (`sync.rs:366-378`). Zwei Änderungen
+      innerhalb derselben Sekunde mit gleicher Größe sind unsichtbar
+      (nie gesynct). Die gelistete `etag` (`webdav.rs:951`) wird geparst,
+      aber nicht im `JournalEntry` gespeichert. Fix: Nanos lokal behalten,
+      Remote-`etag` im Journal führen und mitvergleichen.
+- [x] **L15-S5 (Korrektheit, mittel):** Beim **ersten** Sync identischer
+      Dateien (beide Seiten existieren, keine Journal-Entries, mtime+size
+      gleich) liefert `decide` `Skip` **ohne** Journal-Eintrag
+      (`sync.rs:380-390`). Solche Dateien bleiben dauerhaft journal-los;
+      ein späteres einseitiges Löschen wird als „neue Datei" re-uploadet/
+      re-downloadet (Delete wird still rückgängig gemacht). Fix: beim
+      Skip im Erst-Sync den Ist-Zustand ins Journal schreiben.
+- [x] **L15-S6 (Datenverlust-Risiko, mittel):** `exec_upload`/`exec_upload_conflict`
+      (`sync.rs:540-565`) senden PUT ohne `If-Match`: Der Planner sah
+      „remote == Journal", aber ein anderer Client ersetzt die Datei nach
+      dem Listing → der neue Remote-Stand wird überschrieben, kein
+      Konflikt, Journal markiert „synced". Fix: `If-Match` mit Snapshot-
+      etag; auf 412 als Konflikt neu planen (Download/merge) statt
+      überschreiben.
+- [x] **L15-S7 (Korrektheit, mittel):** `MoveRemoteConflict`-Reihenfolge:
+      `moved_dirs` werden in `dirs` eingefügt und alle `EnsureDir`-Ops vor
+      das `MoveRemoteConflict`-Rename sortiert (`sync.rs:501-517`). Der
+      MKCOL auf die noch vorhandene Remote-**Datei** liefert 405, den
+      `make_collection` als Erfolg wertet → Ordner wird erst einen Pass
+      später angelegt; der folgende `Upload("dir/kind")` failt mit 409
+      (Parent fehlt) → Scheinfehler + Benachrichtigung. Fix: MOVE vor dem
+      MKCOL ausführen bzw. MKCOL nach dem Rename im selben Pass
+      wiederholen.
+- [x] **L15-S8 (Datenverlust-Risiko, mittel):** `DeleteRemoteDir` ignoriert
+      versteckte Kinder: `list_remote` filtert `should_skip_rel`
+      (`sync.rs:306-308`) aus der Remote-Karte, `DeleteRemoteDir`
+      (`sync.rs:477-484`) prüft nur sichtbare Kinder. Ein syncter Ordner
+      mit versteckten Dateien (anderer Client/Web-UI) wird mitsamt der
+      unsichtbaren Dateien gelöscht. Fix: „had skipped children" beim
+      Listing tracken und `DeleteRemoteDir` dafür verweigern.
+- [x] **L15-S9 (UX, minor):** Benachrichtigungs-Flut: `notify()` feuert bei
+      jedem Pass mit irgendeinem Fehler (`sync.rs:1192-1204`) — bei
+      transitierten Fehlern alle 10 s eine Native-Notification;
+      `set_paused` lässt `failures`/`last_error` stale. Fix: nur bei
+      Zustandswechsel oder nach N aufeinanderfolgenden Fehl-Pässen
+      benachrichtigen; `failures`/`last_error` beim Resume zurücksetzen.
+- [x] **L15-S10 (Parität, minor):** Nicht-UTF-8-Dateinamen werden still
+      ausgespart: `rel_from` (`sync.rs:276-283`) verwirft sie via
+      `to_str()` `filter_map`; sie werden nie geuploadet, ihre Änderungen
+      nie gesehen — und nach obiger Delete-Logik könnte die Datei gelöscht
+      werden, die der Walk „nicht mehr sieht". Fix: Namen lossy/konsistent
+      führen oder Warnung; nie Deletes für aus dem Walk gefallene Namen
+      planen.
+
+**WebDAV/OCS (`webdav.rs`, `ocs.rs`) — neue Befunde:**
+
+- [x] **L15-W1 (Impersonation, mittel):** Namespace-Guard der `search()` ist
+      schwächer als der von `list()`: `webdav.rs:162` prüft nur
+      `e.path.starts_with("/remote.php/")`, während `list()`
+      (`webdav.rs:110`) `is_namespace_mismatch()` nutzt — ein Server, der
+      `Impersonate-User` ignoriert und mit **absoluten** hrefs
+      (`https://host/remote.php/…`) antwortet, erzeugt Pfade wie
+      `/https:/host/…`, die am Guard vorbeigehen und als Zielnutzer-
+      Treffer gefüttert werden. Fix: in `search()` `is_namespace_mismatch()`
+      verwenden.
+- [x] **L15-W2 (Korrektheit, mittel):** `is_namespace_mismatch()`
+      (`webdav.rs:1076-1078`) hat False-Positives: Jeder Eintrag, dessen
+      dekodierter Pfad mit `/remote.php/`, `/http:/` oder `/https:/`
+      beginnt, gilt als Namespace-Leak. Ein Zielnutzer mit legitimen
+      Ordnern namens `remote.php`, `https:` oder `http:` (bzw. deren
+      Kindpfaden) bricht damit **das gesamte Listing** mit „did not honor
+      the impersonated namespace". Fix: Guard nur bei `target_user.is_some()`
+      und Restpfad gegen die Admin-Basis vergleichen statt Präfix-Check.
+- [x] **L15-W3 (Impersonation, mittel):** OCS-Share-Operationen haben keinen
+      Response-Guard: `create_share` (`ocs.rs:424-456`) und `list_shares`
+      (`ocs.rs:524-548`) verifizieren nie, ob der Server `Impersonate-User`
+      ehrte. Wird er ignoriert, zeigt `list_shares` still die Shares des
+      Admins als die des Zielnutzers, und `create_share`/`delete_share`
+      operieren im Admin-Namespace bei gleichem relativen Pfad. Fix:
+      `uid_owner` aus der Payload parsen und bei `!= target_user`
+      verwerfen.
+- [x] **L15-W4 (Korrektheit, minor):** Chunked-Upload kann Mid-File-Chunks
+      < 5 MiB emittieren: `file.read(&mut buffer)` (`webdav.rs:409`) ist
+      nicht garantiert volle 10 MiB (Short Read) → Nextcloud lehnt Chunks
+      außer dem letzten unter 5 MiB ab, oder die MOVE-Assembly weicht von
+      `OC-Total-Length` ab. Fix: Puffer in Schleife füllen
+      (`while filled < len && read != 0`).
+- [x] **L15-W5 (Datenverlust-Risiko, minor):** TOCTOU bei `overwrite=false`:
+      `webdav_upload_file` (`commands.rs:650-660`) prüft `exists()`, dann
+      PUT ohne `Overwrite`-Header (`webdav.rs:331-344`). Eine zwischen-
+      zeitlich angelegte Datei wird still überschrieben, obwohl der Nutzer
+      nicht überschreiben wollte. Fix: `Overwrite: F` auf dem PUT (und dem
+      Chunk-MOVE) senden; 412 → `AppError::TargetExists` (wie `rename_as`).
+- [x] **L15-W6 (Korrektheit, minor):** `list_users` (`ocs.rs:113`) liefert
+      bei überlappenden Seiten doppelte Benutzer-IDs: `all.extend(users)`
+      hängt jede Seite an, obwohl `seen` dedupliziert — bei Nutzer-
+      Erzeugung/Löschung mitten in der Pagination (Offset verschiebt sich)
+      erscheinen IDs doppelt; `list_groups` (`ocs.rs:302-308`) dedupliziert
+      korrekt. Fix: nur pushen, wenn `seen.insert(...)` true liefert.
+- [x] **L15-W7 (Robustheit, minor):** PROPFIND-Parser verwirft CDATA-Werte:
+      `webdav.rs:960` behandelt nur `Event::Text`; quick_xml emittiert
+      CDATA als `Event::CData` → `<d:getetag><![CDATA[…]]></d:getetag>`
+      ergibt leere etag/content-type (Nextcloud emittiert aktuell kein
+      CDATA, Proxys schon). Fix: `Event::CData` (+`GeneralRef`) mit
+      behandeln.
+- [x] **L15-W8 (Robustheit, minor):** Eine korrupte Cache-Datei bricht den
+      Offline-Fallback dauerhaft: `save_listing`/`save_quota` (`cache.rs:86-108`)
+      schreiben nicht-atomar (`std::fs::write`); ein Crash mitten im
+      Schreiben → `load_listing` liefert `AppError::Parse`, `webdav_list`
+      propagiert per `?` — der Offline-Fallback fängt nur `is_network()`
+      → jeder Offline-Listing wird zum harten Fehler statt „kein Cache".
+      Fix: Temp + `rename`; `Parse`-Fehler in `load_*` als `Ok(None)`
+      behandeln.
+- [x] **L15-W9 (Wartung, minor):** Cache-Keys nicht versionstabil:
+      `cache.rs:32-36` nutzt `DefaultHasher` — keine Stabilitätsgarantie
+      über Rust-Releases → nach einem App-Update sind alle gecachten
+      Listings/Quotas unerreichbar (verwaiste Dateien zählen bis zur
+      Eviction gegen `MAX_CACHE_ENTRIES`). Fix: stabiler Hash (fix-key
+      SipHasher) oder sanitized scope+namespace direkt als Dateiname.
+
+**Frontend (`src/`) — neue Befunde:**
+
+- [x] **L15-F1 (Bug, mittel):** Doppelter Submit in Dialogen:
+      `md-filled-button`/`md-outlined-button` in
+      `<form @submit.prevent="createFolder">` (`FileExplorer.vue:1206-1252`)
+      sind form-assoziierte Submitter (mixinFormSubmitter → `requestSubmit()`);
+      der Klick auf „Create" feuert `createFolder()` **zweimal** (Click +
+      Submit) → Erfolgs-Toast und direkt danach „already exists"-Fehler.
+      `doRename` (Z. 1248) genauso. `LoginModal` ist durch den
+      `submitting`-Guard sicher. Fix: `type="button"` auf den Buttons oder
+      synchroner `busy`-Guard.
+- [x] **L15-F2 (UX, mittel):** Stale Suchergebnisse nach Navigation:
+      `open()` (`FileExplorer.vue:796`) leert die Suche, aber
+      Breadcrumb-Klicks (`files.navigate(crumb.path)`) und `goBack()`
+      nicht — `displayEntries` zeigt weiter die alten `searchResults`,
+      während Pfad/Breadcrumbs gewechselt haben (Liste widerspricht der
+      Breadcrumb; „no results" kann für einen nicht-leeren Ordner
+      erscheinen). Fix: Suche in `navigate()`/`goBack`/Breadcrumb leeren
+      oder `displayEntries` gegen Pfadwechsel absichern.
+- [x] **L15-F3 (Race, mittel):** `selectUser` ohne Sequenz-Guard
+      (`AdminPanel.vue:230-245`): schneller Klick auf A (langsam) dann B
+      (schnell) → A's veraltete `adminGetUser`-Antwort überschreibt
+      `selected`, Liste markiert aber B. Fix: Request-Zähler (wie
+      `files.refreshSeq`), out-of-order-Antworten verwerfen.
+- [x] **L15-F4 (UX, minor):** Transfer-Banner bleibt nach Fehlern stehen:
+      `files.clearTransfer()` (`FileExplorer.vue:138-197, 253-285`) wird
+      nur im Erfolgszweig gerufen; bei abgebrochenem Upload
+      (target_exists abgelehnt) oder Netzwerkfehler bleibt `files.transfer`
+      mit letztem Wert und der Fortschrittsbalken sichtbar. Fix:
+      `clearTransfer()` in `finally`.
+- [x] **L15-F5 (Validierung, minor):** Rename ohne die mkdir-Validierung:
+      `createFolder` (`FileExplorer.vue:410`) lehnt leer, `.`, `..`, `/`,
+      `\` ab; `doRename` (`FileExplorer.vue:429-452`) akzeptiert jeden
+      nicht-leeren Namen → Rename auf `foo/bar`/`..` erzeugt kaputte Pfade
+      und die `selected`-Umschreibung (Z. 440-444) rechnet ein falsches
+      `newPath`. Fix: gleiche Validierung in `doRename` anwenden.
+- [x] **L15-F6 (Perf, minor):** Refresh nach **jedem** Einzel-Upload:
+      `uploadFile()` ruft `await refresh()` pro Datei (`stores/files.ts:219-232`);
+      `uploadFiles()` (`FileExplorer.vue:369-398`) lädt Batches sequenziell →
+      N Dateien = N komplette PROPFINDs + N `loadAllShares`/`loadThumb`
+      (via `entries`-Watcher). Fix: einmal nach dem Batch refreshen.
+- [x] **L15-F7 (UX, minor):** `kbdIndex`-Navigation weicht in Split-View bei
+      aktiver Suche ab: der Keydown navigiert `sortedEntries` über
+      `files.displayEntries`, die Split-View links rendert aber `files.entries`
+      (`FileExplorer.vue:324-357, 1051-1067`) → Markierung und per Enter
+      geöffneter Eintrag differieren. Nach Delete wird `kbdIndex` nie
+      nachjustiert (Fokus springt auf verschobene Zeile). Fix: einheitlich
+      `displayEntries` in der Split-View + `kbdIndex` nach Löschen
+      klemmen.
+- [x] **L15-F8 (Korrektheit, minor):** `pairOf` (`stores/files.ts:17-32`)
+      tauscht **jedes** Segment, nicht nur das Top-Level-Namespace-
+      Segment: ein echter Benutzerordner namens `resources`/`parts` unter
+      z. B. `/Photos/resources/x` wird falsch zu `/Photos/parts/x`
+      gepaart → Split-View auf Nicht-Virtual-Inhalten. Fix: nur auf
+      `segments[1]` (Tiefe 1) tauschen.
+- [x] **L15-F9 (Lebenszyklus, minor):** `searchTimer` wird beim Unmount
+      nicht geleert (`FileExplorer.vue:44, 85-95, 744-746`): bei
+      Tab-Wechsel (`v-if`-Zerstörung) feuert ein hängender 300-ms-Timer
+      nach dem Unmount `runSearch` → `files.searchFiles` auf totem
+      Component → möglicher Geister-Fehler-Toast. Fix:
+      `if (searchTimer) clearTimeout(searchTimer)` in `onUnmounted`.
+- [x] **L15-F10 (Race, minor):** `accounts.ts load()` ohne Sequenz-Guard
+      (`stores/accounts.ts:29-42`): load wird aus Mount, `accounts-changed`,
+      nach add/register/switchTo ausgelöst; zwei parallele loads können
+      out-of-order fertig werden → älterer Snapshot (und `loadStorage` mit
+      stale `active`) überschreibt neueren. Files-/Sync-Stores nutzen
+      `seq`-Zähler, accounts nicht. Fix: gleichen Guard ergänzen.
+
+**Bestätigt / weiter offen (keine neuen Befunde):**
+- K1/K2 (KMP-Build) bei HEAD **weiterhin kaputt** — `cd kmp && ./gradlew
+  :shared:assembleDebug :shared:testDebugUnitTest` failt erneut an
+  `SettingsStore.kt` (unresolved datastore, 30+ Fehler), s. Lauf 14.
+- K3, K6, K8, K9 (KMP) per Code-Inspektion unverändert offen; K4/K5
+  (README-iOS-Targets/commonMain) sind inzwischen erledigt (s. u.).
+- L12-N1 (AdminPanel-Pagination tot) von der Frontend-Prüfung **bestätigt**
+  (`AdminPanel.vue:175-195` ruft `adminListUsers(query)` ohne limit/offset,
+  `hasMore` nie gesetzt, „Load more" unerreichbar); L12-N4 (doppelte
+  Fehleranzeige bei Suche) ebenfalls bestätigt (`files.ts:167-169` +
+  `FileExplorer.vue:97-103`). L12-N2/N3/N5/N6 unverändert.
+  → alle sechs Punkte am 2026-08-22 erledigt (#225–#230, s. Fix-Lauf oben).
+- I1-5/I1-6/I1-10 (iOS) sind mit dem Merge von Issue #255 (PR #263)
+  **obsolet** — der Swift-iOS-Port `ios/` wurde entfernt (s. oben).
+
+Keine neuen Befunde in `commands.rs`, `updater.rs`, `accounts.rs`,
+`state.rs`, `lib.rs` über die oben genannten Punkte hinaus; Workflows
+wurden nicht verändert.
+
+**GitHub-Issues (Schritt 6, nur lokale Quellen — keine gh/API-Aufrufe):**
+Der Branch `opencode/dispatch-4caa20-20260820124927` → PR #249 (`d79eb98`,
+HEAD) belegt den Lauf-14-Review (K1–K9). Für die KMP-Folgearbeit liegen
+lokal **Fix-Branches ohne Merge nach main**: `opencode/issue245`
+(`35671ae` „KMP build fixed; K1–K9 resolved, tests green" — KMP-Config,
+`ListCache.kt`, `AdminScreen/ViewModel`, `FilesViewModel`, Doku),
+`opencode/issue248` (`6785ab8` „Fixed KMP build (K1/K2/K4); K3 bleibt
+offen"), `opencode/issue250` (`e16cddb` „Fixed K1+K2: datastore/xpp3"),
+`opencode/issue251` (`abb6015` „K4/K5 via kmp/README.md"), `opencode/issue252`
+(`0995756` „K6/K9: debounced admin search + Suchpflicht"),
+`opencode/issue253` (`435e2ea` „K7: downloadAndOpen targetUser"),
+`opencode/issue254` (`b5b6861` „K8: cache eviction") und
+`opencode/issue255` (`080649f` „iOS client removed; KMP replaces it" —
+löscht `ios/` und das `ios.yml`-Issue-Template). Keiner dieser Commits ist
+Ancestor von main (`merge-base --is-ancestor` = NOT MERGED) → die KMP-
+Befunde sind trotz vorhandener Fix-Arbeit **auf main ungelöst**; K1–K9
+bleiben offen, bis die zugehörigen PRs gemergt sind. `opencode/issue255`
+(„iOS entfernen") wurde mit **PR #263 gemergt** — die Entscheidung ist
+damit gefallen: der iOS-Test-Port ist entfernt, `kmp/` ersetzt ihn.
+
+Verifikation dieses Laufs (frisch ausgeführt, HEAD `d79eb98`):
+`cargo test --manifest-path src-tauri/Cargo.toml` → **83 passed / 0 failed**
+(Tauri-Linux-Systemdeps vorhanden; `PKG_CONFIG_PATH` gesetzt); `cargo fmt
+--check` grün; `cargo clippy --all-targets -- -D warnings` grün; `npm run
+build` (vue-tsc + vite) grün (nur die bekannte Chunk-Size-Warnung, L12-N6);
+**KMP-Build kaputt** (K1/K2, s. o.).
+
+
 ### Fix-Lauf 2026-08-22 — GitHub-Issues #225–#230, #243, #255-Rest, #267 (abgeschlossen)
 
 Aus `todo.md` verschoben (Lauf 16, 2026-08-22): alle neun Punkte waren
