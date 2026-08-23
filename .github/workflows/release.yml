@@ -84,7 +84,9 @@ jobs:
           EOF
           )
 
-          bash scripts/opencode-with-fallback.sh --prompt "$PROMPT"
+          # The prompt is passed as a positional message — `opencode run`
+          # (1.18.x) has no --prompt flag.
+          bash scripts/opencode-with-fallback.sh "$PROMPT"
 
       - name: Read release notes
         id: read
