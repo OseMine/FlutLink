@@ -28,7 +28,9 @@ import platform.UIKit.UIViewController
  * follow-up work — until then this hosts a branded placeholder so the
  * framework, Xcode shell and CI pipeline are exercised end to end.
  */
-fun MainViewController(): UIViewController = androidx.compose.ui.window.ComposeUIViewController {
+fun MainViewController(): UIViewController = androidx.compose.ui.window.ComposeUIViewController(
+    configure = { enforceStrictPlistSanityCheck = false }
+) {
     IosPlaceholderApp()
 }
 
