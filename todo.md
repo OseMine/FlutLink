@@ -49,12 +49,13 @@ res/values-Platzierung, okio in commonMain, `Char.code`); Details im Archiv
 
 Neu offen aus diesem Lauf:
 
-- [ ] Push bestätigen: `kmp.yml` (build/test/jvm/ios/lint) sowie
+- [x] Push bestätigen: `kmp.yml` (build/test/jvm/ios/lint) sowie
       `build.yml`/`release.yml` (APK/IPA-Artefakte) nach dem AGP-9-Umbau
-      grün bekommen. Lokal verifiziert: `testAndroidHostTest` (30 Tests),
-      `compileKotlinJvm`, `compileKotlinIosArm64`,
-      `processDebugResources`; der APK-Dex-Schritt überschreitet das
-      Codespace-RAM-Limit und wird autoritativ von CI geprüft.
+      grün bekommen. → erledigt 2026-08-23: alle Workflows auf HEAD
+      (`22f36ed`) grün — kmp.yml ✓, build.yml inkl. **iOS-IPA-Job
+      (erstmals seit dem Fold-in)** und Android-APK ✓, Lint ✓; lokal
+      vorab verifiziert waren 30/30 KMP-Tests, compileKotlinJvm,
+      compileKotlinIosArm64 und processDebugResources.
 - [ ] Issues #293/#317/#318 nach dem Push mit Commit-Referenz schließen.
 - [ ] Desktop-JVM: Token-Speicher härten — OS-Keyring-Anbindung statt
       600er-Datei unter `$XDG_STATE_HOME/flutlink` (siehe
