@@ -24,4 +24,8 @@ return [
         ['name' => 'Parts#create', 'url' => '/api/v1/parts', 'verb' => 'POST'],
         ['name' => 'ProjectFolder#ensure', 'url' => '/api/v1/project-folder', 'verb' => 'POST'],
     ],
+    'routes' => [
+        ['name' => 'Ios#index', 'url' => '/ios', 'verb' => 'GET'],
+        ['name' => 'Ios#source', 'url' => '/ios/{source}', 'verb' => 'GET'],
+    ],
 ];

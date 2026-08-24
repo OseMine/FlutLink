@@ -236,3 +236,4 @@ if [ "$SKIP_VERIFY" != 1 ]; then
 fi
 
 echo "Done. FlutLink can now connect to this server as a FlutCloud instance."
+echo 'Optional: to also serve the iOS AltStore sources at <server>/ios/{pal,classic}, add the web-server rewrite from flutcloud-app/README.md.'

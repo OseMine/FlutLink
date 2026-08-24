@@ -32,6 +32,7 @@ only needed for the `OCA\FlutCloud\` namespace (PSR-4 → `lib/`).
 | Virtual links | Read-only `resources/` folders, managed via the links API |
 | Writable parts | Write-enabled `parts/` folders, managed via the parts API |
 | Project folder | `/FlutLink/FlutCloud` in the admin home with a bilingual README |
+| iOS AltStore sources | `GET /apps/flutcloud/ios/{pal,classic}` — always redirects to the source JSON of the latest FlutLink GitHub release |
 
 ## API
 
@@ -49,6 +50,52 @@ authenticated user (except the capabilities endpoint, which is public):
 | `POST` | `/project-folder` | Ensure `/FlutLink/FlutCloud` (admin only) |
 
 Link/part entries are returned as `{ name, path, readOnly }`.
+
+## iOS / AltStore sources
+
+Public endpoints that hand out the latest FlutLink AltStore source JSONs for
+iOS sideloading. No authentication is required, so they can be added in
+AltStore directly under *Sources → +*:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/apps/flutcloud/ios` | Lists both sources with their current target URLs |
+| `GET` | `/apps/flutcloud/ios/pal` | 302 to the latest AltStore **PAL** source JSON |
+| `GET` | `/apps/flutcloud/ios/classic` | 302 to the latest AltStore **Classic** source JSON |
+
+The targets are resolved on demand: the app queries
+`https://api.github.com/repos/OseMine/FlutLink/releases/latest` (cached for
+10 minutes) and redirects to the `pal.json` / `classic.json` asset of that
+release. If GitHub is unreachable or rate-limits the server, the endpoints
+fall back to the copies committed to `main`, so they keep working.
+
+### Short URLs (`/ios/pal`, `/ios/classic`)
+
+Nextcloud only serves app routes below `/apps/flutcloud/…`. To answer at the
+server root as well, rewrite those two paths internally to the app route:
+
+nginx (server block):
+
+```nginx
+location ~ ^/ios/(pal|classic)$ {
+    rewrite ^ /index.php/apps/flutcloud/ios/$1 last;
+}
+```
+
+Apache (vhost):
+
+```apache
+RewriteEngine On
+RewriteRule ^/ios/(pal|classic)$ /index.php/apps/flutcloud/ios/$1 [PT,L]
+```
+
+Apache (`.htaccess` in the Nextcloud root; note that Nextcloud may regenerate
+this file during upgrades):
+
+```apache
+RewriteEngine On
+RewriteRule ^ios/(pal|classic)$ index.php/apps/flutcloud/ios/$1 [END]
+```
 
 ## Installation
 
@@ -109,6 +156,7 @@ wird nur für den `OCA\FlutCloud`-Namespace gebraucht (PSR-4 → `lib/`).
 | Virtuelle Links | Schreibgeschützte `resources/`-Ordner, verwaltet über die Links-API |
 | Schreibbare Parts | Beschreibbare `parts/`-Ordner, verwaltet über die Parts-API |
 | Projektordner | `/FlutLink/FlutCloud` im Admin-Home mit zweisprachiger README |
+| iOS-AltStore-Quellen | `GET /apps/flutcloud/ios/{pal,classic}` — leitet immer zur Quell-JSON des neuesten FlutLink-GitHub-Releases weiter |
 
 ## API
 
@@ -127,6 +175,53 @@ ist):
 | `POST` | `/project-folder` | `/FlutLink/FlutCloud` sicherstellen (nur Admin) |
 
 Link-/Part-Einträge werden als `{ name, path, readOnly }` zurückgegeben.
+
+## iOS-/AltStore-Quellen
+
+Öffentliche Endpoints, die die neuesten FlutLink-AltStore-Quell-JSONs fürs
+iOS-Sideloading ausliefern. Sie brauchen keine Authentifizierung und lassen
+sich in AltStore direkt unter *Quellen → +* hinzufügen:
+
+| Methode | Pfad | Beschreibung |
+| --- | --- | --- |
+| `GET` | `/apps/flutcloud/ios` | Listet beide Quellen mit ihren aktuellen Ziel-URLs |
+| `GET` | `/apps/flutcloud/ios/pal` | 302 zur neuesten AltStore-**PAL**-Quell-JSON |
+| `GET` | `/apps/flutcloud/ios/classic` | 302 zur neuesten AltStore-**Classic**-Quell-JSON |
+
+Die Ziele werden bei Bedarf aufgelöst: Die App fragt
+`https://api.github.com/repos/OseMine/FlutLink/releases/latest` ab (10 Minuten
+gecacht) und leitet zum `pal.json`/`classic.json`-Asset dieses Releases weiter.
+Ist GitHub nicht erreichbar oder drosselt es den Server, greifen die Endpoints
+auf die in `main` eingecheckten Kopien zurück und bleiben so nutzbar.
+
+### Kurze URLs (`/ios/pal`, `/ios/classic`)
+
+Nextcloud bedient App-Routen nur unterhalb von `/apps/flutcloud/…`. Damit sie
+auch an der Serverwurzel antworten, werden diese beiden Pfade intern auf die
+App-Route umgeschrieben:
+
+nginx (Server-Block):
+
+```nginx
+location ~ ^/ios/(pal|classic)$ {
+    rewrite ^ /index.php/apps/flutcloud/ios/$1 last;
+}
+```
+
+Apache (Vhost):
+
+```apache
+RewriteEngine On
+RewriteRule ^/ios/(pal|classic)$ /index.php/apps/flutcloud/ios/$1 [PT,L]
+```
+
+Apache (`.htaccess` im Nextcloud-Stammverzeichnis; Hinweis: Nextcloud kann
+diese Datei bei Upgrades neu erzeugen):
+
+```apache
+RewriteEngine On
+RewriteRule ^ios/(pal|classic)$ index.php/apps/flutcloud/ios/$1 [END]
+```
 
 ## Installation
 

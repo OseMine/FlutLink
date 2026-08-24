@@ -18,7 +18,7 @@ class Application extends App implements IBootstrap
      * Features announced via the `flutcloud` capability and the ping endpoint.
      * Add new features here so client feature detection stays in sync.
      */
-    public const FEATURES = ['virtual-links', 'project-folder'];
+    public const FEATURES = ['virtual-links', 'project-folder', 'altstore-sources'];
 
     public function __construct(array $urlParams = [])
     {

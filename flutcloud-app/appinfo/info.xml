@@ -14,10 +14,12 @@
         - Ping endpoint (verified by the FlutLink client before connecting)
         - Virtual links (read-only `resources` folders) and writable `parts`
         - Shared project folder `/FlutLink/FlutCloud` for the OperationFlut team
+        - iOS AltStore sources: /apps/flutcloud/ios/pal and /ios/classic always
+          redirect to the source JSON of the latest FlutLink GitHub release
 
         FlutLink connects exclusively to servers that run this app.
     </description>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <licence>agpl</licence>
     <author mail="marcantemusik@gmail.com" homepage="https://github.com/OseMine/FlutLink">OperationFlut</author>
     <namespace>FlutCloud</namespace>
