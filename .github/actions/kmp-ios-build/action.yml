@@ -47,7 +47,7 @@ runs:
       run: |
         chmod +x gradlew
         ./gradlew :shared:linkReleaseFrameworkIosArm64 --console=plain \
-          "-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8"
+          "-Dorg.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8 -XX:+UseParallelGC"
 
     - name: Archive app (unsigned)
       shell: bash
