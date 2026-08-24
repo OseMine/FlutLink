@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink
 
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeUIViewController
 import com.flutcloud.flutlink.core.AppConfig
 import com.flutcloud.flutlink.core.IosPlatform
@@ -16,7 +17,14 @@ import platform.UIKit.UIViewController
  * for UILaunchScreen/UIApplicationSceneManifest in Info.plist — the Xcode
  * shell generates the plist from INFOPLIST_KEY_* build settings, which the
  * check does not recognize (false-positive crash at launch).
+ *
+ * `parallelRendering = false` opts back out of CMP 1.11's default-on
+ * concurrent rendering: on iOS 26 devices it aborts inside the first
+ * Core Animation commit (uncaught exception while drawing the initial
+ * frame; cf. YouTrack CMP-9455 / CMP-10231). Remove once upstream ships a
+ * version with the iOS 26 rendering crashes fixed.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 fun MainViewController(): UIViewController {
     val platform = IosPlatform()
     val version = NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String
@@ -31,7 +39,10 @@ fun MainViewController(): UIViewController {
         platform = platform
     )
     val controller = ComposeUIViewController(
-        configure = { enforceStrictPlistSanityCheck = false }
+        configure = {
+            enforceStrictPlistSanityCheck = false
+            parallelRendering = false
+        }
     ) {
         FlutLinkRoot(container)
     }

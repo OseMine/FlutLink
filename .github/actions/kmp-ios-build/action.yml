@@ -81,6 +81,24 @@ runs:
         cd build
         zip -qry FlutLink-ios-unsigned.ipa Payload
 
+    - name: Package dSYMs
+      shell: bash
+      working-directory: kmp/iosApp
+      run: |
+        mkdir -p build/dSYMs
+        # Signing is disabled, but dwarf-with-dsym dSYMs are still generated
+        # into the archive; they let users symbolicate .ips crash reports.
+        cp -R "$RUNNER_TEMP"/FlutLink.xcarchive/dSYMs/*.dSYM build/dSYMs/ || true
+        cd build && zip -qry FlutLink-ios-dsyms.zip dSYMs
+
+    - name: Upload dSYMs
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ${{ inputs.artifact-name }}-dsyms
+        path: kmp/iosApp/build/FlutLink-ios-dsyms.zip
+        if-no-files-found: warn
+        retention-days: 14
+
     - name: Verify Info.plist version
       shell: bash
       working-directory: kmp/iosApp

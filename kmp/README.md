@@ -121,8 +121,10 @@ Server.
 - `.github/workflows/kmp.yml` — Build, Unit-Tests, JVM-Target und Lint auf
   Linux; iOS-Kompilierung der beiden Apple-Targets auf macOS.
 - `.github/workflows/build.yml` — bei Push: unsigniertes Debug-APK
-  (`.github/actions/kmp-android-build`) + unsignierte IPA
-  (`.github/actions/kmp-ios-build`) als Artefakte.
+  (`.github/actions/kmp-android-build`) + unsignierte IPA und dSYM-Archiv
+  (`.github/actions/kmp-ios-build`) als Artefakte; die dSYMs dienen der
+  Symbolifizierung von `.ips`-Crashreports (mit `atos` gegen den passenden
+  Build).
 - `.github/workflows/release.yml` — signiertes Release-APK (Secrets
   `ANDROID_KEYSTORE*`) + unsignierte IPA, beide werden an das GitHub-Release
   angehängt; anschließend aktualisiert der `altstore`-Job die
