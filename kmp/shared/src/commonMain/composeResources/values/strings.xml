@@ -150,11 +150,11 @@
     <string name="feature_count">%1$d features</string>
     <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>
-    <string name="theme_hint">Pick a FlutCloud brand theme or follow the system.</string>
-    <string name="theme_operationflut">OperationFlut</string>
+    <string name="theme_hint">Deep Midnight, Bright Daylight or follow how your device is configured.</string>
     <string name="theme_midnight">Deep Midnight</string>
+    <string name="theme_daylight">Bright Daylight</string>
     <string name="theme_system">System</string>
-    <string name="theme_system_note">System follows your device (FlutLink is dark-first).</string>
+    <string name="theme_system_note">System follows how your device is configured.</string>
     <string name="accent_color">Accent color</string>
     <string name="accent_color_hint">A Material-You-style accent: a seed hue derives the whole primary palette.</string>
     <string name="accent_reset">Reset</string>

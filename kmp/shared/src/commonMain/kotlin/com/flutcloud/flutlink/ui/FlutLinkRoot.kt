@@ -47,7 +47,8 @@ fun FlutLinkRoot(container: AppContainer) {
     val accentHue by container.settingsStore.accentHue.collectAsState(initial = null)
 
     FlutLinkTheme(
-        themePreference = themePreference,
+        // Android keeps the device theme; iOS/desktop expose the full picker.
+        themePreference = if (container.keepsDeviceTheme) "system" else themePreference,
         // Only honoured where dynamic color exists (Android 12+).
         dynamicColor = if (container.supportsDynamicColor) dynamicColor else false,
         accentHue = accentHue

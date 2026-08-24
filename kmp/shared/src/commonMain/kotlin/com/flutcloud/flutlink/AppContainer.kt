@@ -51,4 +51,7 @@ class AppContainer(
 
     /** Material You dynamic color available on this device. */
     val supportsDynamicColor: Boolean get() = platform.supportsDynamicColor
+
+    /** Device theme is mandatory (theme picker hidden, OS setting decides). */
+    val keepsDeviceTheme: Boolean get() = platform.keepsDeviceTheme
 }

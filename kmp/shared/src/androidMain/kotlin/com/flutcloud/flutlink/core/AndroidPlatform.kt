@@ -109,6 +109,8 @@ class AndroidPlatform(context: Context) : Platform {
 
     override val updatesEnabled: Boolean get() = true
 
+    override val keepsDeviceTheme: Boolean get() = true
+
     override val supportsDynamicColor: Boolean
         get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 

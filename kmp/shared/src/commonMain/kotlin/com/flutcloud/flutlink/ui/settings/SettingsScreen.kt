@@ -86,9 +86,9 @@ import com.flutcloud.flutlink.resources.settings
 import com.flutcloud.flutlink.resources.sign_out
 import com.flutcloud.flutlink.resources.switch_account
 import com.flutcloud.flutlink.resources.theme
+import com.flutcloud.flutlink.resources.theme_daylight
 import com.flutcloud.flutlink.resources.theme_hint
 import com.flutcloud.flutlink.resources.theme_midnight
-import com.flutcloud.flutlink.resources.theme_operationflut
 import com.flutcloud.flutlink.resources.theme_system
 import com.flutcloud.flutlink.resources.theme_system_note
 import com.flutcloud.flutlink.resources.update
@@ -174,36 +174,41 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-            // Theme
+            // Appearance. Android keeps the device theme, so the picker is
+            // hidden there and the OS dark/light setting always decides.
             SectionHeader(stringResource(Res.string.appearance))
-            ListItem(
-                headlineContent = { Text(stringResource(Res.string.theme)) },
-                supportingContent = { Text(stringResource(Res.string.theme_hint)) },
-                leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
-            )
-            val themeOptions = listOf(
-                "operationflut" to Res.string.theme_operationflut,
-                "midnight" to Res.string.theme_midnight,
-                "system" to Res.string.theme_system
-            )
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                themeOptions.forEachIndexed { index, (value, labelRes) ->
-                    SegmentedButton(
-                        selected = themePreference == value,
-                        onClick = { vm.setThemePreference(value) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size)
-                    ) {
-                        Text(stringResource(labelRes))
+            val effectiveThemePreference =
+                if (container.keepsDeviceTheme) "system" else themePreference
+            if (!container.keepsDeviceTheme) {
+                ListItem(
+                    headlineContent = { Text(stringResource(Res.string.theme)) },
+                    supportingContent = { Text(stringResource(Res.string.theme_hint)) },
+                    leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
+                )
+                val themeOptions = listOf(
+                    "midnight" to Res.string.theme_midnight,
+                    "light" to Res.string.theme_daylight,
+                    "system" to Res.string.theme_system
+                )
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    themeOptions.forEachIndexed { index, (value, labelRes) ->
+                        SegmentedButton(
+                            selected = effectiveThemePreference == value,
+                            onClick = { vm.setThemePreference(value) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size)
+                        ) {
+                            Text(stringResource(labelRes))
+                        }
                     }
                 }
+                Text(
+                    stringResource(Res.string.theme_system_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
-            Text(
-                stringResource(Res.string.theme_system_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-            val accentDefault = defaultAccentHue(themePreference, isSystemInDarkTheme())
+            val accentDefault = defaultAccentHue(effectiveThemePreference, isSystemInDarkTheme())
             val accentValue = accentHue ?: accentDefault
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                 Row(

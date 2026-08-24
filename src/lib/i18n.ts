@@ -80,11 +80,11 @@ const dict: Record<Lang, Record<string, string>> = {
     rustBackend: "Rust backend",
     language: "Language",
     theme: "Theme",
-    themeOperationflut: "OperationFlut",
     themeMidnight: "Deep Midnight",
+    themeLight: "Bright Daylight",
     themeSystem: "System Default",
     systemThemeNote:
-      "System Default follows your operating system (FlutLink is dark-first).",
+      "System Default follows how your device is configured.",
     accentColor: "Accent color",
     accentColorHint:
       "A Material-You-style accent: a seed hue derives the whole primary palette.",
@@ -388,11 +388,11 @@ const dict: Record<Lang, Record<string, string>> = {
     rustBackend: "Rust-Backend",
     language: "Sprache",
     theme: "Design",
-    themeOperationflut: "OperationFlut",
     themeMidnight: "Deep Midnight",
+    themeLight: "Bright Daylight",
     themeSystem: "System-Standard",
     systemThemeNote:
-      "System-Standard folgt deinem Betriebssystem (FlutLink ist dunkel-orientiert).",
+      "System-Standard folgt der Konfiguration deines Geräts.",
     accentColor: "Akzentfarbe",
     accentColorHint:
       "Ein Akzent im Material-You-Stil: Ein Farbton leitet die gesamte Primärpalette ab.",

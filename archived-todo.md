@@ -3,6 +3,30 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-24, Issue „UI-Styles: Deep Midnight / Bright Daylight / System“)
+
+- [x] **Theme-Auswahl auf Deep Midnight (Dark), Bright Daylight (Light) und
+      System reduziert; Android folgt immer dem Gerät.**
+      → erledigt (2026-08-24): OperationFlut ist als wählbares Design
+      entfallen.
+      - Desktop (`src/`): `Theme`-Typ ist jetzt `midnight | light | system`
+        mit Migration alter Werte (`operationflut`/`dark` → `midnight`);
+        `[data-theme="operationflut"]` aus `style.css` entfernt;
+        `SettingsModal.vue` bietet Deep Midnight / Bright Daylight / System;
+        i18n-Schlüssel `themeLight` (+ de) ersetzen `themeOperationflut`,
+        `systemThemeNote` neutral formuliert.
+      - KMP (`kmp/`): `FlutResolvedTheme` ohne OperationFlut
+        (Legacy-Mappings bleiben), `operationflutScheme`/Surfaces entfernt;
+        neues `Platform.keepsDeviceTheme` (true nur auf Android) erzwingt
+        `"system"` in `FlutLinkRoot` und blendet den Theme-Picker in
+        `SettingsScreen` aus (Akzentfarbe/Dynamic Color bleiben);
+        Strings zweisprachig aktualisiert (`theme_daylight`, Hinweise).
+      - Verifikation: `cargo fmt --all --check` grün; `cargo clippy
+        --all-targets -- -D warnings` grün; `cargo test` → **107 passed /
+        0 failed**; `npm run build` grün; `./gradlew :shared:build`
+        BUILD SUCCESSFUL.
+
+
 ## Erledigt (2026-08-24, Lauf 17 abgehakt)
 
 - [x] **`SettingsStore` nach `commonMain` heben** (DataStore Preferences
