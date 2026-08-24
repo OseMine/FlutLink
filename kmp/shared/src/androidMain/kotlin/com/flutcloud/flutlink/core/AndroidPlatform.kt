@@ -116,6 +116,7 @@ class AndroidPlatform(context: Context) : Platform {
     override suspend fun downloadUpdate(url: String, destDir: Path): Path {
         return try {
             withContext(Dispatchers.IO) {
+                File(destDir.toString()).mkdirs()
                 val target = destDir.resolve("flutlink-update.apk")
                 val response = updateClient.get(url)
                 if (!response.status.isSuccess()) {

@@ -6,6 +6,7 @@ import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.core.AccountMeta
 import com.flutcloud.flutlink.data.AppUpdate
 import com.flutcloud.flutlink.data.NetworkException
+import com.flutcloud.flutlink.data.downloadAndInstall
 import com.flutcloud.flutlink.data.dto.AppInfoDto
 import com.flutcloud.flutlink.ui.UiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,11 +129,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _installingUpdate.value = true
             try {
-                val apk = container.platform.downloadUpdate(
-                    target.apkUrl,
-                    container.platform.cacheDir().resolve("updates", normalize = false)
-                )
-                container.platform.installUpdate(apk)
+                container.platform.downloadAndInstall(target)
                 _update.value = null
             } catch (e: NetworkException) {
                 val detail = e.cause?.message
