@@ -13,10 +13,11 @@ name: Release
 #   5. build-and-release    desktop installers (Win MSI/NSIS, macOS dmg,
 #                           Linux deb/AppImage) uploaded into that draft
 #   6. android / ios        signed APK + unsigned IPA artifacts
-#   7. virustotal-mobile    scans APK/IPA (blocks on detections)
-#   8. upload-mobile        attaches APK + IPA to the draft
-#   9. altstore             updates AltStore source JSONs on main, attaches them
-#  10. publish-release      flips the draft public once every asset is in
+#   7. flutcloud-app        Nextcloud server app packaged as flutcloud-app.zip
+#   8. virustotal-mobile    scans APK/IPA (blocks on detections)
+#   9. upload-mobile        attaches APK + IPA + server-app zip to the draft
+#  10. altstore             updates AltStore source JSONs on main, attaches them
+#  11. publish-release      flips the draft public once every asset is in
 
 on:
   push:
@@ -311,6 +312,34 @@ jobs:
           build-number: ${{ github.run_number }}
           artifact-name: flutlink-ios-release
 
+  flutcloud-app:
+    name: Package FlutCloud Nextcloud app
+    needs: [checks, security-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Package app folder as zip
+        shell: bash
+        run: |
+          mkdir -p dist
+          ( cd flutcloud-app && zip -qr ../dist/flutcloud-app.zip . -x '.git/*' )
+          unzip -l dist/flutcloud-app.zip
+          # The archive root must contain the Nextcloud app directly so it can
+          # be extracted into apps/flutcloud as-is.
+          unzip -l dist/flutcloud-app.zip | grep -q 'appinfo/info.xml' \
+            || { echo '::error::flutcloud-app.zip is missing appinfo/info.xml'; exit 1; }
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: flutcloud-app
+          path: dist/flutcloud-app.zip
+          if-no-files-found: error
+
   virustotal-mobile:
     name: VirusTotal scan (APK/IPA)
     needs: [android, ios]
@@ -350,7 +379,7 @@ jobs:
 
   upload-mobile:
     name: Upload mobile artifacts to release
-    needs: [build-and-release, android, ios, virustotal-mobile]
+    needs: [build-and-release, android, ios, flutcloud-app, virustotal-mobile]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
@@ -373,13 +402,19 @@ jobs:
           name: flutlink-ios-release
           path: ipa
 
+      - name: Download FlutCloud app artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: flutcloud-app
+          path: flutcloud-app-dist
+
       - name: Upload mobile artifacts to release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          gh release upload "$TAG" apk/*.apk ipa/*.ipa --clobber
+          gh release upload "$TAG" apk/*.apk ipa/*.ipa flutcloud-app-dist/*.zip --clobber
 
   altstore:
     name: Update AltStore sources (classic + PAL)
@@ -462,7 +497,7 @@ jobs:
           ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')
           echo "$ASSETS"
           missing=0
-          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "pal\.json$"; do
+          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "pal\.json$" "flutcloud-app\.zip$"; do
             if ! echo "$ASSETS" | grep -Eq "$pattern"; then
               echo "::error::Release $TAG unvollstaendig: kein Asset matcht $pattern"
               missing=1
