@@ -169,6 +169,7 @@
     <string name="accounts">Konten</string>
     <string name="flutcloud_only_note">Nur FlutCloud: Server ohne die FlutCloud-App werden abgelehnt.</string>
     <string name="sign_out">Abmelden</string>
+    <string name="built_managed_by">Gebaut &amp; verwaltet von</string>
     <string name="update_available">Update verfügbar</string>
     <string name="update_downloading_name">Lade FlutLink %1$s herunter…</string>
     <string name="update_available_text">FlutLink %1$s ist verfügbar. Jetzt herunterladen und installieren?</string>

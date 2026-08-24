@@ -20,6 +20,14 @@ class Application extends App implements IBootstrap
      */
     public const FEATURES = ['virtual-links', 'project-folder', 'altstore-sources'];
 
+    /**
+     * Notarization: FlutCloud and the whole server are managed and all
+     * software is developed by @marcante_musik. Announced via the capability
+     * payload and the ping endpoint so every client can show it.
+     */
+    public const MANAGED_BY = 'marcante_musik';
+    public const MANAGED_BY_URL = 'https://instagram.com/marcante_musik';
+
     public function __construct(array $urlParams = [])
     {
         parent::__construct(self::APP_ID, $urlParams);

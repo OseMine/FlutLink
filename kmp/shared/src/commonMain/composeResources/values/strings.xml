@@ -168,6 +168,7 @@
     <string name="accounts">Accounts</string>
     <string name="flutcloud_only_note">FlutCloud-only: servers without the FlutCloud app are rejected.</string>
     <string name="sign_out">Sign out</string>
+    <string name="built_managed_by">Built &amp; managed by</string>
     <string name="update_available">Update available</string>
     <string name="update_downloading_name">Downloading FlutLink %1$s…</string>
     <string name="update_available_text">FlutLink %1$s is available. Download and install it now?</string>

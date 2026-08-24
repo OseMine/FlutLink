@@ -176,6 +176,7 @@ const dict: Record<Lang, Record<string, string>> = {
     trayHint: "FlutLink keeps running in the system tray when you close the window.",
     cliHint: "Command line: flutlink --sync, --path <dir> or --tray.",
     aboutOperationflut: "FlutLink is part of the OperationFlut project.",
+    builtManagedBy: "Built & managed by",
     adminPanelTitle: "Admin Panel",
     adminPanelSubtitle:
       "User provisioning via the OCS API of your FlutCloud server. Only available for admin accounts.",
@@ -483,6 +484,7 @@ const dict: Record<Lang, Record<string, string>> = {
     trayHint: "FlutLink läuft beim Schließen des Fensters im System-Tray weiter.",
     cliHint: "Kommandozeile: flutlink --sync, --path <Ordner> oder --tray.",
     aboutOperationflut: "FlutLink ist Teil des OperationFlut-Projekts.",
+    builtManagedBy: "Gebaut & verwaltet von",
     adminPanelTitle: "Admin-Panel",
     adminPanelSubtitle:
       "Benutzerverwaltung über die OCS-API deines FlutCloud-Servers. Nur für Admin-Konten verfügbar.",

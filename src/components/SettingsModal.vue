@@ -10,6 +10,7 @@ import "@material/web/divider/divider.js";
 import "@material/web/slider/slider.js";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import AppLogo from "./AppLogo.vue";
 import Icon from "./Icon.vue";
 import { useAccountsStore } from "../stores/accounts";
@@ -46,6 +47,12 @@ const tab = ref<"accounts" | "admin" | "about">("accounts");
 const users = ref<string[]>([]);
 const adminLoading = ref(false);
 const adminError = ref<string | null>(null);
+
+// Notarization: the project is built and managed by @marcante_musik.
+const maintainerUrl = "https://instagram.com/marcante_musik";
+const openMaintainerProfile = () => {
+  void openUrl(maintainerUrl).catch(() => {});
+};
 
 type UpdateState =
   | "idle"
@@ -334,6 +341,16 @@ onUnmounted(() => removeEscapeCloser?.());
               <span class="text-xs text-on-surface-variant">{{ t("partOf") }}</span>
               <img src="/operationflut-logo.svg" alt="OperationFlut" class="h-4" />
             </div>
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high/40 px-3 py-2.5 text-left transition hover:bg-surface-container-highest/60"
+              @click="openMaintainerProfile"
+            >
+              <Icon name="person" :size="14" class="text-on-surface-variant" />
+              <span class="text-xs text-on-surface-variant">{{ t("builtManagedBy") }}</span>
+              <span class="text-xs font-medium text-primary-emphasis">@marcante_musik</span>
+              <Icon name="open" :size="12" class="ml-auto text-on-surface-variant" />
+            </button>
             <p class="text-xs leading-relaxed text-outline">{{ t("aboutOperationflut") }}</p>
 
             <div class="space-y-1 text-xs leading-relaxed text-outline">

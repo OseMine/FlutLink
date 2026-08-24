@@ -91,6 +91,14 @@ namespace {
         $fail('flutcloud.features fehlt oder ist kein Array.');
     }
 
+    // 2b) Notarization: managed_by / managed_by_url müssen im Payload stehen.
+    if (($capabilities['flutcloud']['managed_by'] ?? null) !== Application::MANAGED_BY) {
+        $fail('flutcloud.managed_by fehlt oder weicht von Application::MANAGED_BY ab.');
+    }
+    if (($capabilities['flutcloud']['managed_by_url'] ?? null) !== Application::MANAGED_BY_URL) {
+        $fail('flutcloud.managed_by_url fehlt oder weicht von Application::MANAGED_BY_URL ab.');
+    }
+
     // 3) register() meldet Capabilities an, damit der Endpoint sie ausliefert.
     $registration = new class implements \OCP\AppFramework\Bootstrap\IRegistrationContext {
         /** @var string[] */

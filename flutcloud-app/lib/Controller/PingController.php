@@ -34,6 +34,8 @@ final class PingController extends OcsControllerBase
             'version' => $this->appManager->getAppVersion(Application::APP_ID),
             'features' => Application::FEATURES,
             'user' => $this->userId,
+            'managed_by' => Application::MANAGED_BY,
+            'managed_by_url' => Application::MANAGED_BY_URL,
         ]);
     }
 }

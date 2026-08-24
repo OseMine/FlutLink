@@ -13,6 +13,13 @@ account is added it queries the OCS capabilities endpoint
 (`/ocs/v2.php/cloud/capabilities?format=json`) and refuses to continue unless
 the `flutcloud` capability is announced.
 
+## Attribution
+
+The whole FlutCloud app and the server are **managed** and all software is
+**developed** by [marcante_musik](https://instagram.com/marcante_musik).
+The capability payload and the ping endpoint announce this via
+`managed_by` / `managed_by_url`.
+
 ## Requirements
 
 | Requirement | Version |
@@ -41,7 +48,7 @@ authenticated user (except the capabilities endpoint, which is public):
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/ping` | App info: `{ app, name, version, features, user }` |
+| `GET` | `/ping` | App info: `{ app, name, version, features, user, managed_by, managed_by_url }` |
 | `GET` | `/links` | List virtual links (subfolders of `resources/`) |
 | `POST` | `/links` | Create a virtual link (`name` form/query param) |
 | `DELETE` | `/links/{name}` | Delete a virtual link |
@@ -137,6 +144,13 @@ ausführen. Vor jedem Konto-Login fragt der Client den OCS-Capabilities-Endpoint
 (`/ocs/v2.php/cloud/capabilities?format=json`) ab und bricht ab, wenn die
 `flutcloud`-Capability nicht angekündigt wird.
 
+## Urheberschaft
+
+Die gesamte FlutCloud-App und der Server werden von
+[marcante_musik](https://instagram.com/marcante_musik) **verwaltet**; die
+gesamte Software stammt aus ihrer/seiner **Entwicklung**. Capability-Payload
+und Ping-Endpoint kündigen dies über `managed_by` / `managed_by_url` an.
+
 ## Voraussetzungen
 
 | Voraussetzung | Version |
@@ -166,7 +180,7 @@ ist):
 
 | Methode | Pfad | Beschreibung |
 | --- | --- | --- |
-| `GET` | `/ping` | App-Info: `{ app, name, version, features, user }` |
+| `GET` | `/ping` | App-Info: `{ app, name, version, features, user, managed_by, managed_by_url }` |
 | `GET` | `/links` | Virtuelle Links auflisten (Unterordner von `resources/`) |
 | `POST` | `/links` | Virtuellen Link erstellen (`name` als Form/Query-Parameter) |
 | `DELETE` | `/links/{name}` | Virtuellen Link löschen |

@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
@@ -65,6 +66,7 @@ import com.flutcloud.flutlink.resources.account
 import com.flutcloud.flutlink.resources.account_active
 import com.flutcloud.flutlink.resources.accounts
 import com.flutcloud.flutlink.resources.appearance
+import com.flutcloud.flutlink.resources.built_managed_by
 import com.flutcloud.flutlink.resources.cancel
 import com.flutcloud.flutlink.resources.check_for_updates
 import com.flutcloud.flutlink.resources.checking
@@ -96,6 +98,10 @@ import com.flutcloud.flutlink.resources.update_downloading_name
 import com.flutcloud.flutlink.resources.updates
 import com.flutcloud.flutlink.resources.version_format
 import com.flutcloud.flutlink.resources.token_missing_accounts
+
+/** Notarization: the project is built and managed by @marcante_musik. */
+private const val MAINTAINER_HANDLE = "@marcante_musik"
+private const val MAINTAINER_URL = "https://instagram.com/marcante_musik"
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,15 +158,16 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             serverInfo?.let { info ->
                 ListItem(
                     headlineContent = { Text(info.name ?: stringResource(Res.string.flut_cloud_app)) },
-                    supportingContent = {
-                        Text(
-                            listOfNotNull(
-                                info.version,
-                                info.user,
-                                info.features?.size?.let { stringResource(Res.string.feature_count, it) }
-                            ).joinToString(" · ")
-                        )
-                    },
+                supportingContent = {
+                    Text(
+                        listOfNotNull(
+                            info.version,
+                            info.user,
+                            info.features?.size?.let { stringResource(Res.string.feature_count, it) },
+                            info.managedBy?.let { "@$it" }
+                        ).joinToString(" · ")
+                    )
+                },
                     leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                 )
             }
@@ -310,6 +317,27 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(Res.string.sign_out))
+            }
+
+            // Notarization: the project is built and managed by @marcante_musik.
+            val uriHandler = LocalUriHandler.current
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${stringResource(Res.string.built_managed_by)} $MAINTAINER_HANDLE",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { uriHandler.openUri(MAINTAINER_URL) }) {
+                    Text(MAINTAINER_HANDLE)
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

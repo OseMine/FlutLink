@@ -29,6 +29,8 @@ class Capabilities implements ICapability
             Application::APP_ID => [
                 'version' => $this->appManager->getAppVersion(Application::APP_ID),
                 'features' => Application::FEATURES,
+                'managed_by' => Application::MANAGED_BY,
+                'managed_by_url' => Application::MANAGED_BY_URL,
             ],
         ];
     }

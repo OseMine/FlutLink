@@ -72,7 +72,9 @@ data class AppInfoDto(
     val name: String? = null,
     val version: String? = null,
     val features: List<String>? = null,
-    val user: String? = null
+    val user: String? = null,
+    @SerialName("managed_by") val managedBy: String? = null,
+    @SerialName("managed_by_url") val managedByUrl: String? = null
 )
 
 /** Virtual link / writable part entry from the FlutCloud app API. */
