@@ -84,6 +84,14 @@ Zwei-Wege-Sync bleibt Desktop-only. Strings liegen zweisprachig in
 `shared/src/commonMain/composeResources/values{,-de}/strings.xml`
 (Generierung als `com.flutcloud.flutlink.resources.Res`).
 
+iOS-Resourcen-Sync: das Xcode-Script-Phase ruft
+`:shared:embedAndSignAppleFrameworkForXcode`; dieser Task synchronisiert
+`composeResources` als `compose-resources/` in den App-Bundle (das Framework
+ist statisch, daher greift der Fallback-Pfad des iOS-Resource-Readers). Fehlt
+das Verzeichnis, wirft `stringResource()` beim ersten Compose eine
+`MissingResourceException` und die App bricht beim Start ab — der CI-Job
+prüft deshalb, ob `<App>.app/compose-resources/values` existiert.
+
 ## Befehle
 
 ```sh

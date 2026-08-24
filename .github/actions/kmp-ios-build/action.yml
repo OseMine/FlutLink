@@ -72,6 +72,21 @@ runs:
           "${VERSION_ARGS[@]}" \
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+    # Compose resources are synced into the app by the Xcode script phase
+    # (embedAndSignAppleFrameworkForXcode -> syncComposeResourcesForIos).
+    # Without them stringResource() throws MissingResourceException and the
+    # app aborts on first composition (SIGABRT in UIApplication first commit).
+    - name: Verify compose resources in app bundle
+      shell: bash
+      run: |
+        APP=$(find "$RUNNER_TEMP/FlutLink.xcarchive/Products/Applications" -type d -name "*.app" | head -n1)
+        if [ ! -d "$APP/compose-resources/values" ]; then
+          echo "error: compose-resources missing from $APP - stringResource() would abort at launch" >&2
+          exit 1
+        fi
+        echo "compose-resources contents:"
+        find "$APP/compose-resources" -type f
+
     - name: Package unsigned IPA
       shell: bash
       working-directory: kmp/iosApp
