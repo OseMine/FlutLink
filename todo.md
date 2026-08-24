@@ -4,6 +4,156 @@ Tracking-Datei des Projekts: offene Punkte. Erledigte Punkte wandern nach
 `archived-todo.md`. Am 2026-08-24 wurden alle datierten Review-Abschnitte
 dorthin verschoben; die offenen Issues #293/#317/#318 sind geschlossen.
 
+## Review 2026-08-24 (Lauf 19, Fokus Desktop UI — neue Befunde)
+
+Gegenstand: Desktop-UI (`src/`: `App.vue`, `FileExplorer.vue`, `EntryList.vue`,
+`AccountBar.vue`, `AdminPanel.vue`, `SyncPanel.vue`, `LoginModal.vue`,
+`SettingsModal.vue`, `WelcomeScreen.vue`, `ToastStack.vue`, Pinia-Stores,
+`lib/ipc.ts`, `lib/i18n.ts`, `lib/sort.ts`, `lib/format.ts`, `lib/ripple.ts`)
+plus die Standard-Bereiche (IPC-Commands, WebDAV/OCS, Keyring,
+Fehler-/State-Management, CI) und die Nachprüfung der offenen
+L17-/L18-/CP-Befunde gegen HEAD (`dd7fdb7`).
+
+Neu gefunden:
+
+- [ ] **L19-F1 (Bug, mittel): Split-View + Grid-Ansicht: tote Hover-Buttons —
+      die beiden Split-View-`EntryList`s binden `@download`/`@delete`/`@share`
+      nicht.** `FileExplorer.vue:1088-1104` (linke Panes) und `:1122-1138`
+      (rechte Pane) binden nur `open/toggle-select/contextmenu/rename/
+      create-link/copy-link/pair/toggle-sort`; die Grid-Hover-Overlay-Buttons
+      in `EntryList.vue:275-317` emittieren aber zusätzlich `download`,
+      `delete` und `share`. Schaltet man in einer `resources`/`parts`-
+      Split-Ansicht auf Rasteransicht, passieren Download-, Löschen- und
+      Share-Overlay-Button schlicht nichts (Emit ohne Listener). Außerdem
+      fehlen den Split-View-Instanzen die Props `:thumbs`,
+      `:shares-by-path` und `:searching` (nur die Vollflächen-Listen
+      `:1145-1167`/`:1172-1194` bekommen sie) — keine Vorschauen/
+      Freigabe-Badges in der Split-Ansicht. Fix: Event-Bindings + Props auf
+      beide Split-View-Instanzen ergänzen.
+- [ ] **L19-F2 (Robustheit, mittel): `webdav_bulk_delete` validiert die Pfade
+      erst innerhalb der Lösch-Schleife — ein geschützter Pfad mitten in der
+      Auswahl führt zu einem teilweisen Bulk-Delete.** `commands.rs:914-919`
+      ruft `validate_dav_path(path)?` erst pro Iteration; Pfade vor dem ersten
+      ungültigen sind bereits gelöscht, wenn der Guard abbricht. Der
+      Geschwister-Command `webdav_bulk_download` validiert dagegen alle
+      Targets vorab (`commands.rs:1006-1008`). Fix: denselben
+      Pre-Validierungsloop übernehmen (oder `validate_dav_path` für alle
+      `paths` vor der Schleife ausführen).
+- [ ] **L19-F3 (Bug/UX, mittel): Sync-Ordner werden ohne Bestätigungsdialog
+      entfernt — der Klick löscht den Ordner **und** sein Sync-Journal
+      unwiderruflich.** `SyncPanel.vue:64-71` (`remove`) ruft direkt
+      `sync.remove(folderId)`; backendseitig wirft
+      `SyncEngine::remove_folder` (`sync.rs:1364-1375`) Ordner, Status und
+      Journal-Datei weg. Ein Versehen bedeutet: Sync stoppt, Journal weg —
+      beim erneuten Hinzufügen läuft alles als Erst-Sync (Konfliktkopien-
+      Risiko). Inkonsistent zum F7-Muster (Konto-Entfernung, Datei-Löschen,
+      Share-Widerruf fragen jeweils per `window.confirm`). Fix: Bestätigung
+      wie `deleteSelectedConfirm` ergänzen.
+- [ ] **L19-F4 (UX-Konsistenz, minor): Der Rename-Dialog schließt auch bei
+      invalidem Namen — die getippte Eingabe geht verloren.**
+      `doRename` (`FileExplorer.vue:438-469`) zeigt zwar den Toast
+      „Ordnername ungültig“, aber das `finally` setzt `renameTarget = null`
+      und schließt damit den Dialog; `createFolder` (`:413-431`) hält den
+      Dialog bei demselben Fehler offen. Fix: Validierung vor dem
+      Dialog-Close handhaben (Close nur bei Erfolg).
+- [ ] **L19-F5 (Bug, minor): `nameInput` wird zwischen Neu-Ordner- und
+      Rename-Dialog geteilt und bei Abbruch nicht geleert — der nächste
+      Dialog startet mit Alt-Inhalt vorbelegt.** Abbruch-Pfade
+      (`showNewFolder = false` Button `:1255-1257`, Rename-Cancel/
+      Backdrop `:1273`, `:1286-1288`) setzen `nameInput` nicht zurück; nur
+      der Erfolgs-Pfad von `createFolder` leert es (`:425`). Öffnet man nach
+      einem abgebrochenen Rename „Neuer Ordner“, ist das Feld mit dem alten
+      Dateinamen vorbelegt und der Create-Button aktiviert
+      (`:disabled="nameInput.trim().length === 0"`, `:1260`). Fix:
+      `nameInput.value = ""` beim Öffnen/Abbrechen beider Dialoge.
+- [ ] **L19-F6 (Bug, minor): `setQuota` im Admin-Panel lässt `NaN` durch und
+      sendet `"NaN"` als Quota an die OCS-API.** Das Quota-Feld bindet
+      `edits.quotaValue = $event.target.valueAsNumber`
+      (`AdminPanel.vue:632-640`) — bei geleertem/ungültigem Feld ist das
+      `NaN`; die Prüfung in `setQuota` (`AdminPanel.vue:280-288`,
+      `value === null || value <= 0`) greift bei `NaN` nicht (`NaN <= 0`
+      ist false), sodass `String(Math.round(NaN))` = `"NaN"` an
+      `admin_set_user_quota` geht und der Server-Fehltext statt des
+      lokalisierten `quotaInvalid` erscheint. Fix: `!Number.isFinite(value)`
+      mitprüfen.
+- [ ] **L19-F7 (i18n, minor): Der Update-Banner zeigt rohe Backend-Statuscodes
+      statt lokalisierter Texte.** `App.vue:166-171` rendert im
+      Banner-Fortschritt `${e.payload.code}` (z. B. „downloading“,
+      „installing“) als Klartext; nur `checksum_warning` wird übersetzt.
+      Das SettingsModal hat mit `updateStatusText`
+      (`SettingsModal.vue:206-222`) bereits die vollständige Code→Key-Map —
+      der Banner sollte dieselbe Übersetzung nutzen.
+- [ ] **L19-N1 (UX, minor): Escape schließt weder Kontextmenü noch Modals.**
+      Das Datei-Kontextmenü (`FileExplorer.vue:1198-1235`) schließt nur per
+      Außenklick (`@click="closeCtx"` am Container `:802`), LoginModal/
+      SettingsModal/New-Folder/Rename/Share-Dialoge reagieren ebenfalls
+      nicht auf `Escape` (nur `@click.self`). Auf dem Desktop ist Escape zum
+      Schließen von Menüs/Modals erwartetes Verhalten; ein zentraler
+      `keydown.escape`-Handler würde genügen.
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs` `generate_handler!` deckungsgleich mit `src/lib/ipc.ts`, alle
+Wrapper typisiert), Keyring (`accounts.rs` save/load/delete +
+Linux-Hint-Mapping, `token_missing`-Reporting), Fehler-Serialisierung
+(`error.rs` code/message/detail inkl. TargetExists/SyncFolderConflict),
+Offline-Cache (`cache.rs` atomic write + Quarantäne kaputter Files + LRU-
+Eviction), WebDAV-Layer (`webdav.rs`: Impersonation-Namespace-Guards,
+Chunked-v2-Cleanup, temp+rename Downloads, TOCTOU-Guards), OCS-Layer
+(`ocs.rs`: Share-Owner-Verifizierung, Dedup-Pagination mit Progress-Guard,
+einzelne Form-Encoding-Kette), FlutCloud-only-Policy (`flutcloud.rs`
+URL-Lock + Capability-Probe), Updater (`updater.rs` SHA-256-Gate,
+Asset-Name-Härtung, Size-Match), Tray/CLI (`lib.rs` Tray-Menü-Rebuild,
+Close-to-Tray, CLI-Flags) sowie Theme/i18n-Grundlagen (`ui.ts`
+localStorage-Persistenz, `i18n.ts` ERROR_CODE_KEYS vollständig gegenüber
+`error.rs::code()` bis auf den bekannten L17-F4-Auslass).
+
+Verifikation frisch ausgeführt (HEAD `dd7fdb7`): Tauri-Linux-Systemdeps
+waren nachzuinstallieren; danach `cargo fmt --all --check` grün;
+`cargo clippy --all-targets -- -D warnings` grün;
+`cargo test --manifest-path src-tauri/Cargo.toml` → **103 passed /
+0 failed**; `npm run build` (vue-tsc + vite) grün (Haupt-Chunk ~118 kB,
+Code-Splitting weiterhin wirksam).
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `dd7fdb7`)
+
+Seit dem letzten Lauf ist kein Commit hinzugekommen (`dd7fdb7` = Merge von
+Lauf 18), daher sind **alle offenen Einträge unverändert offen** — keiner
+ist erledigt, also gibt es dieses Mal nichts nach `archived-todo.md` zu
+verschieben. Stichprobenhafte Bestätigung:
+
+- L17-F1 bestätigt: `bulkDelete` setzt `busyPath` vor dem Confirm
+  (`FileExplorer.vue:134-148`).
+- L17-F2 bestätigt: `webdav_thumbnail`/`open_remote_file`/
+  `webdav_download_file`/`webdav_download_zip` laufen weiter durch
+  `validate_dav_path` (`commands.rs:823`, `:738`, `:706`, `:790`);
+  `getThumbnail` fängt alle Fehler (`src/stores/files.ts:263-269`).
+- L17-F3 bestätigt: `accounts.rs:70` und `sync.rs` (`persist`) schreiben
+  weiter via `std::fs::write`.
+- L17-F4 bestätigt: `walk_incomplete` fehlt weiterhin in
+  `ERROR_CODE_KEYS` (`i18n.ts:631-649`).
+- L17-N1 bestätigt: `kmp.yml:129` (setup-android v4.0.1) vs.
+  `action.yml:30` (v3.2.2). — L17-N2 bestätigt: `flutcloud.yml:79-81`
+  lintet nur `scripts/install-flutcloud-app.sh`. — L17-N3 bestätigt
+  (`LoginModal.vue:99-120`). — L17-N4 bestätigt (`ocs.rs:318`).
+- CP-N1 bestätigt: `FlutCloudOcs.kt:107` bricht weiter bei
+  `groups.size < limit` ab (übrige CP-Befunde betreffen `kmp/` und sind
+  seit `dd7fdb7` ebenfalls unverändert).
+- „Desktop-JVM: Token-Speicher härten“ bleibt offen:
+  `FileKeyValueStorage.kt` dokumentiert die Keyring-Anbindung weiterhin
+  als Follow-up.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe sind in diesem Lauf
+verboten): `git log` zeigt **keinen** Commit nach `dd7fdb7` (Merge des
+Lauf-18-Berichts #328) — damit sind seit Lauf 18 keine neuen Fixes oder
+Issue-Schließungen im Repo sichtbar; ob parallel offene Issues entstanden
+sind, ist hier nicht prüfbar. Der `opencode-todo-issues`-Workflow
+(wöchentlich mittwochs, `.github/workflows/opencode-todo-issues.yml`)
+sollte beim nächsten Lauf die L19-Befunde oben als Issues erfassen und die
+weiterhin offenen L17-/L18-/CP-Befunde erneut einplayen (allesamt laut
+Schritt 5 noch offen).
+
 ## Review 2026-08-24 (Lauf 18, Fokus Cross-Platform-Feature-Ideen — neue Befunde)
 
 Gegenstand: plattformübergreifende Feature-Parität und -Ideen zwischen dem
