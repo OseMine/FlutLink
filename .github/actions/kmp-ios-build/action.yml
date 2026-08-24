@@ -86,7 +86,10 @@ runs:
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
         BUILT_PRODUCTS_DIR: ${{ runner.temp }}/FlutLink.xcarchive/Products/Applications
         UNLOCALIZED_RESOURCES_FOLDER_PATH: FlutLink.app
-      run: ./gradlew :shared:syncComposeResourcesForIos --console=plain
+      # --no-daemon is required: a reused daemon keeps the environment of the
+      # xcodebuild script phase (BUILT_PRODUCTS_DIR -> staging area) instead
+      # of the overrides below, and the task would come out UP-TO-DATE.
+      run: ./gradlew :shared:syncComposeResourcesForIos --no-daemon --console=plain
 
     # Compose resources are synced into the app by the Xcode script phase
     # (embedAndSignAppleFrameworkForXcode -> syncComposeResourcesForIos).
