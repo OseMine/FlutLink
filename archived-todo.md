@@ -3,6 +3,35 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-24, Lauf 17 abgehakt)
+
+- [x] **`SettingsStore` nach `commonMain` heben** (DataStore Preferences
+      ist multiplatform; der `Context`-Delegate bleibt androidMain-actual)
+      — Voraussetzung für Einstellungen im späteren iOS-/Desktop-UI.
+      → erledigt (verifiziert 2026-08-24, Review Lauf 17):
+      `kmp/shared/src/commonMain/kotlin/com/flutcloud/flutlink/core/SettingsStore.kt`
+      liegt vollständig in `commonMain` (Flow-basiert, persistiert über
+      den plattformgelieferten `KeyValueStorage`); Android-Actual in
+      `androidMain/…/core/AndroidStorages.kt`, iOS-Actual
+      (`IosDefaultsStorage`) in `iosMain/…/core/IosStorages.kt`.
+- [x] **iOS-Parität (Langläufer): Compose-UI nach `commonMain` heben bzw.
+      iOS-Placeholder ersetzen.**
+      → erledigt (verifiziert 2026-08-24, Review Lauf 17): die gesamte
+      UI (Login, Dateien, Admin, Einstellungen) liegt in `commonMain`
+      (45 Kotlin-Dateien vs. 7 in androidMain), Strings zweisprachig in
+      `commonMain/composeResources/values{,-de}/strings.xml`;
+      plattformgebundene Dienste als Actuals: Keychain-Token-Speicher
+      (`IosKeychainStorage`, SecItem-API) + NSUserDefaults
+      (`IosStorages.kt`), Document-Picker/QuickLook/Share
+      (`PlatformActuals.kt`, `PlatformUi.ios.kt`); dokumentiert in
+      `kmp/README.md` („Stand der iOS-Parität“). Zwei-Wege-Sync bleibt
+      bewusst Desktop-only.
+
+Weiter offen aus dieser Liste: „Desktop-JVM: Token-Speicher härten“
+(`FileKeyValueStorage` legt Tokens weiterhin als 600er-Datei unter
+`$XDG_STATE_HOME/flutlink` ab; Keyring-Anbindung als Follow-up).
+
+
 ## Review-Abschnitte aus todo.md (2026-08-24 archiviert)
 
 ### Fix-Lauf 2026-08-23 (II) — KMP: AGP 9/Gradle 9-Migration, compileSdk 37, commonMain-Ausbau (Issues #293/#317/#318)
