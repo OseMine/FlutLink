@@ -51,7 +51,7 @@ const dict: Record<Lang, Record<string, string>> = {
       "The flutcloud admin password is used once to create your account via the provisioning API. It is not stored.",
     serverAutoNote: "Server is set automatically",
     serverNotConfigured:
-      "FlutCloud server is not configured (set FLUTCLOUD_URL in .env).",
+      "FlutCloud server is not configured (set FLUTCLOUD_URL).",
     requiredFields: "Please fill in username and password.",
     register: "Register",
     registering: "Registering…",

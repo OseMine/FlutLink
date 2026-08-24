@@ -60,7 +60,8 @@ flutcloud-app/                    # FlutCloud Nextcloud server app (PHP)
 
 FlutLink is **not** a generic Nextcloud client. It connects exclusively to the
 FlutCloud server (the URL is read from `FLUTCLOUD_URL` in the local `.env`,
-never hard-coded) and only when that server runs
+or baked in at compile time by CI release builds — never hard-coded) and only
+when that server runs
 the FlutCloud Nextcloud app (`flutcloud-app/`). `flutcloud.rs` rejects foreign
 URLs (`AppError::NotFlutCloud`) and probes the OCS capabilities endpoint for
 the `flutcloud` capability (`AppError::FlutCloudAppMissing`) before any

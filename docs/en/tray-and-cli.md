@@ -40,8 +40,8 @@ Frontend interaction:
 
 - `--url` emits `flutlink:cli-open`; `App.vue` listens and opens `LoginModal`.
   The server URL is always the FlutCloud server (fetched via the
-  `get_flutcloud_url` command, which reads `FLUTCLOUD_URL` from `.env` in
-  `src-tauri/src/flutcloud.rs`) — FlutLink is a dedicated client and never
-  connects elsewhere.
+  `get_flutcloud_url` command, which reads `FLUTCLOUD_URL` from `.env` or the
+  baked-in build value in `src-tauri/src/flutcloud.rs`) — FlutLink is a
+  dedicated client and never connects elsewhere.
 - `--path` runs `commands::sync_add` and emits `sync-folders-changed` so the
   sync panel refreshes.

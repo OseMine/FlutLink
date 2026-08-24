@@ -11,23 +11,45 @@ use crate::state::Account;
 ///
 /// FlutLink is a dedicated client for the FlutCloud server, not a generic
 /// Nextcloud client. This URL is enforced everywhere an account is created.
-/// The value is only ever read from the `FLUTCLOUD_URL` variable in the local
-/// `.env` file (which is gitignored); it is intentionally not hard-coded
-/// anywhere in this repository.
+/// The value is read from the `FLUTCLOUD_URL` variable in the local `.env`
+/// file (which is gitignored); it is never hard-coded in this repository.
+/// Release builds additionally bake the URL in at compile time from the
+/// build environment ([`baked_url`]), so installed apps work without a
+/// local `.env`.
 pub fn flutcloud_url() -> AppResult<String> {
-    // Only the *success* value is cached. When the variable is missing, the
-    // error is not stored so a corrected `.env` takes effect without a restart.
+    // Only the *success* value is cached. When no source provides the URL,
+    // the error is not stored so a corrected `.env` takes effect without a
+    // restart.
     static URL: OnceLock<String> = OnceLock::new();
     if let Some(url) = URL.get() {
         return Ok(url.clone());
     }
+    // 1. Runtime environment / `.env` (development setup).
     let _ = dotenvy::dotenv();
-    let url = std::env::var("FLUTCLOUD_URL").map_err(|_| {
-        AppError::App(
-            "FLUTCLOUD_URL is not set. Add it to the `.env` file in the repository root.".into(),
-        )
-    })?;
+    let url = std::env::var("FLUTCLOUD_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+        // 2. Value captured from the build environment by CI builds.
+        .or_else(baked_url)
+        .ok_or_else(|| {
+            AppError::App(
+                "FLUTCLOUD_URL is not set. Add it to your `.env`, or use a build \
+                 made with the FLUTCLOUD_URL environment variable set."
+                    .into(),
+            )
+        })?;
     Ok(URL.get_or_init(|| url.clone()).clone())
+}
+
+/// Compile-time snapshot of `FLUTCLOUD_URL` taken during `cargo build`.
+///
+/// CI release jobs pass the URL as an environment variable (GitHub secret),
+/// which [`option_env!`] embeds into the binary. An empty value counts as
+/// missing so workflows that expand an unset secret to `""` still fall back
+/// to the error instead of producing a blank URL.
+fn baked_url() -> Option<String> {
+    let url = option_env!("FLUTCLOUD_URL")?;
+    (!url.trim().is_empty()).then(|| url.to_string())
 }
 
 /// Strip trailing slashes so `https://flutcloud.example/` matches

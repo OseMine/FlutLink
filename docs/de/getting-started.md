@@ -79,8 +79,9 @@ anmelden oder erst einmal den Willkommensbildschirm erkunden.
 1. Erstelle ein **App-Passwort** in FlutCloud:
    *Einstellungen → Sicherheit → App-Passwörter*.
 2. Öffne FlutLink → **Anmelden**.
-3. Gib Benutzername und App-Passwort ein. Der Server ist fest auf die
-   `FLUTCLOUD_URL` aus deiner lokalen `.env` gesetzt.
+3. Gib Benutzername und App-Passwort ein. Der Server ist fest auf den
+   FlutCloud-Server eingestellt — `FLUTCLOUD_URL` aus deiner lokalen `.env`
+   in der Entwicklung; offizielle Release-Builds haben die URL eingebaut.
 4. Das Token wird im OS-Schlüsselbund gespeichert (Windows
    Anmeldeinformationsverwaltung, macOS-Schlüsselbund, Linux Secret Service).
 

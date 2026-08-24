@@ -78,6 +78,10 @@ jobs:
             name: windows
             args: ""
     runs-on: ${{ matrix.platform }}
+    env:
+      # Same preconfiguration as the release builds: bake the server URL in
+      # at compile time (`option_env!`, see src-tauri/src/flutcloud.rs).
+      FLUTCLOUD_URL: ${{ secrets.FLUTCLOUD_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

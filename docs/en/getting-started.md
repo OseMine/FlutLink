@@ -77,7 +77,8 @@ in with an account or just explore the welcome screen.
    *Settings → Security → App passwords*.
 2. Open FlutLink → **Sign In**.
 3. Enter your username and the app password. The server is fixed to the
-   `FLUTCLOUD_URL` configured in your local `.env`.
+   FlutCloud server — `FLUTCLOUD_URL` from your local `.env` during
+   development; official release builds ship with the URL baked in.
 4. The token is stored in your OS keychain (Windows Credential Manager, macOS
    Keychain, Linux Secret Service).
 
