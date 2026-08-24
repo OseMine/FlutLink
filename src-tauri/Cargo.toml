@@ -1,6 +1,6 @@
 [package]
 name = "flutlink"
-version = "1.0.0"
+version = "1.1.0"
 description = "FlutLink — FlutCloud desktop client (two-way sync, sharing, admin)"
 authors = ["OseMine"]
 edition = "2021"
