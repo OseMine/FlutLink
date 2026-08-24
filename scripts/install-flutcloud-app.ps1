@@ -3,11 +3,11 @@
   Installs the FlutCloud Nextcloud app on a Nextcloud server.
 
 .DESCRIPTION
-  Downloads the flutcloud-app sources from the FlutLink repository
-  (github.com/OseMine/FlutLink) and installs them into
-  <nextcloud-root>/apps/flutcloud, then enables the app with occ and verifies
-  it. Run this on the machine that hosts the Nextcloud server (Linux or
-  Windows host, VM) or on the Docker host using -DockerContainer.
+  Downloads the FlutCloud Nextcloud app (flutcloud-app.zip) from the latest
+  GitHub release of the FlutLink repository (github.com/OseMine/FlutLink) and
+  installs it into <nextcloud-root>/apps/flutcloud, then enables the app with
+  occ and verifies it. Run this on the machine that hosts the Nextcloud server
+  (Linux or Windows host, VM) or on the Docker host using -DockerContainer.
 
   When piped directly into `iex`, the script runs with default parameters
   (auto-detected Nextcloud root, latest release). Save it to a file first to
@@ -20,8 +20,10 @@
   detected path or to enter the path where you installed Nextcloud.
 
 .PARAMETER Ref
-  Git ref to fetch the app from (release tag such as "v1.0.0" or a branch
-  name). Defaults to the latest release tag, falling back to "main".
+  Install a specific ref instead of the latest release: a release tag such as
+  "v1.0.0" fetches its flutcloud-app.zip release asset (falling back to the
+  tagged repository sources when the asset is missing), a branch name fetches
+  the current branch sources. Defaults to the latest release.
 
 .PARAMETER WebUser
   Web-server user that owns the app files and runs occ. Default "www-data".
@@ -125,6 +127,25 @@ function Resolve-Ref {
     }
 }
 
+$AssetName = 'flutcloud-app.zip'
+$Archive = Join-Path ([IO.Path]::GetTempPath()) 'flutcloud-install\flutcloud-app.zip'
+
+# Downloads the packaged app from a GitHub release; returns $false when the
+# asset is missing so the caller can fall back to the repository sources.
+function Save-ReleaseZip {
+    param([string]$Tag)
+    $url = if ($Tag) { "https://github.com/$Repo/releases/download/$Tag/$AssetName" }
+           else { "https://github.com/$Repo/releases/latest/download/$AssetName" }
+    Write-Host "Downloading $url ..."
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $Archive -Headers @{ 'User-Agent' = $UserAgent }
+        return $true
+    } catch {
+        Write-Warning 'flutcloud-app.zip is not available there.'
+        return $false
+    }
+}
+
 function Invoke-Occ {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$OccArgs)
     Push-Location $root
@@ -147,32 +168,61 @@ function Invoke-Occ {
 $root = Resolve-NextcloudRoot
 Write-Host "Nextcloud root: $root"
 
-$ref = Resolve-Ref
-Write-Host "Installing flutcloud app from ref: $ref"
-
 $temp = Join-Path ([IO.Path]::GetTempPath()) 'flutcloud-install'
 New-Item -ItemType Directory -Force -Path $temp | Out-Null
 
-$archiveUrl = if ($ref -match '^v\d') {
-    "https://github.com/$Repo/archive/refs/tags/$ref.tar.gz"
-} else {
-    "https://github.com/$Repo/archive/refs/heads/$ref.tar.gz"
-}
-$archive = Join-Path $temp 'flutcloud.tar.gz'
 $extract = Join-Path $temp 'src'
 
-Write-Host "Downloading $archiveUrl ..."
-Invoke-WebRequest -Uri $archiveUrl -OutFile $archive
-if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
-New-Item -ItemType Directory -Force -Path $extract | Out-Null
-& tar -xzf $archive -C $extract
-if ($LASTEXITCODE -ne 0) { throw 'Failed to extract the archive (tar).' }
+# A stale archive from a previous run must not short-circuit the flow.
+if (Test-Path $Archive) { Remove-Item -Force $Archive }
 
-$appSource = Get-ChildItem $extract -Directory |
-    Where-Object { Test-Path (Join-Path $_.FullName 'flutcloud-app') } |
-    ForEach-Object { Join-Path $_.FullName 'flutcloud-app' } |
-    Select-Object -First 1
-if (-not $appSource) { throw 'flutcloud-app folder not found in the downloaded archive.' }
+$appSource = $null
+$fromRelease = $false
+if ($Ref -and $Ref -match '^v\d') {
+    Write-Host "Installing flutcloud app from release $Ref ..."
+    $fromRelease = Save-ReleaseZip $Ref
+    if (-not $fromRelease) {
+        Write-Warning "Release $Ref has no flutcloud-app.zip; falling back to its repository sources."
+    }
+} elseif (-not $Ref) {
+    Write-Host 'Installing flutcloud app from the latest release ...'
+    $fromRelease = Save-ReleaseZip
+    if (-not $fromRelease) { Write-Warning 'Falling back to the repository sources.' }
+}
+
+if ($fromRelease) {
+    # Release zip: the archive root contains the Nextcloud app directly.
+    if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+    New-Item -ItemType Directory -Force -Path $extract | Out-Null
+    Expand-Archive -Path $Archive -DestinationPath $extract -Force
+    if (-not (Test-Path (Join-Path $extract 'appinfo/info.xml'))) {
+        throw 'flutcloud-app.zip does not contain appinfo/info.xml.'
+    }
+    $appSource = $extract
+} else {
+    $ref = Resolve-Ref
+    Write-Host "Installing flutcloud app from ref: $ref"
+
+    $archiveUrl = if ($ref -match '^v\d') {
+        "https://github.com/$Repo/archive/refs/tags/$ref.tar.gz"
+    } else {
+        "https://github.com/$Repo/archive/refs/heads/$ref.tar.gz"
+    }
+    $tarball = Join-Path $temp 'flutcloud.tar.gz'
+
+    Write-Host "Downloading $archiveUrl ..."
+    Invoke-WebRequest -Uri $archiveUrl -OutFile $tarball -Headers @{ 'User-Agent' = $UserAgent }
+    if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+    New-Item -ItemType Directory -Force -Path $extract | Out-Null
+    & tar -xzf $tarball -C $extract
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to extract the archive (tar).' }
+
+    $appSource = Get-ChildItem $extract -Directory |
+        Where-Object { Test-Path (Join-Path $_.FullName 'flutcloud-app') } |
+        ForEach-Object { Join-Path $_.FullName 'flutcloud-app' } |
+        Select-Object -First 1
+    if (-not $appSource) { throw 'flutcloud-app folder not found in the downloaded archive.' }
+}
 
 $dest = Join-Path $root 'apps' 'flutcloud'
 Write-Host "Installing app to $dest ..."

@@ -9,7 +9,11 @@
 #
 # Options (only when saved to a file and executed):
 #   -d, --nextcloud-root <path>   Nextcloud installation (folder containing occ).
-#   -r, --ref <ref>               Git ref (release tag like "v1.0.0" or branch).
+#   -r, --ref <ref>               Install a specific ref instead of the latest
+#                                 release: a release tag ("v1.0.0") uses its
+#                                 flutcloud-app.zip asset (falling back to the
+#                                 tagged sources), a branch name uses the
+#                                 current branch sources.
 #   -u, --web-user <user>         Web-server user; default "www-data".
 #   -c, --docker-container <id>   Nextcloud Docker container (occ via docker exec).
 #   -C, --composer                Run "composer install --no-dev" in the app folder.
@@ -152,24 +156,65 @@ ROOT="$(resolve_root)"
 echo "Nextcloud root: $ROOT"
 ROOT="$(cd "$ROOT" && pwd)"
 
-REF_VALUE="$(resolve_ref)"
-echo "Installing flutcloud app from ref: $REF_VALUE"
-
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-case "$REF_VALUE" in
-    v[0-9]*) ARCHIVE_URL="https://github.com/$REPO/archive/refs/tags/$REF_VALUE.tar.gz" ;;
-    *) ARCHIVE_URL="https://github.com/$REPO/archive/refs/heads/$REF_VALUE.tar.gz" ;;
-esac
+ASSET="flutcloud-app.zip"
+ZIP="$TMP/$ASSET"
 
-echo "Downloading $ARCHIVE_URL ..."
-curl -fsSL -A "$UA" -o "$TMP/flutcloud.tar.gz" "$ARCHIVE_URL"
-mkdir -p "$TMP/src"
-tar -xzf "$TMP/flutcloud.tar.gz" -C "$TMP/src"
+# Downloads the packaged app from a GitHub release.
+fetch_release_zip() {
+    echo "Downloading $1 ..."
+    curl -fsSL -A "$UA" -o "$ZIP" "$1"
+}
 
-APP_SOURCE="$(find "$TMP/src" -maxdepth 2 -type d -name flutcloud-app | sed -n '1p')"
-[ -n "$APP_SOURCE" ] || die 'flutcloud-app folder not found in the downloaded archive.'
+FROM_RELEASE=0
+if [ -n "$REF" ] && printf '%s' "$REF" | grep -Eq '^v[0-9]'; then
+    echo "Installing flutcloud app from release $REF ..."
+    if fetch_release_zip "https://github.com/$REPO/releases/download/$REF/$ASSET"; then
+        FROM_RELEASE=1
+    else
+        warn "Release $REF has no flutcloud-app.zip; falling back to its repository sources."
+    fi
+elif [ -z "$REF" ]; then
+    echo 'Installing flutcloud app from the latest release ...'
+    if fetch_release_zip "https://github.com/$REPO/releases/latest/download/$ASSET"; then
+        FROM_RELEASE=1
+    else
+        warn 'Falling back to the repository sources.'
+    fi
+fi
+
+if [ "$FROM_RELEASE" = 1 ]; then
+    # Release zip: the archive root contains the Nextcloud app directly.
+    mkdir -p "$TMP/src"
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -qo "$ZIP" -d "$TMP/src" || die 'Failed to extract flutcloud-app.zip (unzip).'
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -m zipfile -e "$ZIP" "$TMP/src" || die 'Failed to extract flutcloud-app.zip (python3).'
+    else
+        die 'Need "unzip" (or python3) to extract flutcloud-app.zip.'
+    fi
+    APP_SOURCE="$TMP/src"
+else
+    REF_VALUE="$(resolve_ref)"
+    echo "Installing flutcloud app from ref: $REF_VALUE"
+
+    case "$REF_VALUE" in
+        v[0-9]*) ARCHIVE_URL="https://github.com/$REPO/archive/refs/tags/$REF_VALUE.tar.gz" ;;
+        *) ARCHIVE_URL="https://github.com/$REPO/archive/refs/heads/$REF_VALUE.tar.gz" ;;
+    esac
+
+    echo "Downloading $ARCHIVE_URL ..."
+    curl -fsSL -A "$UA" -o "$TMP/flutcloud.tar.gz" "$ARCHIVE_URL"
+    mkdir -p "$TMP/src"
+    tar -xzf "$TMP/flutcloud.tar.gz" -C "$TMP/src"
+
+    APP_SOURCE="$(find "$TMP/src" -maxdepth 2 -type d -name flutcloud-app | sed -n '1p')"
+    [ -n "$APP_SOURCE" ] || die 'flutcloud-app folder not found in the downloaded archive.'
+fi
+
+[ -f "$APP_SOURCE/appinfo/info.xml" ] || die 'The downloaded archive does not contain appinfo/info.xml.'
 
 DEST="$ROOT/apps/flutcloud"
 echo "Installing app to $DEST ..."

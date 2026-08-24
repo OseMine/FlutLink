@@ -95,11 +95,12 @@ Systemen meist vorhanden).
    herunter, prüft seinen SHA-256-Digest und führt ihn aus (AppImage/.deb
    unter Linux, `.dmg` unter macOS, `.exe`/`.msi` unter Windows).
 2. `install-flutcloud-app.*` findet die Nextcloud-Installation, lädt die
-   `flutcloud-app`-Quellen herunter, kopiert sie nach `apps/flutcloud`,
-   aktiviert die App mit `occ` und prüft sie. Bei interaktiver Ausführung (in
-   einem Terminal) fragt es zuerst, ob der erkannte Pfad korrekt ist, bzw.
-   nach dem Pfad, in dem du Nextcloud installiert hast; gepipe-`curl | bash`-
-   Läufe überspringen die Abfrage und nutzen den erkannten Pfad.
+   App als `flutcloud-app.zip` aus dem letzten GitHub-Release herunter,
+   kopiert sie nach `apps/flutcloud`, aktiviert die App mit `occ` und prüft
+   sie. Bei interaktiver Ausführung (in einem Terminal) fragt es zuerst, ob
+   der erkannte Pfad korrekt ist, bzw. nach dem Pfad, in dem du Nextcloud
+   installiert hast; gepipe-`curl | bash`-Läufe überspringen die Abfrage und
+   nutzen den erkannten Pfad.
 
 ## Parameter übergeben
 
@@ -131,7 +132,7 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
 | PowerShell | bash | Bedeutung |
 | --- | --- | --- |
 | `-NextcloudRoot <pfad>` | `--nextcloud-root <pfad>` | Nextcloud-Ordner (enthält `occ`); wenn nicht angegeben, wird er automatisch erkannt und interaktiv bestätigt |
-| `-Ref <tag-oder-branch>` | `--ref <tag-oder-branch>` | Release-Tag oder Branch installieren |
+| `-Ref <tag-oder-branch>` | `--ref <tag-oder-branch>` | Bestimmtes Release oder einen Branch installieren: ein Release-Tag nutzt dessen `flutcloud-app.zip` (mit Fallback auf die getaggten Quellen), ein Branch die aktuellen Branch-Quellen |
 | `-WebUser <benutzer>` | `--web-user <benutzer>` | Webserver-Benutzer (Standard `www-data`) |
 | `-DockerContainer <id>` | `--docker-container <id>` | occ über `docker exec` ausführen |
 | `-Composer` | `--composer` | Composer-Autoloader erzeugen |
