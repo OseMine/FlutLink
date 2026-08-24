@@ -21,7 +21,8 @@ import {
   type UpdateProgress,
   type UpdateStatus,
 } from "../lib/ipc";
-import { translate, type Lang } from "../lib/i18n";
+import { translate, updateStatusText as localizedUpdateStatus, type Lang } from "../lib/i18n";
+import { registerEscapeCloser } from "../lib/escape";
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: []; login: [] }>();
@@ -205,21 +206,23 @@ async function downloadAndInstall() {
 
 const updateStatusText = computed(() => {
   if (!updateStatusKey.value) return "";
-  switch (updateStatusKey.value) {
-    case "checking":
-      return t("checkingForUpdates");
-    case "downloading":
-      return updateAssetName.value
-        ? t("updateDownloadingName").replace("{name}", updateAssetName.value)
-        : t("updateDownloading");
-    case "installing":
-      return t("updateInstalling");
-    case "checksum_warning":
-      return t("updateChecksumWarning");
-    default:
-      return "";
-  }
+  return localizedUpdateStatus(ui.lang, updateStatusKey.value, updateAssetName.value);
 });
+
+// L19-N1: Escape closes the modal while it is open.
+let removeEscapeCloser: (() => void) | null = null;
+watch(
+  () => props.open,
+  (open) => {
+    if (open && !removeEscapeCloser) {
+      removeEscapeCloser = registerEscapeCloser(() => emit("close"));
+    } else if (!open && removeEscapeCloser) {
+      removeEscapeCloser();
+      removeEscapeCloser = null;
+    }
+  }
+);
+onUnmounted(() => removeEscapeCloser?.());
 </script>
 
 <template>

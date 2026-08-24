@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink.ui.viewmodel
 
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
@@ -16,6 +17,8 @@ import com.flutcloud.flutlink.data.dto.WebDavEntry
 import com.flutcloud.flutlink.ui.UiMessage
 import com.flutcloud.flutlink.ui.networkUiMessage
 import com.flutcloud.flutlink.ui.toUiMessage
+import org.jetbrains.compose.resources.decodeToImageBitmap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +29,7 @@ import okio.Path
 import okio.buffer
 import okio.use
 import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.bulk_delete_failed_partially
 import com.flutcloud.flutlink.resources.downloaded_to_downloads
 import com.flutcloud.flutlink.resources.error_invalid_folder_name
 import com.flutcloud.flutlink.resources.error_not_admin_impersonation
@@ -34,6 +38,20 @@ import com.flutcloud.flutlink.resources.share_recipient_required
 
 /** Bytes copied so far vs. total bytes of a streaming transfer. */
 data class TransferProgress(val transferred: Long, val total: Long)
+
+/** Requested preview edge length in pixels (server scales server-side). */
+private const val PREVIEW_SIZE = 128
+
+/** Extensions the preview endpoint reliably serves and skia decodes. */
+private val PREVIEW_EXTENSIONS =
+    setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
+
+/** Files for which a `/core/preview.png` fetch is worth trying. */
+val WebDavEntry.isPreviewable: Boolean
+    get() = !isDir && (
+        contentType?.lowercase()?.startsWith("image/") == true ||
+            name.substringAfterLast('.', "").lowercase() in PREVIEW_EXTENSIONS
+        )
 
 /** Holds a pending upload until the user confirms overwrite. */
 data class PendingUpload(val targetDir: String, val name: String, val file: PickedFile)
@@ -82,6 +100,20 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
     private val _transferProgress = MutableStateFlow<TransferProgress?>(null)
     val transferProgress: StateFlow<TransferProgress?> = _transferProgress.asStateFlow()
 
+    /** Bulk selection (CP-N3): the paths of the currently selected entries. */
+    private val _selected = MutableStateFlow<Set<String>>(emptySet())
+    val selected: StateFlow<Set<String>> = _selected.asStateFlow()
+
+    /**
+     * Loaded preview thumbnails keyed by entry path (CP-N3). Entries that
+     * produced no preview are tracked in [failedPreviews] so they are not
+     * re-fetched on every recomposition.
+     */
+    private val _previews = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val previews: StateFlow<Map<String, ImageBitmap>> = _previews.asStateFlow()
+    private val failedPreviews = mutableSetOf<String>()
+    private var previewJob: Job? = null
+
     val sessionKey: String?
         get() = session?.let { "${it.baseUrl}|${it.username}|${targetUser.value ?: ""}" }
 
@@ -129,6 +161,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 val result = container.webDavApi.list(s, folderPath, targetUser.value)
                     .sortedWith(compareByDescending<WebDavEntry> { it.isDir }.thenBy { it.name.lowercase() })
                 entries.value = result
+                clearSelectionAfterListRefresh()
                 offline.value = false
                 sessionKey?.let { container.listCache.write(it, folderPath, result) }
                 path.value = folderPath
@@ -149,10 +182,24 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * Fetch the quota; on success the value is cached (CP-N4), and when the
+     * server is unreachable the cached value is served instead of dropping
+     * the row. Other API errors leave the previous display untouched.
+     */
     fun refreshQuota() {
         val s = session ?: return
+        val accountKey = "${s.baseUrl}|${s.username}"
         viewModelScope.launch {
-            quota.value = runCatching { container.ocsApi.getCurrentQuota(s) }.getOrNull()
+            try {
+                val fresh = container.ocsApi.getCurrentQuota(s)
+                if (fresh != null) container.quotaCache.write(accountKey, fresh)
+                quota.value = fresh
+            } catch (e: NetworkException) {
+                container.quotaCache.read(accountKey)?.let { quota.value = it }
+            } catch (e: ApiException) {
+                // Server-side problem: keep showing the last known quota.
+            }
         }
     }
 
@@ -283,6 +330,13 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
 
     fun rename(entry: WebDavEntry, newName: String) {
         if (newName.isBlank() || newName == entry.name) return
+        // CP-F2 (desktop `validate_rename_name`): the new name must be a
+        // single plain name — no '/', '.', '..' or blanks — otherwise the
+        // MOVE would silently become a move or a path traversal.
+        if (newName == "." || newName == ".." || newName.contains('/')) {
+            error.value = UiMessage(Res.string.error_invalid_folder_name)
+            return
+        }
         val s = session ?: return
         viewModelScope.launch {
             error.value = null
@@ -311,6 +365,143 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                 error.value = e.toUiMessage()
             }
         }
+    }
+
+    // --- Bulk selection + bulk delete (CP-N3) --------------------------------
+
+    fun toggleSelected(path: String) {
+        _selected.value = if (path in _selected.value) _selected.value - path else _selected.value + path
+    }
+
+    fun clearSelection() {
+        _selected.value = emptySet()
+    }
+
+    /**
+     * Delete every selected entry. Mirrors the desktop `webdav_bulk_delete`:
+     * all paths are validated up front so a protected entry aborts the whole
+     * operation before anything is removed.
+     */
+    fun deleteMany(entriesToDelete: List<WebDavEntry>) {
+        val s = session ?: return
+        if (entriesToDelete.isEmpty()) return
+        try {
+            container.webDavApi.validateBulkDeletion(entriesToDelete.map { it.path })
+        } catch (e: ApiException) {
+            error.value = e.toUiMessage()
+            clearSelection()
+            return
+        }
+        viewModelScope.launch {
+            loading.value = true
+            error.value = null
+            val deleted = mutableSetOf<String>()
+            var aborted = false
+            for (entry in entriesToDelete) {
+                try {
+                    container.webDavApi.delete(s, entry.path, targetUser.value)
+                    deleted += entry.path
+                } catch (e: NetworkException) {
+                    aborted = true
+                    break
+                } catch (e: ApiException) {
+                    aborted = true
+                    break
+                }
+            }
+            if (deleted.isNotEmpty()) {
+                entries.value = entries.value.filterNot { it.path in deleted }
+                _selected.value = _selected.value - deleted
+            }
+            when {
+                deleted.isEmpty() && aborted -> error.value =
+                    UiMessage(Res.string.bulk_delete_failed_partially)
+                aborted -> _toast.value = UiMessage(Res.string.bulk_delete_failed_partially)
+            }
+            loading.value = false
+        }
+    }
+
+    /**
+     * Download a folder as a ZIP archive into Downloads (CP-N3, desktop
+     * `webdav_download_zip`).
+     */
+    fun downloadFolderZip(entry: WebDavEntry) {
+        val s = session ?: return
+        viewModelScope.launch {
+            loading.value = true
+            error.value = null
+            try {
+                val archiveName = "${entry.name}.zip"
+                container.platform.saveToDownloads(archiveName) { dest ->
+                    container.webDavApi.downloadFolderZip(
+                        session = s,
+                        path = entry.path,
+                        dest = dest,
+                        onProgress = { transferred, total ->
+                            _transferProgress.value = TransferProgress(transferred, total)
+                        },
+                        targetUser = targetUser.value
+                    )
+                }
+                _toast.value = UiMessage(Res.string.downloaded_to_downloads, archiveName)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } finally {
+                loading.value = false
+                _transferProgress.value = null
+            }
+        }
+    }
+
+    // --- Preview thumbnails (CP-N3) -------------------------------------------
+
+    /**
+     * Ensure previews exist for all previewable files of the displayed list.
+     * Fetches sequentially (the preview endpoint is cheap but numerous);
+     * failures are remembered so an image without server-side previews never
+     * triggers repeated requests. The map is pruned to the visible paths so
+     * switching folders cannot grow it without bound.
+     */
+    fun loadPreviews(listed: List<WebDavEntry>) {
+        val s = session ?: return
+        val listedPaths = listed.map { it.path }.toSet()
+        _previews.value = _previews.value.filterKeys { it in listedPaths }
+        failedPreviews.removeAll(failedPreviews.filterNot { it in listedPaths })
+        val pending = listed.filter {
+            it.isPreviewable && it.path !in _previews.value && it.path !in failedPreviews
+        }
+        if (pending.isEmpty()) return
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            for (entry in pending) {
+                try {
+                    val bytes = container.webDavApi.preview(
+                        session = s,
+                        path = entry.path,
+                        size = PREVIEW_SIZE,
+                        targetUser = targetUser.value
+                    ) ?: run { failedPreviews += entry.path; continue }
+                    val bitmap = bytes.decodeToImageBitmap()
+                    failedPreviews -= entry.path
+                    _previews.value = _previews.value + (entry.path to bitmap)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: ApiException) {
+                    if (e.statusCode == 401 || e.statusCode == 403) break
+                    failedPreviews += entry.path
+                } catch (e: NetworkException) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun clearSelectionAfterListRefresh() {
+        val currentPaths = entries.value.map { it.path }.toSet()
+        _selected.value = _selected.value.filter { it in currentPaths }.toSet()
     }
 
     /**
@@ -343,7 +534,8 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
                     shareWith = with,
                     password = password?.ifBlank { null },
                     expireDate = expireDate?.ifBlank { null },
-                    publicUpload = publicUpload
+                    publicUpload = publicUpload,
+                    targetUser = targetUser.value
                 )
                 loadShares(entry)
             } catch (e: NetworkException) {
@@ -361,7 +553,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             _sharesLoading.value = true
             error.value = null
             try {
-                _shares.value = container.ocsApi.listShares(s, entry.path)
+                _shares.value = container.ocsApi.listShares(s, entry.path, targetUser.value)
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {
@@ -378,7 +570,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             error.value = null
             try {
-                container.ocsApi.deleteShare(s, share.id)
+                container.ocsApi.deleteShare(s, share.id, targetUser.value)
                 _shares.value = _shares.value.filterNot { it.id == share.id }
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)

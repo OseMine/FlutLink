@@ -12,7 +12,9 @@ import kotlinx.serialization.json.Json
 @Serializable
 data class GithubAsset(
     @SerialName("name") val name: String,
-    @SerialName("browser_download_url") val browserDownloadUrl: String
+    @SerialName("browser_download_url") val browserDownloadUrl: String,
+    /** GitHub-provided content digest ("sha256:<hex>") when published by CI. */
+    @SerialName("digest") val digest: String? = null
 )
 
 /** The `latest` GitHub release payload (only the fields we need). */
@@ -23,7 +25,12 @@ data class GithubRelease(
 )
 
 /** A newer FlutLink build that can be downloaded and installed. */
-data class AppUpdate(val version: String, val apkUrl: String)
+data class AppUpdate(
+    val version: String,
+    val apkUrl: String,
+    /** Expected SHA-256 (hex) of the APK; null when the release has no digest. */
+    val sha256: String? = null
+)
 
 /**
  * Checks the FlutLink GitHub releases for a newer version (platform-agnostic;
@@ -55,7 +62,14 @@ class UpdateChecker(
             if (compareVersions(tag, baseVersion(currentVersion)) <= 0) return null
             val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
                 ?: return null
-            return AppUpdate(tag, apk.browserDownloadUrl)
+            // CP-F4 (desktop install scripts): carry the release digest so the
+            // installer can verify the download before installing it.
+            val sha256 = apk.digest
+                ?.takeIf { it.startsWith("sha256:", ignoreCase = true) }
+                ?.substringAfter(':')
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            return AppUpdate(tag, apk.browserDownloadUrl, sha256)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             throw NetworkException(e)

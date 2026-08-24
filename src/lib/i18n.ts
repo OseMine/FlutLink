@@ -167,6 +167,8 @@ const dict: Record<Lang, Record<string, string>> = {
       "Add a local folder — its contents will be mirrored to /FlutLink on your FlutCloud.",
     syncAdded: "Sync folder added.",
     syncRemoved: "Sync folder removed.",
+    syncRemoveConfirm:
+      "Remove sync folder '{path}'? This stops syncing and deletes its journal — re-adding the folder later performs a full initial sync.",
     syncTriggered: "Sync started.",
     followSymlinks: "Follow symlinks",
     followSymlinksEnabled: "Symlinks are followed during sync",
@@ -297,6 +299,8 @@ const dict: Record<Lang, Record<string, string>> = {
       "A file or folder named '{detail}' already exists. Choose a different name.",
     errSyncFolderConflict:
       "This local folder is already connected to another FlutCloud folder ({detail}). Remove the existing sync connection first.",
+    errWalkIncomplete:
+      "Some files could not be read. Deletions were skipped for safety.",
     errUnknown: "Unknown error.",
     deleteAccountConfirm:
       "Remove account {name}? The account will be removed from this device.",
@@ -470,6 +474,8 @@ const dict: Record<Lang, Record<string, string>> = {
       "Füge einen lokalen Ordner hinzu – sein Inhalt wird nach /FlutLink in deiner FlutCloud gespiegelt.",
     syncAdded: "Sync-Ordner hinzugefügt.",
     syncRemoved: "Sync-Ordner entfernt.",
+    syncRemoveConfirm:
+      "Sync-Ordner '{path}' entfernen? Dies stoppt die Synchronisierung und löscht das Journal — beim erneuten Hinzufügen läuft alles als Erst-Sync.",
     syncTriggered: "Synchronisierung gestartet.",
     followSymlinks: "Symlinks folgen",
     followSymlinksEnabled: "Symlinks werden beim Sync aufgelöst",
@@ -600,6 +606,8 @@ const dict: Record<Lang, Record<string, string>> = {
       "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
     errSyncFolderConflict:
       "Dieser lokale Ordner ist bereits mit einem anderen FlutCloud-Ordner verbunden ({detail}). Bitte entferne zuerst die bestehende Sync-Verbindung.",
+    errWalkIncomplete:
+      "Einige Dateien konnten nicht gelesen werden. Löschungen wurden sicherheitshalber übersprungen.",
     errUnknown: "Unbekannter Fehler.",
     deleteAccountConfirm:
       "Konto {name} entfernen? Das Konto wird von diesem Gerät entfernt.",
@@ -646,6 +654,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   update: "errUpdate",
   target_exists: "errTargetExists",
   sync_folder_conflict: "errSyncFolderConflict",
+  walk_incomplete: "errWalkIncomplete",
 };
 
 export function translateError(lang: Lang, code: string, detail?: string | null): string {
@@ -653,4 +662,28 @@ export function translateError(lang: Lang, code: string, detail?: string | null)
   let text = translate(lang, key);
   if (detail) text = text.split("{detail}").join(detail);
   return text;
+}
+
+/// Map an updater status code to a localized text (SettingsModal + update
+/// banner). Unknown codes return `""` so callers can fall back to the raw
+/// backend code instead of rendering an empty string.
+export function updateStatusText(
+  lang: Lang,
+  code: string,
+  assetName?: string | null
+): string {
+  switch (code) {
+    case "checking":
+      return translate(lang, "checkingForUpdates");
+    case "downloading":
+      return assetName
+        ? translate(lang, "updateDownloadingName").replace("{name}", assetName)
+        : translate(lang, "updateDownloading");
+    case "installing":
+      return translate(lang, "updateInstalling");
+    case "checksum_warning":
+      return translate(lang, "updateChecksumWarning");
+    default:
+      return "";
+  }
 }

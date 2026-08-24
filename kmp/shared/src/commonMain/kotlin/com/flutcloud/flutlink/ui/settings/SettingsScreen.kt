@@ -95,6 +95,7 @@ import com.flutcloud.flutlink.resources.update_available_text
 import com.flutcloud.flutlink.resources.update_downloading_name
 import com.flutcloud.flutlink.resources.updates
 import com.flutcloud.flutlink.resources.version_format
+import com.flutcloud.flutlink.resources.token_missing_accounts
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,6 +258,29 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
 
             // Accounts
             SectionHeader(stringResource(Res.string.accounts))
+            val tokenMissing by vm.tokenMissing.collectAsState()
+            if (tokenMissing.isNotEmpty()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(
+                            Res.string.token_missing_accounts,
+                            tokenMissing.size,
+                            tokenMissing.joinToString(", ")
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
             accounts.forEach { meta ->
                 AccountRow(
                     meta = meta,

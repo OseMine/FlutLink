@@ -73,6 +73,12 @@
     <string name="file_exists_confirm">A file named \'%1$s\' already exists on the server. Overwrite?</string>
     <string name="overwrite">Overwrite</string>
 
+    <!-- Bulk selection & ZIP (CP-N3) -->
+    <string name="bulk_selected_count">%1$d selected</string>
+    <string name="bulk_delete_confirm">Delete %1$d selected items from the server?</string>
+    <string name="bulk_delete_failed_partially">Some items could not be deleted. The remaining items were kept.</string>
+    <string name="download_zip">Download as ZIP</string>
+
     <!-- Admin -->
     <string name="user_administration">User administration</string>
     <string name="add_user">Add user</string>
@@ -193,6 +199,7 @@
     <string name="update_check_failed_detail">Update check failed: %1$s</string>
     <string name="update_download_failed">Download failed.</string>
     <string name="update_download_failed_detail">Download failed: %1$s</string>
+    <string name="token_missing_accounts">For %1$d saved account(s) the stored credential is missing: %2$s. Sign in again to restore them.</string>
 
     <!-- Quota formatting -->
     <string name="quota_used">%1$s used</string>

@@ -76,10 +76,16 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y -qq shellcheck
           }
-          for f in scripts/install-flutcloud-app.sh; do
-            bash -n "$f"
-            shellcheck -S warning "$f"
-          done
+          # L17-N2: lint every shell script in the repo (the README one-liner
+          # entry points included), not only the FlutCloud installer.
+          failed=0
+          while IFS= read -r -d '' f; do
+            echo "Checking $f"
+            bash -n "$f" || failed=1
+            shellcheck -S warning "$f" || failed=1
+          done < <(find . -type f -name '*.sh' -not -path './node_modules/*' -print0)
+          [ "$failed" = 0 ] && echo "All shell scripts linted clean"
+          exit "$failed"
 
       - name: PowerShell parse check (.ps1)
         shell: pwsh

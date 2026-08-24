@@ -100,11 +100,23 @@ suspend fun FlutCloudApi.listGroups(session: AuthSession, search: String = ""): 
         val data = execute(session, HttpMethod.Get, url) ?: break
         val groups = data.jsonObject["groups"]?.jsonArray
             ?.mapNotNull { it.jsonPrimitive.contentOrNull }
-            ?.filter { seen.add(it) }
             .orEmpty()
         if (groups.isEmpty()) break
-        all += groups
-        if (groups.size < limit) break
+        // CP-N1 (desktop L17-N4): stop on the raw page length, not on the
+        // number of new entries — a full page with a single duplicate
+        // (entries moved mid-pagination) must not end the paging.
+        val count = groups.size
+        var newGroups = 0
+        for (group in groups) {
+            if (seen.add(group)) {
+                all += group
+                newGroups++
+            }
+        }
+        // Guard against servers that ignore `offset` and return the same page
+        // again: stop instead of looping forever on duplicate pages.
+        if (newGroups == 0) break
+        if (count < limit) break
         offset += limit
     }
     return all
@@ -135,6 +147,35 @@ suspend fun FlutCloudApi.removeGroupMember(session: AuthSession, groupId: String
 
 // --- OCS files sharing API ----------------------------------------------
 
+/**
+ * Impersonation headers for share requests (desktop `request_as` parity):
+ * admins browsing another user's files mark the request with
+ * `Impersonate-User` so the server resolves the path in that namespace.
+ */
+private fun impersonationHeaders(session: AuthSession, targetUser: String?): List<Pair<String, String>> =
+    if (targetUser != null && targetUser != session.username) {
+        listOf("Impersonate-User" to targetUser)
+    } else {
+        emptyList()
+    }
+
+/**
+ * Impersonation guard for a single share response (desktop
+ * `verify_share_owner`): when operating as another user, the server must
+ * attribute the share to that user (`uid_owner`). A share owned by anyone
+ * else proves that the header was ignored and the operation silently
+ * happened in the admin's namespace.
+ */
+private fun verifyShareOwner(share: Share, targetUser: String?) {
+    if (targetUser == null) return
+    if (share.uidOwner != targetUser) {
+        throw ApiException(
+            "Server did not honor the impersonated namespace for '$targetUser'.",
+            "impersonation_violation"
+        )
+    }
+}
+
 suspend fun FlutCloudApi.createShare(
     session: AuthSession,
     path: String,
@@ -143,7 +184,8 @@ suspend fun FlutCloudApi.createShare(
     password: String? = null,
     expireDate: String? = null,
     publicUpload: Boolean = false,
-    permissions: Long? = null
+    permissions: Long? = null,
+    targetUser: String? = null
 ): Share {
     val form = mutableListOf("path" to path, "shareType" to shareType.toString())
     shareWith?.let { form += "shareWith" to it }
@@ -158,23 +200,39 @@ suspend fun FlutCloudApi.createShare(
     val data = execute(
         session, HttpMethod.Post,
         "${session.normalizedBaseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json",
-        form
+        form,
+        impersonationHeaders(session, targetUser)
     ) ?: throw ApiException("Share endpoint returned no data")
-    return json.decodeFromString<ShareDto>(data.toString()).toShare()
+    val share = json.decodeFromString<ShareDto>(data.toString()).toShare()
         ?: throw ApiException("Share endpoint returned no share data")
+    verifyShareOwner(share, targetUser)
+    return share
 }
 
-suspend fun FlutCloudApi.listShares(session: AuthSession, path: String? = null): List<Share> {
+suspend fun FlutCloudApi.listShares(
+    session: AuthSession,
+    path: String? = null,
+    targetUser: String? = null
+): List<Share> {
     var url = "${session.normalizedBaseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json"
     path?.let { url += "&path=${encodeSegment(it)}" }
-    val data = execute(session, HttpMethod.Get, url) ?: return emptyList()
+    val data = execute(
+        session, HttpMethod.Get, url,
+        headers = impersonationHeaders(session, targetUser)
+    ) ?: return emptyList()
     return data.jsonArray.mapNotNull { json.decodeFromString<ShareDto>(it.toString()).toShare() }
+        // Impersonation guard (desktop `list_shares`): while browsing as
+        // another user, drop every share not owned by the target user —
+        // otherwise the server ignored the header and answered with the
+        // admin's own shares.
+        .filter { targetUser == null || it.uidOwner == targetUser }
 }
 
-suspend fun FlutCloudApi.deleteShare(session: AuthSession, shareId: Long) {
+suspend fun FlutCloudApi.deleteShare(session: AuthSession, shareId: Long, targetUser: String? = null) {
     execute(
         session, HttpMethod.Delete,
-        "${session.normalizedBaseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares/$shareId?format=json"
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares/$shareId?format=json",
+        headers = impersonationHeaders(session, targetUser)
     )
 }
 
@@ -227,6 +285,7 @@ private fun ShareDto.toShare(): Share? {
         path = path,
         shareWith = shareWith,
         shareWithDisplayName = shareWithDisplayName,
+        uidOwner = uidOwner,
         permissions = permissions,
         url = url,
         hasPassword = hasPassword,

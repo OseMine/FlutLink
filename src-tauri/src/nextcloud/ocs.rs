@@ -306,6 +306,10 @@ pub async fn list_groups(
         if groups.is_empty() {
             break;
         }
+        // L17-N4: stop on the raw page length (like `list_users`), not on the
+        // number of new entries — a full 200-entry page with a single
+        // duplicate (entries moved mid-pagination) must not end the paging.
+        let count = groups.len();
         let mut new_groups = 0usize;
         for group in groups {
             if seen.insert(group.clone()) {
@@ -315,7 +319,10 @@ pub async fn list_groups(
         }
         // Guard against servers that ignore `offset` and return the same page
         // again: stop instead of looping forever on duplicate pages.
-        if new_groups < LIMIT {
+        if new_groups == 0 {
+            break;
+        }
+        if count < LIMIT {
             break;
         }
         offset += LIMIT;

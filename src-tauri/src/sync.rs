@@ -1252,20 +1252,12 @@ fn persist_journal(app: &AppHandle, folder_id: &str, journal: &Journal) -> AppRe
     persist_journal_to_disk(&journal_file(app, folder_id)?, journal)
 }
 
-/// Atomically persist a journal: temp file + fsync + rename, so a crash can
-/// never leave a half-written journal behind (the rename is atomic on all
-/// supported platforms).
+/// Atomically persist a journal (temp file + fsync + rename via the shared
+/// persist helpers), so a crash can never leave a half-written journal
+/// behind.
 fn persist_journal_to_disk(path: &Path, journal: &Journal) -> AppResult<()> {
     let json = serde_json::to_string_pretty(journal).map_err(|e| AppError::Parse(e.to_string()))?;
-    let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
-    {
-        use std::io::Write;
-        let mut file = std::fs::File::create(&tmp)?;
-        file.write_all(json.as_bytes())?;
-        file.sync_all()?;
-    }
-    std::fs::rename(&tmp, path)?;
-    Ok(())
+    crate::persist::atomic_write(path, &json)
 }
 
 fn initial_status(folder: &SyncFolder) -> SyncFolderStatus {
@@ -1305,7 +1297,9 @@ impl SyncEngine {
 
     /// Load persisted folders from disk (called once at startup). Also seeds
     /// the status map so `statuses()` returns the folders immediately, even
-    /// before the first worker pass.
+    /// before the first worker pass. A corrupt folders file is quarantined
+    /// for diagnosis instead of being silently overwritten by the next
+    /// persist (L17-F3).
     pub fn load(&self, app: &AppHandle) {
         let path = match folders_file(app) {
             Ok(path) => path,
@@ -1314,18 +1308,26 @@ impl SyncEngine {
         if !path.exists() {
             return;
         }
-        if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(folders) = serde_json::from_str::<Vec<SyncFolder>>(&raw) {
-                if let Ok(mut guard) = self.folders.write() {
-                    *guard = folders.clone();
-                }
-                if let Ok(mut status_guard) = self.statuses.write() {
-                    for folder in folders {
-                        status_guard
-                            .entry(folder.id.clone())
-                            .or_insert_with(|| initial_status(&folder));
-                    }
-                }
+        let folders = match std::fs::read_to_string(&path)
+            .map_err(|e| AppError::Parse(e.to_string()))
+            .and_then(|raw| {
+                serde_json::from_str::<Vec<SyncFolder>>(&raw)
+                    .map_err(|e| AppError::Parse(e.to_string()))
+            }) {
+            Ok(folders) => folders,
+            Err(_) => {
+                crate::persist::quarantine_corrupt_file(&path);
+                return;
+            }
+        };
+        if let Ok(mut guard) = self.folders.write() {
+            *guard = folders.clone();
+        }
+        if let Ok(mut status_guard) = self.statuses.write() {
+            for folder in folders {
+                status_guard
+                    .entry(folder.id.clone())
+                    .or_insert_with(|| initial_status(&folder));
             }
         }
     }
@@ -1333,7 +1335,7 @@ impl SyncEngine {
     pub fn persist(&self, app: &AppHandle) -> AppResult<()> {
         let json = serde_json::to_string_pretty(&self.folders_snapshot())
             .map_err(|e| AppError::Parse(e.to_string()))?;
-        std::fs::write(folders_file(app)?, json)?;
+        crate::persist::atomic_write(&folders_file(app)?, &json)?;
         Ok(())
     }
 

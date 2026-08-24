@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.core.AccountMeta
+import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.AppUpdate
 import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.downloadAndInstall
@@ -25,6 +26,8 @@ import com.flutcloud.flutlink.resources.update_up_to_date
 class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     val accounts = MutableStateFlow<List<AccountMeta>>(emptyList())
+    /** Persisted accounts whose credential is gone (CP-N2, never silent). */
+    val tokenMissing = MutableStateFlow<List<String>>(emptyList())
     val themePreference = MutableStateFlow("system")
     val dynamicColor = MutableStateFlow(true)
     val accentHue = MutableStateFlow<Int?>(null)
@@ -47,6 +50,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     init {
         viewModelScope.launch {
             container.sessionManager.accounts.collect { accounts.value = it }
+        }
+        viewModelScope.launch {
+            container.sessionManager.tokenMissing.collect { tokenMissing.value = it }
         }
         viewModelScope.launch {
             container.settingsStore.themePreference.collect { themePreference.value = it }
@@ -138,6 +144,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 } else {
                     UiMessage(Res.string.update_download_failed_detail, detail)
                 }
+            } catch (e: ApiException) {
+                // e.g. update_checksum_mismatch (CP-F4): surface, never install.
+                _toast.value = UiMessage(Res.string.update_download_failed_detail, e.message)
             } finally {
                 _installingUpdate.value = false
             }

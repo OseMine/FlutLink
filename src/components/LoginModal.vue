@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { onUnmounted, ref, watch } from "vue";
 import AppLogo from "./AppLogo.vue";
 import { useAccountsStore } from "../stores/accounts";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { api, invokeError } from "../lib/ipc";
+import { registerEscapeCloser } from "../lib/escape";
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
 import "@material/web/button/text-button.js";
@@ -96,10 +97,33 @@ function done() {
   emit("done");
 }
 
+// L19-N1: Escape closes the modal while it is open (via the same close path
+// as the cancel button, so the form is reset too).
+let removeEscapeCloser: (() => void) | null = null;
+watch(
+  () => props.open,
+  (open) => {
+    if (open && !removeEscapeCloser) {
+      removeEscapeCloser = registerEscapeCloser(close);
+    } else if (!open && removeEscapeCloser) {
+      removeEscapeCloser();
+      removeEscapeCloser = null;
+    }
+  }
+);
+onUnmounted(() => removeEscapeCloser?.());
+
 async function submit() {
   if (submitting.value) return;
   if (!serverUrl.value) {
     formError.value = serverUrlError.value ?? t("serverNotConfigured");
+    return;
+  }
+  // L17-N3: the login tab validates required fields client-side, exactly like
+  // the register tab — empty fields show the localized hint instead of an OCS
+  // server error.
+  if (!form.value.username.trim() || !form.value.token) {
+    formError.value = t("requiredFields");
     return;
   }
   submitting.value = true;

@@ -8,6 +8,7 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.ContentType
@@ -43,6 +44,41 @@ class WebDavApi(private val client: HttpClient) {
     /** The user whose files namespace a request addresses (admin impersonation). */
     private fun effectiveUser(session: AuthSession, targetUser: String?): String =
         targetUser ?: session.username
+
+    /**
+     * Base check applied to every WebDAV path, read and write alike (desktop
+     * `validate_dav_path`): paths must be absolute and stay inside the user's
+     * root. Browsing inside the FlutCloud virtual namespaces
+     * (`resources`/`parts`) is legitimate, so they are only blocked for
+     * modifications via [validateWritable].
+     */
+    private fun validatePath(path: String) {
+        if (!path.startsWith('/')) {
+            throw ApiException("Path must be absolute (start with '/').", "invalid_path")
+        }
+        if (path.split('/').any { it == ".." }) {
+            throw ApiException("Path must not contain '..'.", "invalid_path")
+        }
+    }
+
+    /**
+     * Additionally reject the FlutCloud virtual namespaces (`resources`/
+     * `parts`) for write access: they are managed by the server app and must
+     * not be modified through the client (desktop `validate_writable_dav_path`,
+     * L17-F2/CP-N5).
+     */
+    private fun validateWritable(path: String) {
+        validatePath(path)
+        val blocked = path.split('/').any {
+            it.equals("resources", ignoreCase = true) || it.equals("parts", ignoreCase = true)
+        }
+        if (blocked) {
+            throw ApiException(
+                "The virtual 'resources'/'parts' folders cannot be modified.",
+                "invalid_path"
+            )
+        }
+    }
 
     private fun davRoot(session: AuthSession, targetUser: String? = null): String =
         "${session.normalizedBaseUrl}/remote.php/dav/files/${encodeSegment(effectiveUser(session, targetUser))}"
@@ -110,6 +146,7 @@ class WebDavApi(private val client: HttpClient) {
 
     /** List a folder (PROPFIND, Depth 1). */
     suspend fun list(session: AuthSession, path: String, targetUser: String? = null): List<WebDavEntry> {
+        validatePath(path)
         val effective = effectiveUser(session, targetUser)
         val entries = executeWebDav(davUrl(session, path, targetUser), "/remote.php/dav/files/${encodeSegment(effective)}") {
             method = HttpMethod("PROPFIND")
@@ -137,6 +174,7 @@ class WebDavApi(private val client: HttpClient) {
     /** PROPFIND (Depth 0): does the remote resource exist? */
     suspend fun exists(session: AuthSession, path: String, targetUser: String? = null): Boolean =
         try {
+            validatePath(path)
             val response = client.request(davUrl(session, path, targetUser)) {
                 method = HttpMethod("PROPFIND")
                 auth(session)
@@ -170,16 +208,21 @@ class WebDavApi(private val client: HttpClient) {
         contentType: String = "application/octet-stream",
         mtimeEpochSeconds: Long? = null,
         targetUser: String? = null
-    ) = statusCheck(davUrl(session, path, targetUser), session, targetUser) {
-        method = HttpMethod.Put
-        contentType(ContentType.parse(contentType))
-        setBody(bytes)
-        mtimeEpochSeconds?.let { header("X-OC-MTime", it.toString()) }
+    ) {
+        validateWritable(path)
+        statusCheck(davUrl(session, path, targetUser), session, targetUser) {
+            method = HttpMethod.Put
+            contentType(ContentType.parse(contentType))
+            setBody(bytes)
+            mtimeEpochSeconds?.let { header("X-OC-MTime", it.toString()) }
+        }
     }
 
     /**
      * Download a remote file streaming it directly into `dest` on [fs], so
-     * large files never sit in memory as a byte array.
+     * large files never sit in memory as a byte array. With [accept] set
+     * (`application/zip`) the same endpoint streams a folder archive instead
+     * of the raw resource (CP-N3, desktop `download_zip_as`).
      */
     suspend fun downloadToFile(
         session: AuthSession,
@@ -187,13 +230,16 @@ class WebDavApi(private val client: HttpClient) {
         dest: Path,
         fs: FileSystem = systemFileSystem(),
         onProgress: ProgressCallback? = null,
-        targetUser: String? = null
+        targetUser: String? = null,
+        accept: String? = null
     ): Path {
+        validatePath(path)
         try {
             val response = client.request(davUrl(session, path, targetUser)) {
                 method = HttpMethod.Get
                 auth(session)
                 impersonate(session, targetUser)
+                accept?.let { header(HttpHeaders.Accept, it) }
                 ocsMarker(davUrl(session, path, targetUser))
             }
             if (!response.status.isSuccess()) {
@@ -230,24 +276,243 @@ class WebDavApi(private val client: HttpClient) {
         mtimeEpochSeconds: Long? = null,
         onProgress: ProgressCallback? = null,
         targetUser: String? = null
-    ) = statusCheck(davUrl(session, path, targetUser), session, targetUser) {
-        method = HttpMethod.Put
-        contentType(ContentType.parse(contentTypeValue))
-        setBody(streamingContent(openStream, contentLength, contentTypeValue, onProgress))
-        mtimeEpochSeconds?.let { header("X-OC-MTime", it.toString()) }
+    ) {
+        validateWritable(path)
+        if (contentLength >= CHUNK_UPLOAD_MIN_BYTES) {
+            // CP-F3 (desktop parity): large files go through chunked upload v2
+            // instead of one giant PUT.
+            chunkedUploadV2(
+                session = session,
+                path = path,
+                openStream = openStream,
+                contentLength = contentLength,
+                mtimeEpochSeconds = mtimeEpochSeconds,
+                onProgress = onProgress,
+                targetUser = targetUser
+            )
+        } else {
+            statusCheck(davUrl(session, path, targetUser), session, targetUser) {
+                method = HttpMethod.Put
+                contentType(ContentType.parse(contentTypeValue))
+                setBody(streamingContent(openStream, contentLength, contentTypeValue, onProgress))
+                mtimeEpochSeconds?.let { header("X-OC-MTime", it.toString()) }
+            }
+        }
     }
 
+    /**
+     * Upload via the WebDAV chunked upload v2 protocol (desktop
+     * `chunked_put_v2`):
+     *
+     * 1. A MKCOL creates a uniquely named session folder under
+     *    `/remote.php/dav/uploads/{user}/{transferId}`.
+     * 2. The source is read in [CHUNK_UPLOAD_CHUNK_BYTES] blocks and each block
+     *    is PUT to the session folder under a running number. Blocks are
+     *    filled in a loop, so every non-final chunk is exactly the full chunk
+     *    size even when the reader returns short reads (the server rejects
+     *    non-final chunks below 5 MiB).
+     * 3. A final MOVE of the `.file` pseudo-entry assembles the chunks into
+     *    the destination file.
+     *
+     * `Destination` (final file URL) and `OC-Total-Length` ride on every
+     * request so the server checks quota while chunks arrive. On failure the
+     * session folder is removed again so uploaded chunks don't leak storage.
+     */
+    private suspend fun chunkedUploadV2(
+        session: AuthSession,
+        path: String,
+        openStream: () -> Source,
+        contentLength: Long,
+        mtimeEpochSeconds: Long?,
+        onProgress: ProgressCallback?,
+        targetUser: String?
+    ) {
+        val uploadDir =
+            "${session.normalizedBaseUrl}/remote.php/dav/uploads/${encodeSegment(effectiveUser(session, targetUser))}/${transferId()}"
+        val destUrl = davUrl(session, path, targetUser)
+
+        val result = runCatching {
+            statusCheck(uploadDir, session, targetUser, ignoreStatus = 405) {
+                method = HttpMethod("MKCOL")
+                header("Destination", destUrl)
+                header("OC-Total-Length", contentLength.toString())
+            }
+
+            openStream().use { src ->
+                val input = src.buffer()
+                val buffer = ByteArray(CHUNK_UPLOAD_CHUNK_BYTES)
+                var transferred = 0L
+                var number = 1L
+                while (true) {
+                    var filled = 0
+                    while (filled < buffer.size) {
+                        val read = input.read(buffer, filled, buffer.size - filled)
+                        if (read == -1) break
+                        filled += read
+                    }
+                    if (filled == 0) break
+                    statusCheck("$uploadDir/$number", session, targetUser) {
+                        method = HttpMethod.Put
+                        header("Destination", destUrl)
+                        header("OC-Total-Length", contentLength.toString())
+                        setBody(buffer.copyOf(filled))
+                    }
+                    transferred += filled
+                    onProgress?.onProgress(transferred, contentLength)
+                    number++
+                }
+            }
+
+            // Assembling is a MOVE of the `.file` pseudo-entry; X-OC-MTime
+            // keeps change detection stable across clients.
+            assembleChunks(session, "$uploadDir/.file", destUrl, path, contentLength, mtimeEpochSeconds, targetUser)
+        }
+        if (result.isFailure) {
+            deleteUploadSession(session, uploadDir, targetUser)
+        }
+        result.getOrThrow()
+    }
+
+    /** Final MOVE that assembles the uploaded chunks into [path]. */
+    private suspend fun assembleChunks(
+        session: AuthSession,
+        sourceUrl: String,
+        destUrl: String,
+        path: String,
+        contentLength: Long,
+        mtimeEpochSeconds: Long?,
+        targetUser: String?
+    ) {
+        try {
+            val response = client.request(sourceUrl) {
+                method = HttpMethod("MOVE")
+                auth(session)
+                impersonate(session, targetUser)
+                header("Destination", destUrl)
+                header("OC-Total-Length", contentLength.toString())
+                mtimeEpochSeconds?.let { header("X-OC-MTime", it.toString()) }
+                ocsMarker(sourceUrl)
+            }
+            if (response.status.value == 412) {
+                throw ApiException("Destination already exists: $path", "target_exists", 412)
+            }
+            if (!response.status.isSuccess()) {
+                val body = response.bodyAsText()
+                throw ApiException(
+                    "Server answered ${response.status.value}: $body".trim(),
+                    "http_${response.status.value}",
+                    response.status.value
+                )
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw NetworkException(e)
+        }
+    }
+
+    /** Best-effort removal of a failed chunked-upload session folder. */
+    private suspend fun deleteUploadSession(session: AuthSession, uploadDir: String, targetUser: String?) {
+        try {
+            val response = client.request(uploadDir) {
+                method = HttpMethod.Delete
+                auth(session)
+                impersonate(session, targetUser)
+                ocsMarker(uploadDir)
+            }
+            logI("cleaned up upload session $uploadDir -> ${response.status.value}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            flutLogError(TAG, "cleanup of upload session $uploadDir failed: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Pre-validate every path before any destructive step runs so a bulk
+     * operation never fails halfway through with earlier entries already
+     * deleted (desktop `webdav_bulk_delete`, L19-F2).
+     */
+    fun validateBulkDeletion(paths: List<String>) {
+        paths.forEach { validateWritable(it) }
+    }
+
+    /**
+     * Fetch a preview thumbnail from the Nextcloud `/core/preview.png`
+     * endpoint (desktop `webdav::preview`). Returns null when the server has
+     * no preview for the file (404/400: unknown file, no provider, disabled).
+     */
+    suspend fun preview(
+        session: AuthSession,
+        path: String,
+        size: Int = 128,
+        targetUser: String? = null
+    ): ByteArray? {
+        val url =
+            "${session.normalizedBaseUrl}/index.php/core/preview.png?file=${encodeSegment(path)}&x=$size&y=$size"
+        return try {
+            val response = client.request(url) {
+                method = HttpMethod.Get
+                auth(session)
+                impersonate(session, targetUser)
+            }
+            when {
+                response.status.value == 404 || response.status.value == 400 -> null
+                !response.status.isSuccess() -> throw ApiException(
+                    "Server answered ${response.status.value}.",
+                    "http_${response.status.value}",
+                    response.status.value
+                )
+                else -> response.readBytes()
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw NetworkException(e)
+        }
+    }
+
+    /**
+     * Download a remote folder as a ZIP archive (Nextcloud WebDAV extension,
+     * desktop `download_zip_as`): a GET on the folder's DAV URL with
+     * `Accept: application/zip` streams an archive of its contents.
+     */
+    suspend fun downloadFolderZip(
+        session: AuthSession,
+        path: String,
+        dest: Path,
+        fs: FileSystem = systemFileSystem(),
+        onProgress: ProgressCallback? = null,
+        targetUser: String? = null
+    ): Path = downloadToFile(
+        session = session,
+        path = path,
+        dest = dest,
+        fs = fs,
+        onProgress = onProgress,
+        targetUser = targetUser,
+        accept = "application/zip"
+    )
+
     /** Create a folder (MKCOL). 405 = already exists, treated as success. */
-    suspend fun mkdir(session: AuthSession, path: String, targetUser: String? = null) =
+    suspend fun mkdir(session: AuthSession, path: String, targetUser: String? = null) {
+        validateWritable(path)
         statusCheck(davUrl(session, path, targetUser), session, targetUser, ignoreStatus = 405) {
             method = HttpMethod("MKCOL")
         }
+    }
 
     /** Delete a file/folder. 404 = already gone, treated as success. */
-    suspend fun delete(session: AuthSession, path: String, targetUser: String? = null) =
+    suspend fun delete(session: AuthSession, path: String, targetUser: String? = null) {
+        validateWritable(path)
         statusCheck(davUrl(session, path, targetUser), session, targetUser, ignoreStatus = 404) {
             method = HttpMethod.Delete
         }
+    }
 
     /**
      * Rename/move a resource (MOVE with Overwrite: F). Throws a
@@ -259,6 +524,8 @@ class WebDavApi(private val client: HttpClient) {
         newPath: String,
         targetUser: String? = null
     ) {
+        validateWritable(path)
+        validateWritable(newPath)
         try {
             val response = client.request(davUrl(session, path, targetUser)) {
                 method = HttpMethod("MOVE")
@@ -324,6 +591,25 @@ class WebDavApi(private val client: HttpClient) {
 
         /** Chunk size for streaming transfers (download + upload). */
         private const val STREAM_BUFFER_BYTES = 64 * 1024
+
+        /** Files at or above this size use chunked upload v2 (desktop parity). */
+        internal const val CHUNK_UPLOAD_MIN_BYTES: Long = 10L * 1024 * 1024
+
+        /**
+         * Per-chunk size for chunked upload v2. The server rejects non-final
+         * chunks below 5 MiB; 10 MiB matches the desktop client.
+         */
+        private const val CHUNK_UPLOAD_CHUNK_BYTES = 10 * 1024 * 1024
+
+        /**
+         * Unique session id for a chunked upload (desktop `transfer_id`):
+         * two random 64-bit words keep collisions negligible even for
+         * concurrent uploads.
+         */
+        private fun transferId(): String {
+            val random = kotlin.random.Random.Default
+            return "flutlink-${random.nextLong().toString(16)}-${random.nextLong().toString(16)}"
+        }
 
         private fun searchRequestBody(user: String, query: String): String =
             """<?xml version="1.0" encoding="UTF-8"?>

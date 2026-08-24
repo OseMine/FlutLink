@@ -67,6 +67,12 @@
     <string name="share">Teilen</string>
     <string name="downloaded_to_downloads">Heruntergeladen: %1$s</string>
     <string name="download_permission_denied">Speicherberechtigung verweigert. Nicht in den Downloads-Ordner gespeichert.</string>
+
+    <!-- Mehrfachauswahl & ZIP (CP-N3) -->
+    <string name="bulk_selected_count">%1$d ausgewählt</string>
+    <string name="bulk_delete_confirm">%1$d ausgewählte Elemente vom Server löschen?</string>
+    <string name="bulk_delete_failed_partially">Einige Elemente konnten nicht gelöscht werden. Die übrigen wurden beibehalten.</string>
+    <string name="download_zip">Als ZIP herunterladen</string>
     <string name="share_failed">%1$s konnte nicht geteilt werden.</string>
     <string name="link_created">Link erstellt: %1$s</string>
     <string name="no_url">keine URL</string>
@@ -193,6 +199,7 @@
     <string name="update_check_failed_detail">Update-Check fehlgeschlagen: %1$s</string>
     <string name="update_download_failed">Download fehlgeschlagen.</string>
     <string name="update_download_failed_detail">Download fehlgeschlagen: %1$s</string>
+    <string name="token_missing_accounts">Für %1$d gespeicherte(n) Account(s) fehlt die hinterlegte Anmeldeinformation: %2$s. Bitte neu anmelden, um sie wiederherzustellen.</string>
 
     <!-- Quota formatting -->
     <string name="quota_used">%1$s belegt</string>

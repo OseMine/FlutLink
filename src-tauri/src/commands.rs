@@ -519,11 +519,11 @@ pub async fn webdav_create_share(
     options: Option<ShareInput>,
 ) -> AppResult<Share> {
     let account = current_account(&state)?;
+    validate_writable_dav_path(&path)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    validate_dav_path(&path)?;
     let options = options.unwrap_or_default();
     let share_type = options.share_type.unwrap_or(3);
     let share_with = options.share_with.filter(|s| !s.trim().is_empty());
@@ -585,9 +585,13 @@ pub async fn webdav_delete_share(
     ocs::delete_share(&state.http_client, &account, share_id, target.as_deref()).await
 }
 
-/// Reject paths that are not absolute, escape the user's home (`..`) or target
-/// the FlutCloud virtual namespaces (`resources`/`parts`), which are managed by
-/// the server app and must not be modified through the client.
+/// Reject paths that are not absolute or escape the user's root (`..`).
+///
+/// This base check applies to every WebDAV command, read and write alike:
+/// browsing/opening/downloading inside the FlutCloud virtual namespaces
+/// (`resources`/`parts`) is legitimate — `webdav_list` serves their entries
+/// with `isResource`/`isPart` flags — so only modifications are refused via
+/// [`validate_writable_dav_path`] (L17-F2).
 fn validate_dav_path(path: &str) -> AppResult<()> {
     if !path.starts_with('/') {
         return Err(AppError::App(
@@ -598,6 +602,16 @@ fn validate_dav_path(path: &str) -> AppResult<()> {
         if segment == ".." {
             return Err(AppError::App("Path must not contain '..'.".into()));
         }
+    }
+    Ok(())
+}
+
+/// Additionally reject the FlutCloud virtual namespaces (`resources`/`parts`)
+/// for write access: they are managed by the server app and must not be
+/// modified through the client. Applied to all writing commands only.
+fn validate_writable_dav_path(path: &str) -> AppResult<()> {
+    validate_dav_path(path)?;
+    for segment in path.split('/') {
         if segment.eq_ignore_ascii_case("resources") || segment.eq_ignore_ascii_case("parts") {
             return Err(AppError::App(
                 "The virtual 'resources'/'parts' folders cannot be modified.".into(),
@@ -650,7 +664,7 @@ pub async fn webdav_upload_file(
     overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_dav_path(&remote_path)?;
+    validate_writable_dav_path(&remote_path)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -846,7 +860,7 @@ pub async fn webdav_delete(
     target_user: Option<String>,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_dav_path(&path)?;
+    validate_writable_dav_path(&path)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -910,9 +924,14 @@ pub async fn webdav_bulk_delete(
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
+    // L19-F2: validate every path up front — validating inside the delete
+    // loop let a protected path in the middle of the selection abort the
+    // bulk delete with the earlier paths already gone (partial deletion).
+    for path in &paths {
+        validate_writable_dav_path(path)?;
+    }
     let total = paths.len() as u64;
     for (i, path) in paths.iter().enumerate() {
-        validate_dav_path(path)?;
         webdav::delete_as(&state.http_client, &account, path, target.as_deref()).await?;
         let progress = transfer_progress(app.clone(), "delete", path, i as u64, total);
         progress(i as u64 + 1, total);
@@ -1109,7 +1128,7 @@ pub async fn webdav_upload_local_paths(
     overwrite: bool,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_dav_path(&remote_dir)?;
+    validate_writable_dav_path(&remote_dir)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
@@ -1198,7 +1217,7 @@ pub async fn webdav_mkdir(
     target_user: Option<String>,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_dav_path(&path)?;
+    validate_writable_dav_path(&path)?;
     validate_rename_name(mkdir_leaf_name(&path))?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
@@ -1223,14 +1242,14 @@ pub async fn webdav_rename(
     target_user: Option<String>,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_dav_path(&path)?;
+    validate_writable_dav_path(&path)?;
     validate_rename_name(&new_name)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
     let new_path = rename_new_path(&path, &new_name);
-    validate_dav_path(&new_path)?;
+    validate_writable_dav_path(&new_path)?;
     webdav::rename_as(
         &state.http_client,
         &account,
@@ -1517,13 +1536,39 @@ mod tests {
             validate_dav_path("/../etc/passwd").is_err(),
             "must not contain '..'"
         );
+    }
+
+    /// L17-F2: reading inside the virtual namespaces is allowed (browse/
+    /// open/download/thumbnail) — only writes are refused.
+    #[test]
+    fn validate_dav_path_allows_virtual_namespaces_for_reads() {
+        assert!(validate_dav_path("/resources/x").is_ok());
+        assert!(validate_dav_path("/Resources/report.pdf").is_ok());
+        assert!(validate_dav_path("/parts/x").is_ok());
+    }
+
+    #[test]
+    fn validate_writable_dav_path_rejects_virtual_namespaces() {
         assert!(
-            validate_dav_path("/Resources/x").is_err(),
+            validate_writable_dav_path("/Resources/x").is_err(),
             "virtual folders are protected"
         );
         assert!(
-            validate_dav_path("/parts/x").is_err(),
+            validate_writable_dav_path("/parts/x").is_err(),
             "virtual folders are protected"
+        );
+        assert!(
+            validate_writable_dav_path("/Docs/resources").is_err(),
+            "any segment is checked"
+        );
+        assert!(validate_writable_dav_path("/Documents/report.pdf").is_ok());
+        assert!(
+            validate_writable_dav_path("Documents/neu.pdf").is_err(),
+            "base rules still apply"
+        );
+        assert!(
+            validate_writable_dav_path("/../etc/passwd").is_err(),
+            "base rules still apply"
         );
     }
 

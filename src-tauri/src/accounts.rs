@@ -64,10 +64,12 @@ pub fn delete_token(meta: &AccountMeta) -> AppResult<()> {
 }
 
 /// Persist account metadata (never the token) to the app data directory.
+/// Atomic via temp+rename so a crash can never truncate `accounts.json`
+/// (L17-F3).
 pub fn persist_accounts(app: &AppHandle, accounts: &[Account]) -> AppResult<()> {
     let metas: Vec<AccountMeta> = accounts.iter().map(|a| a.meta.clone()).collect();
     let json = serde_json::to_string_pretty(&metas).map_err(|e| AppError::Parse(e.to_string()))?;
-    std::fs::write(accounts_file(app)?, json)?;
+    crate::persist::atomic_write(&accounts_file(app)?, &json)?;
     Ok(())
 }
 
@@ -99,8 +101,13 @@ pub fn load_accounts(app: &AppHandle) -> AppResult<LoadAccountsResult> {
         return Ok(LoadAccountsResult::default());
     }
     let raw = std::fs::read_to_string(&path)?;
-    let metas: Vec<AccountMeta> =
-        serde_json::from_str(&raw).map_err(|e| AppError::Parse(e.to_string()))?;
+    // L17-F3: a corrupt accounts file is quarantined for diagnosis and starts
+    // over empty — failing here would make the caller fall back to an empty
+    // list anyway, and the next persist would silently overwrite the evidence.
+    let Ok(metas) = serde_json::from_str::<Vec<AccountMeta>>(&raw) else {
+        crate::persist::quarantine_corrupt_file(&path);
+        return Ok(LoadAccountsResult::default());
+    };
     let mut dropped = Vec::new();
     let mut token_missing = Vec::new();
     let mut accounts = Vec::new();

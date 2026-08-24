@@ -16,7 +16,8 @@ import { useAccountsStore } from "./stores/accounts";
 import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
-import { translate } from "./lib/i18n";
+import { translate, updateStatusText } from "./lib/i18n";
+import { installEscapeHandler } from "./lib/escape";
 import { api, invokeError, type ReleaseInfo, type UpdateProgress, type UpdateStatus } from "./lib/ipc";
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
@@ -118,6 +119,8 @@ onMounted(() => {
   void accounts.bind();
   void sync.bind();
   resolveTheme();
+  // L19-N1: one global listener closes the topmost open menu/modal on Escape.
+  installEscapeHandler();
   window
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", resolveTheme);
@@ -164,10 +167,12 @@ async function startUpdateDownload() {
       updateBannerProgress.value = e.payload.percent;
     });
     unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
+      // L19-F7: localized status texts via the same code→key mapping as the
+      // SettingsModal; unknown codes fall back to the raw backend code.
+      const text = updateStatusText(ui.lang, e.payload.code, e.payload.assetName);
       updateBannerStatus.value =
-        e.payload.code === "checksum_warning"
-          ? t("updateChecksumWarning")
-          : `${e.payload.code}${e.payload.assetName ? " — " + e.payload.assetName : ""}`;
+        text ||
+        `${e.payload.code}${e.payload.assetName ? " — " + e.payload.assetName : ""}`;
     });
   } catch {
     // progress/status listeners are best-effort

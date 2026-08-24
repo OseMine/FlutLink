@@ -279,7 +279,9 @@ async function setQuota() {
     quota = "-3";
   } else {
     const value = edits.quotaValue;
-    if (value === null || value <= 0) {
+    // L19-F6: an emptied/invalid field yields NaN — `NaN <= 0` is false, so
+    // the old check let "NaN" through to the OCS API.
+    if (value === null || !Number.isFinite(value) || value <= 0) {
       error.value = t("quotaInvalid");
       return;
     }

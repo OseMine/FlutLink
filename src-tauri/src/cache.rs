@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::persist::atomic_write;
 use crate::state::{UserQuota, WebDavEntry};
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
@@ -78,15 +79,6 @@ fn evict_oldest(dir: &Path, max_entries: usize) -> usize {
         let _ = std::fs::remove_file(path);
     }
     remove
-}
-
-/// Atomically write cache content: temp file + rename, so a crash mid-write
-/// can never leave a truncated JSON file behind (#286).
-fn atomic_write(path: &Path, json: &str) -> AppResult<()> {
-    let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
-    std::fs::write(&tmp, json)?;
-    std::fs::rename(&tmp, path)?;
-    Ok(())
 }
 
 /// Load a cached JSON document. A corrupt or unreadable file is deleted and

@@ -61,9 +61,12 @@ async function pickFolder() {
   }
 }
 
-async function remove(folderId: string) {
+async function remove(folder: { folderId: string; localPath: string }) {
+  // L19-F3: removing a sync folder also deletes its journal — never do that
+  // without an explicit confirmation (same pattern as file/account deletion).
+  if (!window.confirm(t("syncRemoveConfirm").replace("{path}", folder.localPath))) return;
   try {
-    await sync.remove(folderId);
+    await sync.remove(folder.folderId);
     ui.toast(t("syncRemoved"), "success");
   } catch {
     // error surfaced via sync.error
@@ -167,7 +170,7 @@ async function syncNow() {
           <md-outlined-button @click="togglePaused(folder)">
             {{ folder.paused ? t("resume") : t("pause") }}
           </md-outlined-button>
-          <md-outlined-button class="error-btn" @click="remove(folder.folderId)">
+          <md-outlined-button class="error-btn" @click="remove(folder)">
             {{ t("remove") }}
           </md-outlined-button>
         </div>

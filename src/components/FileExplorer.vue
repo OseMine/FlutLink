@@ -8,6 +8,7 @@ import { useUiStore } from "../stores/ui";
 import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
 import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
+import { registerEscapeCloser } from "../lib/escape";
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
 import "@material/web/button/text-button.js";
@@ -133,9 +134,11 @@ async function bulkDownload() {
 
 async function bulkDelete() {
   if (busyPath.value) return;
-  busyPath.value = "bulk-delete";
+  // L17-F1: ask BEFORE claiming the busy slot — an early return on "cancel"
+  // used to leave `busyPath` set forever and silently block every action.
   const count = selected.value.size;
   if (!window.confirm(t("deleteSelectedConfirm").replace("{count}", String(count)))) return;
+  busyPath.value = "bulk-delete";
   try {
     await files.bulkDelete([...selected.value]);
     clearSelection();
@@ -271,19 +274,27 @@ async function downloadZip(entry: WebDavEntry) {
 }
 
 /// U-R8-6: keep `thumbs`/`shareState` bounded across folder navigation. Only
-/// entries inside the current folder stay relevant; the `currentPath` watcher
-/// runs before `files.entries` are refreshed, so pruning goes by path prefix.
+/// entries inside the current folder (or, in split view, its paired folder —
+/// L19-F1) stay relevant; the `currentPath` watcher runs before `files.entries`
+/// are refreshed, so pruning goes by path prefix.
 function isInCurrentFolder(path: string): boolean {
   const prefix = files.currentPath === "/" ? "/" : files.currentPath + "/";
   return path.startsWith(prefix);
 }
 
+function isInPairedFolder(path: string): boolean {
+  const pair = files.pairedPath;
+  if (!pair) return false;
+  const prefix = pair === "/" ? "/" : pair + "/";
+  return path.startsWith(prefix);
+}
+
 function pruneCaches() {
   for (const path of thumbs.keys()) {
-    if (!isInCurrentFolder(path)) thumbs.delete(path);
+    if (!isInCurrentFolder(path) && !isInPairedFolder(path)) thumbs.delete(path);
   }
   for (const path of shareState.keys()) {
-    if (!isInCurrentFolder(path)) shareState.delete(path);
+    if (!isInCurrentFolder(path) && !isInPairedFolder(path)) shareState.delete(path);
   }
 }
 
@@ -295,7 +306,9 @@ async function loadThumb(entry: WebDavEntry) {
   thumbLoading.add(entry.path);
   const dataUrl = await files.getThumbnail(entry.path);
   thumbLoading.delete(entry.path);
-  if (dataUrl && isInCurrentFolder(entry.path)) thumbs.set(entry.path, dataUrl);
+  if (dataUrl && (isInCurrentFolder(entry.path) || isInPairedFolder(entry.path))) {
+    thumbs.set(entry.path, dataUrl);
+  }
 }
 
 function goBack() {
@@ -410,6 +423,23 @@ function isValidEntryName(name: string): boolean {
 // collapses the duplicate call.
 let dialogBusy = false;
 
+// L19-F5: both dialogs share `nameInput` — always start (and leave) it empty
+// so an aborted dialog never pre-fills the next one with stale content.
+function openNewFolder() {
+  nameInput.value = "";
+  showNewFolder.value = true;
+}
+
+function cancelNewFolder() {
+  showNewFolder.value = false;
+  nameInput.value = "";
+}
+
+function cancelRename() {
+  renameTarget.value = null;
+  nameInput.value = "";
+}
+
 async function createFolder() {
   if (dialogBusy) return;
   dialogBusy = true;
@@ -446,6 +476,8 @@ async function doRename() {
       return;
     }
     // L15-F5/#288: reject invalid names instead of building broken paths.
+    // L19-F4: the dialog stays open on validation/server errors (only the
+    // toast shows) so the typed input is not lost — close on success only.
     if (!isValidEntryName(name)) {
       ui.toast(t("folderNameInvalid"), "error");
       return;
@@ -460,10 +492,11 @@ async function doRename() {
       selected.value = next;
     }
     ui.toast(t("fileRenamed"), "success");
+    renameTarget.value = null;
+    nameInput.value = "";
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
   } finally {
-    renameTarget.value = null;
     dialogBusy = false;
   }
 }
@@ -603,6 +636,30 @@ function closeShareDialog() {
   shareDialog.value = null;
 }
 
+// L19-N1: Escape closes the context menu and every dialog — one overlay per
+// press, most recent first. The closers are (re)registered whenever the set
+// of open overlays changes.
+let escapeUnregisters: (() => void)[] = [];
+function clearEscapeClosers() {
+  for (const off of escapeUnregisters) off();
+  escapeUnregisters = [];
+}
+const overlayClosers = computed<(() => void)[]>(() => {
+  const closers: (() => void)[] = [];
+  if (showNewFolder.value) closers.push(cancelNewFolder);
+  if (renameTarget.value) closers.push(cancelRename);
+  if (shareDialog.value) closers.push(closeShareDialog);
+  if (ctxMenu.value) closers.push(closeCtx);
+  return closers;
+});
+watch(overlayClosers, (closers) => {
+  clearEscapeClosers();
+  // Reverse registration order so the topmost overlay receives the first
+  // Escape press.
+  escapeUnregisters = [...closers].reverse().map((c) => registerEscapeCloser(c));
+});
+onUnmounted(clearEscapeClosers);
+
 async function createShare() {
   const entry = shareDialog.value?.entry;
   if (!entry || submitting.value) return;
@@ -709,10 +766,15 @@ watch(
   }
 );
 
+// L19-F1: prune + thumbnail loading covers both split-view panes — the
+// paired pane must keep its thumbs when `files.entries` changes and vice
+// versa, so the relevant-path set is the union of both entry lists.
 watch(
-  () => files.entries,
-  () => {
-    const paths = new Set(files.entries.map((e) => e.path));
+  () => [files.displayEntries, files.pairedEntries] as const,
+  ([display, paired]) => {
+    const paths = new Set<string>();
+    for (const entry of display) paths.add(entry.path);
+    for (const entry of paired) paths.add(entry.path);
     for (const key of [...thumbs.keys()]) {
       if (!paths.has(key)) thumbs.delete(key);
     }
@@ -720,7 +782,8 @@ watch(
       if (!paths.has(key)) shareState.delete(key);
     }
     void loadAllShares();
-    for (const entry of files.entries) void loadThumb(entry);
+    for (const entry of display) void loadThumb(entry);
+    for (const entry of paired) void loadThumb(entry);
   }
 );
 
@@ -886,7 +949,7 @@ watch(
           {{ t("refresh") }}
         </md-outlined-button>
         <md-outlined-button
-          @click="showNewFolder = true"
+          @click="openNewFolder"
         >
           <Icon name="add" :size="15" slot="icon" />
           {{ t("newFolder") }}
@@ -1090,6 +1153,9 @@ watch(
             :view-mode="viewMode"
             :selected="selected"
             :share-state="shareState"
+            :searching="isSearching"
+            :thumbs="thumbs"
+            :shares-by-path="sharesByPath"
             :sort-key="sortKey"
             :sort-asc="sortAsc"
             :kbd-index="kbdIndex"
@@ -1100,6 +1166,9 @@ watch(
             @create-link="createLink"
             @copy-link="copyLink"
             @pair="goToPaired"
+            @download="download"
+            @delete="removeEntry"
+            @share="openShareDialog"
             @toggle-sort="toggleSort"
           />
         </div>
@@ -1119,6 +1188,8 @@ watch(
           <div v-else-if="files.pairedEntries.length === 0" class="p-4 text-center text-on-surface-variant">
             <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
           </div>
+          <!-- L19-F1: same props/events as the left pane — grid hover buttons
+               (download/share/delete) and badges/thumbs work in both panes. -->
           <EntryList
             v-else
             :entries="files.pairedEntries"
@@ -1126,6 +1197,9 @@ watch(
             :selected="emptySelection"
             :share-state="shareState"
             :selectable="false"
+            :searching="isSearching"
+            :thumbs="thumbs"
+            :shares-by-path="sharesByPath"
             :sort-key="sortKey"
             :sort-asc="sortAsc"
             @open="open"
@@ -1134,6 +1208,9 @@ watch(
             @create-link="createLink"
             @copy-link="copyLink"
             @pair="goToPaired"
+            @download="download"
+            @delete="removeEntry"
+            @share="openShareDialog"
             @toggle-sort="toggleSort"
           />
         </div>
@@ -1238,7 +1315,7 @@ watch(
     <div
       v-if="showNewFolder"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      @click.self="showNewFolder = false"
+      @click.self="cancelNewFolder"
     >
       <form
         class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"
@@ -1252,7 +1329,7 @@ watch(
           class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
         />
         <div class="flex gap-2">
-          <md-outlined-button type="button" @click="showNewFolder = false">
+          <md-outlined-button type="button" @click="cancelNewFolder">
             {{ t("cancel") }}
           </md-outlined-button>
           <md-filled-button
@@ -1270,7 +1347,7 @@ watch(
     <div
       v-if="renameTarget"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      @click.self="renameTarget = null"
+      @click.self="cancelRename"
     >
       <form
         class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"

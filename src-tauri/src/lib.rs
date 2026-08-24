@@ -4,6 +4,7 @@ mod commands;
 mod error;
 mod flutcloud;
 mod nextcloud;
+mod persist;
 mod state;
 mod sync;
 mod updater;

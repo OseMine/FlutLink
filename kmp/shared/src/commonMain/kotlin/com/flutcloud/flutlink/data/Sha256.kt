@@ -1,63 +1,102 @@
 package com.flutcloud.flutlink.data
 
 /**
- * Dependency-free SHA-256 (FIPS 180-4) for all KMP targets. Used only for
- * cache-file naming — not a security primitive.
+ * Dependency-free SHA-256 (FIPS 180-4) for all KMP targets. Two uses:
+ * cache-file naming (one-shot [hex]/[digest]) and verifying downloaded
+ * update packages (streaming via [Digester], so large APKs never sit in
+ * memory as a whole).
  */
 internal object Sha256 {
 
     private val K = intArrayOf(
-        0x428a2f98, -0x17234231, 0x3956c25b, 0x59f111f1, -0x3efb8218, -0x1e8369ab,
-        -0x402b25f3, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, -0x193c9ed7,
-        -0x232ea23, -0x5b8f5ab, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc,
-        0x76f988da, -0x67c1aeae, -0x57ce3993, -0x4ffcd838, -0x40a68039, -0x391ff40d,
-        -0x2a586eb9, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
-        0x53380d13, 0x650a7354, 0x766a0abb, -0x7e3d36d2, -0x6d8dd37b, -0x5d40175f,
-        -0x57e599b5, -0x3db47490, -0x3893ae5d, -0x2e6d17e7, -0x2966f9dc, -0xbf1ca7b,
-        0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3,
-        0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, -0x7b3787ec,
-        -0x7338fdf8, -0x6f410006, -0x5baf9315, -0x41065c09, -0x39cff289, -0x22d32064
+        0x428a2f98, 0x71374491, -0x4a3f0431, -0x164a245b, 0x3956c25b, 0x59f111f1,
+        -0x6dc07d5c, -0x54e3a12b, -0x27f85568, 0x12835b01, 0x243185be, 0x550c7dc3,
+        0x72be5d74, -0x7f214e02, -0x6423f959, -0x3e640e8c, -0x1b64963f, -0x1041b87a,
+        0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        -0x67c1aeae, -0x57ce3993, -0x4ffcd838, -0x40a68039, -0x391ff40d, -0x2a586eb9,
+        0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+        0x650a7354, 0x766a0abb, -0x7e3d36d2, -0x6d8dd37b, -0x5d40175f, -0x57e599b5,
+        -0x3db47490, -0x3893ae5d, -0x2e6d17e7, -0x2966f9dc, -0xbf1ca7b, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+        0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, -0x7b3787ec, -0x7338fdf8,
+        -0x6f410006, -0x5baf9315, -0x41065c09, -0x398e870e
     )
 
     private val H0 = intArrayOf(
         0x6a09e667, -0x4498517b, 0x3c6ef372, -0x5ab00ac6,
-        0x510e527f, -0x64fa9773, 0x1f83d9ab, 0x5be0cd19
+        0x510e527f, -0x64fa9774, 0x1f83d9ab, 0x5be0cd19
     )
 
-    fun hex(bytes: ByteArray): String {
-        val digest = digest(bytes)
-        return buildString(digest.size * 2) {
-            for (b in digest) {
-                append("0123456789abcdef"[(b.toInt() shr 4) and 0xF])
-                append("0123456789abcdef"[b.toInt() and 0xF])
+    fun hex(bytes: ByteArray): String = Digester().apply { update(bytes) }.hex()
+
+    fun digest(message: ByteArray): ByteArray = Digester().apply { update(message) }.digest()
+
+    /**
+     * Incremental SHA-256 state: feed arbitrary chunks with [update], finish
+     * with [digest] (or [hex]). Not thread-safe; use one instance per hash.
+     */
+    class Digester {
+        private val h = H0.copyOf()
+        private val w = IntArray(64)
+        private val block = ByteArray(64)
+        private var blockFill = 0
+        private var totalBytes = 0L
+
+        fun update(data: ByteArray, offset: Int = 0, length: Int = data.size - offset) {
+            var i = offset
+            val end = offset + length
+            totalBytes += length
+            while (i < end) {
+                val take = minOf(64 - blockFill, end - i)
+                System.arraycopy(data, i, block, blockFill, take)
+                blockFill += take
+                i += take
+                if (blockFill == 64) processBlock()
             }
         }
-    }
 
-    fun digest(message: ByteArray): ByteArray {
-        var data = message
-        // Padding: 0x80, zeros, 64-bit big-endian bit length.
-        val bitLen = message.size.toLong() * 8L
-        val padLen = ((55 - message.size % 64 + 64) % 64)
-        data = message + byteArrayOf(0x80.toByte()) + ByteArray(padLen) +
-            byteArrayOf(
-                (bitLen ushr 56).toByte(), (bitLen ushr 48).toByte(),
-                (bitLen ushr 40).toByte(), (bitLen ushr 32).toByte(),
-                (bitLen ushr 24).toByte(), (bitLen ushr 16).toByte(),
-                (bitLen ushr 8).toByte(), bitLen.toByte()
-            )
+        fun digest(): ByteArray {
+            // Padding: 0x80, zeros up to 56 bytes of the (last) block, then
+            // the 64-bit big-endian bit length. Padding must not count into
+            // totalBytes, so it is appended manually.
+            appendPadding(0x80.toByte())
+            while (blockFill != 56) appendPadding(0)
+            val bitLen = totalBytes * 8L
+            for (shift in 56 downTo 0 step 8) appendPadding((bitLen ushr shift).toByte())
 
-        val h = H0.copyOf()
-        val w = IntArray(64)
+            val out = ByteArray(32)
+            for (i in 0 until 8) {
+                out[i * 4] = (h[i] ushr 24).toByte()
+                out[i * 4 + 1] = (h[i] ushr 16).toByte()
+                out[i * 4 + 2] = (h[i] ushr 8).toByte()
+                out[i * 4 + 3] = h[i].toByte()
+            }
+            return out
+        }
 
-        var block = 0
-        while (block < data.size) {
+        fun hex(): String {
+            val digestBytes = digest()
+            return buildString(digestBytes.size * 2) {
+                for (b in digestBytes) {
+                    append("0123456789abcdef"[(b.toInt() shr 4) and 0xF])
+                    append("0123456789abcdef"[b.toInt() and 0xF])
+                }
+            }
+        }
+
+        /** Append a padding byte without touching the message counter. */
+        private fun appendPadding(b: Byte) {
+            block[blockFill++] = b
+            if (blockFill == 64) processBlock()
+        }
+
+        private fun processBlock() {
             for (i in 0 until 16) {
-                val o = block + i * 4
-                w[i] = ((data[o].toInt() and 0xFF) shl 24) or
-                    ((data[o + 1].toInt() and 0xFF) shl 16) or
-                    ((data[o + 2].toInt() and 0xFF) shl 8) or
-                    (data[o + 3].toInt() and 0xFF)
+                val o = i * 4
+                w[i] = ((block[o].toInt() and 0xFF) shl 24) or
+                    ((block[o + 1].toInt() and 0xFF) shl 16) or
+                    ((block[o + 2].toInt() and 0xFF) shl 8) or
+                    (block[o + 3].toInt() and 0xFF)
             }
             for (i in 16 until 64) {
                 val s0 = (w[i - 15] rotateRight 7) xor (w[i - 15] rotateRight 18) xor (w[i - 15] ushr 3)
@@ -82,18 +121,9 @@ internal object Sha256 {
 
             h[0] += a; h[1] += b; h[2] += c; h[3] += d
             h[4] += e; h[5] += f; h[6] += g; h[7] += hh
-            block += 64
+            blockFill = 0
         }
 
-        val out = ByteArray(32)
-        for (i in 0 until 8) {
-            out[i * 4] = (h[i] ushr 24).toByte()
-            out[i * 4 + 1] = (h[i] ushr 16).toByte()
-            out[i * 4 + 2] = (h[i] ushr 8).toByte()
-            out[i * 4 + 3] = h[i].toByte()
-        }
-        return out
+        private infix fun Int.rotateRight(bits: Int): Int = this ushr bits or (this shl (32 - bits))
     }
-
-    private infix fun Int.rotateRight(bits: Int): Int = this ushr bits or (this shl (32 - bits))
 }

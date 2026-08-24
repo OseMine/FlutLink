@@ -49,12 +49,14 @@ class FlutCloudApi(private val client: HttpClient) {
     }
 
     /** Execute an OCS request; throws [ApiException] on HTTP/meta errors.
-     *  Internal so the endpoint extensions in `FlutCloudOcs.kt` can reuse it. */
+     *  Internal so the endpoint extensions in `FlutCloudOcs.kt` can reuse it.
+     *  [headers] carries extra per-request headers (admin impersonation). */
     internal suspend fun execute(
         session: AuthSession,
         method: HttpMethod,
         url: String,
-        form: List<Pair<String, String>>? = null
+        form: List<Pair<String, String>>? = null,
+        headers: List<Pair<String, String>> = emptyList()
     ): JsonElement? {
         val started = TimeSource.Monotonic.markNow()
         try {
@@ -63,6 +65,7 @@ class FlutCloudApi(private val client: HttpClient) {
                 header(HttpHeaders.Authorization, basicAuth(session.username, session.token))
                 header(HttpHeaders.Accept, "application/json")
                 if (url.contains("/ocs/")) header("OCS-APIRequest", "true")
+                for ((name, value) in headers) header(name, value)
                 if (form != null) {
                     contentType(ContentType.Application.FormUrlEncoded)
                     setBody(form.formUrlEncode())

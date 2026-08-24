@@ -49,6 +49,7 @@ data class ShareDto(
     val path: String? = null,
     @SerialName("share_with") val shareWith: String? = null,
     @SerialName("share_with_displayname") val shareWithDisplayName: String? = null,
+    @SerialName("uid_owner") val uidOwner: String? = null,
     val permissions: Long? = null,
     val url: String? = null,
     val password: kotlinx.serialization.json.JsonElement? = null,
@@ -94,6 +95,7 @@ data class CapabilitiesData(
 )
 
 /** Domain model mirroring the desktop client's `Quota`. */
+@Serializable
 data class Quota(
     val total: Long? = null,
     val used: Long? = null,
@@ -126,6 +128,9 @@ data class Share(
     val path: String? = null,
     val shareWith: String? = null,
     val shareWithDisplayName: String? = null,
+    /** Owner of the shared file. Used to verify that an impersonated share
+     *  really lives in the target user's namespace (desktop parity, L19). */
+    val uidOwner: String? = null,
     val permissions: Long? = null,
     val url: String? = null,
     val hasPassword: Boolean? = null,

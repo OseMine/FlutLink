@@ -18,9 +18,25 @@ class SessionManager(private val accountStore: AccountStore) {
     private val _accounts = MutableStateFlow<List<AccountMeta>>(emptyList())
     val accounts: StateFlow<List<AccountMeta>> = _accounts.asStateFlow()
 
+    /**
+     * `user@instance` keys of persisted accounts whose secure-store token
+     * could not be restored (desktop `token_missing_accounts` parity).
+     */
+    private val _tokenMissing = MutableStateFlow<List<String>>(emptyList())
+    val tokenMissing: StateFlow<List<String>> = _tokenMissing.asStateFlow()
+
     suspend fun init(ocsApi: FlutCloudApi) {
-        val accounts = accountStore.loadAccounts()
-        _accounts.value = accounts
+        // CP-N2 (desktop `load_accounts`): accounts whose token is gone are
+        // excluded from the working set and reported — never loaded into a
+        // session that would send an empty Basic-Auth credential. Their
+        // metadata stays on disk so signing in again simply restores them.
+        val usable = mutableListOf<AccountMeta>()
+        val missing = mutableListOf<String>()
+        for (account in accountStore.loadAccounts()) {
+            if (accountStore.tokenFor(account) != null) usable += account else missing += account.key
+        }
+        _tokenMissing.value = missing
+        _accounts.value = usable
         restoreSession()
         refreshAdminFlags(ocsApi)
     }

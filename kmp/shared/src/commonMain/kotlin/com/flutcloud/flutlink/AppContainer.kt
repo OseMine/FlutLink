@@ -8,6 +8,7 @@ import com.flutcloud.flutlink.core.SettingsStore
 import com.flutcloud.flutlink.data.FlutCloudApi
 import com.flutcloud.flutlink.data.HttpClientFactory
 import com.flutcloud.flutlink.data.ListCache
+import com.flutcloud.flutlink.data.QuotaCache
 import com.flutcloud.flutlink.data.UpdateChecker
 import com.flutcloud.flutlink.data.WebDavApi
 
@@ -42,6 +43,7 @@ class AppContainer(
     val ocsApi = FlutCloudApi(httpClient)
     val webDavApi = WebDavApi(httpClient)
     val listCache = ListCache(platform.cacheDir())
+    val quotaCache = QuotaCache(platform.plainStorage())
     val updateChecker = UpdateChecker(httpClient)
 
     /** Self-updater available (Settings shows the update row). */

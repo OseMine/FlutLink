@@ -1,6 +1,7 @@
 package com.flutcloud.flutlink.ui.files
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -60,8 +62,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
@@ -79,6 +85,8 @@ import org.jetbrains.compose.resources.stringResource
 import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.resources.actions
 import com.flutcloud.flutlink.resources.back
+import com.flutcloud.flutlink.resources.bulk_delete_confirm
+import com.flutcloud.flutlink.resources.bulk_selected_count
 import com.flutcloud.flutlink.resources.cancel
 import com.flutcloud.flutlink.resources.close_search
 import com.flutcloud.flutlink.resources.create
@@ -89,6 +97,7 @@ import com.flutcloud.flutlink.resources.delete_folder_confirm
 import com.flutcloud.flutlink.resources.download
 import com.flutcloud.flutlink.resources.download_permission_denied
 import com.flutcloud.flutlink.resources.downloaded_to_downloads
+import com.flutcloud.flutlink.resources.download_zip
 import com.flutcloud.flutlink.resources.file_exists_confirm
 import com.flutcloud.flutlink.resources.files_offline_banner
 import com.flutcloud.flutlink.resources.folder
@@ -159,6 +168,8 @@ fun FilesScreen(
     val sharesLoading by vm.sharesLoading.collectAsState()
     val sessionKey = vm.sessionKey
     val pendingUpload by vm.pendingUpload.collectAsState()
+    val selected by vm.selected.collectAsState()
+    val previews by vm.previews.collectAsState()
 
     var showSearch by remember { mutableStateOf(false) }
     var showNewFolder by remember { mutableStateOf(false) }
@@ -166,6 +177,8 @@ fun FilesScreen(
     var shareTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var pendingDownload by remember { mutableStateOf<WebDavEntry?>(null) }
+    var pendingZipDownload by remember { mutableStateOf<WebDavEntry?>(null) }
+    var bulkDeleteConfirm by remember { mutableStateOf(false) }
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -174,13 +187,13 @@ fun FilesScreen(
     // Downloads permission gate: null when no runtime permission is needed.
     val downloadsPermission = rememberDownloadsPermissionRequester { granted ->
         val target = pendingDownload
+        val zipTarget = pendingZipDownload
         pendingDownload = null
-        if (target != null) {
-            if (granted) {
-                vm.downloadToDownloads(target)
-            } else {
-                scope.launch { snackbar.showSnackbar(downloadsPermissionDeniedText) }
-            }
+        pendingZipDownload = null
+        when {
+            !granted -> scope.launch { snackbar.showSnackbar(downloadsPermissionDeniedText) }
+            target != null -> vm.downloadToDownloads(target)
+            zipTarget != null -> vm.downloadFolderZip(zipTarget)
         }
     }
 
@@ -189,6 +202,15 @@ fun FilesScreen(
             vm.downloadToDownloads(entry)
         } else {
             pendingDownload = entry
+            downloadsPermission.invoke()
+        }
+    }
+
+    fun requestFolderZip(entry: WebDavEntry) {
+        if (downloadsPermission == null) {
+            vm.downloadFolderZip(entry)
+        } else {
+            pendingZipDownload = entry
             downloadsPermission.invoke()
         }
     }
@@ -247,10 +269,15 @@ fun FilesScreen(
         picked?.let { vm.uploadPicked(path, it) }
     }
 
+    // Preview thumbnails for image files of the current listing (CP-N3).
+    LaunchedEffect(showSearch, entries) {
+        if (!showSearch && entries.isNotEmpty()) vm.loadPreviews(entries)
+    }
+
     Scaffold(
         topBar = {
-            if (showSearch) {
-                SearchBar(
+            when {
+                showSearch -> SearchBar(
                     query = searchQuery,
                     onQueryChange = { vm.search(it) },
                     onClose = {
@@ -258,8 +285,12 @@ fun FilesScreen(
                         vm.clearSearch()
                     }
                 )
-            } else {
-                FilesTopBar(
+                selected.isNotEmpty() -> SelectionTopBar(
+                    count = selected.size,
+                    onClose = { vm.clearSelection() },
+                    onDelete = { bulkDeleteConfirm = true }
+                )
+                else -> FilesTopBar(
                     path = path,
                     onBack = {
                         val parent = parentOf(path)
@@ -272,18 +303,20 @@ fun FilesScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                ExtendedFloatingActionButton(
-                    onClick = { showNewFolder = true },
-                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
-                    text = { Text(stringResource(Res.string.folder)) }
-                )
-                Spacer(Modifier.height(12.dp))
-                ExtendedFloatingActionButton(
-                    onClick = { uploadLauncher() },
-                    icon = { Icon(Icons.Default.UploadFile, contentDescription = null) },
-                    text = { Text(stringResource(Res.string.upload)) }
-                )
+            if (selected.isEmpty()) {
+                Column(horizontalAlignment = Alignment.End) {
+                    ExtendedFloatingActionButton(
+                        onClick = { showNewFolder = true },
+                        icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                        text = { Text(stringResource(Res.string.folder)) }
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    ExtendedFloatingActionButton(
+                        onClick = { uploadLauncher() },
+                        icon = { Icon(Icons.Default.UploadFile, contentDescription = null) },
+                        text = { Text(stringResource(Res.string.upload)) }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -337,8 +370,13 @@ fun FilesScreen(
                     items(entries, key = { it.path }) { entry ->
                         EntryRow(
                             entry = entry,
+                            preview = if (!entry.isDir) previews[entry.path] else null,
+                            selected = entry.path in selected,
+                            selectionMode = selected.isNotEmpty(),
                             onClick = { vm.open(entry) },
+                            onToggleSelect = { vm.toggleSelected(entry.path) },
                             onDownload = { requestDownload(entry) },
+                            onDownloadZip = { requestFolderZip(entry) },
                             onShareFile = { vm.downloadAndShare(entry) },
                             onRename = { renameTarget = entry },
                             onShareLink = { shareTarget = entry },
@@ -394,6 +432,24 @@ fun FilesScreen(
             onConfirm = {
                 deleteTarget = null
                 vm.delete(target)
+            }
+        )
+    }
+    if (bulkDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { bulkDeleteConfirm = false },
+            title = { Text(stringResource(Res.string.bulk_delete_confirm, selected.size)) },
+            text = { Text(stringResource(Res.string.delete_folder_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    bulkDeleteConfirm = false
+                    vm.deleteMany(entries.filter { it.path in selected })
+                }) { Text(stringResource(Res.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { bulkDeleteConfirm = false }) {
+                    Text(stringResource(Res.string.cancel))
+                }
             }
         )
     }
@@ -492,6 +548,7 @@ private fun SearchResults(
                 EntryRow(
                     entry = entry,
                     onClick = { onOpen(entry) },
+                    onToggleSelect = {},
                     onDownload = { onDownload(entry) },
                     onShareFile = { onShareFile(entry) },
                     onRename = { onRename(entry) },
@@ -504,27 +561,67 @@ private fun SearchResults(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(count: Int, onClose: () -> Unit, onDelete: () -> Unit) {
+    TopAppBar(
+        title = { Text(stringResource(Res.string.bulk_selected_count, count)) },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = stringResource(Res.string.cancel))
+            }
+        },
+        actions = {
+            IconButton(onClick = onDelete, enabled = count > 0) {
+                Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.delete))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun EntryRow(
     entry: WebDavEntry,
     onClick: () -> Unit,
+    onToggleSelect: () -> Unit,
     onDownload: () -> Unit,
     onShareFile: () -> Unit,
     onRename: () -> Unit,
     onShareLink: () -> Unit,
     onDelete: () -> Unit,
-    onJumpToPaired: () -> Unit
+    onJumpToPaired: () -> Unit,
+    onDownloadZip: (() -> Unit)? = null,
+    preview: ImageBitmap? = null,
+    selectionMode: Boolean = false,
+    selected: Boolean = false
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val (icon, tint) = fileIcon(entry)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelect() else onClick() },
+                onLongClick = { if (!entry.isVirtualLink) onToggleSelect() }
+            )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(28.dp))
+        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            if (preview != null && !entry.isDir) {
+                Image(
+                    bitmap = preview,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+            } else {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(28.dp))
+            }
+        }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -541,6 +638,10 @@ internal fun EntryRow(
             }
             FileMetaLine(entry)
         }
+        if (selectionMode) {
+            Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+            Spacer(Modifier.width(2.dp))
+        }
         Box {
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.actions))
@@ -553,6 +654,16 @@ internal fun EntryRow(
                         onClick = {
                             menuOpen = false
                             onJumpToPaired()
+                        }
+                    )
+                }
+                if (entry.isDir && onDownloadZip != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.download_zip)) },
+                        leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onDownloadZip()
                         }
                     )
                 }
