@@ -91,9 +91,10 @@ ist statisch, daher greift der Fallback-Pfad des iOS-Resource-Readers). Fehlt
 das Verzeichnis, wirft `stringResource()` beim ersten Compose eine
 `MissingResourceException` und die App bricht beim Start ab. Im CI schreibt
 der Sync während des Archivs nur in Xcodes Staging-Verzeichnis, deshalb
-führt der IPA-Job `:shared:syncComposeResourcesForIos` nachträglich direkt
-gegen das archivierte `.app` aus und prüft, ob
-`<App>.app/compose-resources/values` existiert.
+kopiert der IPA-Job die aufbereiteten Resourcen (`.cvr`) direkt aus dem
+Resource-Generator (`shared/build/generated/compose/resourceGenerator/…`)
+in das archivierte `.app` und prüft, ob `<App>.app/compose-resources/values`
+existiert.
 
 ## Befehle
 
