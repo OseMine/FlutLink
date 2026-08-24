@@ -20,10 +20,19 @@
 #                    (default: "opencode"; e.g. "npx --yes opencode-ai@1.18.21")
 #   ZEN_BASE         Zen API base (default: https://opencode.ai/zen/v1)
 #   OPENCODE_API_KEY used to authenticate the probe requests
+#
+# Transient upstream hiccups must not kill a release pipeline: every model is
+# probed OPENCODE_PROBE_ATTEMPTS times (backoff OPENCODE_PROBE_BACKOFF s), and
+# the whole chain is walked OPENCODE_CHAIN_ROUNDS times with a
+# OPENCODE_CHAIN_RETRY_WAIT s pause between rounds before giving up.
 set -euo pipefail
 
 CHAIN="${OPENCODE_MODELS:-deepseek-v4-flash-free,x-preview-f-free,big-pickle}"
 ZEN_URL="${ZEN_BASE:-https://opencode.ai/zen/v1}/chat/completions"
+PROBE_ATTEMPTS="${OPENCODE_PROBE_ATTEMPTS:-2}"
+PROBE_BACKOFF="${OPENCODE_PROBE_BACKOFF:-15}"
+CHAIN_ROUNDS="${OPENCODE_CHAIN_ROUNDS:-2}"
+CHAIN_RETRY_WAIT="${OPENCODE_CHAIN_RETRY_WAIT:-60}"
 
 PICK_ONLY=0
 if [ "${1:-}" = "--pick-only" ]; then
@@ -42,16 +51,41 @@ probe() {
   [ "$code" = "200" ]
 }
 
+# A single probe can fail transiently (rate limit, network blip, brief
+# upstream outage) — retry a few times before declaring the model unusable.
+probe_with_retry() {
+  local model="$1" attempt=1
+  while [ "$attempt" -le "$PROBE_ATTEMPTS" ]; do
+    if probe "$model"; then
+      return 0
+    fi
+    if [ "$attempt" -lt "$PROBE_ATTEMPTS" ]; then
+      echo "::notice::Probe for OpenCode model '${model}' failed (attempt ${attempt}/${PROBE_ATTEMPTS}) - retrying in ${PROBE_BACKOFF}s ..." >&2
+      sleep "$PROBE_BACKOFF"
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
 selected=""
-while IFS= read -r model; do
-  model="${model//[[:space:]]/}"
-  [ -n "$model" ] || continue
-  if probe "$model"; then
-    selected="$model"
-    break
+round=1
+while [ -z "$selected" ] && [ "$round" -le "$CHAIN_ROUNDS" ]; do
+  if [ "$round" -gt 1 ]; then
+    echo "::notice::No usable OpenCode model in round $((round - 1)) - retrying whole chain in ${CHAIN_RETRY_WAIT}s ..." >&2
+    sleep "$CHAIN_RETRY_WAIT"
   fi
-  echo "::warning::OpenCode model '${model}' not usable, trying next candidate ..." >&2
-done < <(tr ',' '\n' <<<"$CHAIN")
+  while IFS= read -r model; do
+    model="${model//[[:space:]]/}"
+    [ -n "$model" ] || continue
+    if probe_with_retry "$model"; then
+      selected="$model"
+      break
+    fi
+    echo "::warning::OpenCode model '${model}' not usable, trying next candidate ..." >&2
+  done < <(tr ',' '\n' <<<"$CHAIN")
+  round=$((round + 1))
+done
 
 if [ -z "$selected" ]; then
   echo "::error::No usable OpenCode model in chain [${CHAIN}] - check https://opencode.ai/zen/v1/models" >&2
