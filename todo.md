@@ -4,6 +4,176 @@ Tracking-Datei des Projekts: offene Punkte. Erledigte Punkte wandern nach
 `archived-todo.md`. Am 2026-08-24 wurden alle datierten Review-Abschnitte
 dorthin verschoben; die offenen Issues #293/#317/#318 sind geschlossen.
 
+## Review 2026-08-24 (Lauf 18, Fokus Cross-Platform-Feature-Ideen — neue Befunde)
+
+Gegenstand: plattformübergreifende Feature-Parität und -Ideen zwischen dem
+Tauri-Desktop-Client (`src-tauri/`, `src/`) und dem mobilen KMP-Client
+(`kmp/`: `commonMain`/`androidMain`/`iosMain`/`jvmMain`); zusätzlich die
+Standard-Bereiche (IPC, WebDAV/OCS, Keyring, Fehler-/State-Management, CI)
+und die Nachprüfung der offenen L17-Befunde gegen HEAD (`4f34a9a`).
+
+Verifikation: siehe Abschnittsende.
+
+Neu gefunden (Cross-Platform-Parität Desktop ⇔ KMP):
+
+- [ ] **CP-F1 (Paritäts-Bug, mittel): Share-API ohne Impersonation im
+      KMP-Client — Admin-Shares landen im falschen Namespace.** Der Desktop
+      reicht `target_user` durch alle Share-Commands
+      (`commands.rs:514-586`: `webdav_create_share`/`webdav_list_shares`/
+      `webdav_delete_share`, Admin-Gate je Command) und guarded die Antwort
+      serverseitig via `request_as` + `verify_share_owner`
+      (`ocs.rs:431-484`, Owner-Filter in `list_shares` :576-585). Der KMP-
+      Client hat davon nichts: `FlutCloudOcs.kt:138-179`
+      (`createShare`/`listShares`/`deleteShare`) kennen keinen
+      `targetUser`-Parameter und setzen nie `Impersonate-User`;
+      `ShareDto`/`Share` (`Models.kt:44-65`, `:122-133`) haben nicht einmal
+      ein `uid_owner`-Feld für einen Owner-Guard; `FilesViewModel.createShare/
+      loadShares/deleteShare` (`FilesViewModel.kt:322-389`) reichen
+      `targetUser.value` nicht durch. Folge beim Impersonation-Browsing:
+      „Link erstellen“ schickt den Pfad des Zielnutzers ohne
+      Impersonate-Header (OCS-Fehler oder Share im Admin-Namespace), und der
+      Share-Dialog listet die Shares des **Admins**. Fix: `targetUser`
+      durchreichen + Header setzen (analog `WebDavApi.impersonate`)
+      + `uid_owner`-Guard portieren.
+- [ ] **CP-F2 (Paritäts-Bug, mittel): `rename` validiert den neuen Namen
+      nicht — ein Name mit `/` wird still zum MOVE, `..` escape't den
+      Ordner.** Desktop: `validate_rename_name` (`commands.rs:629-636`)
+      lehnt `""`/`.`/`..`/`/` ab. KMP: `FilesViewModel.rename`
+      (`FilesViewModel.kt:284-299`) prüft nur `isBlank`/Unverändert und
+      baut `newPath = parent + "/" + newName` — `"a/b"` erzeugt einen MOVE
+      in einen Unterordner (Rename wird zum Verschieben), `".."` springt in
+      den Elternordner; auch das `RenameDialog`-UI validiert nur
+      `isNotBlank` (`FilesScreen.kt:663`). `mkdir` zeigt die richtige
+      Validierung direkt nebenan (`FilesViewModel.kt:265`). Fix: dieselben
+      Regeln auf den Rename-Namen anwenden (lokalisiert als
+      `error_invalid_folder_name`).
+- [ ] **CP-F3 (Feature-Idee/Parität, mittel): Kein Chunked-Upload v2 mobil —
+      große Uploads sind ein einzelner PUT.** Der Desktop lädt Dateien
+      > 10 MiB über das Nextcloud-Chunked-v2-Protokoll hoch
+      (`webdav.rs:22-31` Schwellen/Konstanten, `chunked_put_v2`
+      `webdav.rs:390-502` inkl. `OC-Total-Length`-Quotavorprüfung und
+      Session-Cleanup). KMP `WebDavApi.uploadStream` (`WebDavApi.kt:224-238`)
+      streamt zwar aus dem Speicher heraus, aber als einen einzigen PUT —
+      bei großen Dateien drohen Client-Timeouts, und die Server-Quota wird
+      erst am Ende geprüft. Idee: Chunked-v2-Port nach `commonMain`.
+- [ ] **CP-F4 (Sicherheit/Parität, mittel): Android-Self-Update lädt das APK
+      ohne SHA-256-Prüfung herunter.** Desktop `updater.rs` gate't die
+      Installation auf die im Release publizierte SHA-256-Prüfsumme. KMP:
+      `UpdateChecker.checkForUpdate` (`UpdateChecker.kt:45-63`) nimmt das
+      erste `.apk`-Asset ohne Prüfsummen-Bezug,
+      `AndroidPlatform.downloadUpdate` (`AndroidPlatform.kt:116-139`)
+      streamt das APK ungeprüft in den Cache und
+      `Platform.downloadAndInstall` (`AppUpdater.kt:10-13`) übergibt es dem
+      Package-Installer. Eine SHA-256-Implementierung liegt mit
+      `data/Sha256.kt` bereits in `commonMain` (bislang nur für Cache-
+      Dateinamen). Idee: Prüfsummen-Asset analog Desktop auswerten und vor
+      `installUpdate` verifizieren.
+- [ ] **CP-N1 (Bug/Parität, minor): Der L17-N4-Paginierungs-Bug von
+      `list_groups` ist 1:1 in den KMP-Port kopiert.** `FlutCloudOcs.kt:92-111`
+      (`listGroups`) bricht nach dem Dedup-Filter ab, sobald
+      `groups.size < limit` (:107) — eine volle 200er-Seite mit nur einem
+      Duplikat beendet das Paging vorzeitig; identisch zur Desktop-Stelle
+      `ocs.rs:318` (`new_groups < LIMIT`, L17-N4). Fix gemeinsam umsetzen:
+      Rohseitenlänge `< limit` zählen, `seen`-Schutz behalten.
+- [ ] **CP-N2 (Parität, minor): Keine FlutCloud-only-Kontobereinigung beim
+      Start im KMP — Fremd-Konten und tokenlose Konten bleiben stehen.**
+      Der Desktop droppt Konten fremder Server beim Start und meldet
+      Verworfenes/Fehlendes über `account_filter_info`
+      (`AccountFilterInfo` in `ipc.ts:86-91,198-199`). KMP:
+      `AccountStore.loadAccounts` (`AccountStore.kt:27-32`) lädt ungefiltert,
+      `SessionManager.init`/`restoreSession`
+      (`SessionManager.kt:21-57`) filtern weder noch melden; ein Konto mit
+      verlorenem Token bleibt in der Liste und „Wechseln“ endet stumm bei
+      `session = null`. Idee: Filterung + `tokenMissing`-Reporting portieren.
+- [ ] **CP-N3 (Feature-Ideen, minor): Drei Desktop-Features haben kein
+      mobiles Pendant:** Bildvorschauen (`preview` in `webdav.rs:719-765`,
+      Command `webdav_thumbnail` vs. nur `fileIcon`-Icons in
+      `FilesScreen.kt:519-527`), Ordner-ZIP-Download (`download_zip_as`
+      `webdav.rs:630-649` vs. fehlend in `WebDavApi.kt`) sowie
+      Mehrfachauswahl/Bulk-Aktionen (Select-all/Bulk-Download/-Delete im
+      Desktop-`FileExplorer.vue` vs. nur Einzeldatei-Dropdown in
+      `FilesScreen.kt:544-602`). Alles Kandidaten für Paritäts-Läufe;
+      Reihenfolge nach Nutzen: Bulk-Aktionen > Thumbnails > ZIP.
+- [ ] **CP-N4 (Parität, minor): Quota ohne Offline-Cache mobil.** Desktop
+      cached die Quota offline (`account_storage` + `cache.rs`); KMP
+      `FilesViewModel.refreshQuota` (`FilesViewModel.kt:152-157`) setzt bei
+      Netzwerkfehlern still auf `null` (QuotaBar leer, obwohl die letzte
+      Quota bekannt war). Idee: letzte Quota in `ListCache`/Settings
+      mitspeichern und als `offline=true`-Wert zeigen.
+- [ ] **CP-N5 (Parität/Policy, minor): Kein Client-seitiger Schutz der
+      virtuellen Namespaces im KMP.** Der Desktop lehnt Pfade mit
+      `resources`/`parts`-Segmenten client-seitig ab
+      (`validate_dav_path`, `commands.rs:591-608`; zu aggressiv für
+      Lese-Zugriffe, siehe L17-F2). Der KMP-Client hat keinerlei Äquivalent:
+      `mkdir`/`rename`/`delete`/`upload*` in `WebDavApi.kt` und
+      `FilesViewModel.kt` schicken Schreibzugriffe auf `/resources/…`/
+      `/parts/…` ungeprüft an den Server — die Policy lebt dort allein im
+      Server. Idee: denselben Guard (nur für schreibende Operationen)
+      portieren; dabei gleich die L17-F2-Aufteilung lesen/schreiben
+      übernehmen.
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs` `generate_handler!` deckungsgleich mit `src/lib/ipc.ts`),
+Desktop-Keyring (`accounts.rs` save/load/delete), Fehler-Serialisierung
+(`error.rs`) und Offline-Cache (`cache.rs`), Sync-Engine (`sync.rs`,
+Desktop-only per Design), Desktop-Updater (`updater.rs`, SHA-256-Gate),
+Login-/FlutCloud-only-Policy beider Clients (`flutcloud.rs`,
+`LoginViewModel.kt` URL-Lock + `verifyServer`), iOS-Plattform-Layer
+(`IosPlatform.kt`, `IosStorages.kt`) sowie die Workflows
+(`kmp.yml`, `build.yml`, `release.yml`, `.github/actions/kmp-*`) über die
+bekannten Punkte hinaus (L17-N1-Pin-Diskrepanz unverändert).
+
+Verifikation frisch ausgeführt (HEAD `4f34a9a`): `cargo test
+--manifest-path src-tauri/Cargo.toml` → **103 passed / 0 failed**;
+`cargo fmt --all --check` grün; `cargo clippy --all-targets -- -D warnings`
+grün (nach Nachinstallieren der Tauri-Linux-Systemdeps);
+`npm run build` (vue-tsc + vite) grün (Haupt-Chunk 118 kB,
+Code-Splitting wirksam); KMP `./gradlew :shared:testAndroidHostTest
+:shared:compileKotlinJvm` → BUILD SUCCESSFUL (iOS-Targets auf dem
+Linux-Runner nicht kompilierbar).
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `4f34a9a`)
+
+Alle offenen Einträge wurden gegen den aktuellen Code nachgeprüft — **keiner
+ist erledigt**, daher gibt es dieses Mal nichts nach `archived-todo.md` zu
+verschieben:
+
+- L17-F1 bestätigt: `bulkDelete` setzt `busyPath` vor dem Confirm
+  (`FileExplorer.vue:134-138`), Early-Return außerhalb von try/finally.
+- L17-F2 bestätigt: `validate_dav_path` (`commands.rs:591-608`) blockiert
+  weiterhin auch Lese-Commands; `getThumbnail` fängt alle Fehler
+  (`src/stores/files.ts:263-266`).
+- L17-F3 bestätigt: `accounts.rs:70` und `sync.rs:1336` schreiben weiterhin
+  nicht-atomar via `std::fs::write` (gegenüber temp+rename in
+  `cache.rs:85-90`).
+- L17-F4 bestätigt: `walk_incomplete` fehlt weiterhin in `ERROR_CODE_KEYS`
+  (`i18n.ts:631`).
+- L17-N1 bestätigt: `kmp.yml:129` pinnt setup-android v4.0.1, die
+  `kmp-ios-build`-Action (`action.yml:30`) v3.2.2.
+- L17-N2 bestätigt: `flutcloud.yml:79-81` lintet nur
+  `scripts/install-flutcloud-app.sh`.
+- L17-N3 bestätigt: `submit` validiert nur `serverUrl`
+  (`LoginModal.vue:99-104`), `submitRegister` zusätzlich Benutzername/Token
+  (`:128-131`).
+- L17-N4 bestätigt: `ocs.rs:318` bricht weiter bei `new_groups < LIMIT` ab;
+  neu: derselbe Bug existiert im KMP (`CP-N1`).
+- „Desktop-JVM: Token-Speicher härten“ bleibt offen —
+  `FileKeyValueStorage.kt:13-15` dokumentiert die Keyring-Anbindung
+  ausdrücklich als Follow-up.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe sind in diesem Lauf
+verboten): seit dem letzten Lauf ist nur PR #327 (Lauf-17-Bericht)
+gemergt; die zuvor gemergten PRs #319–#326 (u. a. iOS/Android-Parität
+über #320 und Dependabot-Bumps) decken die bekannten Issues ab. Die
+Issue-Templates
+(`bug_report.yml`, `feature_request.yml`, `kmp.yml`) liegen vor. Ob
+dazwischen neue offene Issues entstanden sind, ist hier nicht prüfbar — der
+`opencode-todo-issues`-Workflow sollte beim nächsten Lauf die
+CP-Befunde oben als Paritäts-Issues erfassen und die L17-Befunde erneut
+einplayen (sie sind allesamt noch offen, s. Schritt 5).
+
 ## Review 2026-08-24 (Lauf 17, ganzes Projekt — neue Befunde)
 
 Gegenstand: gesamtes Projekt — Rust-Backend (`src-tauri/`: `lib.rs`,
