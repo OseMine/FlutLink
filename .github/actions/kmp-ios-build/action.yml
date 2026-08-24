@@ -72,6 +72,22 @@ runs:
           "${VERSION_ARGS[@]}" \
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+    # During xcodebuild archive, the resource sync inside the script phase
+    # writes into the BuildProductsPath staging area, which the archive
+    # installer does not carry over into <xcarchive>/Products/Applications.
+    # Re-run the Compose resource sync directly against the archived .app;
+    # without it stringResource() aborts the app at launch.
+    - name: Sync compose resources into archived app
+      shell: bash
+      working-directory: kmp
+      env:
+        PLATFORM_NAME: iphoneos
+        ARCHS: arm64
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+        BUILT_PRODUCTS_DIR: ${{ runner.temp }}/FlutLink.xcarchive/Products/Applications
+        UNLOCALIZED_RESOURCES_FOLDER_PATH: FlutLink.app
+      run: ./gradlew :shared:syncComposeResourcesForIos --console=plain
+
     # Compose resources are synced into the app by the Xcode script phase
     # (embedAndSignAppleFrameworkForXcode -> syncComposeResourcesForIos).
     # Without them stringResource() throws MissingResourceException and the

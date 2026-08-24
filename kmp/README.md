@@ -89,8 +89,11 @@ iOS-Resourcen-Sync: das Xcode-Script-Phase ruft
 `composeResources` als `compose-resources/` in den App-Bundle (das Framework
 ist statisch, daher greift der Fallback-Pfad des iOS-Resource-Readers). Fehlt
 das Verzeichnis, wirft `stringResource()` beim ersten Compose eine
-`MissingResourceException` und die App bricht beim Start ab — der CI-Job
-prüft deshalb, ob `<App>.app/compose-resources/values` existiert.
+`MissingResourceException` und die App bricht beim Start ab. Im CI schreibt
+der Sync während des Archivs nur in Xcodes Staging-Verzeichnis, deshalb
+führt der IPA-Job `:shared:syncComposeResourcesForIos` nachträglich direkt
+gegen das archivierte `.app` aus und prüft, ob
+`<App>.app/compose-resources/values` existiert.
 
 ## Befehle
 
