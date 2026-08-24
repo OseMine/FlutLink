@@ -48,7 +48,8 @@ internal object Sha256 {
             totalBytes += length
             while (i < end) {
                 val take = minOf(64 - blockFill, end - i)
-                System.arraycopy(data, i, block, blockFill, take)
+                // Multiplatform copy (System.arraycopy is JVM-only).
+                data.copyInto(block, blockFill, i, i + take)
                 blockFill += take
                 i += take
                 if (blockFill == 64) processBlock()

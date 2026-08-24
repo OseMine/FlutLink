@@ -4,6 +4,7 @@ import com.flutcloud.flutlink.core.Platform
 import okio.Buffer
 import okio.Path
 import okio.buffer
+import okio.use
 
 /**
  * Shared self-update flow for platforms that opt in via [Platform.updatesEnabled]
