@@ -125,6 +125,54 @@ suspend fun FlutCloudApi.listGuestEntries(
         }
 }
 
+// --- Admin-only: public share categories, locks (authenticated) ----------
+
+suspend fun FlutCloudApi.setGuestCategory(session: AuthSession, name: String, prefixless: Boolean) {
+    execute(
+        session, HttpMethod.Post,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/categories?format=json",
+        listOf("name" to name, "prefixless" to if (prefixless) "true" else "false")
+    )
+}
+
+suspend fun FlutCloudApi.deleteGuestCategory(session: AuthSession, name: String) {
+    execute(
+        session, HttpMethod.Delete,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/categories/${encodeSegment(name)}?format=json"
+    )
+}
+
+suspend fun FlutCloudApi.assignGuestCategory(session: AuthSession, token: String, category: String) {
+    execute(
+        session, HttpMethod.Post,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/${encodeSegment(token)}/category?format=json",
+        listOf("category" to category)
+    )
+}
+
+suspend fun FlutCloudApi.unassignGuestCategory(session: AuthSession, token: String) {
+    execute(
+        session, HttpMethod.Delete,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/${encodeSegment(token)}/category?format=json"
+    )
+}
+
+suspend fun FlutCloudApi.lockGuestPath(session: AuthSession, token: String, path: String) {
+    execute(
+        session, HttpMethod.Post,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/${encodeSegment(token)}/lock?format=json",
+        listOf("path" to path)
+    )
+}
+
+suspend fun FlutCloudApi.unlockGuestPath(session: AuthSession, token: String, path: String) {
+    execute(
+        session, HttpMethod.Delete,
+        "${session.normalizedBaseUrl}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/${encodeSegment(token)}/lock?format=json",
+        listOf("path" to path)
+    )
+}
+
 /**
  * Stream a file from the share's anonymous WebDAV endpoint into `dest`
  * (basic auth with the token as username, mirroring the desktop

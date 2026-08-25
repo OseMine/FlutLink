@@ -213,4 +213,19 @@
     <string name="guest_all">All</string>
     <string name="guest_empty">No public shares available.</string>
     <string name="retry">Retry</string>
+
+    <!-- Guest admin -->
+    <string name="guest_admin_categories">Categories</string>
+    <string name="guest_admin_new_category">New category</string>
+    <string name="guest_admin_category_name">Category name</string>
+    <string name="guest_admin_prefixless">Prefixless</string>
+    <string name="guest_admin_prefixless_hint">Hide the category name from the URL prefix.</string>
+    <string name="guest_admin_delete_category">Delete category</string>
+    <string name="guest_admin_delete_category_confirm">Delete the category \'%1$s\'?</string>
+    <string name="guest_admin_assign_category">Assign category</string>
+    <string name="guest_admin_remove_category">Remove category</string>
+    <string name="guest_admin_lock">Lock folder</string>
+    <string name="guest_admin_unlock">Unlock folder</string>
+    <string name="guest_locked">Folder locked.</string>
+    <string name="guest_unlocked">Folder unlocked.</string>
 </resources>

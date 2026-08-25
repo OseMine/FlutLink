@@ -213,4 +213,19 @@
     <string name="guest_all">Alle</string>
     <string name="guest_empty">Keine öffentlichen Freigaben vorhanden.</string>
     <string name="retry">Erneut versuchen</string>
+
+    <!-- Gast-Admin -->
+    <string name="guest_admin_categories">Kategorien</string>
+    <string name="guest_admin_new_category">Neue Kategorie</string>
+    <string name="guest_admin_category_name">Kategoriename</string>
+    <string name="guest_admin_prefixless">Ohne Präfix</string>
+    <string name="guest_admin_prefixless_hint">Kategorienamen aus dem URL-Präfix ausblenden.</string>
+    <string name="guest_admin_delete_category">Kategorie löschen</string>
+    <string name="guest_admin_delete_category_confirm">Kategorie \'%1$s\' löschen?</string>
+    <string name="guest_admin_assign_category">Kategorie zuordnen</string>
+    <string name="guest_admin_remove_category">Kategorie entfernen</string>
+    <string name="guest_admin_lock">Ordner sperren</string>
+    <string name="guest_admin_unlock">Ordner entsperren</string>
+    <string name="guest_locked">Ordner gesperrt.</string>
+    <string name="guest_unlocked">Ordner entsperrt.</string>
 </resources>

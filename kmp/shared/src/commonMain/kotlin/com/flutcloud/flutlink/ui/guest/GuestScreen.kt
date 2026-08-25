@@ -17,18 +17,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,6 +58,20 @@ import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.GuestViewModel
 import org.jetbrains.compose.resources.stringResource
 import com.flutcloud.flutlink.resources.Res
+import com.flutcloud.flutlink.resources.cancel
+import com.flutcloud.flutlink.resources.create
+import com.flutcloud.flutlink.resources.delete
+import com.flutcloud.flutlink.resources.guest_admin_assign_category
+import com.flutcloud.flutlink.resources.guest_admin_categories
+import com.flutcloud.flutlink.resources.guest_admin_category_name
+import com.flutcloud.flutlink.resources.guest_admin_delete_category
+import com.flutcloud.flutlink.resources.guest_admin_delete_category_confirm
+import com.flutcloud.flutlink.resources.guest_admin_lock
+import com.flutcloud.flutlink.resources.guest_admin_new_category
+import com.flutcloud.flutlink.resources.guest_admin_prefixless
+import com.flutcloud.flutlink.resources.guest_admin_prefixless_hint
+import com.flutcloud.flutlink.resources.guest_admin_remove_category
+import com.flutcloud.flutlink.resources.guest_admin_unlock
 import com.flutcloud.flutlink.resources.guest_all
 import com.flutcloud.flutlink.resources.guest_empty
 import com.flutcloud.flutlink.resources.guest_read_only_hint
@@ -60,6 +82,7 @@ import com.flutcloud.flutlink.resources.sign_in
 /**
  * Guest mode: bundled, strictly read-only view of every completely public
  * shared folder — no login required (desktop `GuestBrowser.vue` parity).
+ * When signed in as admin, exposes category and lock management.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,9 +99,16 @@ fun GuestScreen(
     val path by vm.path.collectAsState()
     val entries by vm.entries.collectAsState()
     val toast by vm.toast.collectAsState()
+    val isAdmin by vm.isAdmin.collectAsState()
+    val allCategories by vm.allCategories.collectAsState()
 
     var categoryFilter by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
+
+    // Admin dialogs
+    var showCreateCategoryDialog by remember { mutableStateOf(false) }
+    var showDeleteCategoryDialog by remember { mutableStateOf<String?>(null) }
+    var showAssignCategoryDialog by remember { mutableStateOf<String?>(null) } // token
 
     LaunchedEffect(toast) {
         toast?.let {
@@ -134,6 +164,44 @@ fun GuestScreen(
                 }
 
                 activeShare == null -> Column(Modifier.fillMaxSize()) {
+                    // Admin: category management bar.
+                    if (isAdmin) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                stringResource(Res.string.guest_admin_categories),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            IconButton(onClick = { showCreateCategoryDialog = true }) {
+                                Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.guest_admin_new_category))
+                            }
+                        }
+                        // Existing category chips with delete.
+                        if (allCategories.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (cat in allCategories) {
+                                    AssistChip(
+                                        onClick = { showDeleteCategoryDialog = cat },
+                                        label = { Text(cat) },
+                                        trailingIcon = {
+                                            Icon(Icons.Default.Delete, contentDescription = null,
+                                                modifier = Modifier.height(14.dp))
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Category filter ("alle an einem Ort" + /public/<kategorie>).
                     Row(
                         modifier = Modifier
@@ -189,6 +257,14 @@ fun GuestScreen(
                                             Spacer(Modifier.width(8.dp))
                                             AssistChip(onClick = {}, label = { Text(it) })
                                         }
+                                        // Admin: assign-category button.
+                                        if (isAdmin) {
+                                            Spacer(Modifier.width(8.dp))
+                                            IconButton(onClick = { showAssignCategoryDialog = share.token }) {
+                                                Icon(Icons.Default.Add, contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -227,6 +303,15 @@ fun GuestScreen(
                                 IconButton(onClick = { vm.download(entry) }) {
                                     Icon(Icons.Default.Download, contentDescription = null)
                                 }
+                            } else if (isAdmin) {
+                                // Admin: lock/unlock toggle for directories.
+                                val token = activeShare?.token ?: ""
+                                IconButton(onClick = { vm.lockPath(token, entry.path) }) {
+                                    Icon(Icons.Default.Lock, contentDescription = stringResource(Res.string.guest_admin_lock))
+                                }
+                                IconButton(onClick = { vm.unlockPath(token, entry.path) }) {
+                                    Icon(Icons.Default.LockOpen, contentDescription = stringResource(Res.string.guest_admin_unlock))
+                                }
                             } else {
                                 Spacer(Modifier.width(48.dp))
                             }
@@ -238,4 +323,144 @@ fun GuestScreen(
             Spacer(Modifier.height(8.dp))
         }
     }
+
+    // --- Admin dialogs ------------------------------------------------------
+
+    if (showCreateCategoryDialog) {
+        CreateCategoryDialog(
+            onConfirm = { name, prefixless ->
+                vm.createCategory(name, prefixless)
+                showCreateCategoryDialog = false
+            },
+            onDismiss = { showCreateCategoryDialog = false }
+        )
+    }
+
+    showDeleteCategoryDialog?.let { cat ->
+        DeleteCategoryDialog(
+            name = cat,
+            onConfirm = {
+                vm.deleteCategory(cat)
+                showDeleteCategoryDialog = null
+            },
+            onDismiss = { showDeleteCategoryDialog = null }
+        )
+    }
+
+    showAssignCategoryDialog?.let { token ->
+        AssignCategoryDialog(
+            categories = allCategories,
+            onAssign = { category ->
+                vm.assignCategory(token, category)
+                showAssignCategoryDialog = null
+            },
+            onRemove = {
+                vm.unassignCategory(token)
+                showAssignCategoryDialog = null
+            },
+            onDismiss = { showAssignCategoryDialog = null }
+        )
+    }
+}
+
+@Composable
+private fun CreateCategoryDialog(
+    onConfirm: (name: String, prefixless: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var prefixless by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.guest_admin_new_category)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(Res.string.guest_admin_category_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = prefixless, onCheckedChange = { prefixless = it })
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(stringResource(Res.string.guest_admin_prefixless))
+                        Text(
+                            stringResource(Res.string.guest_admin_prefixless_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim(), prefixless) },
+                enabled = name.isNotBlank()) {
+                Text(stringResource(Res.string.create))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun DeleteCategoryDialog(
+    name: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.guest_admin_delete_category)) },
+        text = { Text(stringResource(Res.string.guest_admin_delete_category_confirm, name)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(Res.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun AssignCategoryDialog(
+    categories: List<String>,
+    onAssign: (String) -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.guest_admin_assign_category)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (categories.isEmpty()) {
+                    Text(
+                        stringResource(Res.string.guest_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    for (cat in categories) {
+                        FilledTonalButton(
+                            onClick = { onAssign(cat) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(cat) }
+                    }
+                }
+                FilledTonalButton(
+                    onClick = onRemove,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(Res.string.guest_admin_remove_category)) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        }
+    )
 }

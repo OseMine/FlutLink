@@ -6,15 +6,23 @@ import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.ApiException
 import com.flutcloud.flutlink.data.FlutCloudAppMissing
 import com.flutcloud.flutlink.data.NetworkException
+import com.flutcloud.flutlink.data.assignGuestCategory
+import com.flutcloud.flutlink.data.deleteGuestCategory
 import com.flutcloud.flutlink.data.downloadGuestFile
 import com.flutcloud.flutlink.data.listGuestEntries
 import com.flutcloud.flutlink.data.listGuestShares
+import com.flutcloud.flutlink.data.lockGuestPath
+import com.flutcloud.flutlink.data.setGuestCategory
+import com.flutcloud.flutlink.data.unassignGuestCategory
+import com.flutcloud.flutlink.data.unlockGuestPath
 import com.flutcloud.flutlink.data.verifyGuestServer
 import com.flutcloud.flutlink.data.dto.GuestEntry
 import com.flutcloud.flutlink.data.dto.GuestShare
 import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.resources.downloaded_to_downloads
 import com.flutcloud.flutlink.resources.error_flutcloud_app_missing
+import com.flutcloud.flutlink.resources.guest_locked
+import com.flutcloud.flutlink.resources.guest_unlocked
 import com.flutcloud.flutlink.ui.UiMessage
 import com.flutcloud.flutlink.ui.networkUiMessage
 import com.flutcloud.flutlink.ui.toUiMessage
@@ -27,7 +35,8 @@ import kotlinx.coroutines.launch
 /**
  * Guest mode (complete public shares): strictly read-only browsing without an
  * account. Mirrors the desktop `GuestBrowser.vue` flow — bundled share list at
- * the root, folder browsing inside one share.
+ * the root, folder browsing inside one share. When signed in as admin, also
+ * exposes category/lock management for public shares.
  */
 class GuestViewModel(private val container: AppContainer) : ViewModel() {
 
@@ -41,6 +50,14 @@ class GuestViewModel(private val container: AppContainer) : ViewModel() {
     val activeShare = MutableStateFlow<GuestShare?>(null)
     val path = MutableStateFlow("/")
     val entries = MutableStateFlow<List<GuestEntry>>(emptyList())
+
+    /** Admin state — derived from the active session. */
+    private val _isAdmin = MutableStateFlow(false)
+    val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
+
+    /** All known category names (from the share list). */
+    private val _allCategories = MutableStateFlow<List<String>>(emptyList())
+    val allCategories: StateFlow<List<String>> = _allCategories.asStateFlow()
 
     /** The fixed server URL for guest access. */
     private suspend fun baseUrl(): String? {
@@ -58,6 +75,14 @@ class GuestViewModel(private val container: AppContainer) : ViewModel() {
                     ?: throw ApiException("No FlutCloud server configured", "no_server")
                 container.ocsApi.verifyGuestServer(url)
                 shares.value = container.ocsApi.listGuestShares(url)
+                _allCategories.value = shares.value.mapNotNull { it.category }.distinct()
+                // Check admin status from the active session + account list.
+                val s = container.sessionManager.session.value
+                _isAdmin.value = s?.let {
+                    container.sessionManager.accounts.value.firstOrNull { a ->
+                        a.username == it.username && a.instanceUrl.trimEnd('/') == it.baseUrl.trimEnd('/')
+                    }?.isAdmin
+                } ?: false
             } catch (_: FlutCloudAppMissing) {
                 error.value = UiMessage(Res.string.error_flutcloud_app_missing)
             } catch (e: NetworkException) {
@@ -119,6 +144,118 @@ class GuestViewModel(private val container: AppContainer) : ViewModel() {
                 error.value = unexpectedUiMessage(e.message)
             }
         }
+    }
+
+    // --- Admin: categories -------------------------------------------------
+
+    fun createCategory(name: String, prefixless: Boolean) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.setGuestCategory(s, name, prefixless)
+                // Refresh share list to pick up new category.
+                refreshShares()
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    fun deleteCategory(name: String) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.deleteGuestCategory(s, name)
+                refreshShares()
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    // --- Admin: share-category assignment -----------------------------------
+
+    fun assignCategory(token: String, category: String) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.assignGuestCategory(s, token, category)
+                refreshShares()
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    fun unassignCategory(token: String) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.unassignGuestCategory(s, token)
+                refreshShares()
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    // --- Admin: lock / unlock -----------------------------------------------
+
+    fun lockPath(token: String, path: String) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.lockGuestPath(s, token, path)
+                _toast.value = UiMessage(Res.string.guest_locked)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    fun unlockPath(token: String, path: String) {
+        val s = container.sessionManager.session.value ?: return
+        viewModelScope.launch {
+            try {
+                container.ocsApi.unlockGuestPath(s, token, path)
+                _toast.value = UiMessage(Res.string.guest_unlocked)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            } catch (e: Exception) {
+                error.value = unexpectedUiMessage(e.message)
+            }
+        }
+    }
+
+    /** Re-fetch the share list (after admin mutations). */
+    private suspend fun refreshShares() {
+        val url = baseUrl() ?: return
+        try {
+            shares.value = container.ocsApi.listGuestShares(url)
+            _allCategories.value = shares.value.mapNotNull { it.category }.distinct()
+        } catch (_: Exception) { /* best-effort refresh */ }
     }
 
     fun consumeToast() {
