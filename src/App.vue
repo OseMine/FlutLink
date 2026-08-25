@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import AccountBar from "./components/AccountBar.vue";
 import FileExplorer from "./components/FileExplorer.vue";
@@ -18,20 +18,17 @@ import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate, updateStatusText } from "./lib/i18n";
-import { installEscapeHandler } from "./lib/escape";
+import { installEscapeHandler, registerEscapeCloser } from "./lib/escape";
 import { api, invokeError, type ReleaseInfo, type UpdateProgress, type UpdateStatus } from "./lib/ipc";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/iconbutton/icon-button.js";
-import "@material/web/divider/divider.js";
+
+type Tab = "files" | "sync" | "admin" | "guest";
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
 const sync = useSyncStore();
 const ui = useUiStore();
 
-const tab = ref<"files" | "admin" | "sync">("files");
+const tab = ref<Tab>("files");
 const showLogin = ref(false);
 const loginMode = ref<"login" | "register">("login");
 const showSettings = ref(false);
@@ -50,10 +47,10 @@ function initialTheme(): "midnight" | "light" {
 const resolvedTheme = ref<"midnight" | "light">(initialTheme());
 
 // The theme lives on <html> so teleported overlays (modals, toasts) inherit
-// the M3 tokens too. A customized accent hue overrides the theme's seed.
+// the tokens too. A customized accent hue overrides the theme's seed.
 const accentStyle = computed(() => {
   if (ui.accentHue === null) return undefined;
-  return { "--m3-accent-hue": String(ui.accentHue) } as Record<string, string>;
+  return { "--accent-hue": String(ui.accentHue) } as Record<string, string>;
 });
 
 watch(
@@ -76,6 +73,27 @@ const langLabel = computed(() => (ui.lang === "de" ? "Deutsch" : "English"));
 const activeInitial = computed(() =>
   (accounts.active?.displayName || accounts.active?.username || "?").charAt(0).toUpperCase()
 );
+
+// #367: one declarative tab list instead of paired filled/outlined buttons.
+// Admin stays visible but locked without admin rights; the Guests tab is
+// only offered to admins (#372).
+interface NavItem {
+  id: Tab;
+  label: string;
+  locked?: boolean;
+  title?: string;
+}
+const navItems = computed<NavItem[]>(() => [
+  { id: "files", label: t("files") },
+  { id: "sync", label: t("sync") },
+  {
+    id: "admin",
+    label: t("admin"),
+    locked: !accounts.active?.isAdmin,
+    title: accounts.active?.isAdmin ? undefined : t("adminLockedText"),
+  },
+  ...(accounts.active?.isAdmin ? [{ id: "guest" as const, label: t("guestTabTitle") }] : []),
+]);
 
 function resolveTheme() {
   if (ui.theme === "system") {
@@ -192,11 +210,30 @@ async function startUpdateDownload() {
 watch(
   () => accounts.active,
   () => {
-    if (accounts.active && !accounts.active.isAdmin) tab.value = "files";
-    // Signing in always ends guest mode.
-    if (accounts.active && ui.guestMode) ui.setGuestMode(false);
+    if (!accounts.active) return;
+    // Non-admins never keep privileged tabs selected across account switches.
+    if (!accounts.active.isAdmin && (tab.value === "admin" || tab.value === "guest")) {
+      tab.value = "files";
+    }
+    // Signing in ends standalone guest browsing — guest administration for
+    // admins happens through the dedicated tab instead (#372).
+    if (ui.guestMode) ui.setGuestMode(false);
   }
 );
+
+// L19-N1/#365: Escape closes the account menu (topmost overlay wins).
+let removeMenuEscape: (() => void) | null = null;
+watch(accountMenu, (open) => {
+  if (open && !removeMenuEscape) {
+    removeMenuEscape = registerEscapeCloser(() => {
+      accountMenu.value = false;
+    });
+  } else if (!open && removeMenuEscape) {
+    removeMenuEscape();
+    removeMenuEscape = null;
+  }
+});
+onUnmounted(() => removeMenuEscape?.());
 
 function startGuestMode() {
   ui.setGuestMode(true);
@@ -208,166 +245,132 @@ function startGuestModeOff() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col bg-surface text-on-surface" :style="accentStyle">
+  <div class="flex h-full flex-col bg-canvas text-fg" :style="accentStyle">
     <div
       v-if="updateBanner"
-      class="flex items-center gap-3 border-b border-primary bg-primary-container/95 px-4 py-2 text-sm shadow-lg"
+      class="flex items-center gap-3 border-b border-line-strong bg-card px-4 py-2 text-sm"
     >
-      <span class="min-w-0 flex-1 truncate text-on-primary-container">
+      <span class="min-w-0 flex-1 truncate">
         {{ t("updateNewVersion").replace("{version}", updateBanner.version) }}
       </span>
       <template v-if="updateBannerBusy">
-        <div class="h-1.5 w-40 shrink-0 overflow-hidden rounded-full bg-surface-container-high">
-          <div
-            class="h-full rounded-full bg-primary transition-all"
-            :style="{ width: Math.min(updateBannerProgress, 100) + '%' }"
-          ></div>
+        <div class="progress-track w-40 shrink-0">
+          <div class="progress-fill" :style="{ width: Math.min(updateBannerProgress, 100) + '%' }"></div>
         </div>
-        <span v-if="updateBannerStatus" class="max-w-xs truncate text-xs text-on-primary-container">
+        <span v-if="updateBannerStatus" class="max-w-xs truncate text-xs text-muted">
           {{ updateBannerStatus }}
         </span>
       </template>
-      <md-filled-button
+      <button
         v-else
-        class="shrink-0"
+        type="button"
+        class="btn btn-primary shrink-0"
         @click="startUpdateDownload"
       >
         {{ t("updateDownloadAndInstall") }}
-      </md-filled-button>
-      <md-text-button
-        class="shrink-0"
-        @click="updateBanner = null"
-      >
+      </button>
+      <button type="button" class="btn btn-ghost shrink-0" @click="updateBanner = null">
         {{ t("dismiss") }}
-      </md-text-button>
+      </button>
     </div>
     <div class="flex min-h-0 flex-1">
       <template v-if="accounts.active">
         <AccountBar @login="openLogin('login')" />
 
         <main class="flex min-w-0 flex-1 flex-col">
-          <header class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
+          <header class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line px-6">
             <div class="flex items-center gap-2.5">
               <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
             </div>
 
-            <nav class="flex items-center gap-1">
-              <md-filled-button
-                v-if="tab === 'files'"
-                class="nav-tab-active"
-                @click="tab = 'files'"
+            <!-- #367: real tab list with an underline indicator -->
+            <nav role="tablist" class="-mb-px flex h-full items-stretch gap-1">
+              <button
+                v-for="item in navItems"
+                :key="item.id"
+                type="button"
+                role="tab"
+                class="tab"
+                :aria-selected="tab === item.id"
+                :disabled="item.locked"
+                :title="item.title ?? ''"
+                @click="tab = item.id"
               >
-                {{ t("files") }}
-              </md-filled-button>
-              <md-outlined-button
-                v-else
-                @click="tab = 'files'"
-              >
-                {{ t("files") }}
-              </md-outlined-button>
-
-              <md-filled-button
-                v-if="tab === 'sync'"
-                class="nav-tab-active"
-                @click="tab = 'sync'"
-              >
-                {{ t("sync") }}
-              </md-filled-button>
-              <md-outlined-button
-                v-else
-                @click="tab = 'sync'"
-              >
-                {{ t("sync") }}
-              </md-outlined-button>
-
-              <md-filled-button
-                v-if="tab === 'admin'"
-                class="nav-tab-active"
-                :disabled="!accounts.active?.isAdmin"
-                :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
-                @click="tab = 'admin'"
-              >
-                {{ t("admin") }}
-                <span v-if="!accounts.active?.isAdmin" class="text-on-surface-variant">
-                  <Icon name="lock" :size="14" />
-                </span>
-              </md-filled-button>
-              <md-outlined-button
-                v-else
-                :disabled="!accounts.active?.isAdmin"
-                :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
-                @click="tab = 'admin'"
-              >
-                {{ t("admin") }}
-                <span v-if="!accounts.active?.isAdmin" class="text-on-surface-variant">
-                  <Icon name="lock" :size="14" />
-                </span>
-              </md-outlined-button>
+                {{ item.label }}
+                <Icon v-if="item.locked" name="lock" :size="13" />
+              </button>
             </nav>
 
-            <div class="flex items-center gap-2">
-              <md-outlined-button @click="toggleLang">
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="btn btn-ghost" @click="toggleLang">
                 {{ langLabel }}
-              </md-outlined-button>
-              <md-icon-button
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
                 :title="t('settings')"
+                :aria-label="t('settings')"
                 @click="showSettings = true"
               >
                 <Icon name="settings" :size="18" />
-              </md-icon-button>
+              </button>
 
               <div class="relative">
                 <button
-                  class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
+                  type="button"
+                  class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-[13px] font-semibold text-on-primary transition hover:bg-primary-hover"
                   :title="t('signedInAs')"
                   @click="accountMenu = !accountMenu"
                 >
                   {{ activeInitial }}
                 </button>
 
-                <div v-if="accountMenu" class="absolute right-0 top-full z-40 mt-2 w-72 overflow-hidden rounded-lg border border-outline bg-surface-container-high shadow-m3-3">
-                  <div class="border-b border-outline-variant px-4 py-3">
-                    <p class="text-xs text-on-surface-variant">{{ t("signedInAs") }}</p>
-                    <p class="truncate text-sm font-medium text-on-surface">
+                <div v-if="accountMenu" class="menu absolute right-0 top-full z-40 mt-2 w-72 overflow-hidden py-1">
+                  <div class="border-b border-line px-4 py-3">
+                    <p class="text-xs text-muted">{{ t("signedInAs") }}</p>
+                    <p class="truncate text-sm font-medium">
                       {{ accounts.active?.displayName || accounts.active?.username }}
                     </p>
-                    <p class="truncate text-xs text-on-surface-variant">{{ accounts.active?.instanceUrl }}</p>
+                    <p class="truncate text-xs text-muted">{{ accounts.active?.instanceUrl }}</p>
                   </div>
 
-                  <div class="p-2">
-                    <p class="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-outline">
+                  <div class="p-1.5">
+                    <p class="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
                       {{ t("switchAccount") }}
                     </p>
                     <button
                       v-for="account in accounts.accounts"
                       :key="account.instanceUrl + '/' + account.username"
-                      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition"
-                      :class="account.isActive
-                        ? 'bg-primary-container text-on-primary-container'
-                        : 'text-on-surface-variant hover:bg-surface-container-highest'"
+                      type="button"
+                      class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+                      :class="account.isActive ? 'bg-primary/10' : ''"
                       @click="switchTo(account); accountMenu = false"
                     >
+                      <span
+                        class="h-1.5 w-1.5 shrink-0 rounded-full"
+                        :class="account.isActive ? 'bg-primary' : 'bg-transparent'"
+                      ></span>
                       <span class="min-w-0 flex-1 truncate">
                         {{ account.displayName || account.username }}
                       </span>
-                      <span
-                        v-if="account.isAdmin"
-                        class="rounded bg-primary/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase"
-                      >
+                      <span v-if="account.isAdmin" class="badge">
+                        <span class="badge-dot bg-primary"></span>
                         {{ t("admin") }}
                       </span>
                     </button>
                   </div>
 
-                  <div class="border-t border-outline-variant p-2">
+                  <div class="border-t border-line p-1.5">
                     <button
-                      class="w-full rounded-md px-2 py-1.5 text-left text-sm text-on-surface-variant transition hover:bg-surface-container-highest"
+                      type="button"
+                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted transition hover:bg-card-hover hover:text-fg"
                       @click="showSettings = true; accountMenu = false"
                     >
                       {{ t("settings") }}
                     </button>
                     <button
-                      class="w-full rounded-md px-2 py-1.5 text-left text-sm text-error hover:bg-error-container"
+                      type="button"
+                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10"
                       @click="removeActive"
                     >
                       {{ t("removeAccount") }}
@@ -384,7 +387,14 @@ function startGuestModeOff() {
             <FileExplorer v-if="tab === 'files'" />
             <SyncPanel v-else-if="tab === 'sync'" />
             <AdminPanel v-else-if="tab === 'admin' && accounts.active?.isAdmin" @browse="browseUserFiles" />
-            <div v-else class="m-auto w-full max-w-sm p-8 text-center text-on-surface-variant">
+            <!-- #372: guest administration reachable while signed in -->
+            <GuestBrowser
+              v-else-if="tab === 'guest' && accounts.active?.isAdmin"
+              embedded
+              class="min-h-0 flex-1"
+              @exit="tab = 'files'"
+            />
+            <div v-else class="m-auto w-full max-w-sm p-8 text-center text-muted">
               <p class="text-lg">{{ t("adminLockedTitle") }}</p>
               <p class="text-sm">{{ t("adminLockedText") }}</p>
             </div>
@@ -394,20 +404,23 @@ function startGuestModeOff() {
 
       <template v-else>
         <main class="flex min-w-0 flex-1 flex-col">
-          <header class="flex items-center justify-between border-b border-outline-variant px-6 py-3">
+          <header class="flex h-14 shrink-0 items-center justify-between border-b border-line px-6">
             <div class="flex items-center gap-2.5">
               <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
             </div>
-            <div class="flex items-center gap-2">
-              <md-outlined-button @click="toggleLang">
+            <div class="flex items-center gap-1.5">
+              <button type="button" class="btn btn-ghost" @click="toggleLang">
                 {{ langLabel }}
-              </md-outlined-button>
-              <md-icon-button
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
                 :title="t('settings')"
+                :aria-label="t('settings')"
                 @click="showSettings = true"
               >
                 <Icon name="settings" :size="18" />
-              </md-icon-button>
+              </button>
             </div>
           </header>
           <GuestBrowser

@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { save } from "@tauri-apps/plugin-dialog";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/iconbutton/icon-button.js";
-import "@material/web/textfield/outlined-text-field.js";
 import Icon from "./Icon.vue";
 import { useUiStore } from "../stores/ui";
 import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
 import { api, invokeError, type GuestEntry, type GuestShare } from "../lib/ipc";
+import { registerEscapeCloser } from "../lib/escape";
+
+// #372: `embedded` renders the browser as an admin tab while signed in —
+// without it the component is the standalone signed-out guest mode view.
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 
 const emit = defineEmits<{ exit: [] }>();
 
@@ -88,7 +88,27 @@ function setCategory(name: string | null) {
 }
 
 async function enter(target: GuestShare) {
+  // #375: never start a navigation while an action is running, and drop the
+  // previous share's listing up front — no state left where old entries are
+  // shown under a different share's title.
+  if (busyPath.value) return;
   share.value = target;
+  entries.value = [];
+  path.value = "/";
+  if (isAdmin.value) {
+    // #373: existing server-side locks must be loaded on entry — otherwise
+    // locked folders always appear unlocked until the admin toggles one.
+    void api
+      .guestAdminListLocks(target.token)
+      .then((locks) => {
+        if (share.value?.token === target.token) {
+          lockedPaths.value.set(target.token, locks);
+        }
+      })
+      .catch(() => {
+        // lock state is best-effort; toggling surfaces real errors
+      });
+  }
   await navigateTo("/");
 }
 
@@ -159,6 +179,10 @@ async function createCategory() {
 }
 
 async function deleteCategory(name: string) {
+  // #374: deleting a category irrevocably drops every share assignment of
+  // that category on the server — same confirmation pattern as accounts,
+  // files and sync folders.
+  if (!window.confirm(t("guestAdminCategoryDeleteConfirm").replace("{name}", name))) return;
   try {
     await api.guestAdminDeleteCategory(name);
     categories.value = categories.value.filter((c) => c !== name);
@@ -175,6 +199,10 @@ async function deleteCategory(name: string) {
 
 function toggleAssignDropdown(token: string) {
   assigningToken.value = assigningToken.value === token ? null : token;
+}
+
+function closeAssignDropdown() {
+  assigningToken.value = null;
 }
 
 async function assignToCategory(token: string, category: string) {
@@ -243,49 +271,86 @@ async function toggleLock(entry: GuestEntry) {
   }
 }
 
+// L19-N1/#365: Escape closes the category dialog and the assignment dropdown,
+// topmost overlay first. The dropdown also closes on outside clicks.
+let escapeUnregisters: (() => void)[] = [];
+function clearEscapeClosers() {
+  for (const off of escapeUnregisters) off();
+  escapeUnregisters = [];
+}
+const overlayClosers = computed<(() => void)[]>(() => {
+  const closers: (() => void)[] = [];
+  if (showCategoryDialog.value) {
+    closers.push(() => {
+      showCategoryDialog.value = false;
+    });
+  }
+  if (assigningToken.value) closers.push(closeAssignDropdown);
+  return closers;
+});
+watch(overlayClosers, (closers) => {
+  clearEscapeClosers();
+  escapeUnregisters = [...closers].reverse().map((c) => registerEscapeCloser(c));
+});
+onUnmounted(clearEscapeClosers);
+
 onMounted(() => void load());
 </script>
 
 <template>
   <main class="flex min-w-0 flex-1 flex-col">
-    <header class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
-      <div class="flex min-w-0 items-center gap-2.5">
+    <header class="flex items-center justify-between gap-3 border-b border-line px-6 py-3">
+      <div v-if="!embedded" class="flex min-w-0 items-center gap-2.5">
         <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
-        <span class="truncate text-sm font-medium text-on-surface-variant">
+        <span class="truncate text-sm font-medium text-muted">
           {{ t("guestActiveTitle") }}
         </span>
       </div>
+      <div v-else class="min-w-0">
+        <h2 class="truncate text-lg font-semibold">{{ t("guestTabTitle") }}</h2>
+        <p class="truncate text-xs text-muted">{{ t("guestReadOnlyHint") }}</p>
+      </div>
       <div class="flex items-center gap-2">
-        <md-outlined-button v-if="isAdmin && !share" @click="showCategoryDialog = true">
+        <button
+          v-if="isAdmin && !share"
+          type="button"
+          class="btn btn-outline"
+          @click="showCategoryDialog = true"
+        >
           {{ t("guestAdminCategoryCreate") }}
-        </md-outlined-button>
-        <md-outlined-button @click="emit('exit')">
+        </button>
+        <button
+          v-if="!embedded"
+          type="button"
+          class="btn btn-ghost"
+          @click="emit('exit')"
+        >
           {{ t("guestExit") }}
-        </md-outlined-button>
+        </button>
       </div>
     </header>
 
     <!-- Root view: every complete public share at one place -->
     <div v-if="!share" class="min-h-0 flex-1 overflow-y-auto p-6">
-      <p class="mb-4 flex items-center gap-2 text-sm text-on-surface-variant">
-        <Icon name="lock" :size="16" />
+      <p class="mb-4 flex items-center gap-2 text-sm text-muted">
+        <Icon name="lock" :size="14" />
         {{ t("guestReadOnlyHint") }}
       </p>
 
       <div v-if="failed" class="mx-auto mt-12 max-w-md text-center">
         <p class="text-sm text-error">{{ errorText }}</p>
-        <md-outlined-button class="mt-4" @click="load">
+        <button type="button" class="btn btn-outline mt-4" @click="load">
           {{ t("retry") }}
-        </md-outlined-button>
+        </button>
       </div>
 
       <template v-else>
+        <!-- Category micro-pills -->
         <div class="mb-6 flex flex-wrap items-center gap-2">
           <button
-            class="rounded-full border px-3 py-1 text-xs font-medium transition"
-            :class="activeCategory === null
-              ? 'border-primary bg-primary-container text-on-primary-container'
-              : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-high'"
+            type="button"
+            class="pill"
+            :class="activeCategory === null ? 'pill-active' : ''"
             @click="setCategory(null)"
           >
             {{ t("guestAll") }}
@@ -296,18 +361,19 @@ onMounted(() => void load());
             class="group relative inline-flex items-center"
           >
             <button
-              class="rounded-full border px-3 py-1 text-xs font-medium transition"
-              :class="activeCategory === category
-                ? 'border-primary bg-primary-container text-on-primary-container'
-                : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-high'"
+              type="button"
+              class="pill"
+              :class="activeCategory === category ? 'pill-active' : ''"
               @click="setCategory(category)"
             >
               {{ category }}
             </button>
             <button
               v-if="isAdmin"
-              class="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] text-on-surface-variant opacity-0 transition hover:bg-error-container hover:text-on-error-container group-hover:opacity-100"
+              type="button"
+              class="ml-0.5 grid h-4 w-4 place-items-center rounded-full text-[11px] text-muted opacity-0 transition hover:bg-error/15 hover:text-error group-hover:opacity-100 focus-visible:opacity-100"
               :title="t('guestAdminCategoryDelete')"
+              :aria-label="t('guestAdminCategoryDelete') + ': ' + category"
               @click.stop="deleteCategory(category)"
             >
               &times;
@@ -315,7 +381,7 @@ onMounted(() => void load());
           </span>
         </div>
 
-        <p v-if="visibleShares.length === 0 && !loading" class="mt-8 text-center text-sm text-on-surface-variant">
+        <p v-if="visibleShares.length === 0 && !loading" class="mt-8 text-center text-sm text-muted">
           {{ t("guestEmpty") }}
         </p>
 
@@ -323,51 +389,62 @@ onMounted(() => void load());
           <div
             v-for="entry in visibleShares"
             :key="entry.token"
-            class="relative flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container p-4 text-left transition hover:bg-surface-container-high"
+            class="card relative flex items-center gap-3 p-4 text-left transition hover:border-line-strong hover:bg-card-hover"
           >
-            <button class="flex min-w-0 flex-1 items-center gap-3" @click="enter(entry)">
-              <Icon name="folder" :size="28" class="text-primary shrink-0" />
+            <button type="button" class="flex min-w-0 flex-1 items-center gap-3" @click="enter(entry)">
+              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-card-hover text-primary">
+                <Icon name="folder" :size="20" />
+              </span>
               <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-medium text-on-surface">{{ entry.name }}</span>
-                <span class="block truncate text-xs text-on-surface-variant">
+                <span class="block truncate text-sm font-medium">{{ entry.name }}</span>
+                <span class="block truncate text-xs text-muted">
                   {{ entry.ownerDisplay || entry.owner }}
                 </span>
               </span>
-              <span
-                v-if="entry.category"
-                class="shrink-0 rounded bg-primary/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase"
-              >
+              <span v-if="entry.category" class="badge normal-case shrink-0">
                 {{ entry.category }}
               </span>
             </button>
 
             <!-- Admin: category assignment dropdown -->
             <div v-if="isAdmin" class="relative shrink-0">
-              <md-icon-button
+              <button
+                type="button"
+                class="icon-btn !h-7 !w-7"
                 :title="t('guestAdminAssignCategory')"
+                :aria-label="t('guestAdminAssignCategory')"
+                :aria-expanded="assigningToken === entry.token"
                 @click.stop="toggleAssignDropdown(entry.token)"
               >
-                <Icon name="edit" :size="16" />
-              </md-icon-button>
+                <Icon name="edit" :size="14" />
+              </button>
+              <!-- #365: outside-click closer sits below the menu -->
               <div
                 v-if="assigningToken === entry.token"
-                class="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-outline-variant bg-surface-container shadow-lg"
+                class="fixed inset-0 z-20"
+                @click="closeAssignDropdown"
+              ></div>
+              <div
+                v-if="assigningToken === entry.token"
+                class="menu absolute right-0 top-full z-30 mt-1 w-44 py-1"
               >
                 <button
                   v-if="entry.category"
-                  class="block w-full px-3 py-2 text-left text-xs text-error transition hover:bg-error-container hover:text-on-error-container"
-                  @click="unassignFromCategory(entry.token)"
+                  type="button"
+                  class="block w-full px-3 py-2 text-left text-xs text-error transition hover:bg-error/10"
                   :disabled="assigningLoading"
+                  @click="unassignFromCategory(entry.token)"
                 >
                   {{ t("guestAdminUnassignCategory") }}
                 </button>
                 <button
                   v-for="cat in categories"
                   :key="cat"
-                  class="block w-full px-3 py-2 text-left text-xs transition hover:bg-surface-container-high"
-                  :class="cat === entry.category ? 'font-semibold text-primary' : 'text-on-surface'"
-                  @click="assignToCategory(entry.token, cat)"
+                  type="button"
+                  class="block w-full px-3 py-2 text-left text-xs transition hover:bg-card-hover"
+                  :class="cat === entry.category ? 'font-semibold text-primary' : ''"
                   :disabled="assigningLoading"
+                  @click="assignToCategory(entry.token, cat)"
                 >
                   {{ cat }}
                 </button>
@@ -381,17 +458,18 @@ onMounted(() => void load());
     <!-- Browse view: read-only folder contents of one share -->
     <div v-else class="min-h-0 flex-1 overflow-y-auto p-6">
       <div class="mb-4 flex items-center gap-1 overflow-x-auto whitespace-nowrap text-sm">
-        <md-icon-button class="shrink-0" :title="t('back')" @click="leave">
-          <Icon name="back" :size="18" />
-        </md-icon-button>
-        <button class="rounded px-2 py-0.5 text-primary transition hover:bg-surface-container-high" @click="navigateTo('/')">
+        <button type="button" class="icon-btn !h-7 !w-7 shrink-0" :title="t('back')" :aria-label="t('back')" @click="leave">
+          <Icon name="back" :size="16" />
+        </button>
+        <button type="button" class="rounded-sm px-2 py-0.5 transition hover:bg-card-hover" :class="crumbs.length ? 'text-muted' : 'font-semibold'" @click="navigateTo('/')">
           {{ share.name }}
         </button>
         <template v-for="(crumb, index) in crumbs" :key="crumb.path">
-          <span class="text-outline">/</span>
+          <span class="text-muted/60">/</span>
           <button
-            class="rounded px-2 py-0.5 transition hover:bg-surface-container-high"
-            :class="index === crumbs.length - 1 ? 'font-medium text-on-surface' : 'text-primary'"
+            type="button"
+            class="rounded-sm px-2 py-0.5 transition hover:bg-card-hover"
+            :class="index === crumbs.length - 1 ? 'font-semibold' : 'text-muted'"
             :disabled="index === crumbs.length - 1"
             @click="navigateTo(crumb.path)"
           >
@@ -400,53 +478,57 @@ onMounted(() => void load());
         </template>
       </div>
 
-      <p v-if="entries.length === 0" class="mt-8 text-center text-sm text-on-surface-variant">
+      <p v-if="entries.length === 0 && !busyPath" class="mt-8 text-center text-sm text-muted">
         {{ t("guestEmpty") }}
       </p>
 
-      <div class="overflow-hidden rounded-lg border border-outline-variant">
+      <div class="card overflow-hidden !rounded-md">
         <div
           v-for="entry in entries"
           :key="entry.path"
-          class="flex items-center gap-3 border-b border-outline-variant bg-surface px-4 py-2.5 last:border-b-0 hover:bg-surface-container"
+          class="flex items-center gap-3 border-b border-line px-4 py-2.5 transition last:border-b-0 hover:bg-card-hover"
         >
-          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="20" class="text-on-surface-variant shrink-0" />
+          <Icon :name="entry.isDir ? 'folder' : 'file'" :size="17" class="shrink-0 text-muted" />
           <button
-            class="min-w-0 flex-1 truncate text-left text-sm text-on-surface"
+            type="button"
+            class="min-w-0 flex-1 truncate text-left text-sm transition hover:text-primary"
             :title="entry.name"
             @click="entry.isDir ? navigateTo(entry.path) : open(entry)"
           >
             {{ entry.name }}
           </button>
-          <span
-            v-if="entry.isDir && isLocked(entry.path)"
-            class="shrink-0 rounded bg-error-container px-1.5 py-0.5 text-[10px] font-semibold text-on-error-container"
-          >
+          <span v-if="entry.isDir && isLocked(entry.path)" class="badge normal-case shrink-0">
+            <span class="badge-dot bg-error"></span>
             {{ t("guestAdminLocked") }}
           </span>
-          <span class="hidden w-24 shrink-0 text-right text-xs tabular-nums text-on-surface-variant sm:block">
+          <span class="hidden w-24 shrink-0 text-right text-xs tabular-nums text-muted sm:block">
             {{ entry.isDir ? "—" : formatBytes(entry.size) }}
           </span>
           <!-- Admin: lock/unlock toggle for directories -->
-          <md-icon-button
+          <button
             v-if="isAdmin && entry.isDir"
-            class="shrink-0"
+            type="button"
+            class="icon-btn !h-7 !w-7 shrink-0"
+            :class="{ '!text-error': isLocked(entry.path) }"
             :title="isLocked(entry.path) ? t('guestAdminUnlock') : t('guestAdminLock')"
+            :aria-label="isLocked(entry.path) ? t('guestAdminUnlock') : t('guestAdminLock')"
             :disabled="lockBusy === entry.path"
             @click="toggleLock(entry)"
           >
-            <Icon :name="isLocked(entry.path) ? 'unlock' : 'lock'" :size="18" />
-          </md-icon-button>
-          <md-icon-button
+            <Icon :name="isLocked(entry.path) ? 'unlock' : 'lock'" :size="15" />
+          </button>
+          <button
             v-else-if="!entry.isDir"
-            class="shrink-0"
+            type="button"
+            class="icon-btn !h-7 !w-7 shrink-0"
             :title="t('download')"
+            :aria-label="t('download')"
             :disabled="busyPath !== null"
             @click="download(entry)"
           >
-            <Icon name="download" :size="18" />
-          </md-icon-button>
-          <span v-else class="w-10 shrink-0"></span>
+            <Icon name="download" :size="15" />
+          </button>
+          <span v-else class="w-7 shrink-0"></span>
         </div>
       </div>
     </div>
@@ -454,34 +536,35 @@ onMounted(() => void load());
     <!-- Admin: create category dialog -->
     <div
       v-if="showCategoryDialog"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
       @click.self="showCategoryDialog = false"
     >
-      <div class="w-80 rounded-xl bg-surface-container p-6 shadow-xl">
-        <h3 class="mb-4 text-sm font-semibold text-on-surface">
+      <div class="modal-surface w-80 p-6">
+        <h3 class="mb-4 text-sm font-semibold">
           {{ t("guestAdminCategoryCreate") }}
         </h3>
-        <md-outlined-text-field
-          :label="t('guestAdminCategoryName')"
-          :value="newCategoryName"
-          @input="newCategoryName = ($event.target as HTMLInputElement).value"
-          class="mb-3 block w-full"
+        <input
+          v-model="newCategoryName"
+          type="text"
+          :placeholder="t('guestAdminCategoryName')"
+          class="input mb-3"
         />
-        <label class="mb-4 flex items-center gap-2 text-xs text-on-surface-variant">
-          <input
-            type="checkbox"
-            v-model="newCategoryPrefixless"
-            class="h-4 w-4 accent-primary"
-          />
+        <label class="mb-4 flex cursor-pointer select-none items-center gap-2 text-xs text-muted">
+          <input v-model="newCategoryPrefixless" type="checkbox" class="checkbox" />
           {{ t("guestAdminCategoryPrefixless") }}
         </label>
         <div class="flex justify-end gap-2">
-          <md-text-button @click="showCategoryDialog = false">
+          <button type="button" class="btn btn-outline" @click="showCategoryDialog = false">
             {{ t("cancel") }}
-          </md-text-button>
-          <md-filled-button @click="createCategory" :disabled="!newCategoryName.trim()">
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!newCategoryName.trim()"
+            @click="createCategory"
+          >
             {{ t("create") }}
-          </md-filled-button>
+          </button>
         </div>
       </div>
     </div>

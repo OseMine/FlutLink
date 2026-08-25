@@ -4,24 +4,11 @@ import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
-import { useUiStore } from "../stores/ui";
+import { useUiStore, type ViewMode } from "../stores/ui";
 import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
 import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
 import { registerEscapeCloser } from "../lib/escape";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/iconbutton/icon-button.js";
-import "@material/web/textfield/outlined-text-field.js";
-import "@material/web/checkbox/checkbox.js";
-import "@material/web/progress/linear-progress.js";
-import "@material/web/dialog/dialog.js";
-import "@material/web/menu/menu.js";
-import "@material/web/menu/menu-item.js";
-import "@material/web/divider/divider.js";
-import "@material/web/select/outlined-select.js";
-import "@material/web/select/select-option.js";
 import Icon from "./Icon.vue";
 import EntryList from "./EntryList.vue";
 
@@ -30,7 +17,21 @@ const files = useFilesStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
-const viewMode = ref<"list" | "grid">("list");
+// #368: layout preferences live in the ui store (localStorage-persisted), so
+// they survive app restarts and tab switches (App.vue destroys this component
+// via v-if on every tab change).
+const viewMode = computed({
+  get: () => ui.filesView.viewMode,
+  set: (mode: ViewMode) => ui.setFilesView({ viewMode: mode }),
+});
+const sortKey = computed(() => ui.filesView.sortKey);
+const sortAsc = computed(() => ui.filesView.sortAsc);
+
+function toggleSort(key: EntrySortKey) {
+  if (sortKey.value === key) ui.setFilesView({ sortAsc: !sortAsc.value });
+  else ui.setFilesView({ sortKey: key, sortAsc: true });
+}
+
 const selected = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ x: number; y: number; entry: WebDavEntry } | null>(null);
 const busyPath = ref<string | null>(null);
@@ -50,20 +51,9 @@ let unlistenDragDrop: (() => void) | null = null;
 const isSearching = computed(() => files.searchQuery.length > 0);
 const transferProgress = computed(() => files.transfer?.percent ?? null);
 
-const sortKey = ref<EntrySortKey>("name");
-const sortAsc = ref(true);
-
 const sortedEntries = computed(() =>
   sortEntries(files.displayEntries, sortKey.value, sortAsc.value)
 );
-
-function toggleSort(key: EntrySortKey) {
-  if (sortKey.value === key) sortAsc.value = !sortAsc.value;
-  else {
-    sortKey.value = key;
-    sortAsc.value = true;
-  }
-}
 
 watch(searchInput, (value) => {
   if (searchTimer) clearTimeout(searchTimer);
@@ -98,6 +88,14 @@ const allSelected = computed(
   () =>
     files.displayEntries.length > 0 &&
     files.displayEntries.every((e) => selected.value.has(e.path))
+);
+
+/// #366: the select-all control is a checkbox now — indeterminate while a
+/// proper subset is selected.
+const someSelected = computed(
+  () =>
+    selected.value.size > 0 &&
+    selected.value.size < files.displayEntries.length
 );
 
 function toggleSelectAll() {
@@ -324,7 +322,7 @@ function onKeydown(e: KeyboardEvent) {
   const entries = sortedEntries.value;
   if (!entries.length) return;
   const target = e.target as HTMLElement | null;
-  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT", "MD-OUTLINED-SELECT"].includes(target.tagName);
+  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
   if (typing) return;
   switch (e.key) {
     case "ArrowDown":
@@ -418,9 +416,8 @@ function isValidEntryName(name: string): boolean {
   );
 }
 
-// L15-F1/#288: md-buttons are form-associated submitters - a click inside the
-// <form> also fires submit, so handlers can run twice. The synchronous guard
-// collapses the duplicate call.
+// L15-F1/#288: clicks inside a <form> can also fire submit — handlers run
+// through this synchronous guard so they can never double-fire.
 let dialogBusy = false;
 
 // L19-F5: both dialogs share `nameInput` — always start (and leave) it empty
@@ -868,117 +865,125 @@ watch(
   >
     <div
       v-if="draggingOver"
-      class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-primary bg-primary-container/40"
+      class="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-primary bg-canvas/80"
     >
-      <p class="rounded-lg bg-surface-container-high px-4 py-2 text-sm text-on-primary-container">{{ t("dropToUpload") }}</p>
+      <p class="card px-4 py-2 text-sm">{{ t("dropToUpload") }}</p>
     </div>
-    <div class="flex items-center justify-between gap-3 border-b border-outline-variant px-6 py-3">
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between gap-3 border-b border-line px-6 py-3">
       <nav class="flex min-w-0 items-center gap-1 text-sm">
         <button
-          class="rounded p-1 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface disabled:opacity-40"
+          type="button"
+          class="icon-btn !h-7 !w-7"
           :disabled="files.crumbs.length <= 1"
           :title="t('back')"
+          :aria-label="t('back')"
           @click="goBack"
         >
           <Icon name="back" :size="16" />
         </button>
         <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
           <button
-            class="rounded px-1.5 py-0.5 hover:bg-surface-container-high hover:text-on-surface"
-            :class="i === files.crumbs.length - 1 ? 'font-semibold text-on-surface' : 'text-on-surface-variant'"
+            type="button"
+            class="rounded-sm px-1.5 py-0.5 transition hover:bg-card-hover"
+            :class="i === files.crumbs.length - 1 ? 'font-semibold' : 'text-muted'"
             @click="navigateTo(crumb.path)"
           >
             {{ crumb.path === "/" ? t("home") : crumb.label }}
           </button>
-          <span v-if="i < files.crumbs.length - 1" class="text-outline">/</span>
+          <span v-if="i < files.crumbs.length - 1" class="text-muted/60">/</span>
         </template>
       </nav>
 
       <div class="flex shrink-0 items-center gap-2">
-        <div class="relative">
-          <Icon
-            name="search"
-            :size="15"
-            class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant"
-          />
+        <!-- Featured search card: input styled as a container with inline actions -->
+        <div class="flex h-8 w-52 items-center gap-1.5 rounded-sm border border-line-strong bg-card px-2 transition focus-within:border-primary">
+          <Icon name="search" :size="14" class="shrink-0 text-muted" />
           <input
             v-model="searchInput"
+            type="text"
             :placeholder="t('searchPlaceholder')"
-            class="w-44 rounded-md border border-outline bg-surface-container-high py-1 pl-7 pr-7 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+            class="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted"
           />
           <button
             v-if="searchInput"
-            class="absolute right-1.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+            type="button"
+            class="grid h-5 w-5 shrink-0 place-items-center rounded-sm text-muted transition hover:text-fg"
             :title="t('clearSearch')"
             @click="clearSearchInput"
           >
-            <Icon name="close" :size="14" />
+            <Icon name="close" :size="13" />
           </button>
         </div>
-        <div class="flex overflow-hidden rounded-md border border-outline">
+
+        <!-- Micro-pills for the view toggle -->
+        <div class="segment" role="group" :aria-label="t('viewList') + ' / ' + t('viewGrid')">
           <button
-            class="flex items-center px-2.5 py-1 transition"
-            :class="viewMode === 'list' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant'"
+            type="button"
+            :aria-pressed="viewMode === 'list'"
             :title="t('viewList')"
             @click="viewMode = 'list'"
           >
-            <Icon name="menu" :size="16" />
+            <Icon name="menu" :size="15" />
           </button>
           <button
-            class="flex items-center px-2.5 py-1 transition"
-            :class="viewMode === 'grid' ? 'bg-surface-container-high text-on-surface' : 'text-on-surface-variant'"
+            type="button"
+            :aria-pressed="viewMode === 'grid'"
             :title="t('viewGrid')"
             @click="viewMode = 'grid'"
           >
-            <Icon name="grid" :size="16" />
+            <Icon name="grid" :size="15" />
           </button>
         </div>
-        <md-outlined-button
+
+        <button
           v-if="files.pairedPath"
-          @click="files.toggleSplitView"
-          :class="files.splitView ? 'active-toggle' : ''"
+          type="button"
+          class="btn btn-outline"
+          :class="{ '!border-primary/50 !bg-primary/10': files.splitView }"
           :title="t('splitViewHint')"
+          @click="files.toggleSplitView"
         >
-          <Icon name="columns" :size="15" slot="icon" />
+          <Icon name="columns" :size="14" />
           {{ t("splitView") }}
-        </md-outlined-button>
-        <md-outlined-button
-          @click="files.refresh"
-        >
-          <Icon name="refresh" :size="15" slot="icon" />
+        </button>
+        <button type="button" class="btn btn-outline" @click="files.refresh">
+          <Icon name="refresh" :size="14" />
           {{ t("refresh") }}
-        </md-outlined-button>
-        <md-outlined-button
-          @click="openNewFolder"
-        >
-          <Icon name="add" :size="15" slot="icon" />
+        </button>
+        <button type="button" class="btn btn-outline" @click="openNewFolder">
+          <Icon name="add" :size="14" />
           {{ t("newFolder") }}
-        </md-outlined-button>
-        <md-filled-button
-          :disabled="uploading"
-          @click="uploadFiles"
-        >
-          <Icon name="upload" :size="15" slot="icon" />
+        </button>
+        <!-- The single filled primary action of this view -->
+        <button type="button" class="btn btn-primary" :disabled="uploading" @click="uploadFiles">
+          <Icon name="upload" :size="14" />
           {{ t("upload") }}
-        </md-filled-button>
+        </button>
       </div>
     </div>
 
+    <!-- Admin: scope + impersonation picker -->
     <div
       v-if="accounts.active?.isAdmin"
-      class="flex flex-wrap items-center gap-3 border-b border-outline-variant bg-surface-container/40 px-6 py-2"
+      class="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-6 py-2"
     >
-      <div class="flex overflow-hidden rounded-md border border-outline">
+      <div class="segment">
         <button
-          class="px-3 py-1.5 text-xs font-medium transition"
-          :class="adminViewAll ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
+          type="button"
+          class="!w-auto px-3 text-xs font-medium"
+          :class="{ '!bg-card !text-fg': adminViewAll }"
+          :aria-pressed="adminViewAll"
           @click="setAdminView(true)"
         >
           {{ t("allUsersFolders") }}
         </button>
         <button
-          class="px-3 py-1.5 text-xs font-medium transition"
-          :class="!adminViewAll ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'"
+          type="button"
+          class="!w-auto px-3 text-xs font-medium"
+          :class="{ '!bg-card !text-fg': !adminViewAll }"
+          :aria-pressed="!adminViewAll"
           @click="setAdminView(false)"
         >
           {{ t("myFilesOnly") }}
@@ -986,28 +991,30 @@ watch(
       </div>
 
       <template v-if="adminViewAll">
-        <md-outlined-text-field
-          :label="t('searchUsers')"
-          :value="adminSearch"
-          @input="adminSearch = ($event.target as HTMLInputElement).value"
+        <input
+          v-model="adminSearch"
+          type="text"
+          :placeholder="t('searchUsers')"
+          class="input !h-7 w-44 text-xs"
           @keyup.enter="loadAdminUsers"
-          class="w-44"
-        ></md-outlined-text-field>
+        />
         <div class="flex items-center gap-2">
-          <span class="text-xs text-on-surface-variant">{{ t("filterUser") }}</span>
-          <md-outlined-select
+          <span class="text-xs text-muted">{{ t("filterUser") }}</span>
+          <select
             :value="selectedUser"
+            class="input !h-7 w-36 text-xs"
             @change="selectedUser = ($event.target as HTMLSelectElement).value; onUserSelect()"
           >
-            <md-select-option v-if="!selectedUser" value="" disabled>{{ t("users") }}…</md-select-option>
-            <md-select-option v-for="userId in adminUsers" :key="userId" :value="userId">
+            <option value="" disabled>{{ t("users") }}…</option>
+            <option v-for="userId in adminUsers" :key="userId" :value="userId">
               {{ userId }}
-            </md-select-option>
-          </md-outlined-select>
+            </option>
+          </select>
         </div>
         <button
           v-if="!adminUsers.length"
-          class="text-xs text-primary-emphasis underline-offset-2 hover:underline"
+          type="button"
+          class="text-xs text-primary underline-offset-2 hover:underline"
           @click="loadAdminUsers"
         >
           {{ t("refresh") }}
@@ -1017,7 +1024,7 @@ watch(
 
     <div
       v-if="files.targetUser && files.targetUser !== accounts.active?.username"
-      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+      class="flex items-center gap-2 border-b border-info/40 bg-info/10 px-6 py-1.5 text-xs text-info"
     >
       <span class="shrink-0 opacity-80">{{ t("impersonationNotice") }}</span>
       <span class="truncate font-semibold">{{ files.targetUser }}</span>
@@ -1025,121 +1032,134 @@ watch(
 
     <div
       v-if="files.pairedPath"
-      class="flex items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-6 py-1.5 text-xs text-on-surface-variant"
+      class="flex items-center gap-2 border-b border-line bg-panel px-6 py-1.5 text-xs text-muted"
     >
-      <span class="truncate rounded bg-info-container px-2 py-0.5 text-on-info-container">
+      <span class="badge normal-case">
         {{ paneLabel(paneKind(files.currentPath)) }}: {{ files.currentPath }}
       </span>
-          <button
-            class="action-badge flex shrink-0 items-center"
-            :title="t('openPaired')"
-            @click="goToPath(files.pairedPath)"
-          >
-            ↔
-          </button>
-      <span class="truncate rounded bg-success-container px-2 py-0.5 text-on-success-container">
+      <button
+        type="button"
+        class="action-badge shrink-0"
+        :title="t('openPaired')"
+        @click="goToPath(files.pairedPath)"
+      >
+        ↔
+      </button>
+      <span class="badge normal-case">
         {{ paneLabel(paneKind(files.pairedPath)) }}: {{ files.pairedPath }}
       </span>
     </div>
 
     <div
       v-if="files.offline"
-      class="flex items-center gap-2 border-b border-info bg-info-container/60 px-6 py-1.5 text-xs text-on-info-container"
+      class="flex items-center gap-2 border-b border-info/40 bg-info/10 px-6 py-1.5 text-xs text-info"
     >
       <Icon name="cloud_off" :size="14" class="shrink-0" />
       <span class="shrink-0 font-semibold">{{ t("offline") }}</span>
       <span class="truncate opacity-80">{{ t("offlineHint") }}</span>
     </div>
 
-    <div v-if="files.error" class="m-4 rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
+    <div v-if="files.error" class="mx-4 mt-4 rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
       {{ files.error }}
     </div>
 
     <div
       v-if="isSearching"
-      class="flex items-center gap-2 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container"
+      class="flex items-center gap-2 border-b border-line px-6 py-1.5 text-xs text-muted"
     >
-      <Icon name="search" :size="14" class="opacity-80" />
+      <Icon name="search" :size="13" class="opacity-70" />
       <span>{{ t("searchResults") }}</span>
-      <span v-if="!files.searching" class="font-semibold">{{ files.displayEntries.length }}</span>
+      <span v-if="!files.searching" class="font-semibold text-primary">{{ files.displayEntries.length }}</span>
       <span v-else>{{ t("searching") }}</span>
-      <button class="ml-auto underline-offset-2 hover:underline" @click="clearSearchInput">
+      <button type="button" class="ml-auto underline-offset-2 hover:underline" @click="clearSearchInput">
         {{ t("clearSearch") }}
       </button>
     </div>
 
-    <div v-if="selected.size > 0 || files.displayEntries.length > 0" class="flex items-center gap-3 border-b border-outline-variant bg-primary-container/40 px-6 py-1.5 text-xs text-on-primary-container">
-        <label class="flex cursor-pointer items-center gap-1.5 select-none">
-        <md-checkbox :checked="allSelected" @change="toggleSelectAll()"></md-checkbox>
+    <!-- Select-all / bulk actions -->
+    <div
+      v-if="selected.size > 0 || files.displayEntries.length > 0"
+      class="flex items-center gap-3 border-b border-line px-6 py-1.5 text-xs text-muted"
+    >
+      <label class="flex cursor-pointer select-none items-center gap-1.5">
+        <input
+          type="checkbox"
+          class="checkbox"
+          :checked="allSelected"
+          :indeterminate.prop="someSelected"
+          @change="toggleSelectAll()"
+        />
         <span>{{ t("selectAll") }}</span>
       </label>
       <template v-if="selected.size > 0">
         <span>{{ selected.size }} {{ t("selected") }}</span>
-        <md-outlined-button @click="bulkDownload">
-          <Icon name="download" :size="15" slot="icon" />
+        <button type="button" class="btn btn-outline h-7" @click="bulkDownload">
+          <Icon name="download" :size="13" />
           {{ t("download") }}
-        </md-outlined-button>
-        <md-outlined-button class="error-btn" @click="bulkDelete">
-          <Icon name="delete" :size="15" slot="icon" />
+        </button>
+        <button type="button" class="btn btn-danger h-7" @click="bulkDelete">
+          <Icon name="delete" :size="13" />
           {{ t("delete") }}
-        </md-outlined-button>
-        <button class="underline-offset-2 hover:underline" @click="clearSelection">
+        </button>
+        <button type="button" class="underline-offset-2 hover:underline" @click="clearSelection">
           {{ t("clear") }}
         </button>
       </template>
-      <span v-if="busyPath !== null" class="ml-auto text-on-surface-variant">{{ t("working") }}</span>
+      <span v-if="busyPath !== null" class="ml-auto">{{ t("working") }}</span>
     </div>
 
+    <!-- Transfer progress -->
     <div
       v-if="files.transfer"
-      class="flex items-center gap-3 border-b border-outline-variant bg-surface-container/60 px-6 py-2 text-xs text-on-surface-variant"
+      class="flex items-center gap-3 border-b border-line px-6 py-2 text-xs text-muted"
     >
       <span class="max-w-48 truncate">
         {{ t(files.transfer.direction === "upload" ? "uploading" : files.transfer.direction === "download" ? "downloading" : "deleting") }}
         {{ files.transfer.path }}
       </span>
-      <span v-if="files.transfer.totalFiles > 1" class="shrink-0">
+      <span v-if="files.transfer.totalFiles > 1" class="shrink-0 tabular-nums">
         {{ files.transfer.index + 1 }} / {{ files.transfer.totalFiles }}
       </span>
-      <md-linear-progress
-        :value="transferProgress != null ? transferProgress / 100 : 0"
-      ></md-linear-progress>
-      <span class="w-10 shrink-0 text-right">{{ files.transfer.percent.toFixed(0) }}%</span>
+      <div class="progress-track flex-1">
+        <div class="progress-fill" :style="{ width: (transferProgress ?? 0) + '%' }"></div>
+      </div>
+      <span class="w-10 shrink-0 text-right tabular-nums">{{ files.transfer.percent.toFixed(0) }}%</span>
     </div>
 
     <div
       v-if="isSearching && files.searching && files.displayEntries.length === 0"
-      class="m-auto text-on-surface-variant"
+      class="m-auto text-muted"
     >
       {{ t("searching") }}
     </div>
 
     <div
       v-else-if="isSearching && files.displayEntries.length === 0"
-      class="m-auto text-center text-on-surface-variant"
+      class="m-auto text-center text-muted"
     >
       <p class="text-lg">{{ t("noSearchResults").replace("{query}", searchInput.trim()) }}</p>
     </div>
 
-    <div v-else-if="files.loading && files.displayEntries.length === 0" class="m-auto text-on-surface-variant">
+    <div v-else-if="files.loading && files.displayEntries.length === 0" class="m-auto text-muted">
       {{ t("connecting") }}
     </div>
 
-    <div v-else-if="files.displayEntries.length === 0" class="m-auto text-center text-on-surface-variant">
+    <div v-else-if="files.displayEntries.length === 0" class="m-auto text-center text-muted">
       <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
     </div>
 
     <!-- Split view: virtual resources ↔ real parts, side by side -->
-    <div v-else-if="files.splitView" class="flex flex-1 overflow-hidden">
-      <div class="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-outline-variant">
-        <div class="flex shrink-0 items-center justify-between gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
-          <span class="truncate font-semibold text-on-surface">{{ files.currentPath }}</span>
+    <div v-else-if="files.splitView" class="flex min-h-0 flex-1 overflow-hidden">
+      <div class="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-line">
+        <div class="flex shrink-0 items-center justify-between gap-2 border-b border-line bg-panel px-4 py-1.5 text-xs text-muted">
+          <span class="truncate font-semibold">{{ files.currentPath }}</span>
           <span class="flex shrink-0 items-center gap-2">
-            <span class="rounded bg-info-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-info-container">
+            <span class="badge normal-case">
               {{ paneLabel(paneKind(files.currentPath)) }}
             </span>
             <button
-              class="action-badge flex shrink-0 items-center"
+              type="button"
+              class="action-badge shrink-0"
               :title="t('openPaired')"
               @click="goToPath(files.pairedPath)"
             >
@@ -1147,7 +1167,7 @@ watch(
             </button>
           </span>
         </div>
-        <div class="flex-1 overflow-y-auto">
+        <div class="min-h-0 flex-1 overflow-y-auto">
           <EntryList
             :entries="files.displayEntries"
             :view-mode="viewMode"
@@ -1174,18 +1194,18 @@ watch(
         </div>
       </div>
       <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div class="flex shrink-0 items-center gap-2 border-b border-outline-variant bg-surface-container/40 px-4 py-1.5 text-xs text-on-surface-variant">
-          <span class="truncate font-semibold text-on-surface">{{ files.pairedPath }}</span>
-          <span class="shrink-0 rounded bg-success-container px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-on-success-container">
+        <div class="flex shrink-0 items-center gap-2 border-b border-line bg-panel px-4 py-1.5 text-xs text-muted">
+          <span class="truncate font-semibold">{{ files.pairedPath }}</span>
+          <span class="badge normal-case">
             {{ paneLabel(paneKind(files.pairedPath)) }}
           </span>
         </div>
-        <div class="flex-1 overflow-y-auto">
-          <div v-if="files.pairedLoading && files.pairedEntries.length === 0" class="p-4 text-on-surface-variant">
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div v-if="files.pairedLoading && files.pairedEntries.length === 0" class="p-4 text-muted">
             {{ t("connecting") }}
           </div>
           <div v-else-if="files.pairedError" class="p-4 text-error">{{ files.pairedError }}</div>
-          <div v-else-if="files.pairedEntries.length === 0" class="p-4 text-center text-on-surface-variant">
+          <div v-else-if="files.pairedEntries.length === 0" class="p-4 text-center text-muted">
             <p class="text-lg">{{ t("folderEmptyTitle") }}</p>
           </div>
           <!-- L19-F1: same props/events as the left pane — grid hover buttons
@@ -1217,35 +1237,8 @@ watch(
       </div>
     </div>
 
-    <!-- List view -->
-    <div v-else-if="viewMode === 'list'" class="flex-1 overflow-y-auto">
-      <EntryList
-        :entries="files.displayEntries"
-        :view-mode="viewMode"
-        :selected="selected"
-        :share-state="shareState"
-        :searching="isSearching"
-        :thumbs="thumbs"
-        :shares-by-path="sharesByPath"
-        :sort-key="sortKey"
-        :sort-asc="sortAsc"
-        :kbd-index="kbdIndex"
-        @open="open"
-        @toggle-select="toggleSelect"
-        @contextmenu="openCtx"
-        @rename="startRename"
-        @create-link="createLink"
-        @copy-link="copyLink"
-        @pair="goToPaired"
-        @download="download"
-        @delete="removeEntry"
-        @share="openShareDialog"
-        @toggle-sort="toggleSort"
-      />
-    </div>
-
-    <!-- Grid view -->
-    <div v-else class="flex-1 overflow-y-auto">
+    <!-- List / grid views -->
+    <div v-else class="min-h-0 flex-1 overflow-y-auto">
       <EntryList
         :entries="files.displayEntries"
         :view-mode="viewMode"
@@ -1274,37 +1267,42 @@ watch(
     <!-- Context menu -->
     <div
       v-if="ctxMenu"
-      class="fixed z-50 w-44 overflow-hidden rounded-lg border border-outline bg-surface-container py-1 shadow-m3-3"
+      class="menu fixed z-50 w-44 py-1"
       :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
       @click.stop
     >
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
+        type="button"
+        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
         @click="open(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("open") }}
       </button>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
+        type="button"
+        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
         @click="ctxMenu.entry.isDir ? downloadZip(ctxMenu.entry) : download(ctxMenu.entry); ctxMenu = null"
       >
         {{ ctxMenu.entry.isDir ? t("downloadZip") : t("download") }}
       </button>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
+        type="button"
+        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
         @click="startRename(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("rename") }}
       </button>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container-high"
+        type="button"
+        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
         @click="openShareDialog(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("share") }}
       </button>
-      <md-divider class="my-1"></md-divider>
+      <div class="mx-2 my-1 border-t border-line"></div>
       <button
-        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-error hover:bg-error-container"
+        type="button"
+        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10"
         @click="removeEntry(ctxMenu.entry); ctxMenu = null"
       >
         {{ t("delete") }}
@@ -1314,31 +1312,32 @@ watch(
     <!-- New folder dialog -->
     <div
       v-if="showNewFolder"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
       @click.self="cancelNewFolder"
     >
       <form
-        class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"
+        class="modal-surface w-full max-w-xs p-5"
         @submit.prevent="createFolder"
       >
-        <h3 class="mb-3 text-base font-semibold text-on-surface">{{ t("newFolder") }}</h3>
+        <h3 class="mb-3 text-base font-semibold">{{ t("newFolder") }}</h3>
         <input
           v-model="nameInput"
+          type="text"
           :placeholder="t('folderName')"
           autofocus
-          class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+          class="input mb-4"
         />
-        <div class="flex gap-2">
-          <md-outlined-button type="button" @click="cancelNewFolder">
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" @click="cancelNewFolder">
             {{ t("cancel") }}
-          </md-outlined-button>
-          <md-filled-button
-            type="button"
+          </button>
+          <button
+            type="submit"
+            class="btn btn-primary"
             :disabled="nameInput.trim().length === 0"
-            @click="createFolder"
           >
             {{ t("create") }}
-          </md-filled-button>
+          </button>
         </div>
       </form>
     </div>
@@ -1346,26 +1345,25 @@ watch(
     <!-- Rename dialog -->
     <div
       v-if="renameTarget"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
       @click.self="cancelRename"
     >
       <form
-        class="w-full max-w-xs rounded-xl border border-outline bg-surface-container p-5 shadow-m3-3"
+        class="modal-surface w-full max-w-xs p-5"
         @submit.prevent="doRename"
       >
-        <h3 class="mb-3 text-base font-semibold text-on-surface">{{ t("rename") }}</h3>
+        <h3 class="mb-3 text-base font-semibold">{{ t("rename") }}</h3>
         <input
           v-model="nameInput"
+          type="text"
           autofocus
-          class="mb-4 w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+          class="input mb-4"
         />
-        <div class="flex gap-2">
-          <md-outlined-button type="button" @click="renameTarget = null">
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-outline" @click="cancelRename">
             {{ t("cancel") }}
-          </md-outlined-button>
-          <md-filled-button type="button" @click="doRename">
-            {{ t("save") }}
-          </md-filled-button>
+          </button>
+          <button type="submit" class="btn btn-primary">{{ t("save") }}</button>
         </div>
       </form>
     </div>
@@ -1373,55 +1371,60 @@ watch(
     <!-- Share dialog -->
     <div
       v-if="shareDialog"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
       @click.self="closeShareDialog"
     >
-      <div
-        class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-outline bg-surface-container shadow-m3-3"
-      >
-        <div class="flex items-center justify-between border-b border-outline-variant px-5 py-3">
-          <h3 class="min-w-0 truncate text-base font-semibold text-on-surface">
+      <div class="modal-surface flex max-h-[85vh] w-full max-w-md flex-col">
+        <div class="flex items-center justify-between border-b border-line px-5 py-3">
+          <h3 class="min-w-0 truncate text-base font-semibold">
             {{ t("share") }} — {{ shareDialog.entry.name }}
           </h3>
-          <button class="shrink-0 text-on-surface-variant hover:text-on-surface" @click="closeShareDialog">
-            <Icon name="close" :size="18" />
+          <button
+            type="button"
+            class="icon-btn !h-7 !w-7 shrink-0"
+            :aria-label="t('close')"
+            @click="closeShareDialog"
+          >
+            <Icon name="close" :size="16" />
           </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto px-5 py-4">
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
             {{ t("existingShares") }}
           </p>
-          <div v-if="shareDialog.loading" class="mb-4 text-sm text-on-surface-variant">{{ t("loading") }}</div>
-          <div v-else-if="!shareDialog.shares.length" class="mb-4 text-sm text-on-surface-variant">
+          <div v-if="shareDialog.loading" class="mb-4 text-sm text-muted">{{ t("loading") }}</div>
+          <div v-else-if="!shareDialog.shares.length" class="mb-4 text-sm text-muted">
             {{ t("noShares") }}
           </div>
           <ul v-else class="mb-4 space-y-2">
             <li
               v-for="share in shareDialog.shares"
               :key="share.id"
-              class="flex items-center gap-2 rounded-md border border-outline-variant bg-surface-container-high px-3 py-2"
+              class="card flex items-center gap-2 p-3"
             >
               <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm text-on-surface">{{ shareLabel(share) }}</span>
-                <span class="block truncate text-xs text-on-surface-variant">{{ shareTarget(share) }}</span>
+                <span class="block truncate text-sm">{{ shareLabel(share) }}</span>
+                <span class="block truncate text-xs text-muted">{{ shareTarget(share) }}</span>
                 <span
                   v-if="share.hasPassword || share.expiration"
-                  class="block truncate text-[10px] text-on-surface-variant"
+                  class="block truncate text-[11px] text-muted/80"
                 >
                   {{ share.hasPassword ? t("sharePasswordSet") : "" }}{{ share.hasPassword && share.expiration ? " · " : "" }}{{ share.expiration ? t("shareExpires").replace("{date}", share.expiration) : "" }}
                 </span>
               </span>
               <button
                 v-if="share.shareType === 3 && share.url"
-                class="shrink-0 rounded border border-outline px-1.5 py-1 text-[10px] text-on-surface-variant hover:bg-surface-container-highest"
+                type="button"
+                class="action-badge shrink-0"
                 :title="t('copyLinkTitle')"
                 @click="copyShareUrl(share.url)"
               >
                 ⧉
               </button>
               <button
-                class="shrink-0 rounded border border-error px-1.5 py-1 text-[10px] text-error hover:bg-error-container/40"
+                type="button"
+                class="btn btn-danger h-7 shrink-0 px-2 text-xs"
                 @click="revokeShare(share)"
               >
                 {{ t("revoke") }}
@@ -1429,52 +1432,63 @@ watch(
             </li>
           </ul>
 
-          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
             {{ t("newShare") }}
           </p>
           <div class="space-y-3">
-            <div class="flex gap-2">
-              <md-outlined-button
+            <!-- Share type micro-pills -->
+            <div class="flex flex-wrap gap-1.5">
+              <button
                 v-for="type in shareTypes"
                 :key="type.value"
-                :class="shareForm.type === type.value ? 'active-toggle' : ''"
+                type="button"
+                class="pill"
+                :class="shareForm.type === type.value ? 'pill-active' : ''"
                 @click="shareForm.type = type.value"
               >
                 {{ type.label }}
-              </md-outlined-button>
+              </button>
             </div>
             <input
               v-if="shareForm.type !== 'link'"
               v-model="shareForm.shareWith"
+              type="text"
               :placeholder="t('shareRecipient')"
-              class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+              class="input"
             />
             <template v-else>
               <input
                 v-model="shareForm.password"
+                type="text"
                 :placeholder="t('sharePasswordPlaceholder')"
-                class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary"
+                class="input"
               />
               <input
                 v-model="shareForm.expireDate"
                 type="date"
-                class="w-full rounded-md border border-outline bg-surface-container-high px-3 py-2 text-sm text-on-surface focus:border-primary"
+                class="input"
               />
-              <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant select-none">
-                <md-checkbox :checked="shareForm.publicUpload" @change="shareForm.publicUpload = !shareForm.publicUpload"></md-checkbox>
+              <label class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  :checked="shareForm.publicUpload"
+                  @change="shareForm.publicUpload = !shareForm.publicUpload"
+                />
                 {{ t("publicUpload") }}
               </label>
             </template>
-            <md-filled-button
-                :disabled="submitting"
-                @click="createShare"
-              >
-                {{ t("createShare") }}
-              </md-filled-button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="submitting"
+              @click="createShare"
+            >
+              {{ t("createShare") }}
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
 </template>
-
