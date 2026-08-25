@@ -52,7 +52,7 @@ Neu gefunden:
 - [ ] **L19-F4 (UX-Konsistenz, minor): Der Rename-Dialog schließt auch bei
       invalidem Namen — die getippte Eingabe geht verloren.**
       `doRename` (`FileExplorer.vue:438-469`) zeigt zwar den Toast
-      „Ordnername ungültig“, aber das `finally` setzt `renameTarget = null`
+      „Ordnername ungültig", aber das `finally` setzt `renameTarget = null`
       und schließt damit den Dialog; `createFolder` (`:413-431`) hält den
       Dialog bei demselben Fehler offen. Fix: Validierung vor dem
       Dialog-Close handhaben (Close nur bei Erfolg).
@@ -62,7 +62,7 @@ Neu gefunden:
       (`showNewFolder = false` Button `:1255-1257`, Rename-Cancel/
       Backdrop `:1273`, `:1286-1288`) setzen `nameInput` nicht zurück; nur
       der Erfolgs-Pfad von `createFolder` leert es (`:425`). Öffnet man nach
-      einem abgebrochenen Rename „Neuer Ordner“, ist das Feld mit dem alten
+      einem abgebrochenen Rename „Neuer Ordner", ist das Feld mit dem alten
       Dateinamen vorbelegt und der Create-Button aktiviert
       (`:disabled="nameInput.trim().length === 0"`, `:1260`). Fix:
       `nameInput.value = ""` beim Öffnen/Abbrechen beider Dialoge.
@@ -78,8 +78,8 @@ Neu gefunden:
       mitprüfen.
 - [ ] **L19-F7 (i18n, minor): Der Update-Banner zeigt rohe Backend-Statuscodes
       statt lokalisierter Texte.** `App.vue:166-171` rendert im
-      Banner-Fortschritt `${e.payload.code}` (z. B. „downloading“,
-      „installing“) als Klartext; nur `checksum_warning` wird übersetzt.
+      Banner-Fortschritt `${e.payload.code}` (z. B. „downloading",
+      „installing") als Klartext; nur `checksum_warning` wird übersetzt.
       Das SettingsModal hat mit `updateStatusText`
       (`SettingsModal.vue:206-222`) bereits die vollständige Code→Key-Map —
       der Banner sollte dieselbe Übersetzung nutzen.
@@ -138,7 +138,7 @@ verschieben. Stichprobenhafte Bestätigung:
 - CP-N1 bestätigt: `FlutCloudOcs.kt:107` bricht weiter bei
   `groups.size < limit` ab (übrige CP-Befunde betreffen `kmp/` und sind
   seit `dd7fdb7` ebenfalls unverändert).
-- „Desktop-JVM: Token-Speicher härten“ bleibt offen:
+- „Desktop-JVM: Token-Speicher härten" bleibt offen:
   `FileKeyValueStorage.kt` dokumentiert die Keyring-Anbindung weiterhin
   als Follow-up.
 
@@ -180,7 +180,7 @@ Neu gefunden (Cross-Platform-Parität Desktop ⇔ KMP):
       ein `uid_owner`-Feld für einen Owner-Guard; `FilesViewModel.createShare/
       loadShares/deleteShare` (`FilesViewModel.kt:322-389`) reichen
       `targetUser.value` nicht durch. Folge beim Impersonation-Browsing:
-      „Link erstellen“ schickt den Pfad des Zielnutzers ohne
+      „Link erstellen" schickt den Pfad des Zielnutzers ohne
       Impersonate-Header (OCS-Fehler oder Share im Admin-Namespace), und der
       Share-Dialog listet die Shares des **Admins**. Fix: `targetUser`
       durchreichen + Header setzen (analog `WebDavApi.impersonate`)
@@ -233,7 +233,7 @@ Neu gefunden (Cross-Platform-Parität Desktop ⇔ KMP):
       `AccountStore.loadAccounts` (`AccountStore.kt:27-32`) lädt ungefiltert,
       `SessionManager.init`/`restoreSession`
       (`SessionManager.kt:21-57`) filtern weder noch melden; ein Konto mit
-      verlorenem Token bleibt in der Liste und „Wechseln“ endet stumm bei
+      verlorenem Token bleibt in der Liste und „Wechseln" endet stumm bei
       `session = null`. Idee: Filterung + `tokenMissing`-Reporting portieren.
 - [ ] **CP-N3 (Feature-Ideen, minor): Drei Desktop-Features haben kein
       mobiles Pendant:** Bildvorschauen (`preview` in `webdav.rs:719-765`,
@@ -307,7 +307,7 @@ verschieben:
   (`:128-131`).
 - L17-N4 bestätigt: `ocs.rs:318` bricht weiter bei `new_groups < LIMIT` ab;
   neu: derselbe Bug existiert im KMP (`CP-N1`).
-- „Desktop-JVM: Token-Speicher härten“ bleibt offen —
+- „Desktop-JVM: Token-Speicher härten" bleibt offen —
   `FileKeyValueStorage.kt:13-15` dokumentiert die Keyring-Anbindung
   ausdrücklich als Follow-up.
 
@@ -349,10 +349,10 @@ Neu gefunden:
       BEVOR `window.confirm` fragt; der Early-Return beim Abbrechen liegt
       **außerhalb** des try/finally, das `busyPath.value = null`
       (:145-148) sicherstellt. Nach einmal Abbrechen von „Ausgewählte
-      löschen“ bleiben dauerhaft wirkungslos: `bulkDownload` (:118),
+      löschen" bleiben dauerhaft wirkungslos: `bulkDownload` (:118),
       `dropUpload`/Drag-&-Drop (:152), `open` (:195), `download` (:240),
       `downloadZip` (:258) — jeweils `if (busyPath.value) return` — und
-      der „Working…“-Indikator (`v-if="busyPath !== null"`, :1027)
+      der „Working…"-Indikator (`v-if="busyPath !== null"`, :1027)
       bleibt sichtbar. Fix: Confirm vor dem Setzen von `busyPath`
       abfragen oder den Return in den try-Block ziehen.
 - [ ] **L17-F2 (Bug/UX, mittel): `validate_dav_path` blockiert auch die
@@ -366,7 +366,7 @@ Neu gefunden:
       ohne Guard arbeitet, kann man `/resources/…` browsen; die Einträge
       tragen `isResource=true` und bieten Open/Download an — jeder Klick
       endet mit „The virtual 'resources'/'parts' folders cannot be
-      modified.“ (Stimulans ist eine Lese-Aktion.) Thumbnails schlagen
+      modified." (Stimulans ist eine Lese-Aktion.) Thumbnails schlagen
       zusätzlich stumm fehl: `getThumbnail` fängt alle Fehler
       (`src/stores/files.ts:263-269`) → Bilder unter `/resources`
       erhalten nie Vorschauen. Fix: Guard nur für schreibende Commands
@@ -390,13 +390,13 @@ Neu gefunden:
       nächsten `persist` kommentarlos zu überschreiben.
 - [ ] **L17-F4 (i18n, minor): Der Sync-`PassError`-Code
       `walk_incomplete` fehlt in `ERROR_CODE_KEYS` — die UI zeigt
-      „Unbekannter Fehler.“ statt des Hinweises, dass Löschungen
+      „Unbekannter Fehler." statt des Hinweises, dass Löschungen
       übersprungen wurden.** `sync.rs:1159-1164` erzeugt
       `{ code: "walk_incomplete", detail: Some("Some files could not be
       read. Deletions were skipped for safety.") }`; `i18n.ts:631-649`
       mappt den Code nicht → `translateError` fällt auf `errUnknown`
       zurück (`i18n.ts:652`), `SyncPanel.vue:23-25` rendert
-      „Unbekannter Fehler.“/„Unknown error.“. Fix: Keys
+      „Unbekannter Fehler."/"Unknown error.". Fix: Keys
       `errWalkIncomplete` (en+de) + Mapping ergänzen.
 - [ ] **L17-N1 (CI, minor): Abweichende `setup-android`-Pins zwischen
       `kmp.yml` und der `kmp-ios-build`-Action.**
@@ -445,22 +445,22 @@ asset-name-Härtung R7-2); Chunked-Upload-v2-Cleanup; Impersonation-Guards
 
 ### todo.md-Nachprüfung (Schritt 5, gegen den aktuellen Code)
 
-- [x] „`SettingsStore` nach `commonMain` heben“ → **erledigt**:
+- [x] „`SettingsStore` nach `commonMain` heben" → **erledigt**:
       `kmp/shared/src/commonMain/kotlin/com/flutcloud/flutlink/core/SettingsStore.kt`
       liegt vollständig in `commonMain` (Flow-basiert, persistiert über
       den plattformgelieferten `KeyValueStorage`; Android-Actual in
       `androidMain/…/core/AndroidStorages.kt`). Verschoben nach
       `archived-todo.md`.
-- [x] „iOS-Parität (Langläufer)“ → **erledigt**: die Compose-UI
+- [x] „iOS-Parität (Langläufer)" → **erledigt**: die Compose-UI
       (Login, Files, Admin, Settings) liegt komplett in `commonMain`
       (45 Kotlin-Dateien in commonMain vs. 7 in androidMain);
       plattformgebundene Dienste sind als Actuals umgesetzt
       (`iosMain/…/core/IosStorages.kt`: `IosKeychainStorage` via
       SecItem-API + `IosDefaultsStorage` via NSUserDefaults;
       `PlatformActuals.kt`, `PlatformUi.ios.kt`) und in
-      `kmp/README.md` („Stand der iOS-Parität“) dokumentiert.
+      `kmp/README.md` („Stand der iOS-Parität") dokumentiert.
       Verschoben nach `archived-todo.md`.
-- [ ] „Desktop-JVM: Token-Speicher härten“ → **weiter offen, bestätigt**:
+- [ ] „Desktop-JVM: Token-Speicher härten" → **weiter offen, bestätigt**:
       `kmp/shared/src/jvmMain/kotlin/com/flutcloud/flutlink/desktop/FileKeyValueStorage.kt:12-15`
       legt Tokens weiterhin als Properties-Datei mit 600-Rechten unter
       `$XDG_STATE_HOME/flutlink` ab; Kommentar nennt die Keyring-Anbindung
@@ -468,19 +468,55 @@ asset-name-Härtung R7-2); Chunked-Upload-v2-Cleanup; Impersonation-Guards
 
 ### GitHub-Issues (Schritt 6)
 
-Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe sind in diesem
-Lauf verboten): `git log` belegt die gemergten Dependabot-PRs #324
-(okio 3.18.1), #325 (okhttp) und #326 (opencode/github 1.18.21) sowie
-die Feature-Commits seit dem letzten Lauf (FLUTCLOUD_URL-Baking
-`5357baf`, FlutCloud-App-Zip `79afc45`/`a5eed2f`, iOS-AltStore-Quellen
-`8f5213b`, KMP-Update-Check `47ca9d2`); der todo.md-Kopf bestätigt, dass
-#293/#317/#318 geschlossen sind. Ob darüber hinaus offene Issues
-existieren oder veraltet sind, ist hier nicht prüfbar — der
-`opencode-todo-issues`-Workflow sollte beim nächsten Lauf einen Re-Sync
-machen und dabei die L17-Befunde oben als Issues erfassen.
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe sind in diesem Lauf
+verboten): `git log` belegt die gemergten Dependabot-PRs #324 (okio 3.18.1),
+#325 (okhttp) und #326 (opencode/github 1.18.21) sowie die Feature-Commits
+seit dem letzten Lauf (FLUTCLOUD_URL-Baking `5357baf`, FlutCloud-App-Zip
+`79afc45`/`a5eed2f`, iOS-AltStore-Quellen `8f5213b`, KMP-Update-Check
+`47ca9d2`); der todo.md-Kopf bestätigt, dass #293/#317/#318 geschlossen
+sind. Ob darüber hinaus offene Issues existieren oder veraltet sind, ist
+hier nicht prüfbar — der `opencode-todo-issues`-Workflow sollte beim
+nächsten Lauf einen Re-Sync machen und dabei die L17-Befunde oben als
+Issues erfassen.
 
 ## Offen
 
 - [ ] Desktop-JVM: Token-Speicher härten — OS-Keyring-Anbindung statt
       600er-Datei unter `$XDG_STATE_HOME/flutlink` (siehe
       `FileKeyValueStorage`), Parität zum Tauri-Client (`keyring`).
+
+## Performance-Analyse (ergänzt 2026-08-25)
+
+### High Priority
+
+- [ ] **R1 (Sync): Remote-Listing ist sequenzielles BFS** — `sync.rs:388-446`
+      macht N sequenzielle HTTP-Requests (Depth: 1 pro Directory). Fix:
+      `tokio::sync::Semaphore` mit 4-8 Permits für paralleles Listing.
+- [ ] **N1+F2 (Shares): `loadAllShares()` ruft ALLE Shares pro Navigation**
+      — `FileExplorer.vue:585-599` + Watcher `:773-788` ohne Pfadfilter.
+      Fix: `listShares(files.currentPath)` übergeben.
+
+### Medium Priority
+
+- [ ] **F1 (Sort): Doppelte Sortierung** — `FileExplorer.vue:56-58` sortiert,
+      `EntryList.vue:53-55` sortiert erneut. Fix: Parent sortiert, Child
+      bekommt vorsortierte Entries.
+- [ ] **R3 (Cache): `evict_oldest` liest bei jedem Write alle Files** —
+      `cache.rs:57-82`: 500 `metadata()`-Syscalls + Sort pro Navigation.
+      Fix: Atomic-Counter, Batch-Eviction (10% auf einmal).
+- [ ] **R2 (Sync): `plan_ops` allokiert Union-BTreeSet** — `sync.rs:563-566`
+      O(N) Memory + O(N log N). Fix: `merge` auf BTreeMap-Keys statt
+      Union-Set.
+
+### Low Priority
+
+- [ ] **U3 (Rendering): `formatMtime` erstellt pro Entry ein Date-Objekt**
+      — `EntryList.vue:47-51`. Fix: Mtimes vorformattieren/cachen.
+- [ ] **U2 (Grid): Hover-Overlay erzwingt GPU-Compositing** —
+      `EntryList.vue:271`, `hidden`→`flex` pro Item. Fix: Shared Overlay
+      via CSS `:has()` oder ein Element.
+- [ ] **N2 (Thumbnails): 50 gleichzeitige HTTP-Requests** —
+      `FileExplorer.vue:303-312`, fire-and-forget. Fix: Concurrency-Limiter
+      (max 4-6).
+- [ ] **U5 (Rendering): `<thead>` wird bei jedem Entry-Change neu gerendert**
+      — `EntryList.vue:86-105`. Fix: `v-once`.
