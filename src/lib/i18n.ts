@@ -86,8 +86,10 @@ const dict: Record<Lang, Record<string, string>> = {
     systemThemeNote:
       "System Default follows how your device is configured.",
     accentColor: "Accent color",
+    // #371: the hue-seed mechanism stays as the accent feature, but the copy
+    // no longer references a third-party design system.
     accentColorHint:
-      "A Material-You-style accent: a seed hue derives the whole primary palette.",
+      "Pick a seed hue — FlutLink derives a vibrant accent from it for primary actions, focus rings and selection.",
     accentReset: "Reset",
     storage: "Storage",
     free: "Free",
@@ -343,6 +345,9 @@ const dict: Record<Lang, Record<string, string>> = {
     guestAdminShareUnassigned: "Assignment removed",
     guestAdminPathLocked: "Path locked",
     guestAdminPathUnlocked: "Path unlocked",
+    guestTabTitle: "Guests",
+    guestAdminCategoryDeleteConfirm:
+      "Delete category '{name}'? All share assignments of this category will be removed.",
   },
   de: {
     appName: "FlutLink",
@@ -417,8 +422,10 @@ const dict: Record<Lang, Record<string, string>> = {
     systemThemeNote:
       "System-Standard folgt der Konfiguration deines Geräts.",
     accentColor: "Akzentfarbe",
+    // #371: Hue-Seed-Mechanismus bleibt als Akzent-Feature, aber ohne
+    // Verweis auf ein Fremdes Designsystem.
     accentColorHint:
-      "Ein Akzent im Material-You-Stil: Ein Farbton leitet die gesamte Primärpalette ab.",
+      "Wähle einen Basis-Farbton – FlutLink leitet daraus einen kräftigen Akzent für primäre Aktionen, Fokusrahmen und Auswahl ab.",
     accentReset: "Zurücksetzen",
     storage: "Speicher",
     free: "Frei",
@@ -675,6 +682,9 @@ const dict: Record<Lang, Record<string, string>> = {
     guestAdminShareUnassigned: "Zuweisung entfernt",
     guestAdminPathLocked: "Pfad gesperrt",
     guestAdminPathUnlocked: "Pfad entsperrt",
+    guestTabTitle: "Gäste",
+    guestAdminCategoryDeleteConfirm:
+      "Kategorie '{name}' löschen? Alle Freigabe-Zuweisungen dieser Kategorie gehen verloren.",
   },
 };
 
