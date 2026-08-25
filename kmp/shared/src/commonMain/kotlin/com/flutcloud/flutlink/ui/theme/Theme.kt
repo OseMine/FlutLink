@@ -7,8 +7,8 @@ import androidx.compose.runtime.Composable
 
 /**
  * A resolved FlutCloud brand palette. [Light] ("Bright Daylight") and
- * [Midnight] ("Deep Midnight") are selectable on iOS/desktop; Android always
- * follows the device setting. Mirrors the desktop `[data-theme]` resolution
+ * [Midnight] ("Deep Midnight") are selectable next to following the device
+ * setting ("system"). Mirrors the desktop `[data-theme]` resolution
  * in `src/style.css`.
  */
 enum class FlutResolvedTheme(val isDark: Boolean) {

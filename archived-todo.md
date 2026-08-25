@@ -3,6 +3,26 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-25, Feedback „Android: Geräte-Theme + eigene Wahl“)
+
+- [x] **Android folgt standardmäßig dem Geräte-Theme (korrekte
+      Akzentfarbe/Modus), behält aber die Wahl Light/Dark/System.**
+      → erledigt (2026-08-25): übernimmt das Feedback zum vorherigen Eintrag
+      („Issue UI-Styles …“) und hebt dessen Android-Sonderfall auf —
+      `keepsDeviceTheme` ist entfallen.
+      - KMP (`kmp/`): `Platform.keepsDeviceTheme` (Interface,
+        `AndroidPlatform`-Override, `AppContainer`-Weiterleitung) entfernt;
+        `FlutLinkRoot` reicht die gespeicherte Präferenz unverändert durch
+        (`"system"` ist Default → frische Installationen folgen dem Gerät);
+        `SettingsScreen` zeigt den Theme-Picker wieder plattformübergreifend
+        an (Deep Midnight / Bright Daylight / System). Korrekte
+        Akzentfarben je Modus bleiben erhalten (`defaultAccentHue`,
+        Material-You-Dynamic-Color nur bei „system“).
+      - Verifikation: `cargo fmt --all --check` grün; `cargo clippy
+        --all-targets -- -D warnings` grün; `./gradlew :shared:build`
+        BUILD SUCCESSFUL (Android + JVM + iOS-Metadaten + Unit-Tests).
+
+
 ## Erledigt (2026-08-24, Issue „UI-Styles: Deep Midnight / Bright Daylight / System“)
 
 - [x] **Theme-Auswahl auf Deep Midnight (Dark), Bright Daylight (Light) und

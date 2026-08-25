@@ -58,12 +58,6 @@ interface Platform {
     val supportsDynamicColor: Boolean get() = false
 
     /**
-     * Whether the app must keep the device theme: the theme picker is hidden
-     * in Settings and the OS dark/light setting always decides (Android).
-     */
-    val keepsDeviceTheme: Boolean get() = false
-
-    /**
      * Prepare an uploaded file chosen by the platform picker for streaming
      * reads. Called once per upload attempt; implementations that copy the
      * picked content into cache should do it here and return a stable handle.
