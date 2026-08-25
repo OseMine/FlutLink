@@ -91,6 +91,8 @@ class PublicPagesController extends Controller
             'appUrl'    => $this->urlGenerator->linkToRoute('flutcloud.publicPages.index'),
         ];
 
-        return new TemplateResponse('flutcloud', 'public', $params);
+        // RENDER_AS_BLANK serves the template verbatim — no Nextcloud
+        // chrome, since guests are anonymous and get a standalone page.
+        return new TemplateResponse('flutcloud', 'public', $params, TemplateResponse::RENDER_AS_BLANK);
     }
 }
