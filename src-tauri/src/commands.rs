@@ -1260,6 +1260,86 @@ pub async fn webdav_rename(
     .await
 }
 
+// --- Guest access (complete public shares, no account required) ----------
+
+/// Verify that the fixed FlutCloud server supports guest browsing
+/// (anonymous probe; keeps the FlutCloud-only policy intact).
+#[tauri::command]
+pub async fn guest_verify_server(state: State<'_, AppState>) -> AppResult<()> {
+    crate::guest::verify_guest_server(&state.http_client).await
+}
+
+/// All completely public shared folders in one bundled list.
+#[tauri::command]
+pub async fn guest_list_shares(
+    state: State<'_, AppState>,
+) -> AppResult<Vec<crate::guest::GuestShare>> {
+    crate::guest::list_shares(&state.http_client).await
+}
+
+/// Browse into a public share folder (`path` defaults to the share root).
+#[tauri::command]
+pub async fn guest_list_entries(
+    state: State<'_, AppState>,
+    token: String,
+    path: Option<String>,
+) -> AppResult<crate::guest::GuestListing> {
+    let path = path.unwrap_or_else(|| "/".to_string());
+    crate::guest::list_entries(&state.http_client, &token, &path).await
+}
+
+/// Download a file from a public share to `local_path`.
+#[tauri::command]
+pub async fn guest_download_file(
+    state: State<'_, AppState>,
+    token: String,
+    remote_path: String,
+    local_path: String,
+) -> AppResult<()> {
+    crate::guest::validate_guest_target(&token, &remote_path)?;
+    crate::guest::download_file(
+        &state.http_client,
+        &token,
+        &remote_path,
+        Path::new(&local_path),
+    )
+    .await
+}
+
+/// Download a public-share file into the dedicated open-cache directory and
+/// open it with the default application (`open_remote_file` for guests).
+#[tauri::command]
+pub async fn guest_open_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    token: String,
+    remote_path: String,
+) -> AppResult<()> {
+    crate::guest::validate_guest_target(&token, &remote_path)?;
+
+    let cache_dir = std::env::temp_dir().join("flutlink-open");
+    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    std::fs::create_dir_all(&cache_dir)?;
+
+    let file_name = Path::new(&remote_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("file");
+    let local_path = cache_dir.join(file_name);
+
+    crate::guest::download_file(&state.http_client, &token, &remote_path, &local_path).await?;
+
+    app.opener()
+        .open_path(local_path.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| AppError::App(e.to_string()))?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn admin_list_users(
     state: State<'_, AppState>,

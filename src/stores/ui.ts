@@ -12,6 +12,7 @@ export interface Toast {
 
 const THEME_KEY = "flutlink.theme";
 const ACCENT_KEY = "flutlink.accentHue";
+const GUEST_KEY = "flutlink.guestMode";
 
 function read<T>(key: string): T | null {
   const raw = localStorage.getItem(key);
@@ -34,6 +35,8 @@ export const useUiStore = defineStore("ui", () => {
   const theme = ref<Theme>(normalizeTheme(read<Theme>(THEME_KEY)));
   // Material You accent seed: null means "use the theme's default hue".
   const accentHue = ref<number | null>(read<number>(ACCENT_KEY) ?? null);
+  // Guest mode (read-only browsing of public shares without an account).
+  const guestMode = ref<boolean>(read<boolean>(GUEST_KEY) ?? false);
   const toasts = ref<Toast[]>([]);
   let nextId = 1;
 
@@ -53,6 +56,11 @@ export const useUiStore = defineStore("ui", () => {
     else localStorage.setItem(ACCENT_KEY, JSON.stringify(value));
   }
 
+  function setGuestMode(value: boolean) {
+    guestMode.value = value;
+    localStorage.setItem(GUEST_KEY, JSON.stringify(value));
+  }
+
   function toast(message: string, type: Toast["type"] = "info") {
     const id = nextId++;
     toasts.value.push({ id, message, type });
@@ -65,5 +73,17 @@ export const useUiStore = defineStore("ui", () => {
     toasts.value = toasts.value.filter((t) => t.id !== id);
   }
 
-  return { lang, theme, accentHue, toasts, setLang, setTheme, setAccentHue, toast, dismiss };
+  return {
+    lang,
+    theme,
+    accentHue,
+    guestMode,
+    toasts,
+    setLang,
+    setTheme,
+    setAccentHue,
+    setGuestMode,
+    toast,
+    dismiss,
+  };
 });

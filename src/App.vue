@@ -12,6 +12,7 @@ const AdminPanel = defineAsyncComponent(() => import("./components/AdminPanel.vu
 const SyncPanel = defineAsyncComponent(() => import("./components/SyncPanel.vue"));
 const LoginModal = defineAsyncComponent(() => import("./components/LoginModal.vue"));
 const SettingsModal = defineAsyncComponent(() => import("./components/SettingsModal.vue"));
+const GuestBrowser = defineAsyncComponent(() => import("./components/GuestBrowser.vue"));
 import { useAccountsStore } from "./stores/accounts";
 import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
@@ -192,8 +193,18 @@ watch(
   () => accounts.active,
   () => {
     if (accounts.active && !accounts.active.isAdmin) tab.value = "files";
+    // Signing in always ends guest mode.
+    if (accounts.active && ui.guestMode) ui.setGuestMode(false);
   }
 );
+
+function startGuestMode() {
+  ui.setGuestMode(true);
+}
+
+function startGuestModeOff() {
+  ui.setGuestMode(false);
+}
 </script>
 
 <template>
@@ -396,7 +407,18 @@ watch(
               </md-icon-button>
             </div>
           </header>
-          <WelcomeScreen class="min-h-0 flex-1" @login="openLogin('login')" @register="openLogin('register')" />
+          <GuestBrowser
+            v-if="ui.guestMode"
+            class="min-h-0 flex-1"
+            @exit="startGuestModeOff"
+          />
+          <WelcomeScreen
+            v-else
+            class="min-h-0 flex-1"
+            @login="openLogin('login')"
+            @register="openLogin('register')"
+            @guest="startGuestMode"
+          />
         </main>
       </template>
     </div>

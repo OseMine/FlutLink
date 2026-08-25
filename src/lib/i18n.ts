@@ -320,6 +320,14 @@ const dict: Record<Lang, Record<string, string>> = {
     dismiss: "Dismiss",
     updateNewVersion: "FlutLink {version} is available.",
     updateAutoCheckFailed: "Automatic update check failed. You can retry in Settings.",
+    browseAsGuest: "Browse as guest",
+    guestActiveTitle: "Public shares",
+    guestExit: "Exit guest mode",
+    guestReadOnlyHint:
+      "You are browsing completely public shared folders as a guest. Everything here is read-only.",
+    guestAll: "All",
+    guestEmpty: "No public shares available.",
+    retry: "Retry",
   },
   de: {
     appName: "FlutLink",
@@ -629,6 +637,14 @@ const dict: Record<Lang, Record<string, string>> = {
     updateNewVersion: "FlutLink {version} ist verfügbar.",
     updateAutoCheckFailed:
       "Automatische Update-Prüfung fehlgeschlagen. In den Einstellungen kannst du es erneut versuchen.",
+    browseAsGuest: "Als Gast stöbern",
+    guestActiveTitle: "Öffentliche Freigaben",
+    guestExit: "Gastmodus verlassen",
+    guestReadOnlyHint:
+      "Du durchsicht vollständig öffentliche Freigaben als Gast. Alles hier ist nur lesbar.",
+    guestAll: "Alle",
+    guestEmpty: "Keine öffentlichen Freigaben vorhanden.",
+    retry: "Erneut versuchen",
   },
 };
 

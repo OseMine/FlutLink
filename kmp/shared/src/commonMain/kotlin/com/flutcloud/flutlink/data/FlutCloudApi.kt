@@ -30,7 +30,7 @@ import kotlinx.serialization.json.jsonObject
  * is accepted (FlutCloud-only policy). Admin/share/link endpoints live in
  * `FlutCloudOcs.kt` as extensions on this class.
  */
-class FlutCloudApi(private val client: HttpClient) {
+class FlutCloudApi(internal val client: HttpClient) {
 
     internal val json = Json { ignoreUnknownKeys = true }
     private val tag = "FlutLinkOcs"
@@ -87,6 +87,41 @@ class FlutCloudApi(private val client: HttpClient) {
                 )
             }
 
+            if (ocsError != null) throw ApiException(ocsError, "ocs_error", response.status.value)
+            return data
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw NetworkException(e)
+        }
+    }
+
+    /**
+     * Anonymous OCS request for guest endpoints (no account). Mirrors
+     * [execute] without credentials; used by the guest extensions in
+     * `GuestApi.kt` against the fixed FlutCloud server.
+     */
+    internal suspend fun executeAnonymous(url: String): JsonElement? {
+        try {
+            val response = client.request(url) {
+                method = HttpMethod.Get
+                header(HttpHeaders.Accept, "application/json")
+                if (url.contains("/ocs/")) header("OCS-APIRequest", "true")
+            }
+            val body = response.bodyAsText()
+            flutLog(tag, "GET $url -> ${response.status.value} in body=${body.length}")
+
+            val (data, ocsError) = parseOcs(body)
+
+            if (response.status.value >= 400) {
+                throw ApiException(
+                    ocsError ?: "Server answered ${response.status.value}: $body".trim(),
+                    "http_${response.status.value}",
+                    response.status.value
+                )
+            }
             if (ocsError != null) throw ApiException(ocsError, "ocs_error", response.status.value)
             return data
         } catch (e: ApiException) {

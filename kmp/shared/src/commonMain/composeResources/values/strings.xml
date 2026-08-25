@@ -205,4 +205,12 @@
     <!-- Quota formatting -->
     <string name="quota_used">%1$s used</string>
     <string name="quota_of">%1$s of %2$s (%3$d%%)</string>
+
+    <!-- Guest mode (complete public shares) -->
+    <string name="guest_browse">Browse as guest</string>
+    <string name="guest_title">Public shares</string>
+    <string name="guest_read_only_hint">You are browsing completely public shared folders as a guest. Everything here is read-only.</string>
+    <string name="guest_all">All</string>
+    <string name="guest_empty">No public shares available.</string>
+    <string name="retry">Retry</string>
 </resources>

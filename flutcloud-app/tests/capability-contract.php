@@ -91,6 +91,12 @@ namespace {
         $fail('flutcloud.features fehlt oder ist kein Array.');
     }
 
+    // 2a) Gast-Zugriff auf vollständig öffentliche Shares muss beworben
+    //     werden (FlutCloud-only-Policy gilt auch für den Gast-Einstieg).
+    if (!in_array('complete-public-shares', $capabilities['flutcloud']['features'], true)) {
+        $fail("flutcloud.features enthaelt nicht 'complete-public-shares' (Gast-Lesezugriff).");
+    }
+
     // 2b) Notarization: managed_by / managed_by_url müssen im Payload stehen.
     if (($capabilities['flutcloud']['managed_by'] ?? null) !== Application::MANAGED_BY) {
         $fail('flutcloud.managed_by fehlt oder weicht von Application::MANAGED_BY ab.');

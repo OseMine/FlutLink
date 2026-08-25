@@ -3,6 +3,7 @@ mod cache;
 mod commands;
 mod error;
 mod flutcloud;
+mod guest;
 mod nextcloud;
 mod persist;
 mod state;
@@ -261,6 +262,11 @@ pub fn run() {
             commands::webdav_upload_local_paths,
             commands::webdav_mkdir,
             commands::webdav_rename,
+            commands::guest_verify_server,
+            commands::guest_list_shares,
+            commands::guest_list_entries,
+            commands::guest_download_file,
+            commands::guest_open_file,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,

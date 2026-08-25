@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import "@material/web/button/filled-button.js";
 import "@material/web/button/outlined-button.js";
+import "@material/web/button/text-button.js";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 
-const emit = defineEmits<{ login: []; register: [] }>();
+const emit = defineEmits<{ login: []; register: []; guest: [] }>();
 
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
@@ -30,6 +31,10 @@ const t = (key: string) => translate(ui.lang, key);
         {{ t("registerServer") }}
       </md-outlined-button>
     </div>
+
+    <md-text-button class="-mt-3" @click="emit('guest')">
+      {{ t("browseAsGuest") }}
+    </md-text-button>
 
     <div class="mt-2 flex flex-col items-center gap-3">
       <div class="max-w-sm space-y-1 text-xs leading-relaxed text-outline">

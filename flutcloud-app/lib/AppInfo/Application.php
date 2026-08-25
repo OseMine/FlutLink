@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace OCA\FlutCloud\AppInfo;
 
+use OCA\DAV\Events\SabrePluginAddEvent;
 use OCA\FlutCloud\Capabilities;
+use OCA\FlutCloud\Listener\RegisterDavLockPlugin;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\EventDispatcher\IEventDispatcher;
 
 class Application extends App implements IBootstrap
 {
@@ -18,7 +21,12 @@ class Application extends App implements IBootstrap
      * Features announced via the `flutcloud` capability and the ping endpoint.
      * Add new features here so client feature detection stays in sync.
      */
-    public const FEATURES = ['virtual-links', 'project-folder', 'altstore-sources'];
+    public const FEATURES = [
+        'virtual-links',
+        'project-folder',
+        'altstore-sources',
+        'complete-public-shares',
+    ];
 
     /**
      * Notarization: FlutCloud and the whole server are managed and all
@@ -42,5 +50,10 @@ class Application extends App implements IBootstrap
 
     public function boot(IBootContext $context): void
     {
+        // Enforce guest subfolder locks at the WebDAV layer as well, so the
+        // native public WebDAV endpoint cannot be used to bypass the lock
+        // list of the complete-public-shares feature.
+        $dispatcher = $context->getServerContainer()->get(IEventDispatcher::class);
+        $dispatcher->addServiceListener(SabrePluginAddEvent::class, RegisterDavLockPlugin::class);
     }
 }

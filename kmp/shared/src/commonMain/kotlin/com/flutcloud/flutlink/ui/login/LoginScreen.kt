@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,6 +44,8 @@ import com.flutcloud.flutlink.resources.admin_username
 import com.flutcloud.flutlink.resources.app_name
 import com.flutcloud.flutlink.resources.app_token
 import com.flutcloud.flutlink.resources.display_name_optional
+import com.flutcloud.flutlink.resources.error_fill_fields
+import com.flutcloud.flutlink.resources.guest_browse
 import com.flutcloud.flutlink.resources.login_new_username
 import com.flutcloud.flutlink.resources.login_password
 import com.flutcloud.flutlink.resources.login_tab_register
@@ -55,7 +58,7 @@ import com.flutcloud.flutlink.resources.username
 
 
 @Composable
-fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
+fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGuest: () -> Unit = {}) {
     val vm = flutLinkViewModel { LoginViewModel(it) }
         val serverUrl by vm.serverUrl.collectAsState()
     val username by vm.username.collectAsState()
@@ -211,6 +214,13 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
                     Text(if (registerMode) stringResource(Res.string.login_tab_register) else stringResource(Res.string.login_tab_sign_in))
+                }
+                // Guest entry: read-only browsing of complete public shares.
+                TextButton(
+                    onClick = onContinueAsGuest,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(Res.string.guest_browse))
                 }
             }
             Spacer(Modifier.height(24.dp))

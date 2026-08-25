@@ -23,6 +23,10 @@ final class PingController extends OcsControllerBase
     }
 
     /**
+     * Anonymous-capable server probe: signed-in clients use it like before,
+     * guests verify the server without an account.
+     *
+     * @PublicPage
      * @NoAdminRequired
      * @NoCSRFRequired
      */

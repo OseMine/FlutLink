@@ -9,11 +9,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.HomeScreen
+import com.flutcloud.flutlink.ui.guest.GuestScreen
 import com.flutcloud.flutlink.ui.login.LoginScreen
 
 private object Routes {
     const val LOGIN = "login"
     const val HOME = "home"
+    const val GUEST = "guest"
 }
 
 @Composable
@@ -33,6 +35,8 @@ fun AppNavigation(container: AppContainer) {
                 navController.navigate(Routes.HOME) {
                     popUpTo(Routes.LOGIN) { inclusive = true }
                 }
+            // Guests stay on the guest screen even without a session.
+            session == null && current == Routes.GUEST -> Unit
             session == null && current != Routes.LOGIN ->
                 navController.navigate(Routes.LOGIN) {
                     popUpTo(Routes.HOME) { inclusive = true }
@@ -50,6 +54,26 @@ fun AppNavigation(container: AppContainer) {
                 onLoggedIn = {
                     navController.navigate(Routes.HOME) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                },
+                onContinueAsGuest = {
+                    navController.navigate(Routes.GUEST) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(Routes.GUEST) {
+            GuestScreen(
+                container = container,
+                onExit = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.GUEST) { inclusive = true }
+                    }
+                },
+                onSignIn = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(Routes.GUEST) { inclusive = true }
                     }
                 }
             )

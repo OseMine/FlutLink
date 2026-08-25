@@ -205,4 +205,12 @@
     <!-- Quota formatting -->
     <string name="quota_used">%1$s belegt</string>
     <string name="quota_of">%1$s von %2$s (%3$d%%)</string>
+
+    <!-- Gast-Modus (vollständig öffentliche Freigaben) -->
+    <string name="guest_browse">Als Gast stöbern</string>
+    <string name="guest_title">Öffentliche Freigaben</string>
+    <string name="guest_read_only_hint">Du durchsicht vollständig öffentliche Freigaben als Gast. Alles hier ist nur lesbar.</string>
+    <string name="guest_all">Alle</string>
+    <string name="guest_empty">Keine öffentlichen Freigaben vorhanden.</string>
+    <string name="retry">Erneut versuchen</string>
 </resources>
