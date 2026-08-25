@@ -161,7 +161,7 @@ function parentPath(path: string): string {
             <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
             <button
               v-if="entry.pairedPath"
-              class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+              class="action-badge ml-1"
               :title="t('openPaired') + ' ' + entry.pairedPath"
               @click.stop="emit('pair', entry)"
             >
@@ -182,7 +182,7 @@ function parentPath(path: string): string {
             </span>
             <button
               v-if="shareStatus(entry.path)?.status === 'done'"
-              class="ml-1 rounded border border-outline px-1.5 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+              class="action-badge"
               :title="shareStatus(entry.path)?.value ?? ''"
               @click.stop="emit('copyLink', entry.path)"
             >
@@ -190,7 +190,7 @@ function parentPath(path: string): string {
             </button>
             <button
               v-else-if="!shareStatus(entry.path)"
-              class="rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+              class="action-badge"
               @click.stop="emit('createLink', entry)"
             >
               {{ t("link") }}
@@ -203,7 +203,7 @@ function parentPath(path: string): string {
               {{ props.sharesByPath?.get(entry.path)?.length }}
             </span>
             <button
-              class="inline-flex items-center gap-1 rounded-md border border-outline px-2 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high"
+              class="action-badge"
               @click.stop="emit('share', entry)"
             >
               <Icon name="share" :size="14" />
@@ -318,7 +318,7 @@ function parentPath(path: string): string {
         </div>
         <button
           v-if="entry.pairedPath"
-          class="absolute bottom-1 right-1 rounded border border-outline px-1 py-0.5 text-[10px] text-on-surface-variant hover:bg-surface-container-high"
+          class="action-badge absolute bottom-1 right-1"
           :title="t('openPaired') + ' ' + entry.pairedPath"
           @click.stop="emit('pair', entry)"
         >

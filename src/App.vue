@@ -254,6 +254,7 @@ function startGuestModeOff() {
             <nav class="flex items-center gap-1">
               <md-filled-button
                 v-if="tab === 'files'"
+                class="nav-tab-active"
                 @click="tab = 'files'"
               >
                 {{ t("files") }}
@@ -267,6 +268,7 @@ function startGuestModeOff() {
 
               <md-filled-button
                 v-if="tab === 'sync'"
+                class="nav-tab-active"
                 @click="tab = 'sync'"
               >
                 {{ t("sync") }}
@@ -280,6 +282,7 @@ function startGuestModeOff() {
 
               <md-filled-button
                 v-if="tab === 'admin'"
+                class="nav-tab-active"
                 :disabled="!accounts.active?.isAdmin"
                 :title="accounts.active?.isAdmin ? '' : t('adminLockedText')"
                 @click="tab = 'admin'"

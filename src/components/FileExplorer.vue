@@ -1030,13 +1030,13 @@ watch(
       <span class="truncate rounded bg-info-container px-2 py-0.5 text-on-info-container">
         {{ paneLabel(paneKind(files.currentPath)) }}: {{ files.currentPath }}
       </span>
-      <button
-        class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 text-on-surface-variant hover:bg-surface-container-high"
-        :title="t('openPaired')"
-        @click="goToPath(files.pairedPath)"
-      >
-        ↔
-      </button>
+          <button
+            class="action-badge flex shrink-0 items-center"
+            :title="t('openPaired')"
+            @click="goToPath(files.pairedPath)"
+          >
+            ↔
+          </button>
       <span class="truncate rounded bg-success-container px-2 py-0.5 text-on-success-container">
         {{ paneLabel(paneKind(files.pairedPath)) }}: {{ files.pairedPath }}
       </span>
@@ -1139,7 +1139,7 @@ watch(
               {{ paneLabel(paneKind(files.currentPath)) }}
             </span>
             <button
-              class="flex shrink-0 items-center rounded-md border border-outline px-2 py-0.5 hover:bg-surface-container-high"
+              class="action-badge flex shrink-0 items-center"
               :title="t('openPaired')"
               @click="goToPath(files.pairedPath)"
             >

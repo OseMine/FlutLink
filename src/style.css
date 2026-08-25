@@ -16,12 +16,13 @@
 
 @theme {
   /* --- Color roles (fallback tokens; overridden per [data-theme]) --- */
-  --color-primary: oklch(0.52 0.22 266);
-  --color-primary-hover: oklch(0.57 0.23 266);
-  --color-primary-emphasis: oklch(0.86 0.09 266);
+  /* Primary: desaturated for calmer UI — chroma reduced from 0.22 → 0.16 */
+  --color-primary: oklch(0.52 0.16 266);
+  --color-primary-hover: oklch(0.57 0.17 266);
+  --color-primary-emphasis: oklch(0.86 0.07 266);
   --color-on-primary: oklch(0.99 0.003 266);
-  --color-primary-container: oklch(0.3 0.13 266);
-  --color-on-primary-container: oklch(0.88 0.08 266);
+  --color-primary-container: oklch(0.3 0.09 266);
+  --color-on-primary-container: oklch(0.88 0.06 266);
   --color-secondary: oklch(0.66 0.1 282);
   --color-on-secondary: oklch(0.16 0.05 282);
   --color-secondary-container: oklch(0.28 0.07 282);
@@ -113,12 +114,12 @@
   --color-inverse-surface: #eef1fa;
   --color-inverse-on-surface: #111a3a;
 
-  --color-primary: oklch(0.6 0.18 var(--m3-accent-hue));
-  --color-primary-hover: oklch(0.65 0.19 var(--m3-accent-hue));
-  --color-primary-emphasis: oklch(0.87 0.09 var(--m3-accent-hue));
+  --color-primary: oklch(0.6 0.13 var(--m3-accent-hue));
+  --color-primary-hover: oklch(0.65 0.14 var(--m3-accent-hue));
+  --color-primary-emphasis: oklch(0.87 0.07 var(--m3-accent-hue));
   --color-on-primary: oklch(0.99 0.003 var(--m3-accent-hue));
-  --color-primary-container: oklch(0.33 0.12 var(--m3-accent-hue));
-  --color-on-primary-container: oklch(0.9 0.08 var(--m3-accent-hue));
+  --color-primary-container: oklch(0.33 0.09 var(--m3-accent-hue));
+  --color-on-primary-container: oklch(0.9 0.06 var(--m3-accent-hue));
   --color-secondary: oklch(0.7 0.08 calc(var(--m3-accent-hue) + 20));
   --color-on-secondary: oklch(0.16 0.04 calc(var(--m3-accent-hue) + 20));
   --color-secondary-container: oklch(0.3 0.06 calc(var(--m3-accent-hue) + 20));
@@ -173,12 +174,12 @@
   --color-inverse-surface: #2e2e36;
   --color-inverse-on-surface: #f4f4f7;
 
-  --color-primary: oklch(0.47 0.22 var(--m3-accent-hue));
-  --color-primary-hover: oklch(0.42 0.2 var(--m3-accent-hue));
-  --color-primary-emphasis: oklch(0.47 0.22 var(--m3-accent-hue));
+  --color-primary: oklch(0.47 0.16 var(--m3-accent-hue));
+  --color-primary-hover: oklch(0.42 0.14 var(--m3-accent-hue));
+  --color-primary-emphasis: oklch(0.47 0.16 var(--m3-accent-hue));
   --color-on-primary: oklch(0.99 0.003 var(--m3-accent-hue));
-  --color-primary-container: oklch(0.93 0.07 var(--m3-accent-hue));
-  --color-on-primary-container: oklch(0.29 0.12 var(--m3-accent-hue));
+  --color-primary-container: oklch(0.93 0.05 var(--m3-accent-hue));
+  --color-on-primary-container: oklch(0.29 0.09 var(--m3-accent-hue));
   --color-secondary: oklch(0.52 0.08 calc(var(--m3-accent-hue) + 16));
   --color-on-secondary: oklch(0.99 0.003 calc(var(--m3-accent-hue) + 16));
   --color-secondary-container: oklch(0.92 0.05 calc(var(--m3-accent-hue) + 16));
@@ -314,7 +315,13 @@ h5, h6 {
   letter-spacing: -0.25px;
 }
 
-/* Material 3 focus rings (keyboard navigation) */
+/* Suppress focus outlines on mouse/touch — only show for keyboard nav */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Material 3 focus rings (keyboard navigation only) */
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible,
@@ -324,6 +331,32 @@ textarea:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--m3-focus-ring);
   outline-offset: 2px;
+}
+
+/* Hide focus rings inside Material Web shadow DOM components on mouse click */
+md-filled-button:focus:not(:focus-visible),
+md-outlined-button:focus:not(:focus-visible),
+md-text-button:focus:not(:focus-visible),
+md-icon-button:focus:not(:focus-visible),
+md-outlined-text-field:focus:not(:focus-visible),
+md-outlined-select:focus:not(:focus-visible),
+md-checkbox:focus:not(:focus-visible) {
+  outline: none;
+}
+md-filled-button:focus-visible,
+md-outlined-button:focus-visible,
+md-text-button:focus-visible,
+md-icon-button:focus-visible {
+  outline: 2px solid var(--m3-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Standardize native button padding & radius for visual consistency */
+button:not(md-filled-button):not(md-outlined-button):not(md-text-button):not(md-icon-button):not(md-checkbox) {
+  padding: 6px 12px;
+  border-radius: var(--m3-shape-small);
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 /* Material 3 motion: smooth state changes on interactive elements */
@@ -337,6 +370,23 @@ textarea {
     border-color var(--m3-motion-duration-short) var(--m3-motion-easing-standard),
     color var(--m3-motion-duration-short) var(--m3-motion-easing-standard),
     box-shadow var(--m3-motion-duration-short) var(--m3-motion-easing-standard);
+}
+
+/* Consistent inline action badges (Link, Teilen, etc.) */
+.action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--m3-shape-small);
+  border: 1px solid var(--color-outline);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  transition: background-color var(--m3-motion-duration-short) var(--m3-motion-easing-standard);
+}
+.action-badge:hover {
+  background: var(--color-surface-container-high);
 }
 
 /* Ripple: a circular state layer that expands from the pointer */
@@ -385,6 +435,15 @@ textarea {
   background: transparent;
 }
 
+/* Softer active tab indicator — bottom line instead of full fill */
+.nav-tab-active {
+  --md-filled-button-container-color: transparent;
+  --md-filled-button-label-text-color: var(--color-primary);
+  --md-filled-button-container-shape: 0;
+  --md-filled-button-label-text-weight: 600;
+  border-bottom: 2px solid var(--color-primary);
+}
+
 /* Shared component styles */
 .error-btn {
   --md-outlined-button-label-text-color: var(--color-error);
@@ -394,6 +453,12 @@ textarea {
   --md-outlined-button-container-color: var(--color-primary);
   --md-outlined-button-label-text-color: var(--color-on-primary);
   --md-outlined-button-outline-color: var(--color-primary);
+}
+
+/* Reduce primary color prominence — use subtle fills instead of solid bright */
+.primary-subtle {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
 }
 
 /* Modal transition */
