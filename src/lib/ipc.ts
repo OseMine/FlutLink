@@ -44,6 +44,7 @@ export interface AdminUsersResult {
 export interface Share {
   id: number;
   shareType: number;
+  uidOwner: string | null;
   path: string | null;
   shareWith: string | null;
   shareWithDisplayname: string | null;
@@ -336,6 +337,10 @@ export const api = {
 
   guestAdminUnlockPath: (token: string, path: string) =>
     invoke<string[]>("guest_admin_unlock_path", { token, path }),
+
+  /** #373: current lock list of a share, so locked folders render locked. */
+  guestAdminListLocks: (token: string) =>
+    invoke<string[]>("guest_admin_list_locks", { token }),
 
   adminListUsers: (
     search: string,
