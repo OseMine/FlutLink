@@ -318,6 +318,25 @@ export const api = {
   guestOpenFile: (token: string, remotePath: string) =>
     invoke<void>("guest_open_file", { token, remotePath }),
 
+  // Guest admin (require authenticated admin session):
+  guestAdminSetCategory: (name: string, prefixless: boolean) =>
+    invoke<void>("guest_admin_set_category", { name, prefixless }),
+
+  guestAdminDeleteCategory: (name: string) =>
+    invoke<void>("guest_admin_delete_category", { name }),
+
+  guestAdminAssignCategory: (token: string, category: string) =>
+    invoke<void>("guest_admin_assign_category", { token, category }),
+
+  guestAdminUnassignCategory: (token: string) =>
+    invoke<void>("guest_admin_unassign_category", { token }),
+
+  guestAdminLockPath: (token: string, path: string) =>
+    invoke<string[]>("guest_admin_lock_path", { token, path }),
+
+  guestAdminUnlockPath: (token: string, path: string) =>
+    invoke<string[]>("guest_admin_unlock_path", { token, path }),
+
   adminListUsers: (
     search: string,
     limit?: number,

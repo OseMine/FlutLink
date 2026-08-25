@@ -1340,6 +1340,84 @@ pub async fn guest_open_file(
     Ok(())
 }
 
+// --- Guest admin (require authenticated admin session) -------------------
+
+#[tauri::command]
+pub async fn guest_admin_set_category(
+    state: State<'_, AppState>,
+    name: String,
+    prefixless: bool,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::set_category(&state.http_client, &account, &name, prefixless).await
+}
+
+#[tauri::command]
+pub async fn guest_admin_delete_category(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::delete_category(&state.http_client, &account, &name).await
+}
+
+#[tauri::command]
+pub async fn guest_admin_assign_category(
+    state: State<'_, AppState>,
+    token: String,
+    category: String,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::assign_category(&state.http_client, &account, &token, &category).await
+}
+
+#[tauri::command]
+pub async fn guest_admin_unassign_category(
+    state: State<'_, AppState>,
+    token: String,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::unassign_category(&state.http_client, &account, &token).await
+}
+
+#[tauri::command]
+pub async fn guest_admin_lock_path(
+    state: State<'_, AppState>,
+    token: String,
+    path: String,
+) -> AppResult<Vec<String>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::lock_path(&state.http_client, &account, &token, &path).await
+}
+
+#[tauri::command]
+pub async fn guest_admin_unlock_path(
+    state: State<'_, AppState>,
+    token: String,
+    path: String,
+) -> AppResult<Vec<String>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::unlock_path(&state.http_client, &account, &token, &path).await
+}
+
 #[tauri::command]
 pub async fn admin_list_users(
     state: State<'_, AppState>,

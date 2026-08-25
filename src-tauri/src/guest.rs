@@ -6,6 +6,10 @@
 //! against the fixed FlutCloud server ([`flutcloud_url`]); write operations
 //! do not exist on this code path at all and are additionally rejected by
 //! the server (FlutCloud app + read-only link permissions).
+//!
+//! The `admin_*` functions in this module are for the logged-in admin to
+//! manage categories, share-to-category assignments, and per-share subfolder
+//! locks on the FlutCloud server.
 
 use std::path::Path;
 
@@ -15,6 +19,7 @@ use serde_json::Value;
 
 use crate::error::{AppError, AppResult};
 use crate::nextcloud;
+use crate::state::Account;
 
 /// Feature announced by the FlutCloud app when guest access is available.
 pub const GUEST_FEATURE: &str = "complete-public-shares";
@@ -201,6 +206,144 @@ pub async fn download_file(
     }
     std::fs::rename(&tmp, dest)?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Admin operations (require authenticated admin session)
+// ---------------------------------------------------------------------------
+
+/// Admin: create or update a public-share category.
+pub async fn set_category(
+    client: &Client,
+    account: &Account,
+    name: &str,
+    prefixless: bool,
+) -> AppResult<()> {
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/categories",
+        base_url()?
+    );
+    let form = [
+        ("name", name),
+        ("prefixless", if prefixless { "true" } else { "false" }),
+    ];
+    let res = nextcloud::request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
+/// Admin: delete a public-share category.
+pub async fn delete_category(client: &Client, account: &Account, name: &str) -> AppResult<()> {
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/categories/{}",
+        base_url()?,
+        urlencoding::encode(name)
+    );
+    let res = nextcloud::request(client, account, Method::DELETE, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
+/// Admin: assign a complete public share to a category.
+pub async fn assign_category(
+    client: &Client,
+    account: &Account,
+    token: &str,
+    category: &str,
+) -> AppResult<()> {
+    validate_guest_target(token, "/")?;
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/{}/category",
+        base_url()?,
+        urlencoding::encode(token)
+    );
+    let form = [("category", category)];
+    let res = nextcloud::request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
+/// Admin: remove a share's category assignment.
+pub async fn unassign_category(client: &Client, account: &Account, token: &str) -> AppResult<()> {
+    validate_guest_target(token, "/")?;
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/{}/category",
+        base_url()?,
+        urlencoding::encode(token)
+    );
+    let res = nextcloud::request(client, account, Method::DELETE, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
+/// Admin: lock a subfolder of a share (recursive). Returns the updated lock
+/// list.
+pub async fn lock_path(
+    client: &Client,
+    account: &Account,
+    token: &str,
+    path: &str,
+) -> AppResult<Vec<String>> {
+    validate_guest_target(token, path)?;
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/{}/lock",
+        base_url()?,
+        urlencoding::encode(token)
+    );
+    let form = [("path", path)];
+    let res = nextcloud::request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    parse_locks(&json)
+}
+
+/// Admin: unlock a subfolder of a share. Returns the updated lock list.
+pub async fn unlock_path(
+    client: &Client,
+    account: &Account,
+    token: &str,
+    path: &str,
+) -> AppResult<Vec<String>> {
+    validate_guest_target(token, path)?;
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/{}/lock",
+        base_url()?,
+        urlencoding::encode(token)
+    );
+    let form = [("path", path)];
+    let res = nextcloud::request(client, account, Method::DELETE, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    parse_locks(&json)
+}
+
+/// Extract the `locks` array from an OCS lock/unlock response.
+fn parse_locks(json: &Value) -> AppResult<Vec<String>> {
+    let data = json.pointer("/ocs/data").cloned().unwrap_or(Value::Null);
+    Ok(data
+        .get("locks")
+        .and_then(|l| l.as_array())
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect())
 }
 
 #[cfg(test)]
