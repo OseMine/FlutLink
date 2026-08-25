@@ -1,13 +1,5 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/iconbutton/icon-button.js";
-import "@material/web/tabs/tabs.js";
-import "@material/web/tabs/primary-tab.js";
-import "@material/web/divider/divider.js";
-import "@material/web/slider/slider.js";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -87,7 +79,7 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
   { value: "system", label: t("themeSystem") },
 ]);
 
-// Material You accent seed; null keeps the theme's default hue.
+// Accent seed hue; null keeps the theme's default hue.
 const accentValue = ref(ui.accentHue ?? themeDefaultHue());
 
 function themeDefaultHue(): number {
@@ -237,91 +229,119 @@ onUnmounted(() => removeEscapeCloser?.());
     <Transition name="modal">
     <div
       v-if="props.open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4 backdrop-blur-sm"
       @click.self="emit('close')"
     >
-      <div class="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl border border-outline bg-surface-container shadow-m3-3">
-        <div class="flex items-center justify-between border-b border-outline-variant px-5 py-3">
-          <h2 class="text-base font-semibold text-on-surface">{{ t("settingsTitle") }}</h2>
-          <md-icon-button
+      <div class="modal-surface flex max-h-[85vh] w-full max-w-md flex-col">
+        <div class="flex items-center justify-between border-b border-line px-5 py-3">
+          <h2 class="text-base font-semibold">{{ t("settingsTitle") }}</h2>
+          <button
+            type="button"
+            class="icon-btn !h-7 !w-7"
             :aria-label="t('close')"
             @click="emit('close')"
           >
-            <Icon name="close" :size="18" />
-          </md-icon-button>
+            <Icon name="close" :size="16" />
+          </button>
         </div>
 
-        <md-tabs :active-tab-index="tab === 'accounts' ? 0 : tab === 'admin' ? 1 : 2">
-          <md-primary-tab @click="tab = 'accounts'">{{ t("tabAccounts") }}</md-primary-tab>
-          <md-primary-tab @click="tab = 'admin'">{{ t("tabAdmin") }}</md-primary-tab>
-          <md-primary-tab @click="tab = 'about'">{{ t("tabAbout") }}</md-primary-tab>
-        </md-tabs>
+        <!-- Native tab list: marked tab and shown panel can never desync -->
+        <div role="tablist" class="flex items-stretch border-b border-line px-3">
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :aria-selected="tab === 'accounts'"
+            @click="tab = 'accounts'"
+          >
+            {{ t("tabAccounts") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :aria-selected="tab === 'admin'"
+            @click="tab = 'admin'"
+          >
+            {{ t("tabAdmin") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :aria-selected="tab === 'about'"
+            @click="tab = 'about'"
+          >
+            {{ t("tabAbout") }}
+          </button>
+        </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto p-5">
           <!-- Accounts -->
           <div v-if="tab === 'accounts'" class="space-y-2">
-            <p v-if="!accounts.accounts.length" class="text-sm text-on-surface-variant">
+            <p v-if="!accounts.accounts.length" class="text-sm text-muted">
               {{ t("noAccount") }}
             </p>
             <div
               v-for="account in accounts.accounts"
               :key="account.instanceUrl + '/' + account.username"
-              class="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-high/40 p-3"
+              class="card flex items-center gap-3 p-3"
             >
               <div class="min-w-0 flex-1">
-                <p class="flex items-center gap-2 truncate text-sm font-medium text-on-surface">
+                <p class="flex items-center gap-2 truncate text-sm font-medium">
                   {{ account.displayName || account.username }}
                   <span
                     v-if="account.isActive"
-                    class="rounded bg-primary-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-primary-container"
+                    class="badge !border-primary/40 !bg-primary/10 !text-primary"
                   >
+                    <span class="badge-dot bg-primary"></span>
                     {{ t("active") }}
                   </span>
                 </p>
-                <p class="truncate text-xs text-on-surface-variant">{{ account.instanceUrl }}</p>
+                <p class="truncate text-xs text-muted">{{ account.instanceUrl }}</p>
               </div>
-              <md-outlined-button @click="switchTo(account.username, account.instanceUrl)">
+              <button type="button" class="btn btn-outline shrink-0" @click="switchTo(account.username, account.instanceUrl)">
                 {{ t("switchAccount") }}
-              </md-outlined-button>
-              <md-outlined-button class="error-btn" @click="remove(account.username, account.instanceUrl)">
+              </button>
+              <button type="button" class="btn btn-danger shrink-0" @click="remove(account.username, account.instanceUrl)">
                 {{ t("removeAccount") }}
-              </md-outlined-button>
+              </button>
             </div>
-            <md-outlined-button @click="emit('login')">
-              <Icon name="add" :size="16" slot="icon" />
+            <button type="button" class="btn btn-outline w-full" @click="emit('login')">
+              <Icon name="add" :size="15" />
               {{ t("addAccount") }}
-            </md-outlined-button>
+            </button>
           </div>
 
           <!-- Admin -->
           <div v-if="tab === 'admin'">
-            <p v-if="!accounts.active?.isAdmin" class="text-sm text-on-surface-variant">
+            <p v-if="!accounts.active?.isAdmin" class="text-sm text-muted">
               {{ t("adminTabNote") }}
             </p>
             <template v-else>
-              <p class="mb-3 text-sm text-on-surface-variant">{{ t("adminTabNote") }}</p>
+              <p class="mb-3 text-sm text-muted">{{ t("adminTabNote") }}</p>
               <div class="mb-3 flex gap-2">
-                <md-outlined-text-field
-                  :label="t('searchUsers')"
-                  :value="adminSearch"
-                  @input="adminSearch = ($event.target as HTMLInputElement).value"
+                <input
+                  v-model="adminSearch"
+                  type="text"
+                  :placeholder="t('searchUsers')"
+                  class="input flex-1"
                   @keyup.enter="loadUsers()"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-filled-button @click="loadUsers()">
+                />
+                <button type="button" class="btn btn-primary shrink-0" @click="loadUsers()">
                   {{ adminLoading ? t("loading") : t("listUsers") }}
-                </md-filled-button>
+                </button>
               </div>
-              <div v-if="adminError" class="mb-3 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
+              <div v-if="adminError" class="mb-3 rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
                 {{ adminError }}
               </div>
-              <p v-if="adminLoading" class="text-sm text-on-surface-variant">{{ t("users") }}…</p>
-              <ul v-else-if="users.length" class="divide-y divide-outline-variant/60 rounded-lg border border-outline-variant">
-                <li v-for="userId in users" :key="userId" class="px-3 py-2 text-sm text-on-surface">
+              <p v-if="adminLoading" class="text-sm text-muted">{{ t("users") }}…</p>
+              <ul v-else-if="users.length" class="divide-y divide-line rounded-md border border-line">
+                <li v-for="userId in users" :key="userId" class="px-3 py-2 text-sm">
                   {{ userId }}
                 </li>
               </ul>
-              <p v-else class="text-sm text-on-surface-variant">{{ t("noUsersFound") }}</p>
+              <p v-else class="text-sm text-muted">{{ t("noUsersFound") }}</p>
             </template>
           </div>
 
@@ -330,46 +350,45 @@ onUnmounted(() => removeEscapeCloser?.());
             <div class="flex items-center gap-3">
               <AppLogo class="h-10 w-10" />
               <div>
-                <p class="text-base font-semibold text-on-surface">{{ t("aboutApp") }}</p>
-                <p class="text-xs text-on-surface-variant">
+                <p class="text-base font-semibold">{{ t("aboutApp") }}</p>
+                <p class="text-xs text-muted">
                   {{ t("version") }} {{ appVersion }} · {{ t("rustBackend") }} · Tauri v2
                 </p>
               </div>
             </div>
 
-            <div class="flex items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high/40 px-3 py-2.5">
-              <span class="text-xs text-on-surface-variant">{{ t("partOf") }}</span>
+            <div class="card flex items-center gap-2 px-3 py-2.5">
+              <span class="text-xs text-muted">{{ t("partOf") }}</span>
               <img src="/operationflut-logo.svg" alt="OperationFlut" class="h-4" />
             </div>
             <button
               type="button"
-              class="flex w-full items-center gap-2 rounded-lg border border-outline-variant bg-surface-container-high/40 px-3 py-2.5 text-left transition hover:bg-surface-container-highest/60"
+              class="card flex w-full items-center gap-2 px-3 py-2.5 text-left transition hover:border-line-strong hover:bg-card-hover hover:cursor-pointer"
               @click="openMaintainerProfile"
             >
-              <Icon name="person" :size="14" class="text-on-surface-variant" />
-              <span class="text-xs text-on-surface-variant">{{ t("builtManagedBy") }}</span>
-              <span class="text-xs font-medium text-primary-emphasis">@marcante_musik</span>
-              <Icon name="open" :size="12" class="ml-auto text-on-surface-variant" />
+              <Icon name="person" :size="14" class="text-muted" />
+              <span class="text-xs text-muted">{{ t("builtManagedBy") }}</span>
+              <span class="text-xs font-medium text-primary">@marcante_musik</span>
+              <Icon name="open" :size="12" class="ml-auto text-muted" />
             </button>
-            <p class="text-xs leading-relaxed text-outline">{{ t("aboutOperationflut") }}</p>
+            <p class="text-xs leading-relaxed text-muted/80">{{ t("aboutOperationflut") }}</p>
 
-            <div class="space-y-1 text-xs leading-relaxed text-outline">
+            <div class="space-y-1 text-xs leading-relaxed text-muted/80">
               <p>{{ t("trayHint") }}</p>
               <p>{{ t("cliHint") }}</p>
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("language") }}
               </p>
               <div class="flex gap-1.5">
                 <button
                   v-for="option in langOptions"
                   :key="option.value"
-                  class="rounded-md border px-3 py-1.5 text-sm transition"
-                  :class="ui.lang === option.value
-                    ? 'border-primary bg-primary-container text-on-primary-container'
-                    : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
+                  type="button"
+                  class="pill h-8"
+                  :class="ui.lang === option.value ? 'pill-active' : ''"
                   @click="ui.setLang(option.value)"
                 >
                   {{ option.label }}
@@ -378,108 +397,83 @@ onUnmounted(() => removeEscapeCloser?.());
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("theme") }}
               </p>
               <div class="space-y-1.5">
                 <button
                   v-for="option in themeOptions"
                   :key="option.value"
+                  type="button"
                   class="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition"
                   :class="ui.theme === option.value
-                    ? 'border-primary bg-primary-container text-on-primary-container'
-                    : 'border-outline text-on-surface-variant hover:bg-surface-container-high'"
+                    ? 'border-primary/50 bg-primary/10'
+                    : 'border-line hover:bg-card-hover'"
                   @click="ui.setTheme(option.value)"
                 >
                   {{ option.label }}
-                  <Icon v-if="ui.theme === option.value" name="check" :size="16" class="text-on-primary-container" />
+                  <Icon v-if="ui.theme === option.value" name="check" :size="16" class="text-primary" />
                 </button>
               </div>
-              <p class="mt-2 text-xs text-outline">{{ t("systemThemeNote") }}</p>
+              <p class="mt-2 text-xs text-muted/80">{{ t("systemThemeNote") }}</p>
             </div>
 
-            <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-                {{ t("accentColor") }}
-              </p>
-              <div class="flex items-center gap-3">
-                <md-slider
-                  :min="0"
-                  :max="360"
-                  :step="1"
-                  :value="accentValue"
-                  :aria-label="t('accentColor')"
-                  @input="accentValue = ($event.target as HTMLInputElement).value as unknown as number; applyAccent()"
-                ></md-slider>
-                <md-outlined-button @click="resetAccent">
-                  {{ t("accentReset") }}
-                </md-outlined-button>
-              </div>
-              <p class="mt-2 text-xs text-outline">{{ t("accentColorHint") }}</p>
-            </div>
 
-            <div class="rounded-lg border border-outline-variant bg-surface-container-high/40 p-3">
-              <p class="mb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+
+            <div class="card p-3">
+              <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("updates") }}
               </p>
 
               <template v-if="updateState === 'checking'">
-                <p class="text-sm text-on-surface-variant">{{ t("checkingForUpdates") }}</p>
+                <p class="text-sm text-muted">{{ t("checkingForUpdates") }}</p>
               </template>
 
               <template v-else-if="updateState === 'available' && updateInfo">
-                <p class="mb-1 text-sm font-medium text-on-surface">
+                <p class="mb-1 text-sm font-medium">
                   {{ t("updateAvailable") }}
-                  <span class="text-primary-emphasis">v{{ updateInfo.version }}</span>
+                  <span class="text-primary">v{{ updateInfo.version }}</span>
                 </p>
-                <p class="mb-2 truncate text-xs text-on-surface-variant">{{ updateInfo.name }}</p>
-                <md-filled-button @click="downloadAndInstall">
+                <p class="mb-2 truncate text-xs text-muted">{{ updateInfo.name }}</p>
+                <button type="button" class="btn btn-primary" @click="downloadAndInstall">
                   {{ t("updateDownloadAndInstall") }}
-                </md-filled-button>
+                </button>
               </template>
 
-              <template
-                v-else-if="updateState === 'downloading' || updateState === 'installing'"
-              >
-                <p class="mb-1 text-sm text-on-surface-variant">
+              <template v-else-if="updateState === 'downloading' || updateState === 'installing'">
+                <p class="mb-1 text-sm text-muted">
                   {{
                     updateState === "downloading"
                       ? t("updateDownloading")
                       : t("updateInstalling")
                   }}
                 </p>
-                  <div
-                    v-if="updateState === 'downloading'"
-                    class="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-high"
-                  >
-                    <div
-                      class="h-full rounded-full bg-primary transition-all"
-                      :style="{ width: Math.min(updateProgress, 100) + '%' }"
-                    ></div>
-                  </div>
-                  <p v-if="updateStatusText" class="mt-1 truncate text-xs text-outline">
-                    {{ updateStatusText }}
-                  </p>
-                </template>
+                <div v-if="updateState === 'downloading'" class="progress-track">
+                  <div class="progress-fill" :style="{ width: Math.min(updateProgress, 100) + '%' }"></div>
+                </div>
+                <p v-if="updateStatusText" class="mt-1 truncate text-xs text-muted/80">
+                  {{ updateStatusText }}
+                </p>
+              </template>
 
-                <template v-else-if="updateState === 'error'">
-                  <p class="mb-2 text-xs text-error">
-                    {{ updateError || t("updateCheckFailed") }}
-                  </p>
-                <md-outlined-button @click="checkForUpdate">
+              <template v-else-if="updateState === 'error'">
+                <p class="mb-2 text-xs text-error">
+                  {{ updateError || t("updateCheckFailed") }}
+                </p>
+                <button type="button" class="btn btn-outline" @click="checkForUpdate">
                   {{ t("checkForUpdates") }}
-                </md-outlined-button>
+                </button>
               </template>
 
               <template v-else>
-                <p class="mb-2 text-xs text-outline">{{ t("updateUpToDate") }}</p>
-                <md-outlined-button @click="checkForUpdate">
+                <p class="mb-2 text-xs text-muted/80">{{ t("updateUpToDate") }}</p>
+                <button type="button" class="btn btn-outline" @click="checkForUpdate">
                   {{ t("checkForUpdates") }}
-                </md-outlined-button>
+                </button>
               </template>
             </div>
 
-            <p class="text-xs leading-relaxed text-outline">{{ t("keychainSecured") }}</p>
+            <p class="text-xs leading-relaxed text-muted/80">{{ t("keychainSecured") }}</p>
           </div>
         </div>
       </div>
@@ -487,4 +481,3 @@ onUnmounted(() => removeEscapeCloser?.());
     </Transition>
   </Teleport>
 </template>
-

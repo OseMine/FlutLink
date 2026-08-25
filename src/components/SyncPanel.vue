@@ -5,20 +5,12 @@ import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
 import { translate, translateError } from "../lib/i18n";
 import { invokeError } from "../lib/ipc";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/checkbox/checkbox.js";
-import "@material/web/progress/linear-progress.js";
-import "@material/web/divider/divider.js";
+import Icon from "./Icon.vue";
 
 const sync = useSyncStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 const followSymlinks = ref(false);
-
-function onFollowSymlinksChange(e: Event) {
-  followSymlinks.value = (e.target as HTMLInputElement).checked;
-}
 
 function errorLabel(err: { code: string; detail?: string | null }): string {
   return translateError(ui.lang, err.code, err.detail);
@@ -31,6 +23,20 @@ function stateLabel(state: string): string {
 function lastSyncedLabel(ts: number | null): string {
   if (ts === null) return t("neverSynced");
   return new Date(ts * 1000).toLocaleString();
+}
+
+/// Status badge dot color per sync state (neutral surface + colored dot).
+function stateDotClass(state: string): string {
+  switch (state) {
+    case "idle":
+      return "bg-success";
+    case "syncing":
+      return "bg-primary";
+    case "error":
+      return "bg-error";
+    default:
+      return "bg-muted";
+  }
 }
 
 onMounted(() => {
@@ -95,32 +101,38 @@ async function syncNow() {
 
 <template>
   <div class="mx-auto w-full max-w-3xl p-6">
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-4 flex items-center justify-between gap-3">
       <div>
-        <h2 class="text-lg font-semibold text-on-surface">{{ t("syncFolders") }}</h2>
-        <p class="text-sm text-on-surface-variant">{{ t("noSyncFoldersHint") }}</p>
+        <h2 class="text-lg font-semibold">{{ t("syncFolders") }}</h2>
+        <p class="text-sm text-muted">{{ t("noSyncFoldersHint") }}</p>
       </div>
-      <div class="flex gap-2">
-        <md-outlined-button @click="syncNow">
+      <div class="flex shrink-0 items-center gap-2">
+        <button type="button" class="btn btn-outline" @click="syncNow">
           {{ t("syncNow") }}
-        </md-outlined-button>
-        <label class="flex cursor-pointer items-center gap-2 text-sm text-on-surface-variant">
-          <md-checkbox :checked="followSymlinks" @change="onFollowSymlinksChange"></md-checkbox>
+        </button>
+        <label class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted">
+          <!-- #366: same quiet custom checkbox as everywhere else -->
+          <input
+            v-model="followSymlinks"
+            type="checkbox"
+            class="checkbox"
+          />
           {{ t("followSymlinks") }}
         </label>
-        <md-filled-button @click="pickFolder">
-          + {{ t("addFolder") }}
-        </md-filled-button>
+        <button type="button" class="btn btn-primary" @click="pickFolder">
+          <Icon name="add" :size="14" />
+          {{ t("addFolder") }}
+        </button>
       </div>
     </div>
 
-    <div v-if="sync.error" class="mb-4 rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
+    <div v-if="sync.error" class="mb-4 rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
       {{ sync.error }}
     </div>
 
-    <p v-if="sync.loading" class="text-sm text-on-surface-variant">…</p>
+    <p v-if="sync.loading" class="text-sm text-muted">…</p>
 
-    <div v-else-if="!sync.folders.length" class="rounded-lg border border-dashed border-outline p-8 text-center text-sm text-on-surface-variant">
+    <div v-else-if="!sync.folders.length" class="rounded-md border border-dashed border-line-strong p-8 text-center text-sm text-muted">
       {{ t("noSyncFolders") }}
     </div>
 
@@ -128,36 +140,30 @@ async function syncNow() {
       <div
         v-for="folder in sync.folders"
         :key="folder.folderId"
-        class="rounded-lg border border-outline-variant bg-surface-container p-4"
+        class="card p-4 transition hover:border-line-strong"
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="truncate font-medium text-on-surface">{{ folder.localPath }}</p>
-            <p class="truncate text-xs text-on-surface-variant">
+            <p class="truncate font-medium">{{ folder.localPath }}</p>
+            <p class="truncate text-xs text-muted">
               {{ t("remoteFolder") }}: {{ folder.remotePath }}
             </p>
-            <p v-if="folder.followSymlinks" class="mt-0.5 text-xs text-on-surface-variant">
+            <p v-if="folder.followSymlinks" class="mt-0.5 text-xs text-muted">
               ⤷ {{ t("followSymlinksEnabled") }}
             </p>
           </div>
-          <span
-            class="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold"
-            :class="{
-              'bg-success/15 text-success': folder.state === 'idle',
-              'bg-primary/15 text-primary-emphasis': folder.state === 'syncing',
-              'bg-surface-container-highest text-on-surface-variant': folder.state === 'paused',
-              'bg-error/15 text-error': folder.state === 'error',
-            }"
-          >
+          <!-- Status: neutral surface + colored dot instead of a color block -->
+          <span class="badge normal-case">
+            <span class="badge-dot" :class="stateDotClass(folder.state)"></span>
             {{ stateLabel(folder.state) }}
           </span>
         </div>
 
-        <p class="mt-2 text-xs text-on-surface-variant">
+        <p class="mt-2 text-xs text-muted">
           {{ t("lastSynced") }}: {{ lastSyncedLabel(folder.lastSyncedAt) }}
         </p>
 
-        <div v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant">
+        <div v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
           <span v-if="folder.pendingUploads">{{ folder.pendingUploads }} {{ t("pendingUploads") }}</span>
           <span v-if="folder.pendingDownloads">{{ folder.pendingDownloads }} {{ t("pendingDownloads") }}</span>
           <span v-if="folder.pendingDeletes">{{ folder.pendingDeletes }} {{ t("pendingDeletes") }}</span>
@@ -167,15 +173,14 @@ async function syncNow() {
         <p v-if="folder.lastError" class="mt-1 text-xs text-error">{{ errorLabel(folder.lastError) }}</p>
 
         <div class="mt-3 flex gap-2">
-          <md-outlined-button @click="togglePaused(folder)">
+          <button type="button" class="btn btn-outline h-7" @click="togglePaused(folder)">
             {{ folder.paused ? t("resume") : t("pause") }}
-          </md-outlined-button>
-          <md-outlined-button class="error-btn" @click="remove(folder)">
+          </button>
+          <button type="button" class="btn btn-danger h-7" @click="remove(folder)">
             {{ t("remove") }}
-          </md-outlined-button>
+          </button>
         </div>
       </div>
     </div>
   </div>
 </template>
-

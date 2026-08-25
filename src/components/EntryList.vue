@@ -83,20 +83,20 @@ function parentPath(path: string): string {
   <div v-if="viewMode === 'list'" class="px-4 py-2">
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-left text-xs uppercase tracking-wide text-on-surface-variant">
+        <tr class="text-left text-[11px] uppercase tracking-wide text-muted">
           <th v-if="selectable" class="w-8 px-3 py-2"></th>
           <th class="px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('name')">
+            <button type="button" class="uppercase tracking-wide transition hover:text-fg" @click="toggleSort('name')">
               {{ t("name") }} {{ sortKey === "name" ? (sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
           <th class="w-28 px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('size')">
+            <button type="button" class="uppercase tracking-wide transition hover:text-fg" @click="toggleSort('size')">
               {{ t("size") }} {{ sortKey === "size" ? (sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
           <th class="w-44 px-3 py-2 font-medium">
-            <button class="uppercase tracking-wide hover:text-on-surface" @click="toggleSort('mtime')">
+            <button type="button" class="uppercase tracking-wide transition hover:text-fg" @click="toggleSort('mtime')">
               {{ t("modified") }} {{ sortKey === "mtime" ? (sortAsc ? "▲" : "▼") : "" }}
             </button>
           </th>
@@ -108,59 +108,55 @@ function parentPath(path: string): string {
         <tr
           v-for="(entry, i) in sortedEntries"
           :key="entry.path"
-          class="border-t border-outline-variant/60 hover:bg-surface-container-high/40"
+          class="border-t border-line transition-colors hover:bg-card-hover"
           :class="[
-            selectable && selected.has(entry.path) ? 'bg-primary-container/40' : '',
-            i === kbdIndex ? 'bg-primary-container/70' : '',
+            selectable && selected.has(entry.path) ? 'bg-primary/10' : '',
+            i === kbdIndex ? 'bg-primary/15' : '',
           ]"
           @contextmenu="emit('contextmenu', $event, entry)"
         >
           <td v-if="selectable" class="px-3 py-2">
             <input
               type="checkbox"
-              class="accent-primary"
+              class="checkbox"
               :checked="selected.has(entry.path)"
               @change="emit('toggleSelect', entry.path)"
             />
           </td>
-          <td class="px-3 py-2">
-            <button class="flex items-center gap-2 text-left text-on-surface hover:text-on-surface" @click="emit('open', entry)">
-              <span class="flex w-5 justify-center">
+          <td class="max-w-0 px-3 py-2">
+            <button type="button" class="flex w-full items-center gap-2 text-left transition hover:text-primary" @click="emit('open', entry)">
+              <span class="flex w-5 shrink-0 justify-center">
                 <img
                   v-if="props.thumbs?.get(entry.path)"
                   :src="props.thumbs.get(entry.path)"
                   class="h-5 w-5 rounded object-cover"
                   alt=""
                 />
-                <Icon v-else-if="entry.isDir" name="folder" :size="20" class="text-on-surface-variant" />
-                <Icon v-else name="file" :size="20" class="text-on-surface-variant" />
+                <Icon v-else-if="entry.isDir" name="folder" :size="18" class="text-muted" />
+                <Icon v-else name="file" :size="18" class="text-muted" />
               </span>
               <span class="truncate">{{ entry.name }}</span>
-              <span v-if="props.searching" class="truncate text-xs text-on-surface-variant">
+              <span v-if="props.searching" class="shrink-0 truncate text-xs text-muted/80">
                 {{ parentPath(entry.path) }}
               </span>
             </button>
           </td>
-          <td class="px-3 py-2 text-on-surface-variant">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
-          <td class="px-3 py-2 text-on-surface-variant">{{ formatMtime(entry.mtime) }}</td>
+          <td class="px-3 py-2 tabular-nums text-muted">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
+          <td class="px-3 py-2 text-muted">{{ formatMtime(entry.mtime) }}</td>
           <td class="px-3 py-2">
-            <span
-              v-if="entry.isResource"
-              class="rounded bg-info-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-info-container"
-              :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined"
-            >
+            <!-- Status badges: neutral surface + colored dot -->
+            <span v-if="entry.isResource" class="badge normal-case" :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined">
+              <span class="badge-dot bg-info"></span>
               {{ t("resource") }}
             </span>
-            <span
-              v-else-if="entry.isPart"
-              class="rounded bg-success-container px-1.5 py-0.5 text-[10px] font-semibold uppercase text-on-success-container"
-              :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined"
-            >
+            <span v-else-if="entry.isPart" class="badge normal-case" :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined">
+              <span class="badge-dot bg-success"></span>
               {{ t("part") }}
             </span>
-            <span v-else class="text-xs text-outline">{{ t("sync") }}</span>
+            <span v-else class="text-xs text-muted/70">{{ t("sync") }}</span>
             <button
               v-if="entry.pairedPath"
+              type="button"
               class="action-badge ml-1"
               :title="t('openPaired') + ' ' + entry.pairedPath"
               @click.stop="emit('pair', entry)"
@@ -169,19 +165,20 @@ function parentPath(path: string): string {
             </button>
           </td>
           <td class="px-3 py-2 text-right">
-            <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-on-surface-variant">…</span>
+            <span v-if="shareStatus(entry.path)?.status === 'loading'" class="text-xs text-muted">…</span>
             <span
               v-else-if="shareStatus(entry.path)?.status === 'done'"
-              class="flex justify-end text-success"
+              class="inline-flex justify-end text-success"
               :title="t('linkCopied')"
             >
-              <Icon name="check" :size="16" />
+              <Icon name="check" :size="15" />
             </span>
-            <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="flex justify-end text-error">
-              <Icon name="close" :size="16" />
+            <span v-else-if="shareStatus(entry.path)?.status === 'error'" class="inline-flex justify-end text-error">
+              <Icon name="close" :size="15" />
             </span>
             <button
               v-if="shareStatus(entry.path)?.status === 'done'"
+              type="button"
               class="action-badge"
               :title="shareStatus(entry.path)?.value ?? ''"
               @click.stop="emit('copyLink', entry.path)"
@@ -190,6 +187,7 @@ function parentPath(path: string): string {
             </button>
             <button
               v-else-if="!shareStatus(entry.path)"
+              type="button"
               class="action-badge"
               @click.stop="emit('createLink', entry)"
             >
@@ -197,16 +195,17 @@ function parentPath(path: string): string {
             </button>
             <span
               v-if="props.sharesByPath?.get(entry.path)?.length"
-              class="mr-1 inline-flex rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+              class="badge mr-1 !normal-case"
               :title="t('sharesCount').replace('{count}', String(props.sharesByPath?.get(entry.path)?.length ?? 0))"
             >
               {{ props.sharesByPath?.get(entry.path)?.length }}
             </span>
             <button
+              type="button"
               class="action-badge"
               @click.stop="emit('share', entry)"
             >
-              <Icon name="share" :size="14" />
+              <Icon name="share" :size="13" />
               {{ t("share") }}
             </button>
           </td>
@@ -221,12 +220,12 @@ function parentPath(path: string): string {
       <div
         v-for="(entry, i) in sortedEntries"
         :key="entry.path"
-        class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border p-3 text-center transition"
+        class="group relative flex cursor-pointer flex-col items-center gap-1 rounded-md border p-3 text-center transition"
         :class="[
           selectable && selected.has(entry.path)
-            ? 'border-primary bg-primary-container/40'
-            : 'border-outline-variant bg-surface-container hover:bg-surface-container-high/60',
-          i === kbdIndex ? 'ring-2 ring-primary' : '',
+            ? 'border-primary/60 bg-primary/10'
+            : 'border-line bg-card hover:border-line-strong hover:bg-card-hover',
+          i === kbdIndex ? '!border-primary ring-1 ring-primary' : '',
         ]"
         @click="selectable && $event.detail === 1 && emit('toggleSelect', entry.path)"
         @dblclick="emit('open', entry)"
@@ -235,14 +234,14 @@ function parentPath(path: string): string {
         <input
           v-if="selectable"
           type="checkbox"
-          class="accent-primary absolute right-1.5 top-1.5"
+          class="checkbox absolute right-1.5 top-1.5 z-10"
           :checked="selected.has(entry.path)"
           @click.stop
           @change="emit('toggleSelect', entry.path)"
         />
         <span
           v-if="props.sharesByPath?.get(entry.path)?.length"
-          class="absolute left-1.5 top-1.5 rounded-full bg-primary-container px-2 py-0.5 text-[10px] font-semibold text-on-primary-container"
+          class="badge absolute left-1.5 top-1.5 !normal-case"
           :title="t('sharesCount').replace('{count}', String(props.sharesByPath?.get(entry.path)?.length ?? 0))"
         >
           {{ props.sharesByPath?.get(entry.path)?.length }}
@@ -254,71 +253,83 @@ function parentPath(path: string): string {
             class="mt-4 h-16 w-16 rounded object-cover"
             alt=""
           />
-          <Icon v-else :name="entry.isDir ? 'folder' : 'file'" :size="36" class="mt-4 text-on-surface-variant" />
+          <Icon v-else :name="entry.isDir ? 'folder' : 'file'" :size="34" class="mt-4 text-muted" />
         </div>
-        <p class="w-full truncate text-xs text-on-surface" :title="entryPreview(entry)">{{ entry.name }}</p>
-        <p class="w-full truncate text-[10px] text-on-surface-variant">
+        <p class="w-full truncate text-xs" :title="entryPreview(entry)">{{ entry.name }}</p>
+        <p class="w-full truncate text-[10px] tabular-nums text-muted">
           {{ entry.isDir ? "—" : formatBytes(entry.size) }}
         </p>
         <p
           v-if="props.searching"
-          class="w-full truncate text-[10px] text-on-surface-variant"
+          class="w-full truncate text-[10px] text-muted/80"
           :title="parentPath(entry.path)"
         >
           {{ parentPath(entry.path) }}
         </p>
+
+        <!-- U2/#363: the overlay stays mounted and only fades via opacity —
+             no hidden→flex display flip per item, so hovering never forces a
+             re-layout/compositing round-trip. -->
         <div
-          class="absolute inset-0 hidden items-center justify-center gap-1.5 rounded-lg bg-scrim/50 group-hover:flex"
+          class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-1.5 rounded-md bg-scrim/55 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100"
           @click.stop
           @dblclick.stop
         >
           <button
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-line-strong bg-card text-fg transition hover:border-primary hover:bg-primary hover:text-on-primary"
             :title="t('open')"
             @click="emit('open', entry)"
           >
-            <Icon name="open" :size="16" />
+            <Icon name="open" :size="14" />
           </button>
           <button
             v-if="!entry.isDir"
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-line-strong bg-card text-fg transition hover:border-primary hover:bg-primary hover:text-on-primary"
             :title="t('download')"
             @click="emit('download', entry)"
           >
-            <Icon name="download" :size="16" />
+            <Icon name="download" :size="14" />
           </button>
           <button
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-line-strong bg-card text-fg transition hover:border-primary hover:bg-primary hover:text-on-primary"
             :title="shareStatus(entry.path)?.status === 'done' ? t('linkCopied') : t('link')"
             @click="shareStatus(entry.path)?.status === 'done' ? emit('copyLink', entry.path) : emit('createLink', entry)"
           >
-            <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="16" />
+            <Icon :name="shareStatus(entry.path)?.status === 'done' ? 'check' : 'link'" :size="14" />
           </button>
           <button
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-line-strong bg-card text-fg transition hover:border-primary hover:bg-primary hover:text-on-primary"
             :title="t('share')"
             @click="emit('share', entry)"
           >
-            <Icon name="share" :size="16" />
+            <Icon name="share" :size="14" />
           </button>
           <button
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-on-surface shadow-m3-1 transition hover:bg-primary hover:text-on-primary"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-line-strong bg-card text-fg transition hover:border-primary hover:bg-primary hover:text-on-primary"
             :title="t('rename')"
             @click="emit('rename', entry)"
           >
-            <Icon name="edit" :size="16" />
+            <Icon name="edit" :size="14" />
           </button>
           <button
-            class="flex h-7 w-7 items-center justify-center rounded-md bg-surface-container text-error shadow-m3-1 transition hover:bg-error hover:text-on-error"
+            type="button"
+            class="grid h-7 w-7 place-items-center rounded-sm border border-error/50 bg-card text-error transition hover:bg-error hover:text-white"
             :title="t('delete')"
             @click="emit('delete', entry)"
           >
-            <Icon name="delete" :size="16" />
+            <Icon name="delete" :size="14" />
           </button>
         </div>
+
         <button
           v-if="entry.pairedPath"
-          class="action-badge absolute bottom-1 right-1"
+          type="button"
+          class="action-badge absolute bottom-1 right-1 z-10"
           :title="t('openPaired') + ' ' + entry.pairedPath"
           @click.stop="emit('pair', entry)"
         >

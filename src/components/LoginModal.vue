@@ -6,13 +6,6 @@ import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { api, invokeError } from "../lib/ipc";
 import { registerEscapeCloser } from "../lib/escape";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/textfield/outlined-text-field.js";
-import "@material/web/tabs/tabs.js";
-import "@material/web/tabs/primary-tab.js";
-import "@material/web/divider/divider.js";
 
 const props = defineProps<{
   open: boolean;
@@ -179,28 +172,46 @@ async function submitRegister() {
     <Transition name="modal">
     <div
       v-if="props.open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4 backdrop-blur-sm"
       @click.self="close"
     >
-      <div class="w-full max-w-sm rounded-xl border border-outline bg-surface-container p-6 shadow-m3-3">
+      <div class="modal-surface w-full max-w-sm p-6">
         <div class="flex flex-col items-center gap-2 text-center">
           <AppLogo class="h-10 w-10" />
-          <h2 class="text-lg font-semibold text-on-surface">
+          <h2 class="text-lg font-semibold">
             {{ mode === "login" ? t("signInTitle") : t("registerTitle") }}
           </h2>
-          <p class="text-xs text-on-surface-variant">
+          <p class="text-xs text-muted">
             {{ mode === "login" ? t("signInSubtitle") : t("registerSubtitle") }}
           </p>
         </div>
 
-        <md-tabs :active-tab-index="mode === 'login' ? 0 : 1">
-          <md-primary-tab @click="mode = 'login'">{{ t("signInTab") }}</md-primary-tab>
-          <md-primary-tab @click="mode = 'register'">{{ t("registerTab") }}</md-primary-tab>
-        </md-tabs>
+        <!-- #367: native tab list — marked tab and shown form can no longer
+             drift apart through keyboard navigation -->
+        <div role="tablist" class="mt-4 flex items-stretch border-b border-line">
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :aria-selected="mode === 'login'"
+            @click="mode = 'login'"
+          >
+            {{ t("signInTab") }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tab"
+            :aria-selected="mode === 'register'"
+            @click="mode = 'register'"
+          >
+            {{ t("registerTab") }}
+          </button>
+        </div>
 
-        <div class="mt-3 rounded-md bg-surface-container-high/60 px-3 py-2 text-xs text-on-surface-variant">
+        <div class="card mt-3 px-3 py-2 text-xs text-muted">
           {{ t("serverAutoNote") }}:
-          <span class="text-on-surface">{{ serverUrl || "…" }}</span>
+          <span class="text-fg">{{ serverUrl || "…" }}</span>
         </div>
         <p v-if="serverUrlError" class="mt-1 text-xs text-error">{{ serverUrlError }}</p>
 
@@ -209,40 +220,50 @@ async function submitRegister() {
           class="mt-4 space-y-3"
           @submit.prevent="submit"
         >
-          <md-outlined-text-field
-            :label="t('username')"
-            :value="form.username"
-            required
-            autocomplete="off"
-            @input="form.username = ($event.target as HTMLInputElement).value"
-          ></md-outlined-text-field>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">{{ t("username") }}</span>
+            <input
+              v-model="form.username"
+              type="text"
+              autocomplete="off"
+              class="input"
+            />
+          </label>
 
-          <md-outlined-text-field
-            type="password"
-            :label="t('password')"
-            :value="form.token"
-            required
-            autocomplete="off"
-            @input="form.token = ($event.target as HTMLInputElement).value"
-          ></md-outlined-text-field>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">{{ t("password") }}</span>
+            <!-- #362: dynamic type binding so the reveal button really works -->
+            <div class="relative">
+              <input
+                v-model="form.token"
+                :type="showPassword ? 'text' : 'password'"
+                autocomplete="off"
+                class="input pr-16"
+              />
+              <button
+                type="button"
+                class="btn btn-ghost absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? t("hide") : t("show") }}
+              </button>
+            </div>
+          </label>
 
-          <md-text-button @click="showPassword = !showPassword">
-            {{ showPassword ? t("hide") : t("show") }}
-          </md-text-button>
+          <p class="text-xs leading-relaxed text-muted/80">{{ t("authNote") }}</p>
 
-          <p class="text-xs leading-relaxed text-outline">{{ t("authNote") }}</p>
-
-          <div v-if="formError" class="rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
+          <div v-if="formError" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
             {{ formError }}
           </div>
 
           <div class="flex gap-2 pt-1">
-            <md-outlined-button class="mt-4 w-full" @click="close">
+            <!-- #364: explicit type="button" — must never act as a submitter -->
+            <button type="button" class="btn btn-outline flex-1" @click="close">
               {{ t("cancel") }}
-            </md-outlined-button>
-            <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submit">
+            </button>
+            <button type="submit" :disabled="submitting" class="btn btn-primary flex-1">
               {{ submitting ? t("connecting") : t("connect") }}
-            </md-filled-button>
+            </button>
           </div>
         </form>
 
@@ -251,74 +272,77 @@ async function submitRegister() {
           class="mt-4 space-y-3"
           @submit.prevent="submitRegister"
         >
-          <md-outlined-text-field
-            :label="t('username')"
-            :value="form.username"
-            required
-            autocomplete="off"
-            @input="form.username = ($event.target as HTMLInputElement).value"
-          ></md-outlined-text-field>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">{{ t("username") }}</span>
+            <input v-model="form.username" type="text" autocomplete="off" class="input" />
+          </label>
 
-          <md-outlined-text-field
-            type="password"
-            :label="t('password')"
-            :value="form.token"
-            required
-            autocomplete="off"
-            @input="form.token = ($event.target as HTMLInputElement).value"
-          ></md-outlined-text-field>
-
-          <md-text-button @click="showPassword = !showPassword">
-            {{ showPassword ? t("hide") : t("show") }}
-          </md-text-button>
-
-          <md-outlined-text-field
-            :label="t('displayNameOptional')"
-            :value="form.displayName"
-            autocomplete="off"
-            @input="form.displayName = ($event.target as HTMLInputElement).value"
-          ></md-outlined-text-field>
-
-          <md-divider class="my-2"></md-divider>
-
-          <p class="mb-2 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-            {{ t("adminSection") }}
-          </p>
-          <div class="grid grid-cols-2 gap-2">
-            <md-outlined-text-field
-              :label="t('adminUsername')"
-              :value="form.adminUsername"
-              required
-              autocomplete="off"
-              @input="form.adminUsername = ($event.target as HTMLInputElement).value"
-            ></md-outlined-text-field>
-            <div>
-              <md-outlined-text-field
-                type="password"
-                :label="t('adminPassword')"
-                :value="form.adminPassword"
-                required
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">{{ t("password") }}</span>
+            <div class="relative">
+              <input
+                v-model="form.token"
+                :type="showPassword ? 'text' : 'password'"
                 autocomplete="off"
-                @input="form.adminPassword = ($event.target as HTMLInputElement).value"
-              ></md-outlined-text-field>
-              <md-text-button @click="showAdminPassword = !showAdminPassword">
-                {{ showAdminPassword ? t("hide") : t("show") }}
-              </md-text-button>
+                class="input pr-16"
+              />
+              <button
+                type="button"
+                class="btn btn-ghost absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
+                @click="showPassword = !showPassword"
+              >
+                {{ showPassword ? t("hide") : t("show") }}
+              </button>
+            </div>
+          </label>
+
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-muted">{{ t("displayNameOptional") }}</span>
+            <input v-model="form.displayName" type="text" autocomplete="off" class="input" />
+          </label>
+
+          <div class="border-t border-line pt-3">
+            <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {{ t("adminSection") }}
+            </p>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-muted">{{ t("adminUsername") }}</span>
+                <input v-model="form.adminUsername" type="text" autocomplete="off" class="input" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-xs font-medium text-muted">{{ t("adminPassword") }}</span>
+                <div class="relative">
+                  <input
+                    v-model="form.adminPassword"
+                    :type="showAdminPassword ? 'text' : 'password'"
+                    autocomplete="off"
+                    class="input pr-16"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-ghost absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
+                    @click="showAdminPassword = !showAdminPassword"
+                  >
+                    {{ showAdminPassword ? t("hide") : t("show") }}
+                  </button>
+                </div>
+              </label>
             </div>
           </div>
-          <p class="mt-2 text-xs leading-relaxed text-outline">{{ t("adminNote") }}</p>
+          <p class="text-xs leading-relaxed text-muted/80">{{ t("adminNote") }}</p>
 
-          <div v-if="formError" class="rounded-md border border-error bg-error-container px-3 py-2 text-xs text-on-error-container">
+          <div v-if="formError" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
             {{ formError }}
           </div>
 
           <div class="flex gap-2 pt-1">
-            <md-outlined-button class="mt-4 w-full" @click="close">
+            <button type="button" class="btn btn-outline flex-1" @click="close">
               {{ t("cancel") }}
-            </md-outlined-button>
-            <md-filled-button :disabled="submitting" class="mt-4 w-full" @click="submitRegister">
+            </button>
+            <button type="submit" :disabled="submitting" class="btn btn-primary flex-1">
               {{ submitting ? t("registering") : t("register") }}
-            </md-filled-button>
+            </button>
           </div>
         </form>
       </div>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useUiStore } from "../stores/ui";
-import "@material/web/iconbutton/icon-button.js";
+import { translate } from "../lib/i18n";
 import Icon from "./Icon.vue";
 
 const ui = useUiStore();
+const t = (key: string) => translate(ui.lang, key);
 </script>
 
 <template>
@@ -12,24 +13,27 @@ const ui = useUiStore();
       <div
         v-for="toast in ui.toasts"
         :key="toast.id"
-        class="pointer-events-auto flex items-start gap-2 rounded-lg border px-3 py-2 text-sm shadow-m3-2"
-        :class="{
-          'border-success bg-success-container/95 text-on-success-container': toast.type === 'success',
-          'border-error bg-error-container/95 text-on-error-container': toast.type === 'error',
-          'border-outline-variant bg-surface-container/95 text-on-surface': toast.type === 'info',
-        }"
+        class="menu pointer-events-auto flex items-center gap-2.5 !rounded-md px-3 py-2 text-sm text-fg"
       >
+        <!-- Neutral surface + colored status dot instead of color blocks -->
+        <span
+          class="h-2 w-2 shrink-0 rounded-full"
+          :class="{
+            'bg-success': toast.type === 'success',
+            'bg-error': toast.type === 'error',
+            'bg-info': toast.type === 'info',
+          }"
+        ></span>
         <span class="flex-1">{{ toast.message }}</span>
-        <md-icon-button class="toast-dismiss" @click="ui.dismiss(toast.id)">
-          <Icon name="close" :size="16" />
-        </md-icon-button>
+        <button
+          type="button"
+          class="-mr-1 grid h-6 w-6 shrink-0 place-items-center rounded-sm text-muted transition hover:bg-card-hover hover:text-fg"
+          :aria-label="t('dismiss')"
+          @click="ui.dismiss(toast.id)"
+        >
+          <Icon name="close" :size="14" />
+        </button>
       </div>
     </TransitionGroup>
   </div>
 </template>
-
-<style>
-.toast-dismiss {
-  --md-icon-button-icon-color: currentColor;
-}
-</style>

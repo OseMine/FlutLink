@@ -5,13 +5,6 @@ import { useUiStore } from "../stores/ui";
 import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
-import "@material/web/button/filled-button.js";
-import "@material/web/button/outlined-button.js";
-import "@material/web/textfield/outlined-text-field.js";
-import "@material/web/divider/divider.js";
-import "@material/web/switch/switch.js";
-import "@material/web/select/outlined-select.js";
-import "@material/web/select/select-option.js";
 
 const emit = defineEmits<{ browse: [userId: string] }>();
 
@@ -382,196 +375,185 @@ function quotaFree(q: UserQuota | null): string {
 <template>
   <div class="flex h-full flex-col gap-4 overflow-hidden p-6">
     <div>
-      <h2 class="text-lg font-semibold text-on-surface">{{ t("adminPanelTitle") }}</h2>
-      <p class="text-sm text-on-surface-variant">{{ t("adminPanelSubtitle") }}</p>
+      <h2 class="text-lg font-semibold">{{ t("adminPanelTitle") }}</h2>
+      <p class="text-sm text-muted">{{ t("adminPanelSubtitle") }}</p>
     </div>
 
-    <div v-if="error" class="rounded-md border border-error bg-error-container px-3 py-2 text-sm text-on-error-container">
+    <div v-if="error" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
       {{ error }}
     </div>
-    <div v-if="editMsg" class="rounded-md border border-success bg-success-container px-3 py-2 text-sm text-on-success-container">
+    <div v-if="editMsg" class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
       {{ editMsg }}
     </div>
 
     <div class="flex gap-2">
-      <md-outlined-text-field
-        :label="t('searchUsers')"
-        :value="search"
-        @input="search = ($event.target as HTMLInputElement).value"
+      <input
+        v-model="search"
+        type="text"
+        :placeholder="t('searchUsers')"
+        class="input flex-1"
         @keyup.enter="listUsers()"
-        class="flex-1"
-      ></md-outlined-text-field>
-      <md-filled-button @click="listUsers()">
+      />
+      <button type="button" class="btn btn-primary shrink-0" @click="listUsers()">
         {{ loading ? t("loading") : t("listUsers") }}
-      </md-filled-button>
-      <md-outlined-button @click="showCreate = !showCreate">
+      </button>
+      <button type="button" class="btn btn-outline shrink-0" @click="showCreate = !showCreate">
         + {{ t("createUser") }}
-      </md-outlined-button>
+      </button>
     </div>
 
-    <div v-if="showCreate" class="rounded-lg border border-outline-variant bg-surface-container p-4">
-      <h3 class="mb-1 text-sm font-medium text-on-surface">{{ t("createUserTitle") }}</h3>
-      <p class="mb-3 text-xs text-on-surface-variant">{{ t("newUserHint") }}</p>
+    <div v-if="showCreate" class="card p-4">
+      <h3 class="mb-1 text-sm font-medium">{{ t("createUserTitle") }}</h3>
+      <p class="mb-3 text-xs text-muted">{{ t("newUserHint") }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
-        <md-outlined-text-field
+        <input
+          v-model="newUser.userId"
+          type="text"
           :placeholder="t('userId')"
-          :value="newUser.userId"
-          @input="newUser.userId = ($event.target as HTMLInputElement).value"
-        ></md-outlined-text-field>
-        <md-outlined-text-field
+          class="input"
+        />
+        <input
+          v-model="newUser.password"
           type="password"
           :placeholder="t('password')"
-          :value="newUser.password"
-          @input="newUser.password = ($event.target as HTMLInputElement).value"
-        ></md-outlined-text-field>
-        <md-outlined-text-field
+          class="input"
+        />
+        <input
+          v-model="newUser.displayName"
+          type="text"
           :placeholder="t('displayName')"
-          :value="newUser.displayName"
-          @input="newUser.displayName = ($event.target as HTMLInputElement).value"
-        ></md-outlined-text-field>
+          class="input"
+        />
       </div>
-      <md-filled-button class="mt-3" @click="createUser">
+      <button type="button" class="btn btn-primary mt-3" @click="createUser">
         {{ t("create") }}
-      </md-filled-button>
+      </button>
     </div>
 
     <div class="grid min-h-0 flex-1 grid-cols-2 gap-4">
-      <div class="overflow-y-auto rounded-lg border border-outline-variant">
-        <ul v-if="users.length" class="divide-y divide-outline-variant/60">
+      <!-- User list -->
+      <div class="card min-h-0 overflow-y-auto !rounded-md">
+        <ul v-if="users.length" class="divide-y divide-line">
           <li v-for="userId in users" :key="userId">
             <button
-              class="w-full px-4 py-2 text-left text-sm text-on-surface hover:bg-surface-container-high/60"
-              :class="selected?.id === userId ? 'bg-primary-container/60 text-on-primary-container' : ''"
+              type="button"
+              class="w-full px-4 py-2 text-left text-sm transition hover:bg-card-hover"
+              :class="selected?.id === userId ? 'bg-primary/10 text-primary' : ''"
               @click="selectUser(userId)"
             >
               {{ userId }}
             </button>
           </li>
         </ul>
-        <md-outlined-button
+        <button
           v-if="hasMore && users.length"
-          class="w-full"
+          type="button"
+          class="btn btn-outline m-3 !w-[calc(100%-1.5rem)]"
           :disabled="loading"
           @click="loadMore"
         >
           {{ loading ? t("loading") : t("loadMore") }}
-        </md-outlined-button>
-        <p v-if="!users.length" class="p-4 text-sm text-on-surface-variant">
+        </button>
+        <p v-if="!users.length" class="p-4 text-sm text-muted">
           {{ loading ? t("loading") : t("noUsersYet") }}
         </p>
       </div>
 
-      <div class="overflow-y-auto rounded-lg border border-outline-variant p-4">
-        <p v-if="detailsLoading" class="text-sm text-on-surface-variant">{{ t("loadingDetails") }}</p>
+      <!-- Details -->
+      <div class="card min-h-0 overflow-y-auto p-4">
+        <p v-if="detailsLoading" class="text-sm text-muted">{{ t("loadingDetails") }}</p>
         <template v-else-if="selected">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-              <h3 class="truncate text-base font-medium text-on-surface">{{ selected.displayName || selected.id }}</h3>
-              <p class="text-sm text-on-surface-variant">{{ selected.id }}</p>
-              <p class="mt-1 text-xs">
-                <span
-                  class="rounded px-1.5 py-0.5 font-semibold"
-                  :class="selected.enabled ? 'bg-success/15 text-success' : 'bg-error/15 text-error'"
-                >
+              <h3 class="truncate text-base font-medium">{{ selected.displayName || selected.id }}</h3>
+              <p class="text-sm text-muted">{{ selected.id }}</p>
+              <p class="mt-1">
+                <span class="badge normal-case">
+                  <span class="badge-dot" :class="selected.enabled ? 'bg-success' : 'bg-error'"></span>
                   {{ selected.enabled ? t("enabled") : t("disabled") }}
                 </span>
               </p>
             </div>
             <div class="flex shrink-0 flex-col items-end gap-1.5">
-              <md-outlined-button
-                @click="emit('browse', selected.id)"
-              >
+              <button type="button" class="btn btn-outline h-7 text-xs" @click="emit('browse', selected.id)">
                 {{ t("browseFiles") }}
-              </md-outlined-button>
-              <md-outlined-button
-                @click="toggleEnabled"
-              >
+              </button>
+              <button type="button" class="btn btn-outline h-7 text-xs" @click="toggleEnabled">
                 {{ selected.enabled ? t("disableAccount") : t("enableAccount") }}
-              </md-outlined-button>
-              <md-outlined-button class="error-btn"
-                @click="removeUser"
-              >
+              </button>
+              <button type="button" class="btn btn-danger h-7 text-xs" @click="removeUser">
                 {{ t("deleteUser") }}
-              </md-outlined-button>
+              </button>
             </div>
           </div>
 
           <div class="mt-4 space-y-3">
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <label class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("displayName") }}
               </label>
               <div class="flex gap-2">
-                <md-outlined-text-field
-                  :value="edits.displayName"
-                  @input="edits.displayName = ($event.target as HTMLInputElement).value"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-filled-button
-                  @click="saveField('displayname')"
-                >
+                <input
+                  v-model="edits.displayName"
+                  type="text"
+                  class="input flex-1"
+                />
+                <button type="button" class="btn btn-primary shrink-0" @click="saveField('displayname')">
                   {{ t("save") }}
-                </md-filled-button>
+                </button>
               </div>
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <label class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("email") }}
               </label>
               <div class="flex gap-2">
-                <md-outlined-text-field
+                <input
+                  v-model="edits.email"
                   type="email"
-                  :value="edits.email"
-                  @input="edits.email = ($event.target as HTMLInputElement).value"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-filled-button
-                  @click="saveField('email')"
-                >
+                  class="input flex-1"
+                />
+                <button type="button" class="btn btn-primary shrink-0" @click="saveField('email')">
                   {{ t("save") }}
-                </md-filled-button>
+                </button>
               </div>
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <label class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("password") }}
               </label>
               <div class="flex gap-2">
-                <md-outlined-text-field
+                <input
+                  v-model="edits.password"
                   :type="showPassword ? 'text' : 'password'"
                   :placeholder="t('passwordPlaceholder')"
-                  :value="edits.password"
-                  @input="edits.password = ($event.target as HTMLInputElement).value"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-outlined-button
-                  @click="showPassword = !showPassword"
-                >
+                  class="input flex-1"
+                />
+                <button type="button" class="btn btn-outline h-[34px] shrink-0 px-2" @click="showPassword = !showPassword">
                   {{ showPassword ? t("hide") : t("show") }}
-                </md-outlined-button>
-                <md-filled-button
-                  @click="saveField('password')"
-                >
+                </button>
+                <button type="button" class="btn btn-primary shrink-0" @click="saveField('password')">
                   {{ t("save") }}
-                </md-filled-button>
+                </button>
               </div>
             </div>
 
             <div>
-              <p class="mb-1.5 text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("groups") }}
               </p>
               <div v-if="selected.groups.length" class="flex flex-wrap gap-1.5">
                 <span
                   v-for="group in selected.groups"
                   :key="group"
-                  class="flex items-center gap-1 rounded bg-surface-container-high px-2 py-0.5 text-xs text-on-surface-variant"
+                  class="badge normal-case"
                 >
                   {{ group }}
                   <button
-                    class="leading-none text-on-surface-variant hover:text-error"
+                    type="button"
+                    class="leading-none transition hover:text-error"
                     :title="t('removeFromGroup')"
                     @click="removeFromGroup(group)"
                   >
@@ -579,88 +561,81 @@ function quotaFree(q: UserQuota | null): string {
                   </button>
                 </span>
               </div>
-              <p v-else class="text-xs text-outline">{{ t("noGroups") }}</p>
+              <p v-else class="text-xs text-muted/80">{{ t("noGroups") }}</p>
               <div class="mt-2 flex gap-2">
-                <md-outlined-text-field
+                <input
+                  v-model="groupInput"
+                  type="text"
                   :placeholder="t('groupName')"
-                  :value="groupInput"
-                  @input="groupInput = ($event.target as HTMLInputElement).value"
+                  class="input flex-1"
                   @keyup.enter="addToGroup"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-filled-button
-                  @click="addToGroup"
-                >
+                />
+                <button type="button" class="btn btn-primary shrink-0" @click="addToGroup">
                   {{ t("addToGroup") }}
-                </md-filled-button>
-                <md-outlined-button
-                  @click="createGroup"
-                >
+                </button>
+                <button type="button" class="btn btn-outline shrink-0" @click="createGroup">
                   {{ t("createGroup") }}
-                </md-outlined-button>
+                </button>
               </div>
             </div>
 
-            <div class="rounded-md bg-surface-container-high/60 p-3 text-sm text-on-surface-variant">
+            <div class="rounded-md bg-card-hover p-3 text-sm">
               <div class="flex justify-between">
-                <span class="text-on-surface-variant">{{ t("quota") }}</span>
-                <span>{{ quotaTotal(selected.quota) }}</span>
+                <span class="text-muted">{{ t("quota") }}</span>
+                <span class="tabular-nums">{{ quotaTotal(selected.quota) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-on-surface-variant">{{ t("used") }}</span>
-                <span>{{ quotaUsed(selected.quota) }}</span>
+                <span class="text-muted">{{ t("used") }}</span>
+                <span class="tabular-nums">{{ quotaUsed(selected.quota) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-on-surface-variant">{{ t("free") }}</span>
-                <span>{{ quotaFree(selected.quota) }}</span>
+                <span class="text-muted">{{ t("free") }}</span>
+                <span class="tabular-nums">{{ quotaFree(selected.quota) }}</span>
               </div>
             </div>
 
             <div>
-              <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              <label class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("setQuota") }}
               </label>
               <div class="flex gap-2">
-                <md-outlined-select
-                  :value="edits.quotaPreset"
-                  @change="edits.quotaPreset = ($event.target as HTMLSelectElement).value as QuotaPresetId"
+                <select
+                  v-model="edits.quotaPreset"
+                  class="input w-32 shrink-0"
                 >
-                  <md-select-option value="1gb">1 GB</md-select-option>
-                  <md-select-option value="5gb">5 GB</md-select-option>
-                  <md-select-option value="10gb">10 GB</md-select-option>
-                  <md-select-option value="unlimited">{{ t("unlimited") }}</md-select-option>
-                  <md-select-option value="custom">{{ t("custom") }}</md-select-option>
-                </md-outlined-select>
-                <md-outlined-text-field
+                  <option value="1gb">1 GB</option>
+                  <option value="5gb">5 GB</option>
+                  <option value="10gb">10 GB</option>
+                  <option value="unlimited">{{ t("unlimited") }}</option>
+                  <option value="custom">{{ t("custom") }}</option>
+                </select>
+                <input
                   type="number"
                   :value="edits.quotaValue"
                   @input="edits.quotaValue = ($event.target as HTMLInputElement).valueAsNumber"
                   :disabled="edits.quotaUnit === 'unlimited'"
                   min="0"
                   step="0.1"
-                  class="flex-1"
-                ></md-outlined-text-field>
-                <md-outlined-select
-                  :value="edits.quotaUnit"
-                  @change="edits.quotaUnit = ($event.target as HTMLSelectElement).value as 'gb' | 'mb' | 'unlimited'"
+                  class="input flex-1"
+                />
+                <select
+                  v-model="edits.quotaUnit"
                   :disabled="edits.quotaUnit === 'unlimited'"
+                  class="input w-24 shrink-0"
                 >
-                  <md-select-option value="gb">{{ t("gb") }}</md-select-option>
-                  <md-select-option value="mb">{{ t("mb") }}</md-select-option>
-                  <md-select-option value="unlimited">{{ t("unlimited") }}</md-select-option>
-                </md-outlined-select>
-                <md-filled-button
-                  @click="setQuota"
-                >
+                  <option value="gb">{{ t("gb") }}</option>
+                  <option value="mb">{{ t("mb") }}</option>
+                  <option value="unlimited">{{ t("unlimited") }}</option>
+                </select>
+                <button type="button" class="btn btn-primary shrink-0" @click="setQuota">
                   {{ t("save") }}
-                </md-filled-button>
+                </button>
               </div>
             </div>
           </div>
         </template>
-        <p v-else class="text-sm text-on-surface-variant">{{ t("selectUser") }}</p>
+        <p v-else class="text-sm text-muted">{{ t("selectUser") }}</p>
       </div>
     </div>
   </div>
 </template>
-
