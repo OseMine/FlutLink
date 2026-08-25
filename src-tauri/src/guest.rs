@@ -333,6 +333,23 @@ pub async fn unlock_path(
     parse_locks(&json)
 }
 
+/// Admin: current lock list of a share (read-only; #373). Without this the
+/// client cannot tell that a folder is already locked on the server.
+pub async fn list_locks(client: &Client, account: &Account, token: &str) -> AppResult<Vec<String>> {
+    validate_guest_target(token, "/")?;
+    let url = format!(
+        "{}/ocs/v2.php/apps/flutcloud/api/v1/public/shares/{}/locks?format=json",
+        base_url()?,
+        urlencoding::encode(token)
+    );
+    let res = nextcloud::request(client, account, Method::GET, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = nextcloud::ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    parse_locks(&json)
+}
+
 /// Extract the `locks` array from an OCS lock/unlock response.
 fn parse_locks(json: &Value) -> AppResult<Vec<String>> {
     let data = json.pointer("/ocs/data").cloned().unwrap_or(Value::Null);
@@ -358,5 +375,23 @@ mod tests {
         assert!(validate_guest_target("tok", "../escape").is_err());
         assert!(validate_guest_target("tok", "/sub/file.txt").is_ok());
         assert!(validate_guest_target("tok", "/").is_ok());
+    }
+
+    #[test]
+    fn parses_lock_list_from_ocs_envelope() {
+        // #373: both the mutation responses and the read-only locks endpoint
+        // share this shape — `{ ocs: { data: { locks: [...] } } }`.
+        let json: Value = serde_json::json!({
+            "ocs": { "meta": { "status": "ok" }, "data": { "locks": ["/a/b", "/top"] } }
+        });
+        let locks = parse_locks(&json).expect("locks must parse");
+        assert_eq!(locks, vec!["/a/b".to_string(), "/top".to_string()]);
+
+        let empty: Value = serde_json::json!({
+            "ocs": { "meta": { "status": "ok" }, "data": {} }
+        });
+        assert!(parse_locks(&empty)
+            .expect("missing array must default")
+            .is_empty());
     }
 }

@@ -1418,6 +1418,20 @@ pub async fn guest_admin_unlock_path(
     crate::guest::unlock_path(&state.http_client, &account, &token, &path).await
 }
 
+/// Admin: read the current lock list of a share (#373) so already-locked
+/// folders render correctly instead of always appearing unlocked.
+#[tauri::command]
+pub async fn guest_admin_list_locks(
+    state: State<'_, AppState>,
+    token: String,
+) -> AppResult<Vec<String>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    crate::guest::list_locks(&state.http_client, &account, &token).await
+}
+
 #[tauri::command]
 pub async fn admin_list_users(
     state: State<'_, AppState>,

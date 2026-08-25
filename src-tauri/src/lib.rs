@@ -273,6 +273,7 @@ pub fn run() {
             commands::guest_admin_unassign_category,
             commands::guest_admin_lock_path,
             commands::guest_admin_unlock_path,
+            commands::guest_admin_list_locks,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,
