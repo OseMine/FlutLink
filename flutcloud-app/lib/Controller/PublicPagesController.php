@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\FlutCloud\Controller;
 
+use OCA\FlutCloud\AppInfo\Application;
 use OCA\FlutCloud\Service\PublicShareService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -11,6 +12,8 @@ use OCP\AppFramework\Http\NotFoundResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IUserSession;
+use OCP\IGroupManager;
 
 /**
  * Web (non-OCS) guest routes for completely public shares:
@@ -27,16 +30,22 @@ class PublicPagesController extends Controller
 {
     private PublicShareService $service;
     private IURLGenerator $urlGenerator;
+    private IUserSession $userSession;
+    private IGroupManager $groupManager;
 
     public function __construct(
         string $appName,
         IRequest $request,
         PublicShareService $service,
-        IURLGenerator $urlGenerator
+        IURLGenerator $urlGenerator,
+        IUserSession $userSession,
+        IGroupManager $groupManager
     ) {
         parent::__construct($appName, $request);
         $this->service = $service;
         $this->urlGenerator = $urlGenerator;
+        $this->userSession = $userSession;
+        $this->groupManager = $groupManager;
     }
 
     /**
@@ -84,11 +93,24 @@ class PublicPagesController extends Controller
             static fn (array $share): bool => $category === null || $share['category'] === $category
         ));
 
+        // Base of the guest web routes ("/…/public"); chips append the
+        // category name only — appending a route URL would double the
+        // "/public" segment.
+        $publicBase = $this->urlGenerator->getAbsoluteURL('/apps/' . Application::APP_ID . '/public');
+        $adminUrl = $this->urlGenerator->getAbsoluteURL('/settings/admin/' . Application::APP_ID);
+        $isAdmin = false;
+        $user = $this->userSession->getUser();
+        if ($user !== null) {
+            $isAdmin = $this->groupManager->isAdmin($user->getUID());
+        }
+
         $params = [
-            'category'  => $category,
+            'category'   => $category,
             'categories' => $categories,
-            'shares'    => $shares,
-            'appUrl'    => $this->urlGenerator->linkToRoute('flutcloud.publicPages.index'),
+            'shares'     => $shares,
+            'publicBase' => $publicBase,
+            'adminUrl'   => $adminUrl,
+            'isAdmin'    => $isAdmin,
         ];
 
         // RENDER_AS_BLANK serves the template verbatim — no Nextcloud

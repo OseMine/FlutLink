@@ -38,6 +38,7 @@ return [
         ['name' => 'PublicShares#unassignCategory', 'url' => '/api/v1/public/shares/{token}/category', 'verb' => 'DELETE'],
         ['name' => 'PublicShares#lockPath', 'url' => '/api/v1/public/shares/{token}/lock', 'verb' => 'POST'],
         ['name' => 'PublicShares#unlockPath', 'url' => '/api/v1/public/shares/{token}/lock', 'verb' => 'DELETE'],
+        ['name' => 'PublicShares#locksFor', 'url' => '/api/v1/public/shares/{token}/locks', 'verb' => 'GET'],
     ],
     'routes' => [
         ['name' => 'Ios#index', 'url' => '/ios', 'verb' => 'GET'],

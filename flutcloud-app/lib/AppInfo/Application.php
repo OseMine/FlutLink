@@ -7,6 +7,8 @@ namespace OCA\FlutCloud\AppInfo;
 use OCA\DAV\Events\SabrePluginAddEvent;
 use OCA\FlutCloud\Capabilities;
 use OCA\FlutCloud\Listener\RegisterDavLockPlugin;
+use OCA\FlutCloud\Settings\AdminSection;
+use OCA\FlutCloud\Settings\FlutCloudAdmin;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -46,6 +48,9 @@ class Application extends App implements IBootstrap
         // Advertise the `flutcloud` capability over the OCS capabilities
         // endpoint. FlutLink rejects servers that do not announce it.
         $context->registerCapability(Capabilities::class);
+        // Web admin UI: Einstellungen → Verwaltung → FlutCloud.
+        $context->registerSection('flutcloud', AdminSection::class);
+        $context->registerSetting('admin', FlutCloudAdmin::class);
     }
 
     public function boot(IBootContext $context): void

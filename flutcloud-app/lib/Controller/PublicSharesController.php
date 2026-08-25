@@ -184,6 +184,15 @@ class PublicSharesController extends OcsControllerBase
     }
 
     /**
+     * Current lock list of a share (read-only; for the web admin page).
+     */
+    public function locksFor(string $token): DataResponse
+    {
+        $this->requireAdmin();
+        return new DataResponse(['locks' => $this->service->getLocks($token)]);
+    }
+
+    /**
      * @throws OCSForbiddenException when the caller is not an admin
      */
     private function requireAdmin(): void

@@ -66,11 +66,27 @@ class PublicShareService
     public function listCompletePublicShares(): array
     {
         $categories = $this->getCategories();
+        $assignments = $this->getAssignments();
+        // One folder can carry several public link shares (several tokens).
+        // Guests must see the folder once: dedupe by node id and keep the
+        // token that carries a category assignment so grouping survives.
+        $byNode = [];
         $result = [];
         foreach ($this->shareManager->getAllShares() as $share) {
             $entry = $this->describeCompletePublicShare($share, $categories);
-            if ($entry !== null) {
+            if ($entry === null) {
+                continue;
+            }
+            $nodeId = $share->getNodeId();
+            if (!isset($byNode[$nodeId])) {
+                $byNode[$nodeId] = count($result);
                 $result[] = $entry;
+                continue;
+            }
+            $existing = $result[$byNode[$nodeId]];
+            if (($assignments[$entry['token']] ?? null) !== null
+                && ($assignments[$existing['token']] ?? null) === null) {
+                $result[$byNode[$nodeId]] = $entry;
             }
         }
         return $result;

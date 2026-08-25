@@ -4,10 +4,12 @@
  * /apps/flutcloud/public or /public/<category> in a browser.
  *
  * Template variables (from PublicPagesController):
- *   $category  — active category string or null (all)
+ *   $category   — active category string or null (all)
  *   $categories — all configured categories (array of {name, prefixless})
- *   $shares    — filtered list of public shares (array of share dicts)
- *   $appUrl    — base URL of the flutcloud app
+ *   $shares     — filtered list of public shares (array of share dicts)
+ *   $publicBase — absolute base URL of the guest web routes (/…/public)
+ *   $adminUrl   — absolute URL of the FlutCloud admin settings page
+ *   $isAdmin    — whether the current visitor is a logged-in admin
  */
 header('Content-Type: text/html; charset=utf-8');
 ?>
@@ -175,10 +177,10 @@ header('Content-Type: text/html; charset=utf-8');
     <?php if (count($categories) > 0): ?>
     <div class="chips">
         <a class="chip <?= $category === null ? 'active' : '' ?>"
-           href="<?= htmlspecialchars($appUrl . '/public') ?>">Alle</a>
+           href="<?= htmlspecialchars($publicBase) ?>">Alle</a>
         <?php foreach ($categories as $cat): ?>
         <a class="chip <?= $category === $cat['name'] ? 'active' : '' ?>"
-           href="<?= htmlspecialchars($appUrl . '/public/' . $cat['name']) ?>"><?= htmlspecialchars($cat['name']) ?></a>
+           href="<?= htmlspecialchars($publicBase . '/' . rawurlencode($cat['name'])) ?>"><?= htmlspecialchars($cat['name']) ?></a>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
@@ -208,6 +210,9 @@ header('Content-Type: text/html; charset=utf-8');
 
     <div class="footer">
         Powered by FlutCloud &middot; <a href="https://github.com/OseMine/FlutLink" style="color: var(--primary); text-decoration: none;">FlutLink</a>
+        <?php if (!empty($isAdmin)): ?>
+        <br><a href="<?= htmlspecialchars($adminUrl) ?>" style="color: var(--primary); text-decoration: none;">Admin-Verwaltung (Kategorien, Sperren)</a>
+        <?php endif; ?>
     </div>
 </div>
 </body>
