@@ -3,6 +3,41 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-25, Issue „Update fails on android“)
+
+- [x] **Android-Self-Update bricht mit
+      `…/cache/updates/flutlink-update.apk: open failed: ENOENT` ab.**
+      → erledigt (2026-08-25): Ursache war v1.0.0, das `/cache/updates/`
+      nirgends anlegte — `downloadUpdate` schrieb direkt in den fehlenden
+      Ordner (mkdirs kam erst in v1.1.0; betroffene Installationen konnten
+      sich nicht selbst heilen). Härtung im KMP-Client:
+      - `AndroidPlatform.downloadUpdate`: Zielordner wird unmittelbar vor
+        dem Schreiben geprüft/angelegt (klare Fehlermeldung statt bare
+        ENOENT, auch falls „updates“ als Datei existiert); bei einem
+        Abbruch mitten im Body wird die Teil-APK gelöscht.
+      - `AndroidPlatform.installUpdate`: wirft eine verständliche
+        `IOException`, wenn die APK fehlt, statt dem Installer eine
+        hängende FileProvider-URI zu übergeben.
+      - `SettingsViewModel.installUpdate`: fängt unerwartete Exceptions
+        (z. B. verschwundene APK vor dem Hashing) und zeigt einen Toast,
+        statt die App abzustürzen (Parität zum `AutoUpdatePrompt`).
+      - Verifikation: `./gradlew :shared:testAndroidHostTest
+        :shared:compileKotlinJvm` grün; `:android-app:assembleDebug` grün;
+        `cargo fmt --all --check`, `cargo clippy --all-targets --
+        -D warnings` grün.
+
+## Erledigt (2026-08-25, CP-F4 — Android-Self-Update mit SHA-256-Gate)
+
+- [x] **CP-F4 (Sicherheit/Parität, mittel): Android-Self-Update lädt das APK
+      ohne SHA-256-Prüfung herunter.**
+      → erledigt (seit Lauf 18 im Code): `UpdateChecker.checkForUpdate`
+      liest das GitHub-`digest`-Feld (`sha256:<hex>`) des `.apk`-Assets und
+      reicht es als `AppUpdate.sha256` durch; `AppUpdater.downloadAndInstall`
+      berechnet die Prüfsumme des Downloads (`Sha256.Digester`, streaming)
+      und bricht mit `update_checksum_mismatch` ab, bevor `installUpdate`
+      aufgerufen wird — analog zum Desktop-Gate in `updater.rs`.
+
+
 ## Erledigt (2026-08-25, Feedback „Android: Geräte-Theme + eigene Wahl“)
 
 - [x] **Android folgt standardmäßig dem Geräte-Theme (korrekte
