@@ -8,6 +8,227 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 `archived-todo.md` verschoben; offen blieben nur „Desktop-JVM: Token-Speicher
 härten“ und die Performance-Analyse.
 
+## Review 2026-08-25 (Lauf 21, Fokus Desktop-UI-Overhaul „Material → Modern SaaS“ — neue Befunde)
+
+Gegenstand: Bewertung der Desktop-UI (`src/`) gegen das Ziel des UI-Overhauls
+— weg von Material (M3-Tokens, `@material/web`-Komponenten, Ripple) hin zu
+einem modernen SaaS-Look: clean, weniger verschnörkelt, klarer strukturiert.
+Plus die Standard-Bereiche (IPC-Commands, WebDAV/OCS-Anbindung, Keyring,
+Fehler-/State-Management, CI) und die Nachprüfung aller offenen L20-Befunde.
+
+Ausgangslage für den Fokus: Der Umbau hat noch nicht begonnen — die UI ist
+vollständig Material-basiert: `@material/web` als Runtime-Dependency
+(`package.json:14`), ~30 Komponenten-Importe in 9 SFCs (`App.vue`,
+`FileExplorer.vue`, `AdminPanel.vue`, `SettingsModal.vue`, `SyncPanel.vue`,
+`ToastStack.vue`, `WelcomeScreen.vue`, `LoginModal.vue`, `GuestBrowser.vue`),
+komplettes M3-Token-System in `style.css` (`--m3-*`/`--md-sys-*`, State
+Layers, Elevation, Shape „mirrors Android Shape.kt“), globaler Ripple
+(`main.ts:16` + `lib/ripple.ts`) und der `md-`-Custom-Element-Carve-out in
+`vite.config.ts:13-15`. Die Befunde unten sind Bugs/Inkonsistenzen, die in
+den Umbau übernommen werden würden, bzw. konkrete Hebel dafür.
+
+Neu gefunden:
+
+- [ ] **L21-F1 (Bug, mittel): Password-Ein-/Ausblenden im Login- und
+      Register-Dialog ist toter Code — der Button wechselt sein Label, das
+      Feld bleibt immer maskiert.** In `LoginModal.vue` togglen die
+      `md-text-button`s `showPassword = !showPassword`
+      (`LoginModal.vue:229-231`, Register `:271-273`, Admin-Passwort
+      `:304-306`), aber alle drei Passwort-Felder behalten das **statische**
+      `type="password"` (`:220-227`, `:262-269`, `:296-303`) — nichts liest
+      `showPassword`/`showAdminPassword` (`LoginModal.vue:70-71`) zur
+      Feldtyp-Änderung. `AdminPanel.vue:543` zeigt die korrekte Bindung
+      (`:type="showPassword ? 'text' : 'password'"`). Fix: dasselbe
+      dynamische `:type`-Binding im LoginModal.
+- [ ] **L21-F2 (Bug, mittel): Grid-Hover-Overlay hat keinen Hintergrund —
+      `bg-scrim/50` kompiliert zu nichts.** `EntryList.vue:271` legt das
+      Hover-Overlay der Grid-Karten auf `bg-scrim/50`; `style.css` definiert
+      aber nur das Material-Web-Token `--md-sys-color-scrim`
+      (`style.css:273`) und **kein** Tailwind-Token `--color-scrim` — die
+      Utility existiert daher nicht im Build (verifiziert in
+      `dist/assets/*.css`: einziges „scrim“-Vorkommen ist das md-Sys-Token).
+      Folge: Die sechs Hover-Aktionsbuttons (open/download/link/share/
+      rename/delete, `EntryList.vue:275-317`) schweben ohne Abdunkelung
+      direkt über Thumbnail und Dateiname — Kontrastproblem, besonders im
+      Bright-Daylight-Theme. Fix: `--color-scrim` als `@theme`-Token
+      definieren (oder `bg-black/50` nutzen) — beim SaaS-Restyling ohnehin
+      obsolet, bis dahin echter visueller Bug.
+- [ ] **L21-F3 (Bug, minor): Die Cancel-Buttons im Login-/Register-Formular
+      sind implizit Submit-Buttons — der Klick erzeugt einen Phantom-Submit,
+      dessen Fehlermeldung beim nächsten Öffnen sichtbar ist.**
+      `@material/web`-Buttons sind form-assoziierte Submitter mit Default
+      `type="submit"` (`node_modules/@material/web/labs/behaviors/
+      form-submitter.js`: `this.type = 'submit'`, Click → `form.requestSubmit()`
+      sofern nicht defaultPrevented). Die Cancel-Buttons in `LoginModal.vue`
+      (`:240` und `:316`) tragen kein `type="button"` — anders als die
+      FileExplorer-Dialoge seit L15-F1 (`FileExplorer.vue:1332`, `:1363`) —
+      und `close()` ruft nicht `preventDefault()`. Ablauf beim Klick:
+      `close()` resettet Formular + schließt (`resetForm` + `emit("close")`),
+      danach feuert der implizite Submit → `submit()`/`submitRegister()`
+      läuft mit leeren Feldern und setzt `formError = t("requiredFields")`
+      (`:125-128`/`:152-155`) — **nach** dem `resetForm()` von `close()`.
+      Da `resetForm` nur an den close/done-Klickpfaden hängt, steht beim
+      nächsten Öffnen des Dialogs der „Bitte Benutzername und Passwort
+      ausfüllen.“-Kasten sofort drin. Fix: `type="button"` auf beiden
+      Cancel-Buttons (die Primär-Buttons `:243`/`:319` feuern ebenfalls
+      doppelt, sind aber über den `submitting`-Guard abgesichert).
+- [ ] **L21-F4 (UX-Konsistenz, minor): Der globale Escape-Stack deckt nicht
+      alle Overlays ab — Kontomenü (App.vue) und GuestBrowser-Dialoge
+      reagieren nicht auf Escape.** `lib/escape.ts` wird von
+      `FileExplorer.vue:655-660`, `LoginModal.vue:103-113` und
+      `SettingsModal.vue:221-231` genutzt; fehlen tun: das Konto-Menü in
+      `App.vue` (`accountMenu`, `:38`, Dropdown `:328-378` — nur
+      Außenklick-Backdrop `:378`) sowie in `GuestBrowser.vue` der
+      Kategorie-Dialog (`showCategoryDialog`, `:37`, Markup `:455-487`,
+      nur `@click.self`) und das Kategorie-Zuweisungs-Dropdown
+      (`assigningToken`, `:42`, Markup `:352-375`) — letzteres hat nicht
+      einmal einen Außenklick-Closer und bleibt offen, bis man erneut auf
+      den Edit-Button klickt. Fix: `registerEscapeCloser` auch dort +
+      Außenklick fürs Zuweisungs-Dropdown.
+- [ ] **L21-N1 (Design-Konsistenz, minor): Zwei Checkbox-Sprachen nebeneinander
+      — Material-`md-checkbox` vs. natives `<input>`.** `md-checkbox`:
+      Select-all-Bar `FileExplorer.vue:1073`, publicUpload `:1464`,
+      followSymlinks `SyncPanel.vue:108`. Nativ
+      (`class="accent-primary"`): Zeilen-Checkbox `EntryList.vue:119-124`,
+      Grid-Karten `:235-242`, prefixless-Checkbox `GuestBrowser.vue:471-475`.
+      Im Datei-Tab sehen Toolbar-Checkbox und Zeilen-Checkbox unterschiedlich
+      aus. Für „clean & structured“ gehört genau eine Kontrolle ins System
+      (SaaS-typisch: nativ + Tailwind-Restyle) — im Umbau entscheiden und
+      vereinheitlichen.
+- [ ] **L21-N2 (Semantik/A11y/Fragilität, minor): Die Haupt-Navigation ist
+      ein md-filled/md-outlined-Button-Paar mit Token-Chirurgie statt einer
+      echten Tab-Leiste; die md-tabs in Login/Settings desynchronisieren bei
+      Tastaturnavigation.** `App.vue:254-306` rendert je Tab
+      `md-filled-button` (aktiv — via `.nav-tab-active`,
+      `style.css:439-445`, das Container-Farbe/-Shape des filled-Buttons auf
+      transparent/0 drückt und nur einen Unterstrich lässt) bzw.
+      `md-outlined-button` (inaktiv): 12 Template-Elemente statt eines
+      Loops, keine `role="tablist"`/`aria-selected`-Semantik, und der
+      Aktiv-Zustand hängt am Überschreiben interner MD-Tokens. Zusätzlich
+      binden `LoginModal.vue:196-199` und `SettingsModal.vue:254-258` ihre
+      `md-tabs` nur über `@click` an `mode`/`tab` — Pfeiltasten-Navigation
+      im `md-tabs` ändert den aktiven Tab, ohne das Ref zu setzen (markierter
+      Tab und gezeigtes Formular laufen auseinander). Fix im Umbau: native
+      Tab-Leiste mit Unterstrich-Indikator (oder `change`-Event der md-tabs
+      hören).
+- [ ] **L21-N3 (Feature-Idee, minor): Ansicht- und Sortierpräferenzen werden
+      nicht persistiert — jede Sitzung startet in Liste/A–Z.**
+      `FileExplorer.vue:33` (`viewMode`), `:53-54` (`sortKey`/`sortAsc`)
+      sind lokale refs: zurückgesetzt bei jedem App-Start **und** jedem
+      Tab-Wechsel (das `v-if` in `App.vue:384-386` zerstört die Komponente).
+      `stores/ui.ts` persistiert lang/theme/accentHue/guestMode bereits per
+      localStorage — Layout-Präferenzen gehören für ein modernes
+      SaaS-File-Browsing dorthin.
+- [ ] **L21-N4 (Struktur, mittel): `FileExplorer.vue` ist ein
+      1480-Zeilen-Monolith — vor einem sauberen Restyling zerlegen.**
+      In einer Datei: Toolbar/Breadcrumbs/Upload-Zeile (`:875-965`),
+      Admin-Impersonation-Bar (`:967-1016`), vier Hinweis-Banner
+      (`:1018-1052`), Fehlerbanner (`:1054-1056`), Search-Bar
+      (`:1058-1069`), Select-all-Bar (`:1071-1091`), Transfer-Progress
+      (`:1093-1108`), vier Empty-States (`:1110-1130`), Split-View mit
+      2×`EntryList` (`:1132-1218`), Listen-/Grid-Instanzen (`:1220-1272`),
+      Kontextmenü (`:1274-1312`) und New-Folder/Rename/Share-Dialoge
+      (`:1314-1477`) plus ~850 Zeilen Script-Logik (Suche, Bulk, Shares,
+      Thumbs, Keyboard, Drag&Drop, Escape-Verkabelung). Kandidaten:
+      `FilesToolbar.vue`, `ImpersonationBar.vue`, `ShareDialog.vue`,
+      `Rename/NewFolderDialog.vue`, `ContextMenu.vue`. Derselbe Befund für
+      `AdminPanel.vue` (666 Zeilen: Suchliste + Detailformular + Quota in
+      einer Komponente).
+- [ ] **L21-N5 (Bundle/Perf, minor): `@material/web` stellt aktuell grob die
+      Hälfte des JS-Payloads — der SaaS-Umbau senkt die Bundlegröße
+      automatisch.** `dist/assets` umfasst ~540 kB roh; größter Einzel-Chunk
+      ist `redispatch-event` (**156 kB**) — ausschließlich
+      form-assoziations-Interne von @material/web —, dazu
+      `select-option` (65 kB), `outlined-text-field` (59 kB),
+      `primary-tab`/`static-html` etc. Ein Ersatz der `md-*`-Controls durch
+      native Elemente + Tailwind würde diese Chunks streichen und zugleich
+      `typescaleStyles`-Adoption (`main.ts:10-14`), `initRipple`
+      (`main.ts:16`, `lib/ripple.ts`), den `--md-sys-*`-Tokenblock
+      (`style.css:241-290`), die Dependency `@material/web`
+      (`package.json:14`) und den `isCustomElement`-Carve-out
+      (`vite.config.ts:13-15`) überflüssig machen.
+- [ ] **L21-N6 (Copy/i18n, minor): Der Akzentfarben-Hinweis bewirbt
+      ausdrücklich „Material-You“.** `accentColorHint` nennt „A
+      Material-You-style accent“ (`i18n.ts:89-90`) bzw. „Ein Akzent im
+      Material-You-Stil“ (`:420-421`) — wenn das Designsystem Richtung
+      Modern SaaS geht, muss dieser Text (und die Entscheidung, ob die
+      Hue-Seed-Palette als Feature bleibt) Teil des Umbaus sein.
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs:241-294` `generate_handler!` deckungsgleich mit `src/lib/ipc.ts`,
+inkl. aller `guest_*`-Wrapper, alle typisiert), Keyring (`accounts.rs`
+save/load/delete + Linux-Hint-Mapping + Quarantäne kaputter `accounts.json`
+über `persist.rs`), Fehler-Serialisierung und i18n-Mapping (`error.rs::code()`
+↔ `ERROR_CODE_KEYS` `i18n.ts:687-706` vollständig inkl.
+`walk_incomplete`/`account_missing`, `updateStatusText`-Map), Offline-Cache
+(`cache.rs` atomic write + Quarantäne), WebDAV-Layer (`webdav.rs`:
+Impersonation-Namespace-Guards, Chunked-v2 mit Session-Cleanup, temp+rename,
+TOCTOU/If-Match), OCS-Layer (`ocs.rs`: `verify_share_owner`,
+Dedup-Pagination mit Progress-Guard, einzelne Form-Encoding-Kette),
+Guest-Backend (`guest.rs`: Token/Pfad-Validierung, anonymous Probes),
+Tray/CLI (`lib.rs` Tray-Rebuild, Close-to-Tray, CLI-Flags).
+
+Verifikation frisch ausgeführt: Tauri-Linux-Systemdeps waren
+nachzuinstallieren; danach `cargo fmt --all --check` grün;
+`cargo clippy --all-targets -- -D warnings` grün;
+`cargo test --manifest-path src-tauri/Cargo.toml` → **108 passed /
+0 failed**; `npm run build` (vue-tsc + vite) grün (Index-Chunk ~119 kB,
+Code-Splitting wirksam). Die F2/F3-Behauptungen sind gegen den gebauten
+Output bzw. die installierte `@material/web`-Quelle verifiziert, nicht nur
+gegen den Quelltext.
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `23eda5a`)
+
+Seit Lauf 20 sind nur die Report-Commits gelandet (`6bec8de`, Merge
+`23eda5a` = PR #360) — kein Anwendungscode-Change. **Alle offenen Einträge
+wurden gegen den aktuellen Code nachgeprüft und sind weiterhin offen** —
+nichts ist erledigt, also gibt es dieses Mal nichts nach
+`archived-todo.md` zu verschieben:
+
+- L20-F1 bestätigt: `GuestBrowser` nur im Logged-out-Zweig
+  (`App.vue:395-424`), Watcher beendet Gastmodus bei Anmeldung
+  (`App.vue:192-199`), Admin-Controls hängen an `accounts.active`
+  (`GuestBrowser.vue:21`). ✓ offen
+- L20-F2 bestätigt: `lockedPaths` wird nur von `toggleLock` befüllt
+  (`GuestBrowser.vue:226-244`); kein List-Locks-Endpunkt in `commands.rs`
+  (`guest_admin_lock_path`/`unlock_path` geben Locks nur als Änderungs-
+  antwort zurück, `commands.rs:1396-1419`) noch in `ipc.ts`. ✓ offen
+- L20-F3 bestätigt: `deleteCategory` fragt nicht
+  (`GuestBrowser.vue:161-170`, Chip-„×“ `:307-315`). ✓ offen
+- L20-N1 bestätigt: `enter()` setzt Share + ruft `navigateTo("/")`
+  (`GuestBrowser.vue:90-93`), das bei gesetztem `busyPath` abbricht
+  (`:96`), ohne `entries.value = []`. ✓ offen
+- L20-N2 bestätigt: `verify_guest_server` mappt fehlendes Feature auf
+  `AppError::FlutCloudAppMissing` (`guest.rs:130-135`). ✓ offen
+- L20-N3 bestätigt: PowerShell-Parse-Check filtert weiterhin nur
+  `install-flutcloud-app.ps1` (`flutcloud.yml:94`). ✓ offen
+- L20-N4 bestätigt: `Share` in `ipc.ts:44-54` führt `uidOwner` weiterhin
+  nicht (Rust: `state.rs:130-133`). ✓ offen
+- „Desktop-JVM: Token-Speicher härten“ bleibt offen:
+  `FileKeyValueStorage.kt:13-14` dokumentiert die Keyring-Anbindung weiter
+  als Follow-up („not encrypted at rest“). ✓ offen
+- Performance-Analyse unverändert vorhanden und bestätigt: R1
+  (sequenzielles BFS, `sync.rs` Remote-Walk-Loop), R2 (`plan_ops`
+  Union-BTreeSet), R3 (`evict_oldest` Vollscan mit `read_dir`+Sort pro
+  Write, `cache.rs:57-82`), N1+F2 (`loadAllShares` pro Navigation ohne
+  Pfadfilter, `FileExplorer.vue:784`), F1 (Doppelsortierung
+  `FileExplorer.vue:56-58` + `EntryList.vue:53-55`), U2 (Hover-Overlay
+  `EntryList.vue:271`), U3 (`formatMtime` pro Entry, `EntryList.vue:47-51`),
+  N2 (Thumbnail-Requests ohne Concurrency-Limiter,
+  `FileExplorer.vue:303-312`), U5 (`<thead>` ohne `v-once`,
+  `EntryList.vue:85-105`). ✓ offen
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe sind in diesem Lauf
+verboten): `git log f9b7351..HEAD` zeigt ausschließlich den Review-20-
+Bericht (`6bec8de`, PR #360) — keine Issue-Fixes seit dem letzten Lauf.
+Der `opencode-todo-issues`-Workflow sollte beim nächsten Lauf die offenen
+L20-Befunde (weiterhin unverrichtet) **und** die neuen L21-Befunde oben
+als Issues erfassen; die L17-/L19-/CP-Punkte sind bereits alle umgesetzt
+(s. Archiv). Ob parallel offene Issues entstanden sind oder veralten, ist
+hier nicht prüfbar.
+
 ## Review 2026-08-25 (Lauf 20, Fokus Guest-Mode + Desktop-Basis — neue Befunde)
 
 Gegenstand: der seit Lauf 19 neu hinzugekommene Code — Gast-Zugriff auf
