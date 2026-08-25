@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { currentLang, LANG_KEY, type Lang } from "../lib/i18n";
 
-export type Theme = "operationflut" | "midnight" | "system";
+export type Theme = "midnight" | "light" | "system";
 
 export interface Toast {
   id: number;
@@ -23,9 +23,15 @@ function read<T>(key: string): T | null {
   }
 }
 
+// Only Deep Midnight, Bright Daylight and System remain; legacy values
+// ("operationflut"/"dark") resolve to the surviving dark theme.
+function normalizeTheme(value: Theme | null): Theme {
+  return value === "light" || value === "system" ? value : "midnight";
+}
+
 export const useUiStore = defineStore("ui", () => {
   const lang = ref<Lang>(currentLang());
-  const theme = ref<Theme>(read<Theme>(THEME_KEY) ?? "operationflut");
+  const theme = ref<Theme>(normalizeTheme(read<Theme>(THEME_KEY)));
   // Material You accent seed: null means "use the theme's default hue".
   const accentHue = ref<number | null>(read<number>(ACCENT_KEY) ?? null);
   const toasts = ref<Toast[]>([]);

@@ -38,7 +38,7 @@ const accountMenu = ref(false);
 // U-R8-8: resolve the initial theme synchronously (from the persisted theme +
 // the OS preference) so `[data-theme]` is correct before first paint — no
 // flash of the wrong theme for "System Default" users.
-function initialTheme(): "operationflut" | "midnight" | "light" {
+function initialTheme(): "midnight" | "light" {
   if (ui.theme === "system") {
     return window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "midnight"
@@ -46,7 +46,7 @@ function initialTheme(): "operationflut" | "midnight" | "light" {
   }
   return ui.theme;
 }
-const resolvedTheme = ref<"operationflut" | "midnight" | "light">(initialTheme());
+const resolvedTheme = ref<"midnight" | "light">(initialTheme());
 
 // The theme lives on <html> so teleported overlays (modals, toasts) inherit
 // the M3 tokens too. A customized accent hue overrides the theme's seed.

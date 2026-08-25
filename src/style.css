@@ -15,7 +15,7 @@
 ------------------------------------------------------------------- */
 
 @theme {
-  /* --- Color roles (operationflut defaults) --- */
+  /* --- Color roles (fallback tokens; overridden per [data-theme]) --- */
   --color-primary: oklch(0.52 0.22 266);
   --color-primary-hover: oklch(0.57 0.23 266);
   --color-primary-emphasis: oklch(0.86 0.09 266);
@@ -83,62 +83,7 @@
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
-/* OperationFlut (#090821) is the default dark brand theme. */
-[data-theme="operationflut"] {
-  --m3-accent-hue: 266;
-  --color-zinc-950: #090821;
-  --color-zinc-900: #0d0c2b;
-  --color-zinc-800: #161434;
-  --color-zinc-700: #232152;
-  --color-zinc-50: #fafafa;
-  --color-zinc-100: #f4f4f5;
-
-  --color-surface: #090821;
-  --color-on-surface: #fafafa;
-  --color-surface-dim: #090821;
-  --color-surface-bright: #1a1838;
-  --color-surface-container-lowest: #060514;
-  --color-surface-container-low: #0c0b26;
-  --color-surface-container: #0d0c2b;
-  --color-surface-container-high: #161434;
-  --color-surface-container-highest: #232152;
-  --color-on-surface-variant: #9a99b3;
-  --color-outline: #3c3a6e;
-  --color-outline-variant: #171530;
-  --color-inverse-surface: #f4f4f7;
-  --color-inverse-on-surface: #161434;
-
-  --color-primary: oklch(0.52 0.22 var(--m3-accent-hue));
-  --color-primary-hover: oklch(0.57 0.23 var(--m3-accent-hue));
-  --color-primary-emphasis: oklch(0.86 0.09 var(--m3-accent-hue));
-  --color-on-primary: oklch(0.99 0.003 var(--m3-accent-hue));
-  --color-primary-container: oklch(0.3 0.13 var(--m3-accent-hue));
-  --color-on-primary-container: oklch(0.88 0.08 var(--m3-accent-hue));
-  --color-secondary: oklch(0.66 0.1 calc(var(--m3-accent-hue) + 16));
-  --color-on-secondary: oklch(0.16 0.05 calc(var(--m3-accent-hue) + 16));
-  --color-secondary-container: oklch(0.28 0.07 calc(var(--m3-accent-hue) + 16));
-  --color-on-secondary-container: oklch(0.9 0.06 calc(var(--m3-accent-hue) + 16));
-  --color-tertiary: oklch(0.68 0.11 calc(var(--m3-accent-hue) - 90));
-  --color-on-tertiary: oklch(0.16 0.04 calc(var(--m3-accent-hue) - 90));
-  --color-tertiary-container: oklch(0.29 0.07 calc(var(--m3-accent-hue) - 90));
-  --color-on-tertiary-container: oklch(0.9 0.05 calc(var(--m3-accent-hue) - 90));
-  --color-inverse-primary: oklch(0.82 0.12 var(--m3-accent-hue));
-
-  --color-error: oklch(0.7 0.17 25);
-  --color-on-error: oklch(0.18 0.03 25);
-  --color-error-container: oklch(0.33 0.13 25);
-  --color-on-error-container: oklch(0.92 0.07 25);
-  --color-success: oklch(0.72 0.15 155);
-  --color-on-success: oklch(0.16 0.05 155);
-  --color-success-container: oklch(0.33 0.09 155);
-  --color-on-success-container: oklch(0.92 0.06 155);
-  --color-info: oklch(0.72 0.12 235);
-  --color-on-info: oklch(0.16 0.04 235);
-  --color-info-container: oklch(0.33 0.08 235);
-  --color-on-info-container: oklch(0.92 0.05 235);
-}
-
-/* Deep navy variant of the OperationFlut palette. */
+/* Deep Midnight: dark mode theme. */
 [data-theme="midnight"] {
   --m3-accent-hue: 220;
   --color-zinc-950: #05070f;
@@ -198,7 +143,7 @@
   --color-on-info-container: oklch(0.92 0.05 235);
 }
 
-/* Light variant: light canvas, dark adaptive text. */
+/* Bright Daylight: light mode theme. */
 [data-theme="light"] {
   --m3-accent-hue: 266;
   --color-zinc-950: #f4f4f7;

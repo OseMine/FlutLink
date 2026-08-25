@@ -47,6 +47,8 @@ fun FlutLinkRoot(container: AppContainer) {
     val accentHue by container.settingsStore.accentHue.collectAsState(initial = null)
 
     FlutLinkTheme(
+        // "system" is the default everywhere, so a fresh install follows the
+        // device's dark/light setting; light/midnight are manual overrides.
         themePreference = themePreference,
         // Only honoured where dynamic color exists (Android 12+).
         dynamicColor = if (container.supportsDynamicColor) dynamicColor else false,

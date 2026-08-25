@@ -9,14 +9,14 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 
-// FlutLink / OperationFlut brand palettes. The role lightness/chroma values
-// mirror the desktop `src/style.css` `[data-theme]` blocks: a single accent
-// seed hue derives the whole primary/secondary/tertiary palette ("Material
-// You" style), while the surfaces stay fixed per theme. Changing the accent
-// hue in Settings re-tints the entire UI, exactly like the desktop.
+// FlutLink brand palettes (Deep Midnight / Bright Daylight). The role
+// lightness/chroma values mirror the desktop `src/style.css` `[data-theme]`
+// blocks: a single accent seed hue derives the whole primary/secondary/
+// tertiary palette ("Material You" style), while the surfaces stay fixed per
+// theme. Changing the accent hue in Settings re-tints the entire UI, exactly
+// like the desktop.
 
 internal const val LIGHT_DEFAULT_HUE = 266
-internal const val OPERATIONFLUT_DEFAULT_HUE = 266
 internal const val MIDNIGHT_DEFAULT_HUE = 220
 
 /** Convert an OKLCH color (CSS Color 4) to an sRGB [Color]. */
@@ -84,26 +84,6 @@ private val LightSurfaces = BrandSurfaces(
     inverseOnSurface = Color(0xFFF4F4F7)
 )
 
-private val OperationFlutSurfaces = BrandSurfaces(
-    background = Color(0xFF090821),
-    onBackground = Color(0xFFFAFAFA),
-    surface = Color(0xFF090821),
-    onSurface = Color(0xFFFAFAFA),
-    surfaceDim = Color(0xFF090821),
-    surfaceBright = Color(0xFF1A1838),
-    surfaceVariant = Color(0xFF0D0C2B),
-    onSurfaceVariant = Color(0xFF9A99B3),
-    surfaceContainerLowest = Color(0xFF060514),
-    surfaceContainerLow = Color(0xFF0C0B26),
-    surfaceContainer = Color(0xFF0D0C2B),
-    surfaceContainerHigh = Color(0xFF161434),
-    surfaceContainerHighest = Color(0xFF232152),
-    outline = Color(0xFF3C3A6E),
-    outlineVariant = Color(0xFF171530),
-    inverseSurface = Color(0xFFF4F4F7),
-    inverseOnSurface = Color(0xFF161434)
-)
-
 private val MidnightSurfaces = BrandSurfaces(
     background = Color(0xFF05070F),
     onBackground = Color(0xFFF8FAFC),
@@ -124,7 +104,7 @@ private val MidnightSurfaces = BrandSurfaces(
     inverseOnSurface = Color(0xFF111A3A)
 )
 
-/** Light brand palette (reached through "system" + light OS mode). */
+/** Bright Daylight brand palette (`[data-theme="light"]`, light mode). */
 internal fun lightScheme(accentHue: Int): ColorScheme {
     val h = accentHue.toDouble()
     val s = LightSurfaces
@@ -166,49 +146,7 @@ internal fun lightScheme(accentHue: Int): ColorScheme {
     )
 }
 
-/** OperationFlut dark brand palette (`[data-theme="operationflut"]`). */
-internal fun operationflutScheme(accentHue: Int): ColorScheme {
-    val h = accentHue.toDouble()
-    val s = OperationFlutSurfaces
-    return darkColorScheme(
-        primary = oklch(0.52, 0.22, h),
-        onPrimary = oklch(0.99, 0.003, h),
-        primaryContainer = oklch(0.3, 0.13, h),
-        onPrimaryContainer = oklch(0.88, 0.08, h),
-        secondary = oklch(0.66, 0.1, h + 16),
-        onSecondary = oklch(0.16, 0.05, h + 16),
-        secondaryContainer = oklch(0.28, 0.07, h + 16),
-        onSecondaryContainer = oklch(0.9, 0.06, h + 16),
-        tertiary = oklch(0.68, 0.11, h - 90),
-        onTertiary = oklch(0.16, 0.04, h - 90),
-        tertiaryContainer = oklch(0.29, 0.07, h - 90),
-        onTertiaryContainer = oklch(0.9, 0.05, h - 90),
-        error = oklch(0.7, 0.17, 25.0),
-        onError = oklch(0.18, 0.03, 25.0),
-        errorContainer = oklch(0.33, 0.13, 25.0),
-        onErrorContainer = oklch(0.92, 0.07, 25.0),
-        background = s.background,
-        onBackground = s.onBackground,
-        surface = s.surface,
-        onSurface = s.onSurface,
-        surfaceDim = s.surfaceDim,
-        surfaceBright = s.surfaceBright,
-        surfaceVariant = s.surfaceVariant,
-        onSurfaceVariant = s.onSurfaceVariant,
-        surfaceContainerLowest = s.surfaceContainerLowest,
-        surfaceContainerLow = s.surfaceContainerLow,
-        surfaceContainer = s.surfaceContainer,
-        surfaceContainerHigh = s.surfaceContainerHigh,
-        surfaceContainerHighest = s.surfaceContainerHighest,
-        outline = s.outline,
-        outlineVariant = s.outlineVariant,
-        inverseSurface = s.inverseSurface,
-        inverseOnSurface = s.inverseOnSurface,
-        inversePrimary = oklch(0.82, 0.12, h)
-    )
-}
-
-/** Deep navy brand palette (`[data-theme="midnight"]`). */
+/** Deep navy brand palette (`[data-theme="midnight"]`, dark mode). */
 internal fun midnightScheme(accentHue: Int): ColorScheme {
     val h = accentHue.toDouble()
     val s = MidnightSurfaces

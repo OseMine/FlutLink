@@ -86,9 +86,9 @@ import com.flutcloud.flutlink.resources.settings
 import com.flutcloud.flutlink.resources.sign_out
 import com.flutcloud.flutlink.resources.switch_account
 import com.flutcloud.flutlink.resources.theme
+import com.flutcloud.flutlink.resources.theme_daylight
 import com.flutcloud.flutlink.resources.theme_hint
 import com.flutcloud.flutlink.resources.theme_midnight
-import com.flutcloud.flutlink.resources.theme_operationflut
 import com.flutcloud.flutlink.resources.theme_system
 import com.flutcloud.flutlink.resources.theme_system_note
 import com.flutcloud.flutlink.resources.update
@@ -174,7 +174,8 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-            // Theme
+            // Appearance. "System" (the default) follows the device's
+            // dark/light setting; light/midnight are manual overrides.
             SectionHeader(stringResource(Res.string.appearance))
             ListItem(
                 headlineContent = { Text(stringResource(Res.string.theme)) },
@@ -182,8 +183,8 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
             )
             val themeOptions = listOf(
-                "operationflut" to Res.string.theme_operationflut,
                 "midnight" to Res.string.theme_midnight,
+                "light" to Res.string.theme_daylight,
                 "system" to Res.string.theme_system
             )
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {

@@ -3,6 +3,50 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-25, Feedback „Android: Geräte-Theme + eigene Wahl“)
+
+- [x] **Android folgt standardmäßig dem Geräte-Theme (korrekte
+      Akzentfarbe/Modus), behält aber die Wahl Light/Dark/System.**
+      → erledigt (2026-08-25): übernimmt das Feedback zum vorherigen Eintrag
+      („Issue UI-Styles …“) und hebt dessen Android-Sonderfall auf —
+      `keepsDeviceTheme` ist entfallen.
+      - KMP (`kmp/`): `Platform.keepsDeviceTheme` (Interface,
+        `AndroidPlatform`-Override, `AppContainer`-Weiterleitung) entfernt;
+        `FlutLinkRoot` reicht die gespeicherte Präferenz unverändert durch
+        (`"system"` ist Default → frische Installationen folgen dem Gerät);
+        `SettingsScreen` zeigt den Theme-Picker wieder plattformübergreifend
+        an (Deep Midnight / Bright Daylight / System). Korrekte
+        Akzentfarben je Modus bleiben erhalten (`defaultAccentHue`,
+        Material-You-Dynamic-Color nur bei „system“).
+      - Verifikation: `cargo fmt --all --check` grün; `cargo clippy
+        --all-targets -- -D warnings` grün; `./gradlew :shared:build`
+        BUILD SUCCESSFUL (Android + JVM + iOS-Metadaten + Unit-Tests).
+
+
+## Erledigt (2026-08-24, Issue „UI-Styles: Deep Midnight / Bright Daylight / System“)
+
+- [x] **Theme-Auswahl auf Deep Midnight (Dark), Bright Daylight (Light) und
+      System reduziert; Android folgt immer dem Gerät.**
+      → erledigt (2026-08-24): OperationFlut ist als wählbares Design
+      entfallen.
+      - Desktop (`src/`): `Theme`-Typ ist jetzt `midnight | light | system`
+        mit Migration alter Werte (`operationflut`/`dark` → `midnight`);
+        `[data-theme="operationflut"]` aus `style.css` entfernt;
+        `SettingsModal.vue` bietet Deep Midnight / Bright Daylight / System;
+        i18n-Schlüssel `themeLight` (+ de) ersetzen `themeOperationflut`,
+        `systemThemeNote` neutral formuliert.
+      - KMP (`kmp/`): `FlutResolvedTheme` ohne OperationFlut
+        (Legacy-Mappings bleiben), `operationflutScheme`/Surfaces entfernt;
+        neues `Platform.keepsDeviceTheme` (true nur auf Android) erzwingt
+        `"system"` in `FlutLinkRoot` und blendet den Theme-Picker in
+        `SettingsScreen` aus (Akzentfarbe/Dynamic Color bleiben);
+        Strings zweisprachig aktualisiert (`theme_daylight`, Hinweise).
+      - Verifikation: `cargo fmt --all --check` grün; `cargo clippy
+        --all-targets -- -D warnings` grün; `cargo test` → **107 passed /
+        0 failed**; `npm run build` grün; `./gradlew :shared:build`
+        BUILD SUCCESSFUL.
+
+
 ## Erledigt (2026-08-24, Lauf 17 abgehakt)
 
 - [x] **`SettingsStore` nach `commonMain` heben** (DataStore Preferences

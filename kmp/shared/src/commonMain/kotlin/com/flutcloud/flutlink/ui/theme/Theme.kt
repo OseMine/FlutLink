@@ -6,26 +6,25 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 
 /**
- * A resolved FlutCloud brand palette. [Light] is only reached through
- * "system" + light OS mode; [OperationFlut]/[Midnight] are dark-first brand
- * themes. Mirrors the desktop `[data-theme]` resolution in `src/style.css`.
+ * A resolved FlutCloud brand palette. [Light] ("Bright Daylight") and
+ * [Midnight] ("Deep Midnight") are selectable next to following the device
+ * setting ("system"). Mirrors the desktop `[data-theme]` resolution
+ * in `src/style.css`.
  */
 enum class FlutResolvedTheme(val isDark: Boolean) {
     Light(false),
-    OperationFlut(true),
     Midnight(true)
 }
 
 /**
  * Map the stored theme preference to a concrete brand palette. Legacy
- * "light"/"dark" values keep working; anything else falls back to "system".
+ * "light"/"dark"/"operationflut" values keep working; anything else falls
+ * back to "system".
  */
 fun resolveFlutTheme(themePreference: String, darkTheme: Boolean): FlutResolvedTheme =
     when (themePreference) {
-        "operationflut" -> FlutResolvedTheme.OperationFlut
-        "midnight" -> FlutResolvedTheme.Midnight
+        "midnight", "dark", "operationflut" -> FlutResolvedTheme.Midnight
         "light" -> FlutResolvedTheme.Light
-        "dark" -> FlutResolvedTheme.OperationFlut
         else -> if (darkTheme) FlutResolvedTheme.Midnight else FlutResolvedTheme.Light
     }
 
@@ -33,7 +32,6 @@ fun resolveFlutTheme(themePreference: String, darkTheme: Boolean): FlutResolvedT
 fun defaultAccentHue(themePreference: String, darkTheme: Boolean): Int =
     when (resolveFlutTheme(themePreference, darkTheme)) {
         FlutResolvedTheme.Midnight -> MIDNIGHT_DEFAULT_HUE
-        FlutResolvedTheme.OperationFlut -> OPERATIONFLUT_DEFAULT_HUE
         FlutResolvedTheme.Light -> LIGHT_DEFAULT_HUE
     }
 
@@ -64,13 +62,11 @@ fun FlutLinkTheme(
         platformDynamicColorScheme(darkTheme)
             ?: when (resolved) {
                 FlutResolvedTheme.Light -> lightScheme(hue)
-                FlutResolvedTheme.OperationFlut -> operationflutScheme(hue)
                 FlutResolvedTheme.Midnight -> midnightScheme(hue)
             }
     } else {
         when (resolved) {
             FlutResolvedTheme.Light -> lightScheme(hue)
-            FlutResolvedTheme.OperationFlut -> operationflutScheme(hue)
             FlutResolvedTheme.Midnight -> midnightScheme(hue)
         }
     }

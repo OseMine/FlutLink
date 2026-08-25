@@ -82,8 +82,8 @@ const langOptions: { value: Lang; label: string }[] = [
 ];
 
 const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
-  { value: "operationflut", label: t("themeOperationflut") },
   { value: "midnight", label: t("themeMidnight") },
+  { value: "light", label: t("themeLight") },
   { value: "system", label: t("themeSystem") },
 ]);
 

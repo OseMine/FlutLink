@@ -14,7 +14,7 @@ class SettingsStore(private val storage: KeyValueStorage) {
 
     private object Keys {
         const val defaultServerUrl = "default_server_url"
-        // operationflut|midnight|system (legacy light|dark still resolve).
+        // midnight|light|system (legacy light|dark|operationflut still resolve).
         const val themePreference = "theme_preference"
         const val dynamicColor = "dynamic_color"
         const val accentHue = "accent_hue"
