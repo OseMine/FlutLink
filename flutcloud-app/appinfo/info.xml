@@ -31,11 +31,6 @@
     <author mail="marcantemusik@gmail.com" homepage="https://instagram.com/marcante_musik">marcante_musik</author>
     <author>OperationFlut</author>
     <namespace>FlutCloud</namespace>
-    <autoload>
-        <psr-4>
-            <OCA\FlutCloud>lib/</OCA\FlutCloud>
-        </psr-4>
-    </autoload>
     <category>tools</category>
     <website>https://github.com/OseMine/FlutLink</website>
     <repository type="git">https://github.com/OseMine/FlutLink.git</repository>
