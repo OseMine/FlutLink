@@ -16,7 +16,7 @@
         - Shared project folder `/FlutLink/FlutCloud` for the OperationFlut team
         - Complete public shares: anonymous, strictly read-only guest access to
           folders shared publicly as a whole, bundled at one place with
-          categories (/public/<category>, prefixless per admin config) and
+          categories (/public/&lt;category&gt;, prefixless per admin config) and
           recursive subfolder locks
         - iOS AltStore sources: /apps/flutcloud/ios/pal and /ios/classic always
           redirect to the source JSON of the latest FlutLink GitHub release
