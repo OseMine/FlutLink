@@ -20,7 +20,7 @@ src/                              # Vue 3 + TypeScript + Tailwind v4
 │   ├── SettingsModal.vue         # Sprache, Design, Über, Updates
 │   ├── AppLogo.vue / WelcomeScreen.vue  # FlutLink/OperationFlut-Branding
 │   ├── ToastStack.vue            # Toast-Benachrichtigungen
-│   └── Icon.vue                  # Material-Icon-Set (ersetzt Emoji-Glyphen)
+│   └── Icon.vue                  # Dünnes Line-Icon-Set (Lucide-Stil)
 ├── lib/
 │   ├── ipc.ts                    # typisierte invoke()-Wrapper für alle Commands
 │   ├── i18n.ts                   # EN/DE-Wörterbücher, translate(), Fehler-Keys
