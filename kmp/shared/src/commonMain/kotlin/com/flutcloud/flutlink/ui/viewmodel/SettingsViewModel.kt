@@ -10,6 +10,8 @@ import com.flutcloud.flutlink.data.NetworkException
 import com.flutcloud.flutlink.data.downloadAndInstall
 import com.flutcloud.flutlink.data.dto.AppInfoDto
 import com.flutcloud.flutlink.ui.UiMessage
+import com.flutcloud.flutlink.ui.unexpectedUiMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -147,6 +149,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             } catch (e: ApiException) {
                 // e.g. update_checksum_mismatch (CP-F4): surface, never install.
                 _toast.value = UiMessage(Res.string.update_download_failed_detail, e.message)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                _toast.value = unexpectedUiMessage(e.message)
             } finally {
                 _installingUpdate.value = false
             }

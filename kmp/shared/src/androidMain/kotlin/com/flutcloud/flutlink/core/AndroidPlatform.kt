@@ -116,20 +116,33 @@ class AndroidPlatform(context: Context) : Platform {
     override suspend fun downloadUpdate(url: String, destDir: Path): Path {
         return try {
             withContext(Dispatchers.IO) {
-                File(destDir.toString()).mkdirs()
                 val target = destDir.resolve("flutlink-update.apk")
                 val response = updateClient.get(url)
                 if (!response.status.isSuccess()) {
                     throw IOException("Download failed: HTTP ${response.status.value}")
                 }
-                File(target.toString()).outputStream().use { output ->
-                    val channel = response.bodyAsChannel()
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        val read = channel.readAvailable(buffer, 0, buffer.size)
-                        if (read == -1) break
-                        if (read > 0) output.write(buffer, 0, read)
+                // Create the destination directory right before writing: a
+                // missing parent (or a stale non-directory "updates" entry)
+                // used to surface only as a bare ENOENT from the output stream.
+                val dir = File(target.toString()).parentFile
+                if (dir == null || !(dir.isDirectory || dir.mkdirs())) {
+                    throw IOException("Update cache directory unavailable: $dir")
+                }
+                val out = File(target.toString())
+                try {
+                    out.outputStream().use { output ->
+                        val channel = response.bodyAsChannel()
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = channel.readAvailable(buffer, 0, buffer.size)
+                            if (read == -1) break
+                            if (read > 0) output.write(buffer, 0, read)
+                        }
                     }
+                } catch (e: Exception) {
+                    // Never leave a truncated package behind for the installer.
+                    out.delete()
+                    throw e
                 }
                 target
             }
@@ -140,10 +153,14 @@ class AndroidPlatform(context: Context) : Platform {
 
     /** Hand the downloaded APK to the system package installer. */
     override fun installUpdate(apk: Path) {
+        val file = File(apk.toString())
+        if (!file.isFile) {
+            throw IOException("Downloaded update package is missing: $file")
+        }
         val uri: Uri = FileProvider.getUriForFile(
             appContext,
             "${appContext.packageName}.fileprovider",
-            File(apk.toString())
+            file
         )
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")

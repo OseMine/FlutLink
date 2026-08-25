@@ -206,18 +206,6 @@ Neu gefunden (Cross-Platform-Parität Desktop ⇔ KMP):
       streamt zwar aus dem Speicher heraus, aber als einen einzigen PUT —
       bei großen Dateien drohen Client-Timeouts, und die Server-Quota wird
       erst am Ende geprüft. Idee: Chunked-v2-Port nach `commonMain`.
-- [ ] **CP-F4 (Sicherheit/Parität, mittel): Android-Self-Update lädt das APK
-      ohne SHA-256-Prüfung herunter.** Desktop `updater.rs` gate't die
-      Installation auf die im Release publizierte SHA-256-Prüfsumme. KMP:
-      `UpdateChecker.checkForUpdate` (`UpdateChecker.kt:45-63`) nimmt das
-      erste `.apk`-Asset ohne Prüfsummen-Bezug,
-      `AndroidPlatform.downloadUpdate` (`AndroidPlatform.kt:116-139`)
-      streamt das APK ungeprüft in den Cache und
-      `Platform.downloadAndInstall` (`AppUpdater.kt:10-13`) übergibt es dem
-      Package-Installer. Eine SHA-256-Implementierung liegt mit
-      `data/Sha256.kt` bereits in `commonMain` (bislang nur für Cache-
-      Dateinamen). Idee: Prüfsummen-Asset analog Desktop auswerten und vor
-      `installUpdate` verifizieren.
 - [ ] **CP-N1 (Bug/Parität, minor): Der L17-N4-Paginierungs-Bug von
       `list_groups` ist 1:1 in den KMP-Port kopiert.** `FlutCloudOcs.kt:92-111`
       (`listGroups`) bricht nach dem Dedup-Filter ab, sobald
