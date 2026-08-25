@@ -53,6 +53,10 @@ namespace OCP\AppFramework\Bootstrap {
     interface IRegistrationContext
     {
         public function registerCapability(string $capability): void;
+
+        public function registerSection(string $id, string $className): void;
+
+        public function registerSetting(string $section, string $className): void;
     }
 }
 
@@ -105,20 +109,43 @@ namespace {
         $fail('flutcloud.managed_by_url fehlt oder weicht von Application::MANAGED_BY_URL ab.');
     }
 
-    // 3) register() meldet Capabilities an, damit der Endpoint sie ausliefert.
+    // 3) register() meldet Capabilities an, damit der Endpoint sie ausliefert;
+    //    die Web-Admin-Seite registriert Section + Settings mit.
     $registration = new class implements \OCP\AppFramework\Bootstrap\IRegistrationContext {
         /** @var string[] */
         public array $registered = [];
 
+        /** @var array<string, string> */
+        public array $sections = [];
+
+        /** @var array<string, string> */
+        public array $settings = [];
+
         public function registerCapability(string $capability): void
         {
             $this->registered[] = $capability;
+        }
+
+        public function registerSection(string $id, string $className): void
+        {
+            $this->sections[$id] = $className;
+        }
+
+        public function registerSetting(string $section, string $className): void
+        {
+            $this->settings[$section] = $className;
         }
     };
     $app = new Application();
     $app->register($registration);
     if (!in_array(Capabilities::class, $registration->registered, true)) {
         $fail('register() hat Capabilities::class nicht registriert.');
+    }
+    if (!isset($registration->sections['flutcloud'])) {
+        $fail("register() hat keine Section 'flutcloud' registriert (Web-Admin).");
+    }
+    if (($registration->settings['admin'] ?? null) === null) {
+        $fail("register() hat kein Admin-Setting registriert (Web-Admin).");
     }
 
     echo "OK: FlutCloud-Capability-Vertrag erfüllt (APP_ID, Payload-Struktur, Registrierung).\n";
