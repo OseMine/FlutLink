@@ -379,7 +379,7 @@ class PublicShareService
      */
     private function completePublicFolder(IShare $share): ?Folder
     {
-        if ($share->getType() !== IShare::TYPE_LINK) {
+        if ($share->getShareType() !== IShare::TYPE_LINK) {
             return null;
         }
         $password = $share->getPassword();
