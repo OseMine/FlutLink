@@ -146,6 +146,29 @@ data class SessionUser(
     val isAdmin: Boolean
 )
 
+/** A folder shared publicly as a whole (guest access, no account). */
+data class GuestShare(
+    val token: String,
+    val name: String,
+    val owner: String,
+    val ownerDisplay: String?,
+    val category: String?,
+    val url: String,
+    /** Base of the anonymous WebDAV download endpoint for this share. */
+    val downloadBase: String,
+    val mtime: Long? = null
+)
+
+/** One entry inside a public share folder (mirrors desktop `GuestEntry`). */
+data class GuestEntry(
+    val name: String,
+    val path: String,
+    val isDir: Boolean,
+    val size: Long? = null,
+    val mtime: Long? = null,
+    val contentType: String? = null
+)
+
 /** Full user record for the admin panel. */
 data class ManagedUser(
     val id: String,

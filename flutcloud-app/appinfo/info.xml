@@ -14,6 +14,10 @@
         - Ping endpoint (verified by the FlutLink client before connecting)
         - Virtual links (read-only `resources` folders) and writable `parts`
         - Shared project folder `/FlutLink/FlutCloud` for the OperationFlut team
+        - Complete public shares: anonymous, strictly read-only guest access to
+          folders shared publicly as a whole, bundled at one place with
+          categories (/public/<category>, prefixless per admin config) and
+          recursive subfolder locks
         - iOS AltStore sources: /apps/flutcloud/ios/pal and /ios/classic always
           redirect to the source JSON of the latest FlutLink GitHub release
 
@@ -22,7 +26,7 @@
         FlutCloud and the whole FlutCloud server are managed and all software
         is developed by @marcante_musik (https://instagram.com/marcante_musik).
     </description>
-    <version>1.1.1</version>
+    <version>1.2.0</version>
     <licence>agpl</licence>
     <author mail="marcantemusik@gmail.com" homepage="https://instagram.com/marcante_musik">marcante_musik</author>
     <author>OperationFlut</author>

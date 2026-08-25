@@ -151,6 +151,36 @@ export interface BulkTarget {
   isDir: boolean;
 }
 
+/** A folder shared publicly as a whole (guest access, no account). */
+export interface GuestShare {
+  token: string;
+  name: string;
+  owner: string;
+  ownerDisplay: string | null;
+  category: string | null;
+  url: string;
+  downloadBase: string;
+  mtime: number | null;
+}
+
+/** One entry inside a public share folder. */
+export interface GuestEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  size: number | null;
+  mtime: number | null;
+  contentType: string | null;
+}
+
+/** Folder listing inside a public share. */
+export interface GuestListing {
+  token: string;
+  name: string;
+  path: string;
+  entries: GuestEntry[];
+}
+
 function describe(e: unknown): string {
   if (typeof e === "string") return e;
   const err = e as Partial<AppError>;
@@ -273,6 +303,20 @@ export const api = {
 
   webdavRename: (path: string, newName: string, targetUser?: string) =>
     invoke<void>("webdav_rename", { path, newName, targetUser }),
+
+  // Guest access (complete public shares, no account required):
+  guestVerifyServer: () => invoke<void>("guest_verify_server"),
+
+  guestListShares: () => invoke<GuestShare[]>("guest_list_shares"),
+
+  guestListEntries: (token: string, path?: string) =>
+    invoke<GuestListing>("guest_list_entries", { token, path }),
+
+  guestDownloadFile: (token: string, remotePath: string, localPath: string) =>
+    invoke<void>("guest_download_file", { token, remotePath, localPath }),
+
+  guestOpenFile: (token: string, remotePath: string) =>
+    invoke<void>("guest_open_file", { token, remotePath }),
 
   adminListUsers: (
     search: string,
