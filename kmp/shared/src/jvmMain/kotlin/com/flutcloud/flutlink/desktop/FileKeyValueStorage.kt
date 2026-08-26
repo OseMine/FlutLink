@@ -12,8 +12,6 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
-import kotlin.io.path.fileName
-import kotlin.io.path.toFile
 
 /**
  * File-backed [KeyValueStorage] for the Desktop-JVM client. Accounts metadata
