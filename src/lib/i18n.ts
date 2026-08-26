@@ -286,6 +286,8 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFound: "Account '{detail}' not found.",
     errHttp: "Network error: {detail}",
     errStatus: "Server returned HTTP {detail}",
+    errPrincipalNotFound:
+      "User '{detail}' does not exist on the FlutCloud server.",
     errOcs: "Nextcloud API error: {detail}",
     errApp: "Application error: {detail}",
     errJson: "Invalid server response: {detail}",
@@ -619,6 +621,8 @@ const dict: Record<Lang, Record<string, string>> = {
     errNotFound: "Konto '{detail}' nicht gefunden.",
     errHttp: "Netzwerkfehler: {detail}",
     errStatus: "Der Server antwortete mit HTTP {detail}",
+    errPrincipalNotFound:
+      "Der Benutzer '{detail}' existiert auf dem FlutCloud-Server nicht.",
     errOcs: "Nextcloud-API-Fehler: {detail}",
     errApp: "Anwendungsfehler: {detail}",
     errJson: "Ungültige Serverantwort: {detail}",
@@ -695,6 +699,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   not_found: "errNotFound",
   http: "errHttp",
   status: "errStatus",
+  principal_not_found: "errPrincipalNotFound",
   ocs: "errOcs",
   app: "errApp",
   json: "errJson",

@@ -35,13 +35,37 @@ pub enum AppError {
 }
 
 impl AppError {
+    /// Sabre DAV answers impersonation/browse requests for a user that does
+    /// not exist on the server with `404` + "Principal with name X not found".
+    /// Extract the principal name so the error can be surfaced as a clean,
+    /// localized "user not found" message instead of the raw XML body.
+    pub fn principal_not_found(&self) -> Option<String> {
+        let AppError::Status { status, body } = self else {
+            return None;
+        };
+        if *status != 404 {
+            return None;
+        }
+        let marker = "Principal with name ";
+        let start = body.find(marker)? + marker.len();
+        let rest = &body[start..];
+        let end = rest.find(" not found")?;
+        Some(rest[..end].trim_matches('\'').trim_matches('"').to_string())
+    }
+
     pub fn code(&self) -> &'static str {
         match self {
             AppError::NoActiveAccount => "no_active_account",
             AppError::Forbidden => "forbidden",
             AppError::NotFound(_) => "not_found",
             AppError::Http(_) => "http",
-            AppError::Status { .. } => "status",
+            AppError::Status { .. } => {
+                if self.principal_not_found().is_some() {
+                    "principal_not_found"
+                } else {
+                    "status"
+                }
+            }
             AppError::Ocs(_) => "ocs",
             AppError::App(_) => "app",
             AppError::Json(_) => "json",
@@ -67,6 +91,9 @@ impl AppError {
             AppError::NotFound(name) => Some(name.clone()),
             AppError::Http(e) => Some(e.to_string()),
             AppError::Status { status, body } => {
+                if let Some(user) = self.principal_not_found() {
+                    return Some(user);
+                }
                 if body.is_empty() {
                     Some(status.to_string())
                 } else {
@@ -106,6 +133,9 @@ impl AppError {
             AppError::NotFound(name) => format!("Account '{}' not found.", name),
             AppError::Http(e) => format!("Network error: {}", e),
             AppError::Status { status, body } => {
+                if let Some(user) = self.principal_not_found() {
+                    return format!("User '{}' does not exist on the server.", user);
+                }
                 if body.is_empty() {
                     format!("Server returned HTTP {}", status)
                 } else {
@@ -215,5 +245,48 @@ mod tests {
         let json = serde_json::to_string(&err).expect("serializable");
         assert!(json.contains("\"code\":\"target_exists\""));
         assert!(json.contains("\"detail\":\"/Documents/report.pdf\""));
+    }
+
+    /// Impersonating a non-existent user surfaces as Sabre's principal-404;
+    /// it must map to `principal_not_found` with the username as detail so
+    /// the frontend can show a localized message instead of the raw XML.
+    #[test]
+    fn sabre_principal_404_maps_to_principal_not_found() {
+        let body = r#"<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+<s:exception>Sabre\DAV\Exception\NotFound</s:exception>
+<s:message>Principal with name dsaas not found</s:message>
+</d:error>"#;
+        let err = AppError::Status {
+            status: 404,
+            body: body.into(),
+        };
+        assert_eq!(err.principal_not_found().as_deref(), Some("dsaas"));
+        assert_eq!(err.code(), "principal_not_found");
+        assert_eq!(err.detail().as_deref(), Some("dsaas"));
+        assert!(
+            err.message().contains("dsaas"),
+            "message names the missing user"
+        );
+        let json = serde_json::to_string(&err).expect("serializable");
+        assert!(json.contains("\"code\":\"principal_not_found\""));
+        assert!(json.contains("\"detail\":\"dsaas\""));
+    }
+
+    #[test]
+    fn other_status_errors_keep_the_status_code_path() {
+        let err = AppError::Status {
+            status: 404,
+            body: "<x>not a principal</x>".into(),
+        };
+        assert_eq!(err.principal_not_found(), None);
+        assert_eq!(err.code(), "status");
+
+        let err = AppError::Status {
+            status: 500,
+            body: "Principal with name boom not found".into(),
+        };
+        assert_eq!(err.principal_not_found(), None);
+        assert_eq!(err.code(), "status");
     }
 }
