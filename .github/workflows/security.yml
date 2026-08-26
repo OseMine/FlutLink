@@ -30,7 +30,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free' }}
 
 jobs:
   security-gate:

@@ -13,8 +13,8 @@
 #                 (for action inputs that take a static model string)
 #
 # Environment:
-#   OPENCODE_MODELS  model chain (default: deepseek-v4-flash-free,
-#                    x-preview-f-free, big-pickle)
+#   OPENCODE_MODELS  model chain (default: big-pickle, mimo-v2.5-free,
+#                    hy3-free, nemotron-3-ultra-free, laguna-s-2.1-free)
 #   OPENCODE_CMD     command prefix executed in run mode, split on
 #                    whitespace, WITHOUT the `run` subcommand
 #                    (default: "opencode"; e.g. "npx --yes opencode-ai@1.18.21")
@@ -27,7 +27,7 @@
 # OPENCODE_CHAIN_RETRY_WAIT s pause between rounds before giving up.
 set -euo pipefail
 
-CHAIN="${OPENCODE_MODELS:-deepseek-v4-flash-free,x-preview-f-free,big-pickle}"
+CHAIN="${OPENCODE_MODELS:-big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free}"
 ZEN_URL="${ZEN_BASE:-https://opencode.ai/zen/v1}/chat/completions"
 PROBE_ATTEMPTS="${OPENCODE_PROBE_ATTEMPTS:-2}"
 PROBE_BACKOFF="${OPENCODE_PROBE_BACKOFF:-15}"

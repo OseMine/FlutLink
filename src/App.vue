@@ -298,9 +298,9 @@ function startGuestModeOff() {
             </nav>
 
             <div class="flex items-center gap-1.5">
-              <button type="button" class="btn btn-ghost" @click="toggleLang">
+              <!-- <button type="button" class="btn btn-ghost" @click="toggleLang">
                 {{ langLabel }}
-              </button>
+              </button> -->
               <button
                 type="button"
                 class="icon-btn"
