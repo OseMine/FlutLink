@@ -9,10 +9,18 @@ import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareO
 import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
 import { registerEscapeCloser } from "../lib/escape";
+import Icon from "./Icon.vue";
+import EntryList from "./EntryList.vue";
+import FilesToolbar from "./FilesToolbar.vue";
+import ImpersonationBar from "./ImpersonationBar.vue";
+import ContextMenu from "./ContextMenu.vue";
+import NewFolderDialog from "./NewFolderDialog.vue";
+import RenameDialog from "./RenameDialog.vue";
+import ShareDialog, { type ShareFormValues } from "./ShareDialog.vue";
 
 // Concurrency semaphore for thumbnail requests (max 6 parallel)
 let thumbSemaphore = 6;
-const thumbWaiting: Promise<void>[] = [];
+const thumbWaiting: (() => void)[] = [];
 
 // Acquire a slot (decreases semaphore, waits if at capacity)
 function acquireThumbSlot(): Promise<void> {
@@ -20,10 +28,9 @@ function acquireThumbSlot(): Promise<void> {
     thumbSemaphore--;
     return Promise.resolve();
   }
-  const p = new Promise<void>(resolve => {
+  return new Promise<void>((resolve) => {
     thumbWaiting.push(resolve);
   });
-  return p;
 }
 
 function releaseThumbSlot() {
@@ -206,6 +213,21 @@ function openCtx(e: MouseEvent, entry: WebDavEntry) {
 
 function closeCtx() {
   ctxMenu.value = null;
+}
+
+type CtxAction = "open" | "download" | "rename" | "share" | "delete";
+
+/// Dispatch a context-menu action, then close the menu — same ordering as the
+/// former inline handlers (`action(); ctxMenu = null`).
+function onCtxAction(action: CtxAction, entry: WebDavEntry) {
+  if (action === "open") void open(entry);
+  else if (action === "download") {
+    if (entry.isDir) void downloadZip(entry);
+    else void download(entry);
+  } else if (action === "rename") startRename(entry);
+  else if (action === "share") void openShareDialog(entry);
+  else void removeEntry(entry);
+  closeCtx();
 }
 
 async function open(entry: WebDavEntry) {
@@ -538,37 +560,11 @@ async function removeEntry(entry: WebDavEntry) {
 const sharesByPath = ref<Map<string, Share[]>>(new Map());
 const shareDialog = ref<{ entry: WebDavEntry; shares: Share[]; loading: boolean } | null>(null);
 const submitting = ref(false);
-const shareForm = reactive({
-  type: "link" as "link" | "user" | "group",
-  shareWith: "",
-  password: "",
-  expireDate: "",
-  publicUpload: false,
-});
-
-const shareTypes = computed<{ value: "link" | "user" | "group"; label: string }[]>(() => [
-  { value: "link", label: t("shareTypeLink") },
-  { value: "user", label: t("shareTypeUser") },
-  { value: "group", label: t("shareTypeGroup") },
-]);
-
-function shareLabel(share: Share): string {
-  if (share.shareType === 3) return t("shareTypeLink");
-  if (share.shareType === 1) return t("shareTypeGroup");
-  return t("shareTypeUser");
-}
+const shareDialogComp = ref<InstanceType<typeof ShareDialog> | null>(null);
 
 function shareTarget(share: Share): string {
   if (share.shareType === 3) return share.url ?? "";
   return share.shareWithDisplayname || share.shareWith || "";
-}
-
-function resetShareForm() {
-  shareForm.type = "link";
-  shareForm.shareWith = "";
-  shareForm.password = "";
-  shareForm.expireDate = "";
-  shareForm.publicUpload = false;
 }
 
 const shareState = reactive(
@@ -637,7 +633,6 @@ async function refreshShares(entry: WebDavEntry) {
 
 async function openShareDialog(entry: WebDavEntry) {
   shareDialog.value = { entry, shares: [], loading: true };
-  resetShareForm();
   try {
     const shares = await files.listShares(entry.path);
     if (shareDialog.value?.entry.path === entry.path) {
@@ -683,18 +678,18 @@ watch(overlayClosers, (closers) => {
 });
 onUnmounted(clearEscapeClosers);
 
-async function createShare() {
+async function createShare(form: ShareFormValues) {
   const entry = shareDialog.value?.entry;
   if (!entry || submitting.value) return;
   const options: CreateShareOptions = {};
-  if (shareForm.type === "link") {
+  if (form.type === "link") {
     options.shareType = 3;
-    if (shareForm.password.trim()) options.password = shareForm.password.trim();
-    if (shareForm.expireDate) options.expireDate = shareForm.expireDate;
-    if (shareForm.publicUpload) options.publicUpload = true;
+    if (form.password.trim()) options.password = form.password.trim();
+    if (form.expireDate) options.expireDate = form.expireDate;
+    if (form.publicUpload) options.publicUpload = true;
   } else {
-    options.shareType = shareForm.type === "user" ? 0 : 1;
-    const recipient = shareForm.shareWith.trim();
+    options.shareType = form.type === "user" ? 0 : 1;
+    const recipient = form.shareWith.trim();
     if (!recipient) {
       ui.toast(t("shareRecipientRequired"), "error");
       return;
@@ -705,7 +700,7 @@ async function createShare() {
   try {
     await files.createShare(entry.path, options);
     ui.toast(t("shareCreated"), "success");
-    resetShareForm();
+    shareDialogComp.value?.resetForm();
     await refreshShares(entry);
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -733,52 +728,6 @@ async function copyShareUrl(url: string) {
   } catch {
     ui.toast(t("linkCopyFailed"), "error");
   }
-}
-
-const adminUsers = ref<string[]>([]);
-const adminViewAll = ref(true);
-const selectedUser = ref<string>("");
-const adminSearch = ref("");
-// U-R8-12/L12-N3: cap the impersonation user lookup at one OCS page instead
-// of paginating through every user of the instance.
-const ADMIN_PAGE = 200;
-
-async function loadAdminUsers() {
-  if (!accounts.active?.isAdmin) return;
-  const query = adminSearch.value.trim();
-  // The impersonation dropdown must not fetch all users on mount or on
-  // account switches — it loads lazily, only for an explicit search term,
-  // limited to the first page.
-  if (!query) {
-    adminUsers.value = [];
-    // Neutral hint instead of an error toast (#301): the required search term
-    // is expected behaviour, not a failure.
-    ui.toast(t("searchUsersHint"), "info");
-    return;
-  }
-  try {
-    const res = await api.adminListUsers(query, ADMIN_PAGE);
-    adminUsers.value = res.users;
-    if (files.targetUser && res.users.includes(files.targetUser)) {
-      selectedUser.value = files.targetUser;
-    }
-  } catch {
-    // user list unavailable; impersonation still selectable via retry button
-  }
-}
-
-function setAdminView(all: boolean) {
-  adminViewAll.value = all;
-  if (all) {
-    if (selectedUser.value) files.setTargetUser(selectedUser.value);
-  } else {
-    selectedUser.value = "";
-    files.setTargetUser(null);
-  }
-}
-
-function onUserSelect() {
-  if (selectedUser.value) files.setTargetUser(selectedUser.value);
 }
 
 watch(
@@ -869,10 +818,6 @@ watch(
     thumbs.clear();
     thumbLoading.clear();
     kbdIndex.value = -1;
-    adminViewAll.value = true;
-    selectedUser.value = "";
-    adminUsers.value = [];
-    adminSearch.value = "";
     searchInput.value = "";
     await files.reset();
   }
@@ -896,165 +841,22 @@ watch(
       <p class="card px-4 py-2 text-sm">{{ t("dropToUpload") }}</p>
     </div>
 
-    <!-- Toolbar -->
-    <div class="flex items-center justify-between gap-3 border-b border-line px-6 py-3">
-      <nav class="flex min-w-0 items-center gap-1 text-sm">
-        <button
-          type="button"
-          class="icon-btn !h-7 !w-7"
-          :disabled="files.crumbs.length <= 1"
-          :title="t('back')"
-          :aria-label="t('back')"
-          @click="goBack"
-        >
-          <Icon name="back" :size="16" />
-        </button>
-        <template v-for="(crumb, i) in files.crumbs" :key="crumb.path">
-          <button
-            type="button"
-            class="rounded-sm px-1.5 py-0.5 transition hover:bg-card-hover"
-            :class="i === files.crumbs.length - 1 ? 'font-semibold' : 'text-muted'"
-            @click="navigateTo(crumb.path)"
-          >
-            {{ crumb.path === "/" ? t("home") : crumb.label }}
-          </button>
-          <span v-if="i < files.crumbs.length - 1" class="text-muted/60">/</span>
-        </template>
-      </nav>
+    <FilesToolbar
+      v-model:search="searchInput"
+      v-model:view-mode="viewMode"
+      :crumbs="files.crumbs"
+      :uploading="uploading"
+      :paired-path="files.pairedPath"
+      :split-active="files.splitView"
+      @back="goBack"
+      @navigate="navigateTo"
+      @toggle-split="files.toggleSplitView"
+      @refresh="files.refresh()"
+      @new-folder="openNewFolder"
+      @upload="uploadFiles"
+    />
 
-      <div class="flex shrink-0 items-center gap-2">
-        <!-- Featured search card: input styled as a container with inline actions -->
-        <div class="flex h-8 w-52 items-center gap-1.5 rounded-sm border border-line-strong bg-card px-2 transition focus-within:border-primary">
-          <Icon name="search" :size="14" class="shrink-0 text-muted" />
-          <input
-            v-model="searchInput"
-            type="text"
-            :placeholder="t('searchPlaceholder')"
-            class="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted"
-          />
-          <button
-            v-if="searchInput"
-            type="button"
-            class="grid h-5 w-5 shrink-0 place-items-center rounded-sm text-muted transition hover:text-fg"
-            :title="t('clearSearch')"
-            @click="clearSearchInput"
-          >
-            <Icon name="close" :size="13" />
-          </button>
-        </div>
-
-        <!-- Micro-pills for the view toggle -->
-        <div class="segment" role="group" :aria-label="t('viewList') + ' / ' + t('viewGrid')">
-          <button
-            type="button"
-            :aria-pressed="viewMode === 'list'"
-            :title="t('viewList')"
-            @click="viewMode = 'list'"
-          >
-            <Icon name="menu" :size="15" />
-          </button>
-          <button
-            type="button"
-            :aria-pressed="viewMode === 'grid'"
-            :title="t('viewGrid')"
-            @click="viewMode = 'grid'"
-          >
-            <Icon name="grid" :size="15" />
-          </button>
-        </div>
-
-        <button
-          v-if="files.pairedPath"
-          type="button"
-          class="btn btn-outline"
-          :class="{ '!border-primary/50 !bg-primary/10': files.splitView }"
-          :title="t('splitViewHint')"
-          @click="files.toggleSplitView"
-        >
-          <Icon name="columns" :size="14" />
-          {{ t("splitView") }}
-        </button>
-        <button type="button" class="btn btn-outline" @click="files.refresh">
-          <Icon name="refresh" :size="14" />
-          {{ t("refresh") }}
-        </button>
-        <button type="button" class="btn btn-outline" @click="openNewFolder">
-          <Icon name="add" :size="14" />
-          {{ t("newFolder") }}
-        </button>
-        <!-- The single filled primary action of this view -->
-        <button type="button" class="btn btn-primary" :disabled="uploading" @click="uploadFiles">
-          <Icon name="upload" :size="14" />
-          {{ t("upload") }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Admin: scope + impersonation picker -->
-    <div
-      v-if="accounts.active?.isAdmin"
-      class="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-6 py-2"
-    >
-      <div class="segment">
-        <button
-          type="button"
-          class="!w-auto px-3 text-xs font-medium"
-          :class="{ '!bg-card !text-fg': adminViewAll }"
-          :aria-pressed="adminViewAll"
-          @click="setAdminView(true)"
-        >
-          {{ t("allUsersFolders") }}
-        </button>
-        <button
-          type="button"
-          class="!w-auto px-3 text-xs font-medium"
-          :class="{ '!bg-card !text-fg': !adminViewAll }"
-          :aria-pressed="!adminViewAll"
-          @click="setAdminView(false)"
-        >
-          {{ t("myFilesOnly") }}
-        </button>
-      </div>
-
-      <template v-if="adminViewAll">
-        <input
-          v-model="adminSearch"
-          type="text"
-          :placeholder="t('searchUsers')"
-          class="input !h-7 w-44 text-xs"
-          @keyup.enter="loadAdminUsers"
-        />
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-muted">{{ t("filterUser") }}</span>
-          <select
-            :value="selectedUser"
-            class="input !h-7 w-36 text-xs"
-            @change="selectedUser = ($event.target as HTMLSelectElement).value; onUserSelect()"
-          >
-            <option value="" disabled>{{ t("users") }}…</option>
-            <option v-for="userId in adminUsers" :key="userId" :value="userId">
-              {{ userId }}
-            </option>
-          </select>
-        </div>
-        <button
-          v-if="!adminUsers.length"
-          type="button"
-          class="text-xs text-primary underline-offset-2 hover:underline"
-          @click="loadAdminUsers"
-        >
-          {{ t("refresh") }}
-        </button>
-      </template>
-    </div>
-
-    <div
-      v-if="files.targetUser && files.targetUser !== accounts.active?.username"
-      class="flex items-center gap-2 border-b border-info/40 bg-info/10 px-6 py-1.5 text-xs text-info"
-    >
-      <span class="shrink-0 opacity-80">{{ t("impersonationNotice") }}</span>
-      <span class="truncate font-semibold">{{ files.targetUser }}</span>
-    </div>
+    <ImpersonationBar />
 
     <div
       v-if="files.pairedPath"
@@ -1290,231 +1092,39 @@ watch(
       />
     </div>
 
-    <!-- Context menu -->
-    <div
+    <ContextMenu
       v-if="ctxMenu"
-      class="menu fixed z-50 w-44 py-1"
-      :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-      @click.stop
-    >
-      <button
-        type="button"
-        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
-        @click="open(ctxMenu.entry); ctxMenu = null"
-      >
-        {{ t("open") }}
-      </button>
-      <button
-        type="button"
-        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
-        @click="ctxMenu.entry.isDir ? downloadZip(ctxMenu.entry) : download(ctxMenu.entry); ctxMenu = null"
-      >
-        {{ ctxMenu.entry.isDir ? t("downloadZip") : t("download") }}
-      </button>
-      <button
-        type="button"
-        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
-        @click="startRename(ctxMenu.entry); ctxMenu = null"
-      >
-        {{ t("rename") }}
-      </button>
-      <button
-        type="button"
-        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
-        @click="openShareDialog(ctxMenu.entry); ctxMenu = null"
-      >
-        {{ t("share") }}
-      </button>
-      <div class="mx-2 my-1 border-t border-line"></div>
-      <button
-        type="button"
-        class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10"
-        @click="removeEntry(ctxMenu.entry); ctxMenu = null"
-      >
-        {{ t("delete") }}
-      </button>
-    </div>
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :entry="ctxMenu.entry"
+      @action="onCtxAction"
+    />
 
-    <!-- New folder dialog -->
-    <div
+    <NewFolderDialog
       v-if="showNewFolder"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
-      @click.self="cancelNewFolder"
-    >
-      <form
-        class="modal-surface w-full max-w-xs p-5"
-        @submit.prevent="createFolder"
-      >
-        <h3 class="mb-3 text-base font-semibold">{{ t("newFolder") }}</h3>
-        <input
-          v-model="nameInput"
-          type="text"
-          :placeholder="t('folderName')"
-          autofocus
-          class="input mb-4"
-        />
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-outline" @click="cancelNewFolder">
-            {{ t("cancel") }}
-          </button>
-          <button
-            type="submit"
-            class="btn btn-primary"
-            :disabled="nameInput.trim().length === 0"
-          >
-            {{ t("create") }}
-          </button>
-        </div>
-      </form>
-    </div>
+      v-model="nameInput"
+      @create="createFolder"
+      @cancel="cancelNewFolder"
+    />
 
-    <!-- Rename dialog -->
-    <div
+    <RenameDialog
       v-if="renameTarget"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
-      @click.self="cancelRename"
-    >
-      <form
-        class="modal-surface w-full max-w-xs p-5"
-        @submit.prevent="doRename"
-      >
-        <h3 class="mb-3 text-base font-semibold">{{ t("rename") }}</h3>
-        <input
-          v-model="nameInput"
-          type="text"
-          autofocus
-          class="input mb-4"
-        />
-        <div class="flex justify-end gap-2">
-          <button type="button" class="btn btn-outline" @click="cancelRename">
-            {{ t("cancel") }}
-          </button>
-          <button type="submit" class="btn btn-primary">{{ t("save") }}</button>
-        </div>
-      </form>
-    </div>
+      v-model="nameInput"
+      @save="doRename"
+      @cancel="cancelRename"
+    />
 
-    <!-- Share dialog -->
-    <div
+    <ShareDialog
       v-if="shareDialog"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-scrim/60 p-4"
-      @click.self="closeShareDialog"
-    >
-      <div class="modal-surface flex max-h-[85vh] w-full max-w-md flex-col">
-        <div class="flex items-center justify-between border-b border-line px-5 py-3">
-          <h3 class="min-w-0 truncate text-base font-semibold">
-            {{ t("share") }} — {{ shareDialog.entry.name }}
-          </h3>
-          <button
-            type="button"
-            class="icon-btn !h-7 !w-7 shrink-0"
-            :aria-label="t('close')"
-            @click="closeShareDialog"
-          >
-            <Icon name="close" :size="16" />
-          </button>
-        </div>
-
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            {{ t("existingShares") }}
-          </p>
-          <div v-if="shareDialog.loading" class="mb-4 text-sm text-muted">{{ t("loading") }}</div>
-          <div v-else-if="!shareDialog.shares.length" class="mb-4 text-sm text-muted">
-            {{ t("noShares") }}
-          </div>
-          <ul v-else class="mb-4 space-y-2">
-            <li
-              v-for="share in shareDialog.shares"
-              :key="share.id"
-              class="card flex items-center gap-2 p-3"
-            >
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm">{{ shareLabel(share) }}</span>
-                <span class="block truncate text-xs text-muted">{{ shareTarget(share) }}</span>
-                <span
-                  v-if="share.hasPassword || share.expiration"
-                  class="block truncate text-[11px] text-muted/80"
-                >
-                  {{ share.hasPassword ? t("sharePasswordSet") : "" }}{{ share.hasPassword && share.expiration ? " · " : "" }}{{ share.expiration ? t("shareExpires").replace("{date}", share.expiration) : "" }}
-                </span>
-              </span>
-              <button
-                v-if="share.shareType === 3 && share.url"
-                type="button"
-                class="action-badge shrink-0"
-                :title="t('copyLinkTitle')"
-                @click="copyShareUrl(share.url)"
-              >
-                ⧉
-              </button>
-              <button
-                type="button"
-                class="btn btn-danger h-7 shrink-0 px-2 text-xs"
-                @click="revokeShare(share)"
-              >
-                {{ t("revoke") }}
-              </button>
-            </li>
-          </ul>
-
-          <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            {{ t("newShare") }}
-          </p>
-          <div class="space-y-3">
-            <!-- Share type micro-pills -->
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                v-for="type in shareTypes"
-                :key="type.value"
-                type="button"
-                class="pill"
-                :class="shareForm.type === type.value ? 'pill-active' : ''"
-                @click="shareForm.type = type.value"
-              >
-                {{ type.label }}
-              </button>
-            </div>
-            <input
-              v-if="shareForm.type !== 'link'"
-              v-model="shareForm.shareWith"
-              type="text"
-              :placeholder="t('shareRecipient')"
-              class="input"
-            />
-            <template v-else>
-              <input
-                v-model="shareForm.password"
-                type="text"
-                :placeholder="t('sharePasswordPlaceholder')"
-                class="input"
-              />
-              <input
-                v-model="shareForm.expireDate"
-                type="date"
-                class="input"
-              />
-              <label class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted">
-                <input
-                  type="checkbox"
-                  class="checkbox"
-                  :checked="shareForm.publicUpload"
-                  @change="shareForm.publicUpload = !shareForm.publicUpload"
-                />
-                {{ t("publicUpload") }}
-              </label>
-            </template>
-            <button
-              type="button"
-              class="btn btn-primary"
-              :disabled="submitting"
-              @click="createShare"
-            >
-              {{ t("createShare") }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      ref="shareDialogComp"
+      :entry="shareDialog.entry"
+      :shares="shareDialog.shares"
+      :loading="shareDialog.loading"
+      :submitting="submitting"
+      @close="closeShareDialog"
+      @create="createShare"
+      @revoke="revokeShare"
+      @copy="copyShareUrl"
+    />
   </div>
 </template>

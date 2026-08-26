@@ -1,130 +1,62 @@
 <script setup lang="ts">
-import { Icon } from "./Icon.vue";
+import type { WebDavEntry } from "../lib/ipc";
+import { useUiStore } from "../stores/ui";
+import { translate } from "../lib/i18n";
 
-const props = defineProps<{
-  x: number;
-  y: number;
-  entry: any;
-  isAdmin: boolean;
-  t: (key: string) => string;
-}>();
+defineProps<{ x: number; y: number; entry: WebDavEntry }>();
 
 const emit = defineEmits<{
-  open: [entry: any];
-  toggleSelect: [path: string];
-  contextmenu: [e: MouseEvent, entry: any];
-  rename: [entry: any];
-  createLink: [entry: any];
-  pair: [entry: any];
-  download: [entry: any];
-  share: [entry: any];
-  delete: [entry: any];
+  action: [
+    action: "open" | "download" | "rename" | "share" | "delete",
+    entry: WebDavEntry,
+  ];
 }>();
 
-function emitOpen() {
-  emit("open", props.entry);
-}
-
-function emitToggleSelect() {
-  emit("toggleSelect", props.entry.path);
-}
-
-function emitContextmenu(e: MouseEvent) {
-  emit("contextmenu", e, props.entry);
-}
-
-function emitRename() {
-  emit("rename", props.entry);
-}
-
-function emitCreateLink() {
-  emit("createLink", props.entry);
-}
-
-function emitPair() {
-  emit("pair", props.entry);
-}
-
-function emitDownload() {
-  emit("download", props.entry);
-}
-
-function emitShare() {
-  emit("share", props.entry);
-}
-
-function emitDelete() {
-  emit("delete", props.entry);
-}
+const ui = useUiStore();
+const t = (key: string) => translate(ui.lang, key);
 </script>
 
 <template>
   <div
-    ref="ctxMenu"
-    class="absolute z-10 w-32 rounded-md bg-card shadow-lg divider-y origin-top-right right-0 top-full m-2"
-    @click.self="emitContextmenu"
+    class="menu fixed z-50 w-44 py-1"
+    :style="{ left: x + 'px', top: y + 'px' }"
+    @click.stop
   >
-    <template v-if="props.isAdmin">
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitOpen"
-      >
-        {{ props.t("open") }}
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitRename"
-      >
-        {{ props.t("rename") }}
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer text-error"
-        @click="emitDelete"
-      >
-        {{ props.t("delete") }}
-      </button>
-    </template>
-
-    <template v-else>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitOpen"
-      >
-        {{ props.t("open") }}
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitCreateLink"
-      >
-        {{ props.t("link") }}
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitPair"
-      >
-        ↔
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer"
-        @click="emitDownload"
-      >
-        <Icon name="download" :size="13" class="mr-1" />
-        {{ props.t("download") }}
-      </button>
-      <button
-        type="button"
-        class="block px-3 py-1.5 text-sm text-left whitespace-nowrap cursor-pointer text-error"
-        @click="emitDelete"
-      >
-        {{ props.t("delete") }}
-      </button>
-    </template>
+    <button
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+      @click="emit('action', 'open', entry)"
+    >
+      {{ t("open") }}
+    </button>
+    <button
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+      @click="emit('action', 'download', entry)"
+    >
+      {{ entry.isDir ? t("downloadZip") : t("download") }}
+    </button>
+    <button
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+      @click="emit('action', 'rename', entry)"
+    >
+      {{ t("rename") }}
+    </button>
+    <button
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+      @click="emit('action', 'share', entry)"
+    >
+      {{ t("share") }}
+    </button>
+    <div class="mx-2 my-1 border-t border-line"></div>
+    <button
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10"
+      @click="emit('action', 'delete', entry)"
+    >
+      {{ t("delete") }}
+    </button>
   </div>
 </template>

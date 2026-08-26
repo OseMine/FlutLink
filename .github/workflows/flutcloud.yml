@@ -91,6 +91,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # L20-N3: parse every PowerShell script in scripts/ (the README
+          # one-liner entry point included), not only the FlutCloud installer.
           foreach ($file in Get-ChildItem scripts -Filter '*.ps1') {
             $tokens = $null
             $errors = $null

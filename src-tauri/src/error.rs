@@ -19,6 +19,8 @@ pub enum AppError {
     Parse(String),
     NotFlutCloud(String),
     FlutCloudAppMissing,
+    /// The FlutCloud app is installed but too old for guest access.
+    FlutCloudAppTooOld,
     Update(String),
     /// The destination already exists on the server and the operation refused
     /// to overwrite it — either an upload without an `overwrite` opt-in or a
@@ -79,6 +81,7 @@ impl AppError {
             AppError::Parse(e) => Some(e.clone()),
             AppError::NotFlutCloud(url) => Some(url.clone()),
             AppError::FlutCloudAppMissing => crate::flutcloud::flutcloud_url().ok(),
+            AppError::FlutCloudAppTooOld => crate::flutcloud::flutcloud_url().ok(),
             AppError::Update(msg) => Some(msg.clone()),
             AppError::TargetExists(path) => Some(path.clone()),
             AppError::SyncFolderConflict {

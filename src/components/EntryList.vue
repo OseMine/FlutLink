@@ -4,6 +4,7 @@ import { useUiStore } from "../stores/ui";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
+import { sortEntries, type EntrySortKey } from "../lib/sort";
 import Icon from "./Icon.vue";
 
 const props = withDefaults(
@@ -43,8 +44,18 @@ const emit = defineEmits<{
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
-function formatBytesSize(size: number): string {
-  return formatBytes(size);
+function formatMtime(mtime: string | null): string {
+  if (!mtime) return "—";
+  const date = new Date(mtime);
+  return isNaN(date.getTime()) ? mtime : date.toLocaleString();
+}
+
+const sortedEntries = computed(() =>
+  sortEntries(props.entries, props.sortKey ?? "name", props.sortAsc ?? true)
+);
+
+function toggleSort(key: EntrySortKey) {
+  emit("toggleSort", key);
 }
 
 function shareStatus(path: string) {
@@ -91,7 +102,7 @@ function parentPath(path: string): string {
           </th>
           <th class="w-40 px-3 py-2 font-medium">{{ t("kind") }}</th>
           <th class="w-32 px-3 py-2 font-medium"></th>
-        </tr v-once>
+        </tr>
       </thead>
       <tbody>
         <tr
@@ -130,7 +141,7 @@ function parentPath(path: string): string {
               </span>
             </button>
           </td>
-          <td class="px-3 py-2 tabular-nums text-muted">{{ entry.isDir ? "—" : formatBytesSize(entry.size) }}</td>
+          <td class="px-3 py-2 tabular-nums text-muted">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
           <td class="px-3 py-2 text-muted">{{ formatMtime(entry.mtime) }}</td>
           <td class="px-3 py-2">
             <!-- Status badges: neutral surface + colored dot -->
@@ -246,7 +257,7 @@ function parentPath(path: string): string {
         </div>
         <p class="w-full truncate text-xs" :title="entryPreview(entry)">{{ entry.name }}</p>
         <p class="w-full truncate text-[10px] tabular-nums text-muted">
-          {{ entry.isDir ? "—" : formatBytesSize(entry.size) }}
+          {{ entry.isDir ? "—" : formatBytes(entry.size) }}
         </p>
         <p
           v-if="props.searching"

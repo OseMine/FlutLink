@@ -50,85 +50,222 @@ fn cache_key(path: &str) -> &str {
     }
 }
 
-use crate::error::{AppError, AppResult};
-use crate::persist::atomic_write;
-use crate::state::{UserQuota, WebDavEntry};
-use sha2::{Digest, Sha256};
-use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
-use tauri::{AppHandle, Manager};
-
-/// Maximum number of cache files kept on disk. When a write pushes the cache
-/// beyond this limit the oldest entries are evicted so the app data directory
-/// does not grow unbounded while browsing many folders.
-pub const MAX_CACHE_ENTRIES: usize = 500;
-
-/// Cache counter file name for tracking entry count without full directory scan.
-const COUNTER_FILE: &str = ".cache_counter";
-
 /// Remove the oldest cache files so the directory holds at most `max_entries`
-/// files. Uses an atomic counter file for recency tracking instead of a full
-/// directory scan, and performs batch eviction (10% at a time) to avoid
-/// O(N) metadata syscalls on every write.
-///
-/// Returns the number of removed files.
+/// files. Recency is tracked via the file modification time, which is
+/// refreshed on every successful write, so the least recently written entries
+/// are evicted first. Returns the number of removed files.
 fn evict_oldest(dir: &Path, max_entries: usize) -> usize {
-    let counter_path = dir.join(COUNTER_FILE);
-    let Ok(counter_str) = std::fs::read_to_string(&counter_path) else {
-        // No counter file yet - do full scan once to populate it
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return 0;
-        };
-        let mut files: Vec<PathBuf> = Vec::new();
-        for entry in entries.flatten() {
-            let Ok(meta) = entry.metadata() else {
-                continue;
-            };
-            if meta.is_file() && entry.file_name().to_str() != Some(COUNTER_FILE) {
-                files.push(entry.path());
-            }
-        }
-        if files.is_empty() {
-            let _ = std::fs::write(&counter_path, "0");
-            return 0;
-        }
-        // Sort by filename (which includes timestamp from hash) to determine oldest
-        files.sort_by_key(|path| path.file_name().and_then(|n| n.to_str()).unwrap_or_default());
-        let to_remove = files.len().saturating_sub(max_entries);
-        // Batch: only remove 10% at a time
-        let batch = files.len() / 10.max(1);
-        let actual_remove = to_remove.min(batch);
-        for path in files.iter().take(actual_remove) {
-            let _ = std::fs::remove_file(path);
-        }
-        let _ = std::fs::write(&counter_path, &files.len().to_string());
-        return files.len() - max_entries;
-    };
-    let mut counter: usize = counter_str.trim().parse().unwrap_or(0);
-    if counter <= max_entries {
-        return 0;
-    }
-    // Batch eviction: remove 10% of entries
-    let evict_count = counter / 10.max(1);
-    let to_remove = evict_count.min(counter - max_entries);
-    // List files and remove the oldest `to_remove` files
     let Ok(entries) = std::fs::read_dir(dir) else {
-        let _ = std::fs::write(&counter_path, &(counter - to_remove).to_string());
         return 0;
     };
-    let mut files: Vec<PathBuf> = Vec::new();
+    let mut files: Vec<(SystemTime, PathBuf)> = Vec::new();
     for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() && path.file_name().to_str() != Some(std::ffi::OsStr::new(COUNTER_FILE)) {
-            files.push(path);
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if meta.is_file() {
+            files.push((
+                meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                entry.path(),
+            ));
         }
     }
-    // Sort by filename to get oldest first (stable across restarts)
-    files.sort_by_key(|path| path.file_name().and_then(|n| n.to_str()).unwrap_or_default());
-    let removed = files[..to_remove].iter().for_each(|path| {
+    if files.len() <= max_entries {
+        return 0;
+    }
+    files.sort_by_key(|(mtime, _)| *mtime);
+    let remove = files.len() - max_entries;
+    for (_, path) in files.into_iter().take(remove) {
         let _ = std::fs::remove_file(path);
-    });
-    let _ = std::fs::write(&counter_path, &(counter - to_remove).to_string());
-    to_remove
+    }
+    remove
+}
+
+/// Load a cached JSON document. A corrupt or unreadable file is deleted and
+/// reported as a miss instead of failing the request (#286) — the cache is a
+/// best-effort offline fallback, never a source of hard errors.
+fn load_json<T: serde::de::DeserializeOwned>(path: &Path) -> AppResult<Option<T>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let parsed = std::fs::read_to_string(path)
+        .map_err(|e| AppError::Parse(e.to_string()))
+        .and_then(|raw| serde_json::from_str(&raw).map_err(|e| AppError::Parse(e.to_string())));
+    match parsed {
+        Ok(value) => Ok(Some(value)),
+        Err(_) => {
+            let _ = std::fs::remove_file(path);
+            Ok(None)
+        }
+    }
+}
+
+/// Persist a folder listing for `namespace` (account + browsed user).
+pub fn save_listing(
+    app: &AppHandle,
+    namespace: &str,
+    path: &str,
+    entries: &[WebDavEntry],
+) -> AppResult<()> {
+    let dir = cache_dir(app)?;
+    let json = serde_json::to_string(entries).map_err(|e| AppError::Parse(e.to_string()))?;
+    atomic_write(
+        &dir.join(file_name("listing", namespace, cache_key(path))),
+        &json,
+    )?;
+    evict_oldest(&dir, MAX_CACHE_ENTRIES);
+    Ok(())
+}
+
+/// Load a cached folder listing, or `None` when nothing was cached yet.
+pub fn load_listing(
+    app: &AppHandle,
+    namespace: &str,
+    path: &str,
+) -> AppResult<Option<Vec<WebDavEntry>>> {
+    load_json(&cache_dir(app)?.join(file_name("listing", namespace, cache_key(path))))
+}
+
+/// Persist the storage quota of the active account.
+pub fn save_quota(app: &AppHandle, namespace: &str, quota: &UserQuota) -> AppResult<()> {
+    let dir = cache_dir(app)?;
+    let json = serde_json::to_string(quota).map_err(|e| AppError::Parse(e.to_string()))?;
+    atomic_write(&dir.join(file_name("quota", namespace, "/")), &json)?;
+    evict_oldest(&dir, MAX_CACHE_ENTRIES);
+    Ok(())
+}
+
+/// Load the cached storage quota, or `None` when nothing was cached yet.
+pub fn load_quota(app: &AppHandle, namespace: &str) -> AppResult<Option<UserQuota>> {
+    load_json(&cache_dir(app)?.join(file_name("quota", namespace, "/")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::time::Duration;
+
+    fn touch(path: &Path, mtime: SystemTime) {
+        File::options()
+            .write(true)
+            .open(path)
+            .expect("open cache file for touching")
+            .set_modified(mtime)
+            .expect("set cache file mtime");
+    }
+
+    #[test]
+    fn evict_keeps_cache_at_or_under_the_limit() {
+        let dir = std::env::temp_dir().join(format!("flutlink-cache-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp cache dir");
+
+        let base = SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        let limit = 10;
+        for i in 0..50 {
+            let file = dir.join(format!("entry-{i}.json"));
+            std::fs::write(&file, format!("{i}")).expect("write cache file");
+            touch(&file, base + Duration::from_secs(i));
+        }
+
+        let removed = evict_oldest(&dir, limit);
+
+        let remaining: Vec<_> = std::fs::read_dir(&dir)
+            .expect("read cache dir")
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+            .collect();
+        assert_eq!(removed, 40);
+        assert_eq!(remaining.len(), limit, "cache stays under the limit");
+        for file in remaining {
+            let name = file.file_name().into_string().expect("utf-8 name");
+            let idx: u64 = name
+                .trim_start_matches("entry-")
+                .trim_end_matches(".json")
+                .parse()
+                .expect("parse index");
+            assert!(
+                idx >= 40,
+                "oldest entries are evicted first, kept entry-{idx}"
+            );
+        }
+
+        std::fs::remove_dir_all(&dir).expect("clean up temp cache dir");
+    }
+
+    #[test]
+    fn evict_is_a_noop_below_the_limit() {
+        let dir = std::env::temp_dir().join(format!("flutlink-cache-test2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp cache dir");
+
+        for i in 0..3 {
+            std::fs::write(dir.join(format!("entry-{i}.json")), format!("{i}"))
+                .expect("write cache file");
+        }
+
+        assert_eq!(evict_oldest(&dir, 10), 0);
+        let count = std::fs::read_dir(&dir)
+            .expect("read cache dir")
+            .filter_map(Result::ok)
+            .count();
+        assert_eq!(count, 3, "nothing is evicted below the limit");
+
+        std::fs::remove_dir_all(&dir).expect("clean up temp cache dir");
+    }
+
+    #[test]
+    fn cache_file_names_are_stable_and_collision_free() {
+        let a1 = file_name("listing", "user@host|alice", "/Documents");
+        let a2 = file_name("listing", "user@host|alice", "/Documents");
+        assert_eq!(a1, a2, "the same key must map to the same file name");
+
+        let b = file_name("listing", "user@host|alice", "/Documents ");
+        assert_ne!(a1, b, "different keys must not collide");
+
+        let c = file_name("listing", "user@host|bob", "/Documents");
+        assert_ne!(a1, c, "different namespaces must not collide");
+
+        let d = file_name("quota", "user@host|alice", "/");
+        assert_ne!(a1, d, "different scopes must not collide");
+    }
+
+    #[test]
+    fn corrupt_cache_file_is_deleted_and_reports_a_miss() {
+        let dir = std::env::temp_dir().join(format!("flutlink-cache-test3-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp cache dir");
+
+        let path = dir.join(file_name("listing", "ns", "/"));
+        std::fs::write(&path, "{\"truncated\":").expect("write broken json");
+
+        let loaded: Option<Vec<WebDavEntry>> = load_json(&path).expect("no hard error");
+        assert!(loaded.is_none(), "corrupt content is reported as a miss");
+        assert!(!path.exists(), "the corrupt file is removed");
+
+        std::fs::remove_dir_all(&dir).expect("clean up temp cache dir");
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_temp_files_behind() {
+        let dir = std::env::temp_dir().join(format!("flutlink-cache-test4-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp cache dir");
+
+        let path = dir.join(file_name("quota", "ns", "/"));
+        atomic_write(&path, "{\"used\":1}").expect("atomic write");
+        atomic_write(&path, "{\"used\":2}").expect("rewrite");
+
+        let count = std::fs::read_dir(&dir)
+            .expect("read cache dir")
+            .filter_map(Result::ok)
+            .count();
+        assert_eq!(count, 1, "only the final file remains");
+
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(raw, "{\"used\":2}");
+
+        std::fs::remove_dir_all(&dir).expect("clean up temp cache dir");
+    }
 }
