@@ -228,6 +228,22 @@ async function saveField(key: "displayname" | "email" | "password") {
   }
 }
 
+// L22-F3-style batch save: commit only the fields the user actually changed,
+// sequentially, reusing saveField's per-field guards and refetch logic.
+async function saveEdits() {
+  if (!selected.value) return;
+  const u = selected.value;
+  if (edits.displayName.trim() && edits.displayName !== (u.displayName ?? "")) {
+    await saveField("displayname");
+    if (!selected.value || selected.value.id !== u.id) return;
+  }
+  if (edits.email.trim() && edits.email !== (u.email ?? "")) {
+    await saveField("email");
+    if (!selected.value || selected.value.id !== u.id) return;
+  }
+  if (edits.password) await saveField("password");
+}
+
 async function setQuota(quota: string | null) {
   if (!selected.value) return;
   error.value = null;
@@ -382,7 +398,7 @@ async function createUser() {
       </div>
 
       <!-- Details (70 %) -->
-      <div class="card min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
+      <div class="card min-h-0 min-w-0 flex-1 p-4">
         <p v-if="detailsLoading" class="text-sm text-muted">{{ t("loadingDetails") }}</p>
         <template v-else-if="selected">
           <AdminUserDetails
@@ -392,7 +408,7 @@ async function createUser() {
             v-model:group-input="groupInput"
             :user="selected"
             @browse="(id) => emit('browse', id)"
-            @save-field="saveField"
+            @save="saveEdits"
             @toggle-enabled="toggleEnabled"
             @remove="removeUser"
             @add-to-group="addToGroup"
