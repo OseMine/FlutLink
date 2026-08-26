@@ -160,7 +160,7 @@ runs:
       env:
         OPENCODE_API_KEY: ${{ inputs.opencode-api-key }}
         OPENCODE_MODELS: ${{ inputs.models }}
-        OPENCODE_CMD: "npx --yes opencode-ai@latest"
+        OPENCODE_CMD: "npx --yes opencode-ai@1.18.21"
       run: |
         PREV_TAG=$(git describe --abbrev=0 --tags "${GITHUB_SHA}^" 2>/dev/null || true)
         if [ -n "$PREV_TAG" ]; then
