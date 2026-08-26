@@ -9,10 +9,14 @@ import java.util.Properties
 /**
  * File-backed [KeyValueStorage] for the Desktop-JVM client. Accounts metadata
  * lives in a normal properties file; the "secure" variant stores tokens in a
- * separate file with owner-only permissions (`XDG_STATE_HOME/flutlink`),
- * mirroring the desktop Rust client's keyring/file split. Note: unlike the
- * OS keyring this is not encrypted at rest — a real keyring integration is
- * follow-up work.
+ * separate file with owner-only permissions under `$XDG_STATE_HOME/flutlink`
+ * (defaulting to `~/.local/state/flutlink`), mirroring the desktop Rust client's
+ * keyring/file split.
+ *
+ * Note: unlike the OS keyring this file is not encrypted at rest — a real
+ * keyring integration (e.g. Android Keystore / macOS Keychain / Linux
+ * Secret Service) is a follow-up task (L22-F3). The owner-only permission
+ * restriction limits access to the current user.
  */
 class FileKeyValueStorage(
     file: Path,

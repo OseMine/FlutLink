@@ -19,6 +19,8 @@ pub enum AppError {
     Parse(String),
     NotFlutCloud(String),
     FlutCloudAppMissing,
+    /// The FlutCloud app is installed but too old for guest access.
+    FlutCloudAppTooOld,
     Update(String),
     /// The destination already exists on the server and the operation refused
     /// to overwrite it — either an upload without an `overwrite` opt-in or a
@@ -48,6 +50,7 @@ impl AppError {
             AppError::Parse(_) => "parse",
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
+            AppError::FlutCloudAppTooOld => "flutcloud_app_too_old",
             AppError::Update(_) => "update",
             AppError::TargetExists(_) => "target_exists",
             AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
@@ -78,6 +81,7 @@ impl AppError {
             AppError::Parse(e) => Some(e.clone()),
             AppError::NotFlutCloud(url) => Some(url.clone()),
             AppError::FlutCloudAppMissing => crate::flutcloud::flutcloud_url().ok(),
+            AppError::FlutCloudAppTooOld => crate::flutcloud::flutcloud_url().ok(),
             AppError::Update(msg) => Some(msg.clone()),
             AppError::TargetExists(path) => Some(path.clone()),
             AppError::SyncFolderConflict {
@@ -127,6 +131,14 @@ impl AppError {
                     .unwrap_or_else(|_| "the FlutCloud server".to_string());
                 format!(
                     "'{}' is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled. Install it from the 'flutcloud-app' folder of the FlutLink repository.",
+                    server
+                )
+            }
+            AppError::FlutCloudAppTooOld => {
+                let server = crate::flutcloud::flutcloud_url()
+                    .unwrap_or_else(|_| "the FlutCloud server".to_string());
+                format!(
+                    "'{}' is not a FlutCloud server: the FlutCloud Nextcloud app is too old for guest access. Please update the FlutCloud app to the required version.",
                     server
                 )
             }

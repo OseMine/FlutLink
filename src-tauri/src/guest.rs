@@ -131,7 +131,7 @@ pub async fn verify_guest_server(client: &Client) -> AppResult<()> {
         Ok(())
     } else {
         // The app is installed but too old for guest access.
-        Err(AppError::FlutCloudAppMissing)
+        Err(AppError::FlutCloudAppTooOld)
     }
 }
 

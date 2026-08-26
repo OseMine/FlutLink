@@ -276,34 +276,8 @@ pub struct PutParams<'a> {
     pub forbid_overwrite: bool,
 }
 
-/// Like [`put_file_params`], but reports `(transferred, total)` per uploaded chunk.
-pub async fn put_file_as_progress(
-    client: &Client,
-    account: &Account,
-    remote_rel: &str,
-    local_path: &std::path::Path,
-    mtime_secs: i64,
-    target_user: Option<&str>,
-    on_progress: Option<ProgressFn>,
-) -> AppResult<()> {
-    put_file_params(
-        client,
-        account,
-        PutParams {
-            remote_rel,
-            local_path,
-            mtime_secs,
-            target_user,
-            on_progress,
-            if_match: None,
-            forbid_overwrite: false,
-        },
-    )
-    .await
-}
-
-/// Upload implementation behind [`put_file_as_progress`] and
-/// [`put_file_params`], adding conditional-request guards.
+/// Upload implementation behind [`put_file_params`], adding conditional-request
+/// guards.
 ///
 /// Files above [`CHUNK_UPLOAD_MIN_BYTES`] are uploaded through the WebDAV
 /// chunked upload v2 protocol: a session folder under
