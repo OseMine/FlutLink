@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
+import { initials } from "../lib/format";
 
 defineProps<{
   users: string[];
@@ -24,11 +25,28 @@ const t = (key: string) => translate(ui.lang, key);
       <li v-for="userId in users" :key="userId">
         <button
           type="button"
-          class="w-full px-4 py-2 text-left text-sm transition hover:bg-card-hover"
-          :class="selectedId === userId ? 'bg-primary/10 text-primary' : ''"
+          class="flex w-full items-center gap-3 px-3 py-2 text-left transition"
+          :class="
+            selectedId === userId
+              ? 'bg-primary/10 text-primary'
+              : 'hover:bg-card-hover'
+          "
           @click="emit('select', userId)"
         >
-          {{ userId }}
+          <span
+            class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-semibold"
+            :class="
+              selectedId === userId
+                ? 'bg-primary/20 text-primary'
+                : 'bg-card-hover text-muted'
+            "
+            aria-hidden="true"
+          >
+            {{ initials(userId) }}
+          </span>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium">
+            {{ userId }}
+          </span>
         </button>
       </li>
     </ul>

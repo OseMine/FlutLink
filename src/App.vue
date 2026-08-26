@@ -47,11 +47,7 @@ function initialTheme(): "midnight" | "light" {
 const resolvedTheme = ref<"midnight" | "light">(initialTheme());
 
 // The theme lives on <html> so teleported overlays (modals, toasts) inherit
-// the tokens too. A customized accent hue overrides the theme's seed.
-const accentStyle = computed(() => {
-  if (ui.accentHue === null) return undefined;
-  return { "--accent-hue": String(ui.accentHue) } as Record<string, string>;
-});
+// the tokens too.
 
 watch(
   resolvedTheme,
@@ -245,7 +241,7 @@ function startGuestModeOff() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col bg-canvas text-fg" :style="accentStyle">
+  <div class="flex h-full flex-col bg-canvas text-fg">
     <div
       v-if="updateBanner"
       class="flex items-center gap-3 border-b border-line-strong bg-card px-4 py-2 text-sm"

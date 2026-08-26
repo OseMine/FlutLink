@@ -10,3 +10,10 @@ export function formatBytes(bytes: number | null): string {
   }
   return `${value.toFixed(1)} ${units[unit]}`;
 }
+
+/// Up to two leading alphanumerics of `name`, uppercased — used as the text
+/// inside avatar circles where no profile image exists.
+export function initials(name: string): string {
+  const chars = name.replace(/[^a-zA-Z0-9]/g, "");
+  return chars.slice(0, 2).toUpperCase();
+}
