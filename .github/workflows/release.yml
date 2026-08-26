@@ -417,7 +417,7 @@ jobs:
           gh release upload "$TAG" apk/*.apk ipa/*.ipa flutcloud-app-dist/*.zip --clobber
 
   altstore:
-    name: Update AltStore sources (classic + PAL)
+    name: Update AltStore sources (classic)
     needs: upload-mobile
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -454,7 +454,7 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add altstore/classic.json altstore/pal.json
+          git add altstore/classic.json
           if git diff --cached --quiet; then
             echo "AltStore sources unchanged"
           else
@@ -467,7 +467,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${GITHUB_REF_NAME}" altstore/classic.json altstore/pal.json --clobber
+          gh release upload "${GITHUB_REF_NAME}" altstore/classic.json --clobber
 
   publish-release:
     name: Publish release page
@@ -497,7 +497,7 @@ jobs:
           ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')
           echo "$ASSETS"
           missing=0
-          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "pal\.json$" "flutcloud-app\.zip$"; do
+          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "flutcloud-app\.zip$"; do
             if ! echo "$ASSETS" | grep -Eq "$pattern"; then
               echo "::error::Release $TAG unvollstaendig: kein Asset matcht $pattern"
               missing=1

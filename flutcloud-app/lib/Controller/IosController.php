@@ -15,7 +15,6 @@ use OCP\IRequest;
  * Public AltStore source endpoints for iOS distribution.
  *
  * GET /apps/flutcloud/ios          — list of available sources
- * GET /apps/flutcloud/ios/pal      — redirect to the latest AltStore PAL source JSON
  * GET /apps/flutcloud/ios/classic  — redirect to the latest AltStore Classic source JSON
  *
  * The source JSONs themselves live on GitHub as assets of the latest

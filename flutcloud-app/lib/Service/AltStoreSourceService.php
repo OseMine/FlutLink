@@ -9,16 +9,16 @@ use OCP\ICacheFactory;
 use Throwable;
 
 /**
- * Resolves the latest FlutLink AltStore source JSONs (`pal` / `classic`).
+ * Resolves the latest FlutLink AltStore Classic source JSON.
  *
- * The FlutLink release pipeline attaches `pal.json` and `classic.json` to
- * every GitHub release and commits the updated copies to `main`. This service
+ * The FlutLink release pipeline attaches `classic.json` to every GitHub
+ * release and commits the updated copy to `main`. This service
  * prefers the asset of the latest release and falls back to the committed
  * copy when the GitHub API is unavailable or rate-limited.
  */
 final class AltStoreSourceService
 {
-    public const SOURCES = ['pal', 'classic'];
+    public const SOURCES = ['classic'];
 
     private const GITHUB_REPO = 'OseMine/FlutLink';
     private const RELEASES_API_URL = 'https://api.github.com/repos/' . self::GITHUB_REPO . '/releases/latest';

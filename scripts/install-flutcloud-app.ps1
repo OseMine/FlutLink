@@ -270,4 +270,4 @@ if (-not $SkipVerify) {
 }
 
 Write-Host "Done. FlutLink can now connect to this server as a FlutCloud instance."
-Write-Host 'Optional: to also serve the iOS AltStore sources at <server>/ios/{pal,classic}, add the web-server rewrite from flutcloud-app/README.md.'
+Write-Host 'Optional: to also serve the iOS AltStore Classic source at <server>/ios/classic, add the web-server rewrite from flutcloud-app/README.md.'

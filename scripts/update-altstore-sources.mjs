@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Updates altstore/classic.json and altstore/pal.json with the latest
+// Updates altstore/classic.json with the latest
 // release entry. Used by .github/workflows/release.yml on tag pushes; safe
 // to run locally for manual maintenance.
 //
@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const files = [path.join(root, "altstore", "classic.json"), path.join(root, "altstore", "pal.json")];
+const files = [path.join(root, "altstore", "classic.json")];
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
