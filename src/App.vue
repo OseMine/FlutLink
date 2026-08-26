@@ -298,9 +298,9 @@ function startGuestModeOff() {
             </nav>
 
             <div class="flex items-center gap-1.5">
-              <!-- <button type="button" class="btn btn-ghost" @click="toggleLang">
+              <button type="button" class="btn btn-ghost" @click="toggleLang">
                 {{ langLabel }}
-              </button> -->
+              </button>
               <button
                 type="button"
                 class="icon-btn"
@@ -400,7 +400,12 @@ function startGuestModeOff() {
 
       <template v-else>
         <main class="flex min-w-0 flex-1 flex-col">
-          <header class="flex h-14 shrink-0 items-center justify-between border-b border-line px-6">
+          <!-- Guest mode: GuestBrowser's own header is the single top bar —
+               a second app header here would duplicate it. -->
+          <header
+            v-if="!ui.guestMode"
+            class="flex h-14 shrink-0 items-center justify-between border-b border-line px-6"
+          >
             <div class="flex items-center gap-2.5">
               <img src="/flutlink-logo.svg" alt="FlutLink" class="h-7" />
             </div>
@@ -423,6 +428,7 @@ function startGuestModeOff() {
             v-if="ui.guestMode"
             class="min-h-0 flex-1"
             @exit="startGuestModeOff"
+            @settings="showSettings = true"
           />
           <WelcomeScreen
             v-else

@@ -10,15 +10,22 @@ import { api, invokeError, type GuestEntry, type GuestShare } from "../lib/ipc";
 import { registerEscapeCloser } from "../lib/escape";
 
 // #372: `embedded` renders the browser as an admin tab while signed in —
-// without it the component is the standalone signed-out guest mode view.
+// without it the component is the standalone signed-out guest mode view,
+// where its own header is the ONLY app chrome (App.vue hides its header
+// then): logo + guest indicator left, language/settings/exit right.
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 
-const emit = defineEmits<{ exit: [] }>();
+const emit = defineEmits<{ exit: []; settings: [] }>();
 
 const ui = useUiStore();
 const accounts = useAccountsStore();
 const t = (key: string) => translate(ui.lang, key);
 const isAdmin = computed(() => !!accounts.active?.isAdmin);
+const langLabel = computed(() => (ui.lang === "de" ? "Deutsch" : "English"));
+
+function toggleLang() {
+  ui.setLang(ui.lang === "en" ? "de" : "en");
+}
 
 const shares = ref<GuestShare[]>([]);
 const categories = ref<string[]>([]);
@@ -310,7 +317,7 @@ onMounted(() => void load());
         <h2 class="truncate text-lg font-semibold">{{ t("guestTabTitle") }}</h2>
         <p class="truncate text-xs text-muted">{{ t("guestReadOnlyHint") }}</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5">
         <button
           v-if="isAdmin && !share"
           type="button"
@@ -319,14 +326,23 @@ onMounted(() => void load());
         >
           {{ t("guestAdminCategoryCreate") }}
         </button>
-        <button
-          v-if="!embedded"
-          type="button"
-          class="btn btn-ghost"
-          @click="emit('exit')"
-        >
-          {{ t("guestExit") }}
-        </button>
+        <template v-if="!embedded">
+          <button type="button" class="btn btn-ghost" @click="toggleLang">
+            {{ langLabel }}
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            :title="t('settings')"
+            :aria-label="t('settings')"
+            @click="emit('settings')"
+          >
+            <Icon name="settings" :size="18" />
+          </button>
+          <button type="button" class="btn btn-ghost" @click="emit('exit')">
+            {{ t("guestExit") }}
+          </button>
+        </template>
       </div>
     </header>
 
