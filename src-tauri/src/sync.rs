@@ -1,13 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 
 use crate::error::{AppError, AppResult};
 use crate::nextcloud::webdav;
@@ -386,56 +387,71 @@ struct RemoteListing {
 }
 
 /// Recursively list the remote sync root (BFS with Depth-1 PROPFIND).
+/// Directories at the same depth are listed concurrently (up to 4 at a time).
 async fn list_remote(
     client: &reqwest::Client,
     account: &Account,
     root: &str,
 ) -> AppResult<RemoteListing> {
+    let sem = Arc::new(Semaphore::new(4));
     let mut map = BTreeMap::new();
     let mut dirty_dirs = BTreeSet::new();
     let mut pending = vec![root.trim_matches('/').to_string()];
-    while let Some(dir) = pending.pop() {
-        let entries = match webdav::list(client, account, &dir, None).await {
-            Ok(entries) => entries,
-            Err(AppError::Status { status: 404, .. }) => Vec::new(),
-            Err(err) => return Err(err),
-        };
-        for entry in entries {
-            let Some(rel) = rel_below(root, &entry.path) else {
-                continue;
+
+    while !pending.is_empty() {
+        let dirs: Vec<String> = std::mem::take(&mut pending);
+        let mut handles = Vec::with_capacity(dirs.len());
+        for dir in &dirs {
+            let permit = sem.clone().acquire_owned().await.unwrap();
+            let fut = webdav::list(client, account, dir, None);
+            let d = dir.clone();
+            handles.push(async move {
+                let result = fut.await;
+                drop(permit);
+                (d, result)
+            });
+        }
+        for (_dir, result) in join_all(handles).await {
+            let entries = match result {
+                Ok(entries) => entries,
+                Err(AppError::Status { status: 404, .. }) => Vec::new(),
+                Err(err) => return Err(err),
             };
-            if rel.is_empty() {
-                continue;
-            }
-            if should_skip_rel(&rel) {
-                // Track where skipped entries live so their parent folder is
-                // never deleted (L15-S8: hidden children must survive).
-                dirty_dirs.insert(parent_of(&rel));
-                continue;
-            }
-            if entry.is_dir {
-                if !map.contains_key(&rel) {
+            for entry in entries {
+                let Some(rel) = rel_below(root, &entry.path) else {
+                    continue;
+                };
+                if rel.is_empty() {
+                    continue;
+                }
+                if should_skip_rel(&rel) {
+                    dirty_dirs.insert(parent_of(&rel));
+                    continue;
+                }
+                if entry.is_dir {
+                    if !map.contains_key(&rel) {
+                        map.insert(
+                            rel.clone(),
+                            RemoteEntry {
+                                is_dir: true,
+                                size: 0,
+                                mtime: parse_mtime(entry.mtime.as_deref()),
+                                etag: entry.etag.clone(),
+                            },
+                        );
+                    }
+                    pending.push(entry.path.trim_matches('/').to_string());
+                } else {
                     map.insert(
-                        rel.clone(),
+                        rel,
                         RemoteEntry {
-                            is_dir: true,
-                            size: 0,
+                            is_dir: false,
+                            size: entry.size.unwrap_or(0),
                             mtime: parse_mtime(entry.mtime.as_deref()),
                             etag: entry.etag.clone(),
                         },
                     );
                 }
-                pending.push(entry.path.trim_matches('/').to_string());
-            } else {
-                map.insert(
-                    rel,
-                    RemoteEntry {
-                        is_dir: false,
-                        size: entry.size.unwrap_or(0),
-                        mtime: parse_mtime(entry.mtime.as_deref()),
-                        etag: entry.etag.clone(),
-                    },
-                );
             }
         }
     }
@@ -560,17 +576,17 @@ fn plan_ops(
     journal: &Journal,
     dirty_dirs: &BTreeSet<String>,
 ) -> Vec<Action> {
-    let mut rels: BTreeSet<String> = BTreeSet::new();
-    for rel in local.keys().chain(remote.keys()).chain(journal.keys()) {
-        rels.insert(rel.clone());
-    }
+    let mut rels: BTreeSet<&str> = BTreeSet::new();
+    rels.extend(local.keys().map(|k| k.as_str()));
+    rels.extend(remote.keys().map(|k| k.as_str()));
+    rels.extend(journal.keys().map(|k| k.as_str()));
 
     let mut used_targets: BTreeSet<String> = BTreeSet::new();
     let mut file_ops: Vec<Action> = Vec::new();
     let mut uploads: Vec<String> = Vec::new();
     let mut moved_dirs: Vec<String> = Vec::new();
     for rel in rels {
-        let action = decide(&rel, local.get(&rel), remote.get(&rel), journal);
+        let action = decide(rel, local.get(rel), remote.get(rel), journal);
         match action {
             Action::Skip(_) => {}
             Action::Upload(p) => {

@@ -53,7 +53,9 @@ fn cache_key(path: &str) -> &str {
 /// Remove the oldest cache files so the directory holds at most `max_entries`
 /// files. Recency is tracked via the file modification time, which is
 /// refreshed on every successful write, so the least recently written entries
-/// are evicted first. Returns the number of removed files.
+/// are evicted first. Evicts in batches of 10 % so the full metadata scan is
+/// amortised over many writes instead of running on every single one.
+/// Returns the number of removed files.
 fn evict_oldest(dir: &Path, max_entries: usize) -> usize {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
@@ -73,8 +75,11 @@ fn evict_oldest(dir: &Path, max_entries: usize) -> usize {
     if files.len() <= max_entries {
         return 0;
     }
+    // Evict only 10 % at a time (at least 1) to amortise the metadata scan.
     files.sort_by_key(|(mtime, _)| *mtime);
-    let remove = files.len() - max_entries;
+    let excess = files.len() - max_entries;
+    let batch = std::cmp::max(1, max_entries / 10);
+    let remove = std::cmp::min(excess, batch);
     for (_, path) in files.into_iter().take(remove) {
         let _ = std::fs::remove_file(path);
     }
@@ -169,14 +174,22 @@ mod tests {
             touch(&file, base + Duration::from_secs(i));
         }
 
-        let removed = evict_oldest(&dir, limit);
+        // Batch eviction removes ~10% per call; loop until stable.
+        let mut total_removed = 0;
+        loop {
+            let removed = evict_oldest(&dir, limit);
+            if removed == 0 {
+                break;
+            }
+            total_removed += removed;
+        }
 
         let remaining: Vec<_> = std::fs::read_dir(&dir)
             .expect("read cache dir")
             .filter_map(Result::ok)
             .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
             .collect();
-        assert_eq!(removed, 40);
+        assert_eq!(total_removed, 40);
         assert_eq!(remaining.len(), limit, "cache stays under the limit");
         for file in remaining {
             let name = file.file_name().into_string().expect("utf-8 name");

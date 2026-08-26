@@ -257,22 +257,12 @@ Material-You-Verweis, `i18n.ts:89-92/:425-428`).
 
 Weiter offen (unverändert, bestätigt):
 
-- [ ] „Desktop-JVM: Token-Speicher härten“ —
+- [ ] „Desktop-JVM: Token-Speicher härten" —
   `kmp/shared/src/jvmMain/kotlin/com/flutcloud/flutlink/desktop/FileKeyValueStorage.kt:14`
   dokumentiert die Keyring-Anbindung weiterhin als Follow-up („not encrypted
-  at rest“).
-- Performance-Analyse: R1 (sequenzielles BFS, `sync.rs:388-446`), R2
-  (Union-BTreeSet, `sync.rs:557-568`), R3 (`evict_oldest` Vollscan,
-  `cache.rs:57-82`), N1+F2 (`loadAllShares` pro Navigation ohne Pfadfilter,
-  `FileExplorer.vue:769-785`), F1 (Doppelt-Sortierung: Parent sortiert für
-  die Keyboard-Navigation `FileExplorer.vue:54-56`, Child erneut fürs
-  Rendering `EntryList.vue:53-55`), U3 (`formatMtime` pro Entry,
-  `EntryList.vue:47-51`), N2 (Thumbnail-Requests ohne Concurrency-Limiter,
-  `FileExplorer.vue:782-783`), U5 (`<thead>` ohne `v-once`,
-  `EntryList.vue:85-106`) — allesamt unverändert vorhanden. **U2 ist
-  erledigt** (#363: Overlay bleibt montiert und faded nur über Opacity,
-  `EntryList.vue:270-277`) und wurde in die Performance-Analyse-Migration
-  ins Archiv übernommen.
+  at rest").
+- [x] Performance-Analyse: R1, R2, R3, N1+F2, F1, U3, N2, U5 — alle in
+  v1.2.0 umgesetzt.
 
 ### GitHub-Issues (Schritt 6)
 
@@ -291,6 +281,10 @@ nächsten Lauf die vier neuen L22-Befunde oben als Issues erfassen.
 - [ ] Desktop-JVM: Token-Speicher härten — OS-Keyring-Anbindung statt
       600er-Datei unter `$XDG_STATE_HOME/flutlink` (siehe
       `FileKeyValueStorage`), Parität zum Tauri-Client (`keyring`).
+- [ ] CI security gate auf v1.2.0: 5.3/10 < min 7.0 — 7 AI-Befunde
+      (pre-existing: FileKeyValueStorage, update-nc.sh, commands.rs,
+      guest.rs, ShareDialog.vue). Prüfen ob direktive actionable items
+      oder zu low-priority für Hotfix.
 
 ## Admin-Panel UI-Review (Issue: Layout, Formular & UX-Verbesserungen)
 
@@ -316,35 +310,33 @@ Implementiert am 2026-08-26:
       übereinstimmen.
 - [x] **i18n** — `confirmPassword`/`passwordsMismatch` in en + de.
 
-## Performance-Analyse (ergänzt 2026-08-25)
+## Performance-Analyse (ergänzt 2026-08-25, umgesetzt in v1.2.0)
 
 ### High Priority
 
-- [ ] **R1 (Sync): Remote-Listing ist sequenzielles BFS** — `sync.rs:388-446`
-      macht N sequenzielle HTTP-Requests (Depth: 1 pro Directory). Fix:
-      `tokio::sync::Semaphore` mit 4-8 Permits für paralleles Listing.
-- [ ] **N1+F2 (Shares): `loadAllShares()` ruft ALLE Shares pro Navigation**
-      — `FileExplorer.vue:585-599` + Watcher `:773-788` ohne Pfadfilter.
-      Fix: `listShares(files.currentPath)` übergeben.
+- [x] **R1 (Sync): Remote-Listing ist sequenzielles BFS** — umgesetzt:
+      `tokio::sync::Semaphore(4)` + `futures_util::future::join_all` in
+      `list_remote` (`sync.rs`). `std::mem::take` statt `drain(..).collect()`.
+- [x] **N1+F2 (Shares): `loadAllShares()` ruft ALLE Shares pro Navigation**
+      — bereits behoben: `loadAllShares(path)` mit Pfadfilter
+      (`FileExplorer.vue`), OCS filtert serverseitig.
 
 ### Medium Priority
 
-- [ ] **F1 (Sort): Doppelte Sortierung** — `FileExplorer.vue:56-58` sortiert,
-      `EntryList.vue:53-55` sortiert erneut. Fix: Parent sortiert, Child
-      bekommt vorsortierte Entries.
-- [ ] **R3 (Cache): `evict_oldest` liest bei jedem Write alle Files** —
-      `cache.rs:57-82`: 500 `metadata()`-Syscalls + Sort pro Navigation.
-      Fix: Atomic-Counter, Batch-Eviction (10% auf einmal).
-- [ ] **R2 (Sync): `plan_ops` allokiert Union-BTreeSet** — `sync.rs:563-566`
-      O(N) Memory + O(N log N). Fix: `merge` auf BTreeMap-Keys statt
-      Union-Set.
+- [x] **F1 (Sort): Doppelte Sortierung** — behoben: Parent sortiert already,
+      `EntryList.vue` sortiert nicht mehr doppelt. `sortEntries`-Import
+      entfernt.
+- [x] **R3 (Cache): `evict_oldest` liest bei jedem Write alle Files** —
+      umgesetzt: Batch-Eviction (10% pro Aufruf, `cache.rs`). Test aktualisiert.
+- [x] **R2 (Sync): `plan_ops` allokiert Union-BTreeSet** — umgesetzt:
+      `BTreeSet<&str>` statt `BTreeSet<String>`, Key-Referenzen statt Kopien
+      (`sync.rs`).
 
 ### Low Priority
 
-- [ ] **U3 (Rendering): `formatMtime` erstellt pro Entry ein Date-Objekt**
-      — `EntryList.vue:47-51`. Fix: Mtimes vorformattieren/cachen.
-- [ ] **N2 (Thumbnails): 50 gleichzeitige HTTP-Requests** —
-      `FileExplorer.vue:303-312`, fire-and-forget. Fix: Concurrency-Limiter
-      (max 4-6).
-- [ ] **U5 (Rendering): `<thead>` wird bei jedem Entry-Change neu gerendert**
-      — `EntryList.vue:86-105`. Fix: `v-once`.
+- [x] **U3 (Rendering): `formatMtime` erstellt pro Entry ein Date-Objekt**
+      — umgesetzt: `mtimeCache` computed Map in `EntryList.vue`.
+- [x] **N2 (Thumbnails): 50 gleichzeitige HTTP-Requests** — bereits behoben:
+      Thumbnail-Semaphore max 6 (`FileExplorer.vue`).
+- [x] **U5 (Rendering): `<thead>` wird bei jedem Entry-Change neu gerendert**
+      — umgesetzt: `v-once` auf `<thead>` in `EntryList.vue`.

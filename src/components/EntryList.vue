@@ -4,7 +4,7 @@ import { useUiStore } from "../stores/ui";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
-import { sortEntries, type EntrySortKey } from "../lib/sort";
+import type { EntrySortKey } from "../lib/sort";
 import Icon from "./Icon.vue";
 
 const props = withDefaults(
@@ -45,14 +45,20 @@ const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
 function formatMtime(mtime: string | null): string {
-  if (!mtime) return "—";
+  if (!mtime) return "\u2014";
   const date = new Date(mtime);
   return isNaN(date.getTime()) ? mtime : date.toLocaleString();
 }
 
-const sortedEntries = computed(() =>
-  sortEntries(props.entries, props.sortKey ?? "name", props.sortAsc ?? true)
-);
+// U3: pre-format mtimes once per entry list change instead of per-row.
+const mtimeCache = computed(() => {
+  const m = new Map<string, string>();
+  for (const e of props.entries) m.set(e.path, formatMtime(e.mtime));
+  return m;
+});
+
+// F1: parent (FileExplorer) already sorts entries — use them as-is.
+const sortedEntries = computed(() => props.entries);
 
 function toggleSort(key: EntrySortKey) {
   emit("toggleSort", key);
@@ -65,8 +71,8 @@ function shareStatus(path: string) {
 function entryPreview(entry: WebDavEntry): string {
   const parts = [entry.name];
   if (!entry.isDir) parts.push(formatBytes(entry.size));
-  const mtime = formatMtime(entry.mtime);
-  if (mtime !== "—") parts.push(mtime);
+  const mtime = mtimeCache.value.get(entry.path) ?? "\u2014";
+  if (mtime !== "\u2014") parts.push(mtime);
   if (entry.isResource) parts.push(t("resource"));
   else if (entry.isPart) parts.push(t("part"));
   return parts.join(" — ");
@@ -82,7 +88,7 @@ function parentPath(path: string): string {
   <!-- List view -->
   <div v-if="viewMode === 'list'" class="px-4 py-2">
     <table class="w-full text-sm">
-      <thead>
+      <thead v-once>
         <tr class="text-left text-[11px] uppercase tracking-wide text-muted">
           <th v-if="selectable" class="w-8 px-3 py-2"></th>
           <th class="px-3 py-2 font-medium">
@@ -142,7 +148,7 @@ function parentPath(path: string): string {
             </button>
           </td>
           <td class="px-3 py-2 tabular-nums text-muted">{{ entry.isDir ? "—" : formatBytes(entry.size) }}</td>
-          <td class="px-3 py-2 text-muted">{{ formatMtime(entry.mtime) }}</td>
+          <td class="px-3 py-2 text-muted">{{ mtimeCache.get(entry.path) ?? "\u2014" }}</td>
           <td class="px-3 py-2">
             <!-- Status badges: neutral surface + colored dot -->
             <span v-if="entry.isResource" class="badge normal-case" :title="entry.linkTarget ? t('linkTargetTo') + ' ' + entry.linkTarget : undefined">
