@@ -32,6 +32,7 @@ only needed for the `OCA\FlutCloud\` namespace (PSR-4 → `lib/`).
 | Virtual links | Read-only `resources/` folders, managed via the links API |
 | Writable parts | Write-enabled `parts/` folders, managed via the parts API |
 | Project folder | `/FlutLink/FlutCloud` in the admin home with a bilingual README |
+| Complete public shares | Anonymous, strictly read-only guest access to folders shared publicly as a whole, with categories and recursive subfolder locks |
 | iOS AltStore Classic source | `GET /apps/flutcloud/ios/classic` — always redirects to the source JSON of the latest FlutLink GitHub release |
 
 ## Installation
@@ -125,15 +126,53 @@ authenticated user (except the capabilities endpoint, which is public):
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/ping` | App info: `{ app, name, version, features, user }` |
+| `GET` | `/ping` | App info: `{ app, name, version, features, user, managed_by, managed_by_url }` |
 | `GET` | `/links` | List virtual links (subfolders of `resources/`) |
 | `POST` | `/links` | Create a virtual link (`name` form/query param) |
 | `DELETE` | `/links/{name}` | Delete a virtual link |
 | `GET` | `/parts` | List writable parts (subfolders of `parts/`) |
 | `POST` | `/parts` | Create a writable part (`name` param) |
 | `POST` | `/project-folder` | Ensure `/FlutLink/FlutCloud` (admin only) |
+| `GET` | `/public` | **Guest:** every complete public share, bundled (`{ shares, categories }`) |
+| `GET` | `/public/categories` | **Guest:** all configured categories |
+| `GET` | `/public/{token}` | **Guest:** list a folder of one share (`path` query param); 404 for missing/locked paths |
+| `POST` | `/public/categories` | Admin: create/update a category (`name`, optional `prefixless`) |
+| `DELETE` | `/public/categories/{name}` | Admin: delete a category |
+| `POST` / `DELETE` | `/public/shares/{token}/category` | Admin: assign/remove a share's category (`category` param) |
+| `POST` / `DELETE` | `/public/shares/{token}/lock` | Admin: lock/unlock a subfolder recursively (`path` param) |
 
 Link/part entries are returned as `{ name, path, readOnly }`.
+
+### Complete public shares ("guest access")
+
+A folder counts as *completely public* when its owner granted a password-free
+link share on it. Guests browse these folders without any account — strictly
+read-only; there is no write path in the API and the underlying read-only link
+permissions are enforced by Nextcloud itself. Every request resolves the share
+live: shares that get deleted, password-protected or expired disappear from the
+guest view immediately. Locked subfolders (recursive) answer 404 — also
+for direct path manipulation.
+
+Web routes mirror the guest API without authentication:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/apps/flutcloud/public` | All complete public shares |
+| `GET` | `/apps/flutcloud/public/{category}` | Shares of one category |
+| `GET` | `/apps/flutcloud/{category}` | Same, only for categories where the admin dropped the `/public/` prefix |
+
+Downloads run through Nextcloud's standard public WebDAV endpoint:
+`/public.php/webdav/<token>/<path>` with basic auth (`<token>` as username,
+empty password). A Sabre plugin (`GuestLockPlugin`) watches that endpoint so
+locked subfolders answer 404 there too — path manipulation cannot bypass the
+lock list.
+
+Contract tests (no live server required):
+
+```bash
+php flutcloud-app/tests/capability-contract.php
+php flutcloud-app/tests/public-share-contract.php
+```
 
 ## iOS / AltStore Classic source
 

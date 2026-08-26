@@ -757,15 +757,7 @@ pub async fn open_remote_file(
 
     let cache_dir = open_cache_dir();
     // Clean up leftovers from previous open operations (best-effort).
-    if let Some(parent) = cache_dir.parent() {
-        if let Ok(entries) = std::fs::read_dir(parent) {
-            for entry in entries.flatten() {
-                if entry.path() != cache_dir {
-                    let _ = std::fs::remove_dir_all(entry.path());
-                }
-            }
-        }
-    }
+    cleanup_open_cache();
     std::fs::create_dir_all(&cache_dir)?;
 
     let file_name = Path::new(&remote_path)
@@ -1272,6 +1264,24 @@ fn open_cache_dir() -> PathBuf {
         .join(format!("{pid}-{ts}"))
 }
 
+/// Remove stale `flutlink-open/*` directories left by earlier open operations
+/// that were interrupted.  Only directories owned by the same PID are cleaned
+/// up so concurrent app instances are not affected.
+fn cleanup_open_cache() {
+    let base = std::env::temp_dir().join("flutlink-open");
+    if let Some(parent) = base.parent() {
+        if let Ok(entries) = std::fs::read_dir(parent) {
+            let prefix = format!("{}-", std::process::id());
+            for entry in entries.flatten() {
+                let name_str = entry.file_name().to_string_lossy().into_owned();
+                if name_str.starts_with(&prefix) && entry.path() != base {
+                    let _ = std::fs::remove_dir_all(entry.path());
+                }
+            }
+        }
+    }
+}
+
 // --- Guest access (complete public shares, no account required) ----------
 
 /// Verify that the fixed FlutCloud server supports guest browsing
@@ -1309,6 +1319,15 @@ pub async fn guest_download_file(
     local_path: String,
 ) -> AppResult<()> {
     crate::guest::validate_guest_target(&token, &remote_path)?;
+    // Validate local_path: reject empty paths, null bytes, and path traversal.
+    if local_path.is_empty() || local_path.contains('\0') {
+        return Err(AppError::App("Invalid local path.".into()));
+    }
+    for segment in local_path.split('/') {
+        if segment == ".." {
+            return Err(AppError::App("Local path must not contain '..'.".into()));
+        }
+    }
     crate::guest::download_file(
         &state.http_client,
         &token,
@@ -1330,15 +1349,7 @@ pub async fn guest_open_file(
     crate::guest::validate_guest_target(&token, &remote_path)?;
 
     let cache_dir = open_cache_dir();
-    if let Some(parent) = cache_dir.parent() {
-        if let Ok(entries) = std::fs::read_dir(parent) {
-            for entry in entries.flatten() {
-                if entry.path() != cache_dir {
-                    let _ = std::fs::remove_dir_all(entry.path());
-                }
-            }
-        }
-    }
+    cleanup_open_cache();
     std::fs::create_dir_all(&cache_dir)?;
 
     let file_name = Path::new(&remote_path)

@@ -38,6 +38,11 @@ administration and two-way sync.
 - Back button and full keyboard navigation (arrow keys move the focus, Enter
   opens, Delete removes).
 - Multi-account support: switch accounts from the sidebar or the avatar menu.
+- **Guest browsing** of public shares: when a folder is shared via a
+  password-free public link, FlutLink can browse it anonymously (read-only)
+  through the FlutCloud server's guest API. Guests see categories, can navigate
+  subfolders, and downloads are proxied through the standard public WebDAV
+  endpoint. Locked subfolders answer 404 — also for direct path manipulation.
 
 ## Admin tab
 

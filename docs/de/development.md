@@ -10,9 +10,13 @@
 | Rust-Lint | `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings` |
 | Rust-Tests | `cargo test --manifest-path src-tauri/Cargo.toml` |
 | Icons neu generieren | `npm run tauri icon app-icon.png` |
+| Android-APK (Debug) | `cd kmp && ./gradlew :android-app:assembleDebug` |
+| KMP-Modul (alle Targets) | `cd kmp && ./gradlew :shared:build` |
 
 **Verifikation vor Abschluss jeder Änderung:** alle vier ausführen —
 `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `npm run build`.
+Bei Änderungen an `kmp/` zusätzlich
+`cd kmp && ./gradlew :shared:build`.
 
 ## Konventionen
 
@@ -52,7 +56,7 @@ Gegenseite und halte den Index in `docs/README.md` aktuell.
    (`FlutLink_<version>_…`) und der Tag (`v<version>`) ab (`release.yml`).
 2. **Tag pushen** (`git tag v1.0.0 && git push origin v1.0.0`): `release.yml`
    baut die Binaries für alle Plattformen und lädt die Assets hoch.
-3. **Draft manuell publizieren (R7-7):** `release.yml` veröffentlicht als
+3. **Draft manuell publizieren:** `release.yml` veröffentlicht als
    Draft (`releaseDraft: true`). `check_for_update` überspringt Drafts und
    Prereleases (`updater.rs`), daher erhalten Bestandskunden das Update erst,
    wenn der Draft nach erfolgreichem Build **manuell** publiziert wird:

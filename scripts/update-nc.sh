@@ -8,7 +8,7 @@ mkdir -p "$CLONE_DIR"
 cd "$CLONE_DIR"
 
 sudo rm -rf FlutLink
-git clone https://github.com/OseMine/FlutLink.git
+git clone --depth 1 --branch v1.2.0 https://github.com/OseMine/FlutLink.git
 
 sudo rm -rf "$NEXTCLOUD_APPS/flutcloud"
 sudo mv FlutLink/flutcloud-app "$NEXTCLOUD_APPS/flutcloud"

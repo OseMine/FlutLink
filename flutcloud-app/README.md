@@ -208,6 +208,7 @@ wird nur für den `OCA\FlutCloud`-Namespace gebraucht (PSR-4 → `lib/`).
 | Virtuelle Links | Schreibgeschützte `resources/`-Ordner, verwaltet über die Links-API |
 | Schreibbare Parts | Beschreibbare `parts/`-Ordner, verwaltet über die Parts-API |
 | Projektordner | `/FlutLink/FlutCloud` im Admin-Home mit zweisprachiger README |
+| Vollständige öffentliche Freigaben | Anonymer, streng schreibgeschützter Gastzugriff auf Ordner mit passwortfreier Linkfreigabe, mit Kategorien und rekursiven Unterordner-Locks |
 | iOS-AltStore-Quelle | `GET /apps/flutcloud/ios/classic` — leitet immer zur Quell-JSON des neuesten FlutLink-GitHub-Releases weiter |
 
 ## API
@@ -225,6 +226,13 @@ ist):
 | `GET` | `/parts` | Schreibbare Parts auflisten (Unterordner von `parts/`) |
 | `POST` | `/parts` | Schreibbaren Part erstellen (`name`-Parameter) |
 | `POST` | `/project-folder` | `/FlutLink/FlutCloud` sicherstellen (nur Admin) |
+| `GET` | `/public` | **Gast:** Jede vollständige öffentliche Freigabe, gebündelt (`{ shares, categories }`) |
+| `GET` | `/public/categories` | **Gast:** Alle konfigurierten Kategorien |
+| `GET` | `/public/{token}` | **Gast:** Ordner einer Freigabe auflisten (`path` Query-Parameter); 404 für fehlende/gesperrte Pfade |
+| `POST` | `/public/categories` | Admin: Kategorie erstellen/aktualisieren (`name`, optional `prefixless`) |
+| `DELETE` | `/public/categories/{name}` | Admin: Kategorie löschen |
+| `POST` / `DELETE` | `/public/shares/{token}/category` | Admin: Freigabe einer Kategorie zuweisen/entfernen (`category`-Parameter) |
+| `POST` / `DELETE` | `/public/shares/{token}/lock` | Admin: Unterordner rekursiv sperren/entsperren (`path`-Parameter) |
 
 Link-/Part-Einträge werden als `{ name, path, readOnly }` zurückgegeben.
 

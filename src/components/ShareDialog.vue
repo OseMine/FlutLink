@@ -158,7 +158,7 @@ const t = (key: string) => translate(ui.lang, key);
           <template v-else>
             <input
               v-model="form.password"
-              type="text"
+              type="password"
               :placeholder="t('sharePasswordPlaceholder')"
               class="input"
             />

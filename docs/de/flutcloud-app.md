@@ -31,6 +31,7 @@ wird nur für den `OCA\FlutCloud\`-Namespace gebraucht (PSR-4 → `lib/`).
 | Virtuelle Links | Schreibgeschützte `resources/`-Ordner, verwaltet über die Links-API |
 | Schreibbare Parts | Beschreibbare `parts/`-Ordner, verwaltet über die Parts-API |
 | Projektordner | `/FlutLink/FlutCloud` im Admin-Home mit zweisprachiger README |
+| Vollständige öffentliche Freigaben | Anonymer, streng schreibgeschützter Gastzugriff auf Ordner mit passwortfreier Linkfreigabe, mit Kategorien und rekursiven Unterordner-Locks |
 | iOS-AltStore-Classic-Quelle | `GET /apps/flutcloud/ios/classic` — leitet immer zur Quell-JSON des neuesten FlutLink-GitHub-Releases weiter |
 
 ## Installation
@@ -128,15 +129,54 @@ ist):
 
 | Methode | Pfad | Beschreibung |
 | --- | --- | --- |
-| `GET` | `/ping` | App-Info: `{ app, name, version, features, user }` |
+| `GET` | `/ping` | App-Info: `{ app, name, version, features, user, managed_by, managed_by_url }` |
 | `GET` | `/links` | Virtuelle Links auflisten (Unterordner von `resources/`) |
 | `POST` | `/links` | Virtuellen Link erstellen (`name` als Form/Query-Parameter) |
 | `DELETE` | `/links/{name}` | Virtuellen Link löschen |
 | `GET` | `/parts` | Schreibbare Parts auflisten (Unterordner von `parts/`) |
 | `POST` | `/parts` | Schreibbaren Part erstellen (`name`-Parameter) |
 | `POST` | `/project-folder` | `/FlutLink/FlutCloud` sicherstellen (nur Admin) |
+| `GET` | `/public` | **Gast:** Jede vollständige öffentliche Freigabe, gebündelt (`{ shares, categories }`) |
+| `GET` | `/public/categories` | **Gast:** Alle konfigurierten Kategorien |
+| `GET` | `/public/{token}` | **Gast:** Ordner einer Freigabe auflisten (`path` Query-Parameter); 404 für fehlende/gesperrte Pfade |
+| `POST` | `/public/categories` | Admin: Kategorie erstellen/aktualisieren (`name`, optional `prefixless`) |
+| `DELETE` | `/public/categories/{name}` | Admin: Kategorie löschen |
+| `POST` / `DELETE` | `/public/shares/{token}/category` | Admin: Freigabe einer Kategorie zuweisen/entfernen (`category`-Parameter) |
+| `POST` / `DELETE` | `/public/shares/{token}/lock` | Admin: Unterordner rekursiv sperren/entsperren (`path`-Parameter) |
 
 Link-/Part-Einträge werden als `{ name, path, readOnly }` zurückgegeben.
+
+### Vollständige öffentliche Freigaben („Gastzugriff")
+
+Ein Ordner gilt als *vollständig öffentlich*, wenn der Eigentümer eine
+passwortfreie Linkfreigabe darauf erteilt hat. Gäste durchsuchen diese Ordner
+ohne Konto — streng schreibgeschützt; es gibt keinen Schreibpfad in der API
+und die darunterliegenden schreibgeschützten Link-Berechtigungen werden von
+Nextcloud selbst durchgesetzt. Jeder Request löst die Freigabe live auf:
+Gelöschte, passwortgeschützte oder abgelaufene Freigaben verschwinden
+sofort aus der Gästansicht. Gesperrte Unterordner (rekursiv) antworten mit
+404 — auch bei direkter Pfad-Manipulation.
+
+Web-Routen spiegeln die Gast-API ohne Authentifizierung:
+
+| Methode | Pfad | Beschreibung |
+| --- | --- | --- |
+| `GET` | `/apps/flutcloud/public` | Alle vollständigen öffentlichen Freigaben |
+| `GET` | `/apps/flutcloud/public/{category}` | Freigaben einer Kategorie |
+| `GET` | `/apps/flutcloud/{category}` | Dasselbe, nur für Kategorien, bei denen der Admin das `/public/`-Präfix entfernt hat |
+
+Downloads laufen über Nextclouds Standard-Public-WebDAV-Endpunkt:
+`/public.php/webdav/<token>/<path>` mit Basic-Auth (`<token>` als Benutzername,
+leeres Passwort). Ein Sabre-Plugin (`GuestLockPlugin`) überwacht diesen
+Endpunkt, sodass gesperrte Unterordner dort ebenfalls mit 404 antworten —
+Pfad-Manipulation kann die Lock-Liste nicht umgehen.
+
+Vertrags-Tests (kein laufender Server nötig):
+
+```bash
+php flutcloud-app/tests/capability-contract.php
+php flutcloud-app/tests/public-share-contract.php
+```
 
 ## iOS-/AltStore-Classic-Quelle
 

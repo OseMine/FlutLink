@@ -14,17 +14,28 @@ src/                              # Vue 3 + TypeScript + Tailwind v4
 │   ├── FileExplorer.vue          # WebDAV browser, search, sharing, resources/parts
 │   ├── EntryList.vue             # shared list/grid rendering incl. pairing button
 │   ├── AdminPanel.vue            # OCS user + group provisioning, impersonation
+│   ├── AdminUserDetails.vue      # user detail form (edit, password, quota)
+│   ├── AdminUserList.vue         # user list sidebar with search
+│   ├── QuotaEditor.vue           # quota input with presets and progress bar
 │   ├── SyncPanel.vue             # sync folder management + live status
+│   ├── GuestBrowser.vue          # anonymous guest access to public shares
 │   ├── LoginModal.vue            # keychain-backed sign-in
 │   ├── SettingsModal.vue         # language, theme, about, updates
-│   ├── AppLogo.vue / WelcomeScreen.vue  # FlutLink/OperationFlut branding
+│   ├── ShareDialog.vue           # create/list/revoke shares per file/folder
+│   ├── ContextMenu.vue           # right-click file/folder actions
+│   ├── FilesToolbar.vue          # search, view toggle, sort, bulk actions
+│   ├── ImpersonationBar.vue      # admin impersonation notice bar
+│   ├── NewFolderDialog.vue       # create-folder dialog
+│   ├── RenameDialog.vue          # rename-file/folder dialog
+│   ├── AppLogo.vue / WelcomeScreen.vue  # FlutLink branding
 │   ├── ToastStack.vue            # toast notifications
 │   └── Icon.vue                  # thin line-stroke icon set (Lucide-style)
 ├── lib/
 │   ├── ipc.ts                    # typed invoke() wrappers for every command
 │   ├── i18n.ts                   # EN/DE dictionaries, translate(), error keys
 │   ├── format.ts                 # byte formatting helpers
-│   └── ripple.ts                 # Material 3 ripple feedback
+│   ├── sort.ts                   # sort comparators for file entries
+│   └── escape.ts                 # keyboard escape-handler stack (modals/menus)
 ├── stores/
 │   ├── accounts.ts               # account list, active account, storage quota
 │   ├── files.ts                  # WebDAV listing state
@@ -41,18 +52,20 @@ src-tauri/                        # Rust backend
 │   ├── cache.rs                  # offline cache for listings + quota
 │   ├── commands.rs               # all #[tauri::command] handlers
 │   ├── flutcloud.rs              # FlutCloud-only enforcement (fixed server URL + capability probe)
+│   ├── guest.rs                  # guest/public share API (anonymous access, categories, locks)
+│   ├── persist.rs                # atomic write helpers (temp+rename) for config files
 │   ├── sync.rs                   # two-way sync engine (journal/planner/worker)
 │   ├── updater.rs                # update check, SHA-256 download, install
 │   └── nextcloud/
 │       ├── mod.rs                # auth request helper, URL/encoding utils
 │       ├── webdav.rs             # PROPFIND + multistatus parsing, transfers
 │       └── ocs.rs                # OCS: user info, admin probe, provisioning, shares
-├── capabilities/default.json     # window permissions (core, opener, dialog)
+├── capabilities/default.json     # window permissions (core, opener, dialog, notification)
 └── tauri.conf.json               # app + CLI plugin config, bundling
 
 flutcloud-app/                    # FlutCloud Nextcloud server app (PHP)
 ├── appinfo/                      # info.xml, OCS routes (api/v1/*)
-├── lib/                          # Capabilities, ApiController, LinkService
+├── lib/                          # Capabilities, ApiController, LinkService, GuestApi
 └── composer.json                 # OCA\FlutCloud autoloading
 ```
 

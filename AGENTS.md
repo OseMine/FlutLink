@@ -19,14 +19,16 @@ entfernt) sind in `kmp/` aufgegangen. Details in `kmp/README.md`.
 
 ## Struktur
 
-- `src/` — Vue 3 Frontend (Komponenten, Pinia-Stores in `src/stores/`,
+- `src/` — Vue 3 Frontend (Komponenten inkl. `GuestBrowser.vue` für
+  anonymen Freigabe-Zugriff, Pinia-Stores in `src/stores/`,
   Tauri-IPC-Wrapper in `src/lib/ipc.ts`, i18n in `src/lib/i18n.ts`,
-  UI-Persistenz in `src/stores/ui.ts`)
+  UI-Persistenz in `src/stores/ui.ts`, Escape-Handling in
+  `src/lib/escape.ts`)
 - `src-tauri/` — Rust-Backend:
-  - `lib.rs` — Command-Registry (`tauri::generate_handler!`), Plugin-Setup,
-    System-Tray (`setup_tray`), Close-to-Tray (`on_window_event`) und
-    CLI-Handling (`tauri-plugin-cli`; Events `flutlink:cli-open`,
-    `sync-folders-changed`)
+  - `lib.rs` — Command-Registry (`tauri::generate_handler!`), Plugin-Setup
+    (`tauri-plugin-cli`, `tauri-plugin-notification`), System-Tray
+    (`setup_tray`), Close-to-Tray (`on_window_event`) und CLI-Handling
+    (Events `flutlink:cli-open`, `sync-folders-changed`)
   - `commands.rs` — alle `#[tauri::command]`-Handler
   - `flutcloud.rs` — FlutCloud-only-Durchsetzung: fester Server-URL
     (`FLUTCLOUD_URL`) + Capability-Probe (`verify_server`)
@@ -35,6 +37,11 @@ entfernt) sind in `kmp/` aufgegangen. Details in `kmp/README.md`.
     & Serde-Modelle (`SyncFolder`, `SyncFolderStatus`)
   - `sync.rs` — Zwei-Wege-Sync-Engine (Journal, Planner, Executor, Worker,
     Persistenz, Unit-Tests); Details in `docs/de/sync.md` (EN: `docs/en/sync.md`)
+  - `guest.rs` — Gast-/Freigabe-API (anonymer Zugriff auf öffentliche Freigaben,
+    Kategorien, Locks)
+  - `persist.rs` — Atomare Schreib-Pattern (temp+rename) für Konfigurationsdateien
+  - `cache.rs` — Offline-Cache für Listings + Kontingente (LRU-Eviction)
+  - `updater.rs` — Update-Check, SHA-256-Download, Installation
   - `error.rs` — `AppError`/`AppResult` (serialisiert nach JSON fürs Frontend)
   - `nextcloud/webdav.rs` — PROPFIND-Parser, `Impersonate-User`-Support,
     Transfer-Helper (`put_file`/`get_file`/`delete`/`make_collection`)

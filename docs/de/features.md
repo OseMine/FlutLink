@@ -41,6 +41,12 @@ Freigaben, Administration und Zwei-Wege-Sync.
   Fokus, Enter öffnet, Entf löscht).
 - Mehrere Konten: Kontowechsel über die Seitenleiste oder das
   Avatar-Menü.
+- **Gastzugriff** auf öffentliche Freigaben: Wird ein Ordner über einen
+  passwortfreien öffentlichen Link freigegeben, kann FlutLink ihn anonym
+  (schreibgeschützt) über die Gast-API des FlutCloud-Servers durchsuchen.
+  Gäste sehen Kategorien, können Unterordner navigieren, und Downloads werden
+  über den Standard-Public-WebDAV-Endpunkt proxied. Gesperrte Unterordner
+  antworten mit 404 — auch bei direkter Pfad-Manipulation.
 
 ## Admin-Tab
 

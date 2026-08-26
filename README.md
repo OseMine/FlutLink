@@ -104,11 +104,15 @@ flutlink/
 │   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
 │   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, search, sort, multi-select, file ops, sharing
 │   │   ├── EntryList.vue       # Shared list/grid rendering + pairing button
+│   │   ├── GuestBrowser.vue    # Anonymous guest access to public shares
 │   │   ├── AdminPanel.vue      # OCS user & group provisioning (list, create, edit, delete, quota)
+│   │   ├── AdminUserDetails.vue # User detail form (edit, password, quota)
+│   │   ├── AdminUserList.vue   # User list sidebar with search
+│   │   ├── QuotaEditor.vue     # Quota input with presets and progress bar
 │   │   ├── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
 │   │   ├── LoginModal.vue / SettingsModal.vue  # Sign-in dialog + settings/updates
 │   │   └── ToastStack.vue / Icon.vue / AppLogo.vue / WelcomeScreen.vue  # UI primitives
-│   ├── lib/                    # ipc.ts (typed invoke wrappers), i18n.ts, format.ts, ripple.ts
+│   ├── lib/                    # ipc.ts (typed invoke wrappers), i18n.ts, format.ts, sort.ts, escape.ts
 │   ├── stores/                 # Pinia: accounts + files + sync + ui state
 │   └── App.vue                 # Shell: sidebar + Files/Sync/Admin tabs
 ├── src-tauri/                  # Rust backend
@@ -120,6 +124,8 @@ flutlink/
 │   │   ├── cache.rs            # Offline cache for file listings + quota
 │   │   ├── commands.rs         # All #[tauri::command] IPC endpoints
 │   │   ├── flutcloud.rs        # FlutCloud-only enforcement (URL check + capability probe)
+│   │   ├── guest.rs            # Guest/public share API (anonymous access, categories, locks)
+│   │   ├── persist.rs          # Atomic write helpers (temp+rename) for config files
 │   │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
 │   │   ├── updater.rs          # Update check, SHA-256 download, install
 │   │   └── nextcloud/
@@ -139,7 +145,7 @@ flutlink/
 │   └── iosApp/                 # Xcode shell for the iOS build (unsigned IPA in CI)
 └── flutcloud-app/              # FlutCloud Nextcloud server app (non-standard server features)
     ├── appinfo/                # info.xml + OCS routes
-    ├── lib/                    # Capabilities, ApiController, LinkService (resources/parts)
+    ├── lib/                    # Capabilities, ApiController, LinkService, GuestApi
     └── composer.json           # OCA\FlutCloud autoloading
 ```
 
@@ -184,6 +190,8 @@ file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
 | `webdav_mkdir` / `webdav_rename` / `webdav_delete` | WebDAV | Create folder, rename and delete (rename validated, overwrite guarded) |
 | `webdav_upload_local_paths` / `webdav_bulk_delete` / `webdav_bulk_download` | WebDAV | Drag & drop upload + bulk operations (`file://progress` events) |
 | `webdav_download_zip` / `webdav_thumbnail` | WebDAV | Folder ZIP download / image thumbnails |
+| `guest_verify_server` / `guest_list_shares` / `guest_list_entries` / `guest_download_file` / `guest_open_file` | Guest API (`guest.rs`) | Anonymous guest access to public shares |
+| `guest_admin_*` (categories, locks) | Guest API (`guest.rs`) | Admin: manage categories and recursive subfolder locks for public shares |
 | `admin_list_users` / `admin_get_user` / `admin_set_user_quota` / `admin_edit_user` / `admin_create_user` / `admin_delete_user` | OCS Provisioning API | Admin panel (admin accounts only) |
 | `admin_list_groups` / `admin_create_group` / `admin_add_group_member` / `admin_remove_group_member` | OCS Groups API | Group management (admin accounts only) |
 | `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
