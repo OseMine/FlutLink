@@ -1,0 +1,66 @@
+name: Security
+
+# Standalone run of the security gate (.github/actions/security) — the exact
+# same scan+rating pipeline the Release workflow enforces before publishing,
+# but triggerable any time from the Actions tab without cutting a release:
+#   - Dependency vulnerabilities: Trivy (all lockfiles), npm audit,
+#     cargo-audit (ignores in .cargo/audit.toml)
+#   - Hardcoded secrets (Trivy)
+#   - VirusTotal artifact reputation (optional, VIRUSTOTAL_API_KEY)
+#   - PHP syntax lint (flutcloud-app)
+#   - Verification tests (cargo test + frontend typecheck/build)
+#   - Optional AI review via OpenCode (OPENCODE_API_KEY)
+# Findings become run annotations + step summary; the job fails when the
+# rating drops below min-rating or a critical finding exists.
+# Raw scan output (security-results/) is uploaded as artifact for triage.
+
+on:
+  workflow_dispatch:
+    inputs:
+      min-rating:
+        description: Minimum security rating (0-10) required to pass
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+
+jobs:
+  security-gate:
+    name: Security gate (scan + rating 0-10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      rating: ${{ steps.gate.outputs.rating }}
+      verdict: ${{ steps.gate.outputs.verdict }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run security scan
+        id: gate
+        uses: ./.github/actions/security
+        with:
+          min-rating: ${{ inputs.min-rating }}
+          opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
+          models: ${{ env.OPENCODE_MODELS }}
+          virustotal-api-key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: security-results
+          path: security-results/
+          if-no-files-found: ignore
+          retention-days: 7

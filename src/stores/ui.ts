@@ -21,7 +21,6 @@ export interface FilesViewPrefs {
 }
 
 const THEME_KEY = "flutlink.theme";
-const ACCENT_KEY = "flutlink.accentHue";
 const GUEST_KEY = "flutlink.guestMode";
 const FILES_VIEW_KEY = "flutlink.filesView";
 
@@ -62,8 +61,6 @@ function normalizeTheme(value: Theme | null): Theme {
 export const useUiStore = defineStore("ui", () => {
   const lang = ref<Lang>(currentLang());
   const theme = ref<Theme>(normalizeTheme(read<Theme>(THEME_KEY)));
-  // Accent seed hue (#371): null means "use the theme's default hue".
-  const accentHue = ref<number | null>(read<number>(ACCENT_KEY) ?? null);
   // Guest mode (read-only browsing of public shares without an account).
   const guestMode = ref<boolean>(read<boolean>(GUEST_KEY) ?? false);
   // Persisted file-explorer layout preferences (#368).
@@ -79,12 +76,6 @@ export const useUiStore = defineStore("ui", () => {
   function setTheme(value: Theme) {
     theme.value = value;
     localStorage.setItem(THEME_KEY, JSON.stringify(value));
-  }
-
-  function setAccentHue(value: number | null) {
-    accentHue.value = value;
-    if (value === null) localStorage.removeItem(ACCENT_KEY);
-    else localStorage.setItem(ACCENT_KEY, JSON.stringify(value));
   }
 
   function setGuestMode(value: boolean) {
@@ -112,13 +103,11 @@ export const useUiStore = defineStore("ui", () => {
   return {
     lang,
     theme,
-    accentHue,
     guestMode,
     filesView,
     toasts,
     setLang,
     setTheme,
-    setAccentHue,
     setGuestMode,
     setFilesView,
     toast,

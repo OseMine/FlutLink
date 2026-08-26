@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { api, invokeError, type UserDetails } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
+import Icon from "./Icon.vue";
 import AdminUserList from "./AdminUserList.vue";
 import AdminUserDetails from "./AdminUserDetails.vue";
 import QuotaEditor from "./QuotaEditor.vue";
@@ -99,15 +100,38 @@ async function createGroup(group: string) {
 
 async function listUsers(requireQuery = true) {
   const query = search.value.trim();
-  // U-R8-12: never load every user of a large instance at once — fetch only
-  // the first PAGE-sized page (offset reset); "load more" appends further
-  // pages sequentially via loadPage(true).
   if (!query) {
     if (requireQuery) error.value = t("searchUsersRequired");
     return;
   }
   await loadPage(false);
 }
+
+// U-R8-12: debounced auto-search — typing triggers a 300 ms delayed fetch.
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedSearch() {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchTimer = null;
+    void loadPage(false);
+  }, 300);
+}
+
+onMounted(() => {
+  void loadPage(false);
+});
+
+onUnmounted(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+});
+
+watch(search, () => {
+  debouncedSearch();
+});
 
 async function loadMore() {
   await loadPage(true);
@@ -301,18 +325,17 @@ async function createUser() {
       {{ editMsg }}
     </div>
 
-    <div class="flex gap-2">
-      <input
-        v-model="search"
-        type="text"
-        :placeholder="t('searchUsers')"
-        class="input flex-1"
-        @keyup.enter="listUsers()"
-      />
-      <button type="button" class="btn btn-primary shrink-0" @click="listUsers()">
-        {{ loading ? t("loading") : t("listUsers") }}
-      </button>
-      <button type="button" class="btn btn-outline shrink-0" @click="showCreate = !showCreate">
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <Icon name="search" :size="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+        <input
+          v-model="search"
+          type="text"
+          :placeholder="t('searchUsers')"
+          class="input w-full pl-9"
+        />
+      </div>
+      <button type="button" class="btn btn-primary shrink-0" @click="showCreate = !showCreate">
         + {{ t("createUser") }}
       </button>
     </div>
@@ -345,19 +368,21 @@ async function createUser() {
       </button>
     </div>
 
-    <div class="grid min-h-0 flex-1 grid-cols-2 gap-4">
-      <!-- User list -->
-      <AdminUserList
-        :users="users"
-        :selected-id="selected?.id ?? null"
-        :loading="loading"
-        :has-more="hasMore"
-        @select="selectUser"
-        @load-more="loadMore"
-      />
+    <div class="flex min-h-0 flex-1 gap-4">
+      <!-- User list (30 %) -->
+      <div class="w-[30%] shrink-0">
+        <AdminUserList
+          :users="users"
+          :selected-id="selected?.id ?? null"
+          :loading="loading"
+          :has-more="hasMore"
+          @select="selectUser"
+          @load-more="loadMore"
+        />
+      </div>
 
-      <!-- Details -->
-      <div class="card min-h-0 overflow-y-auto p-4">
+      <!-- Details (70 %) -->
+      <div class="card min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
         <p v-if="detailsLoading" class="text-sm text-muted">{{ t("loadingDetails") }}</p>
         <template v-else-if="selected">
           <AdminUserDetails
@@ -377,7 +402,10 @@ async function createUser() {
             <QuotaEditor :quota="selected.quota" :revision="quotaRevision" @save="setQuota" />
           </AdminUserDetails>
         </template>
-        <p v-else class="text-sm text-muted">{{ t("selectUser") }}</p>
+        <div v-else class="flex h-full flex-col items-center justify-center text-center">
+          <Icon name="person" :size="40" class="mb-3 text-muted/40" />
+          <p class="text-sm text-muted">{{ t("selectUser") }}</p>
+        </div>
       </div>
     </div>
   </div>
