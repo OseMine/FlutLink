@@ -139,10 +139,10 @@ Server.
   Build).
 - `.github/workflows/release.yml` — signiertes Release-APK (Secrets
   `ANDROID_KEYSTORE*`) + unsignierte IPA, beide werden an das GitHub-Release
-  angehängt; anschließend aktualisiert der `altstore`-Job die
-  AltStore-Quellen (`altstore/classic.json`, `altstore/pal.json`) auf
-  `main` und hängt beide JSON-Dateien ans Release an (Skript:
-  `scripts/update-altstore-sources.mjs`).
+   angehängt; anschließend aktualisiert der `altstore`-Job die
+   AltStore-Classic-Quelle (`altstore/classic.json`) auf
+   `main` und hängt die JSON-Datei ans Release an (Skript:
+   `scripts/update-altstore-sources.mjs`).
 
 ## Hinweise
 

@@ -29,7 +29,7 @@ const dict: Record<Lang, Record<string, string>> = {
     accounts: "Accounts",
     addAccount: "Add account",
     active: "Active",
-    welcomeTitle: "Your FlutCloud, connected.",
+    welcomeTitle: "FlutCloud.",
     welcomeSubtitle:
       "High-performance client for your FlutCloud server — files, sharing and administration, straight from your desktop.",
     signIn: "Sign In",
@@ -363,7 +363,7 @@ const dict: Record<Lang, Record<string, string>> = {
     accounts: "Konten",
     addAccount: "Konto hinzufügen",
     active: "Aktiv",
-    welcomeTitle: "Deine FlutCloud, verbunden.",
+    welcomeTitle: "FlutCloud.",
     welcomeSubtitle:
       "Hochleistungs-Client für deinen FlutCloud-Server – Dateien, Freigaben und Administration, direkt vom Desktop.",
     signIn: "Anmelden",

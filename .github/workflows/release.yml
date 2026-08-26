@@ -16,7 +16,7 @@ name: Release
 #   7. flutcloud-app        Nextcloud server app packaged as flutcloud-app.zip
 #   8. virustotal-mobile    scans APK/IPA (blocks on detections)
 #   9. upload-mobile        attaches APK + IPA + server-app zip to the draft
-#  10. altstore             updates AltStore source JSONs on main, attaches them
+#  10. altstore             updates AltStore Classic source JSON on main, attaches it
 #  11. publish-release      flips the draft public once every asset is in
 
 on:
