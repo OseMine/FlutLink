@@ -2,6 +2,7 @@
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import { initials } from "../lib/format";
+import Icon from "./Icon.vue";
 
 defineProps<{
   users: string[];
@@ -25,11 +26,11 @@ const t = (key: string) => translate(ui.lang, key);
       <li v-for="userId in users" :key="userId">
         <button
           type="button"
-          class="flex w-full items-center gap-3 px-3 py-2 text-left transition"
+          class="flex w-full items-center gap-3 px-3 py-2.5 text-left transition"
           :class="
             selectedId === userId
-              ? 'bg-primary/10 text-primary'
-              : 'hover:bg-card-hover'
+              ? 'border-l-2 border-primary bg-primary/8'
+              : 'border-l-2 border-transparent hover:bg-card-hover'
           "
           @click="emit('select', userId)"
         >
@@ -59,8 +60,16 @@ const t = (key: string) => translate(ui.lang, key);
     >
       {{ loading ? t("loading") : t("loadMore") }}
     </button>
-    <p v-if="!users.length" class="p-4 text-sm text-muted">
-      {{ loading ? t("loading") : t("noUsersYet") }}
-    </p>
+    <div v-if="!users.length" class="flex flex-col items-center px-4 py-8 text-center">
+      <Icon
+        :name="loading ? 'sync' : 'person'"
+        :size="28"
+        class="mb-2 text-muted/40"
+        :class="{ 'animate-spin': loading }"
+      />
+      <p class="text-sm text-muted">
+        {{ loading ? t("loading") : t("searchUsersHint") }}
+      </p>
+    </div>
   </div>
 </template>

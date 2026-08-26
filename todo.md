@@ -22,7 +22,7 @@ L20-/L21-Befunde gegen HEAD (`ecd5ee2`).
 
 Neu gefunden:
 
-- [ ] **L22-F1 (Bug, hoch): `npm run build` schlägt auf HEAD fehl — toter
+- [x] **L22-F1 (Bug, hoch): `npm run build` schlägt auf HEAD fehl — toter
       Accent-Code im SettingsModal verstößt gegen `noUnusedLocals`.**
       vue-tsc meldet `src/components/SettingsModal.vue(95,10): 'applyAccent'
       is declared but its value is never read` und `(99,10)` für
