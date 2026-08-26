@@ -85,12 +85,6 @@ const dict: Record<Lang, Record<string, string>> = {
     themeSystem: "System Default",
     systemThemeNote:
       "System Default follows how your device is configured.",
-    accentColor: "Accent color",
-    // #371: the hue-seed mechanism stays as the accent feature, but the copy
-    // no longer references a third-party design system.
-    accentColorHint:
-      "Pick a seed hue — FlutLink derives a vibrant accent from it for primary actions, focus rings and selection.",
-    accentReset: "Reset",
     storage: "Storage",
     free: "Free",
     unlimited: "Unlimited",
@@ -421,12 +415,6 @@ const dict: Record<Lang, Record<string, string>> = {
     themeSystem: "System-Standard",
     systemThemeNote:
       "System-Standard folgt der Konfiguration deines Geräts.",
-    accentColor: "Akzentfarbe",
-    // #371: Hue-Seed-Mechanismus bleibt als Akzent-Feature, aber ohne
-    // Verweis auf ein Fremdes Designsystem.
-    accentColorHint:
-      "Wähle einen Basis-Farbton – FlutLink leitet daraus einen kräftigen Akzent für primäre Aktionen, Fokusrahmen und Auswahl ab.",
-    accentReset: "Zurücksetzen",
     storage: "Speicher",
     free: "Frei",
     unlimited: "Unbegrenzt",

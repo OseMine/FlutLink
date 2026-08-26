@@ -79,34 +79,11 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
   { value: "system", label: t("themeSystem") },
 ]);
 
-// Accent seed hue; null keeps the theme's default hue.
-const accentValue = ref(ui.accentHue ?? themeDefaultHue());
-
-function themeDefaultHue(): number {
-  const resolved =
-    ui.theme === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "midnight"
-        : "light"
-      : ui.theme;
-  return resolved === "midnight" ? 220 : 266;
-}
-
-function applyAccent() {
-  ui.setAccentHue(Math.round(accentValue.value));
-}
-
-function resetAccent() {
-  ui.setAccentHue(null);
-  accentValue.value = themeDefaultHue();
-}
-
 watch(
   () => props.open,
   (open) => {
     if (open) {
       tab.value = "accounts";
-      accentValue.value = ui.accentHue ?? themeDefaultHue();
     }
   }
 );
@@ -417,8 +394,6 @@ onUnmounted(() => removeEscapeCloser?.());
               </div>
               <p class="mt-2 text-xs text-muted/80">{{ t("systemThemeNote") }}</p>
             </div>
-
-
 
             <div class="card p-3">
               <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
