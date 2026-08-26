@@ -24,6 +24,11 @@ Neu gefunden:
 
 - [x] **L22-F1 (Bug, hoch): `npm run build` schlägt auf HEAD fehl — toter
       Accent-Code im SettingsModal verstößt gegen `noUnusedLocals`.**
+      Bereinigt: Die Skript-Reste (`accentValue`, `applyAccent`, `resetAccent`,
+      open-Watcher), die i18n-Keys (`accentColor`/`accentColorHint`/`accentReset`),
+      `ui.setAccentHue` und der `App.vue`-Hue-Override waren bereits in einem
+      vorherigen Commit entfernt. `npm run build` (`vue-tsc --noEmit` +
+      `vite build`) läuft fehlerfrei; `cargo fmt --check` grün.
       vue-tsc meldet `src/components/SettingsModal.vue(95,10): 'applyAccent'
       is declared but its value is never read` und `(99,10)` für
       `resetAccent` (frisch verifiziert). Hintergrund: Der SaaS-Umbau hat
