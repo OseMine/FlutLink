@@ -4,6 +4,7 @@ import com.flutcloud.flutlink.core.KeyValueStorage
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.Properties
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
@@ -11,6 +12,8 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.io.path.fileName
+import kotlin.io.path.toFile
 
 /**
  * File-backed [KeyValueStorage] for the Desktop-JVM client. Accounts metadata
