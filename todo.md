@@ -6,8 +6,100 @@ dorthin verschoben; die offenen Issues #293/#317/#318 sind geschlossen.
 Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 17–19 (L17-*/L19-*/CP-* — allesamt im Code umgesetzt) nach
 `archived-todo.md` verschoben; offen blieben nur „Desktop-JVM: Token-Speicher
-härten“ und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
+härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
+
+## Review 2026-08-26 (Lauf 23, Release-v1.2.0-Vorabprüfung — neue Befunde)
+
+Gegenstand: Vollständige Code-Review gegen HEAD `1e82994` (Merge PRs #395–397,
+Admin-Panel-Split, i18n-Ergänzungen) zur Vorbereitung von Release v1.2.0.
+Geprüft: IPC-Commands, WebDAV/OCS-Anbindung, Keyring, Fehler-/State-Management,
+CI/Workflows, Admin-Panel-Refactoring, alle offenen L20–L22-Befunde.
+
+Neu gefunden:
+
+- [x] **L23-F1 (Bug, kritisch / Release-Blocker): `cargo test` und
+      `cargo clippy` schlagen fehl — `PathBuf::parent()` gibt
+      `Option<&Path>` zurück, wird aber als `Result` gematcht.**
+      `open_cache_dir().parent()` in `commands.rs:760` und `:1333` wird mit
+      `if let Ok(parent)` geparsed; `Path::parent()` gibt jedoch
+      `Option<&Path>` zurück, nicht `Result`. Compiler-Fehler:
+      `error[E0308]: mismatched types — expected Option<&Path>, found Result`.
+      Eingeführt durch `ee2974f` (AES-256-GCM-Encryption). Fix: `Ok(parent)`
+      → `Some(parent)` an beiden Stellen. Ohne Fix kein `cargo test`,
+      `cargo clippy` oder Release-Build möglich.
+- [x] **L23-F2 (Bug/UX, mittel): `flutcloud_app_too_old` fehlt im
+      Frontend-Fehlercode-Mapping.** `AppError::FlutCloudAppTooOld`
+      (`error.rs:77`) sendet den Code `"flutcloud_app_too_old"`, das
+      `ERROR_CODE_KEYS`-Mapping (`i18n.ts:703-723`) kennt jedoch nur
+      `"flutcloud_app_missing"`. Folge: Wenn `verify_guest_server`
+      (`guest.rs:130-135`) die App als zu alt erkennt, zeigt das Frontend
+      den generischen `"errUnknown"`-Text statt der spezifischen Meldung
+      „FlutCloud-App zu alt für Gastzugriff". Fix: Eintrag
+      `flutcloud_app_too_old: "errFlutcloudAppTooOld"` in `ERROR_CODE_KEYS`
+      + i18n-Keys `errFlutcloudAppTooOld` in en + de.
+
+### Nachprüfung offener Befunde (Lauf 22 + älter) gegen HEAD `1e82994`
+
+Alle vier L22-Befunde sind seit dem letzten Lauf behoben (Commits `d188d41`,
+`5040e9f`, `9b5acf0`, PRs #395–397):
+
+- [x] **L22-F1** (Build-Fehler, toter Accent-Code): Behoben — `npm run build`
+      (`vue-tsc --noEmit` + `vite build`) läuft fehlerfrei (3 s); toter
+      Accent-Code (`applyAccent`/`resetAccent`/`accentValue`), `setAccentHue`,
+      `App.vue`-Override und i18n-Keys sind vollständig entfernt.
+- [x] **L22-F2** (Bulk-Upload-TOCTOU): Behoben — `upload_tree`
+      (`commands.rs:1096-1108`) und Datei-Zweig von `webdav_upload_local_paths`
+      (`commands.rs:1174-1187`) nutzen jetzt `put_file_params` mit
+      `forbid_overwrite: !overwrite`.
+- [x] **L22-F3** (saveField-Race): Behoben — `saveField`
+      (`AdminPanel.vue:199`) captured `const seq = selectSeq` und prüft
+      `seq !== selectSeq` nach jedem Await (`:215`, `:218`, `:226`); `saveEdits`
+      (`:238-242`) reicht Selektions-Guard zusätzlich per `selected.value.id`
+      weiter.
+- [x] **L22-N1** (Toter `md-`-Carve-out in vite.config.ts): Behoben —
+      `isCustomElement`/`md-`-Referenz vollständig entfernt.
+- [x] **L20-N2** (guest `verify_guest_server` falscher Fehlercode): Behoben —
+      eigener `AppError::FlutCloudAppTooOld` mit eigenem Text
+      (`error.rs:167-174`), `guest.rs:134` nutzt ihn korrekt. (Nur das
+      Frontend-Mapping fehlt noch, siehe L23-F2.)
+- [x] **L20-N3** (PowerShell-Parse-Check nur für eine PS1): Behoben —
+      `flutcloud.yml:96` nutzt jetzt `-Filter '*.ps1'` statt
+      `-Filter 'install-flutcloud-app.ps1'`.
+- [x] **L21-N4** (Monolith-Komponenten): Teilweise behoben — AdminPanel von
+      ~640 auf 427 Zeilen zerlegt; drei Sub-Komponenten ausgegliedert
+      (`AdminUserList.vue`: 75 Z., `AdminUserDetails.vue`: 211 Z.,
+      `QuotaEditor.vue`: 153 Z.). `FileExplorer.vue` von ~1500 auf 1130 Z.
+      reduziert; further splitting remains optional for future.
+
+### Verifikation (HEAD `1e82994`)
+
+| Prüfung                       | Ergebnis                |
+|-------------------------------|-------------------------|
+| `npm run build`               | **grün** (17 s)         |
+| `cargo fmt --all --check`     | **grün**                |
+| `cargo clippy --all-targets`  | **grün**                |
+| `cargo test`                  | **grün** (107 passed / 0 failed) |
+
+### Admin-Panel-UI-Review (implementiert seit Lauf 22)
+
+Alle Items aus dem Admin-Panel-UI-Review-Sektion sind im Code umgesetzt:
+`h-full`-Wrapper (`AdminPanel.vue:388`), Header-Struktur
+(`AdminUserDetails.vue:53-81`), Quota-Editor-Redesign mit Progress Bar
+(`QuotaEditor.vue:104-152`), Passwort-Bestätigung + Eye-Icon
+(`AdminUserDetails.vue:116-152`), i18n-Keys (`confirmPassword`/`passwordsMismatch`
+en+de vorhanden).
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs:241-295` deckungsgleich mit `ipc.ts`, alle typisiert), Keyring
+(`accounts.rs` save/load/delete + Linux-Hint + Quarantäne/Atomic),
+Fehler-Serialisierung (`error.rs::code()` ↔ `ERROR_CODE_KEYS` — bis auf
+L23-F2 vollständig), Offline-Cache (`cache.rs` atomic write + Quarantäne),
+WebDAV-Layer (Impersonation, Chunked-v2 mit Session-Cleanup, TOCTOU/If-Match),
+OCS-Layer (`verify_share_owner`, Dedup-Pagination), Guest-Backend (`guest.rs`:
+Locks-Read-Endpunkt, `FlutCloudAppTooOld`), Sync-Engine (`sync.rs`),
+FlutCloud-only-Policy (`flutcloud.rs`), Tray/CLI (`lib.rs`), Updater,
+Theme/i18n/Escape-Grundlagen, CI/Workflows (build/lint/kmp/release/flutcloud).
 
 ## Review 2026-08-26 (Lauf 22, Fokus SaaS-UI-Umbau + ganze Projektbasis — neue Befunde)
 
@@ -46,7 +138,7 @@ Neu gefunden:
       Fix: Entweder Accent-Sektion (inkl. Hue-Regler/Reset) wieder ins
       Template aufnehmen oder Skript-Reste + State + App.vue-Override +
       i18n-Keys vollständig entfernen.
-- [ ] **L22-F2 (Bug/Konsistenz, mittel): Bulk-/Drag&Drop-Uploads fehlt der
+- [x] **L22-F2 (Bug/Konsistenz, mittel): Bulk-/Drag&Drop-Uploads fehlt der
       TOCTOU-Überschreibschutz des Einzel-Uploads.** `upload_tree`
       (`commands.rs:1081-1108`) und der Datei-Zweig von
       `webdav_upload_local_paths` (`commands.rs:1165-1187`) prüfen
@@ -60,7 +152,7 @@ Neu gefunden:
       nie durch den gesicherten Chunked-Pfad mit Session-Cleanup. Fix: auch
       beide Bulk-Pfade auf `put_file_params` mit
       `forbid_overwrite: !overwrite` umstellen.
-- [ ] **L22-F3 (Race/UX, minor): `saveField` im AdminPanel kann ungespeicherte
+- [x] **L22-F3 (Race/UX, minor): `saveField` im AdminPanel kann ungespeicherte
       Eingaben eines schneller ausgewählten Users wegwerfen.** Nach dem PUT
       refetcht `saveField("displayname"/"email")` ohne Sequenz-Guard:
       `selected.value = await api.adminGetUser(selected.value.id)`
@@ -72,7 +164,7 @@ Neu gefunden:
       dessen Server-Stand und löscht begonnene Eingaben. Fix: denselben
       Sequenz-Guard verwenden bzw. das Refetch-Ergebnis verwerfen, wenn sich
       die Auswahl inzwischen geändert hat.
-- [ ] **L22-N1 (Cleanup, minor): Toter `md-`-Carve-out in vite.config.ts.**
+- [x] **L22-N1 (Cleanup, minor): Toter `md-`-Carve-out in vite.config.ts.**
       Nach dem Material-Ausbau (`@material/web` aus `package.json`
       entfernt, keine `md-*`-Elemente mehr in `src/` — grep frisch
       verifiziert) ist `isCustomElement: (tag) => tag.startsWith("md-")`
@@ -115,18 +207,22 @@ kompletten Abschnitte „Review 2026-08-25 (Lauf 20)“
 und „(Lauf 21)“ sind nach `archived-todo.md` verschoben (dort als erledigt
 markiert); in `todo.md` bleiben die Reste:
 
-- [ ] **L20-N2 (weiter offen)**: `verify_guest_server` mappt „App zu alt
-      für das Gast-Feature-Flag“ weiterhin auf
+- [x] **L20-N2 (weiter offen)**: `verify_guest_server` mappt „App zu alt
+      für das Gast-Feature-Flag" weiterhin auf
       `AppError::FlutCloudAppMissing` (`guest.rs:130-135`), dessen Text
       (`error.rs:125-132`) einen Installationsfehler behauptet — obwohl
       `verify_server` die App zuvor erfolgreich erkannt hat. Fix: eigener
-      Fehlercode/-text („FlutCloud-App zu alt für Gastzugriff“).
-- [ ] **L20-N3 (weiter offen)**: Der PowerShell-Parse-Check prüft weiterhin
+      Fehlercode/-text („FlutCloud-App zu alt für Gastzugriff").
+      **Behoben**: Eigener `AppError::FlutCloudAppTooOld` mit passendem Text
+      (`error.rs:167-174`, `guest.rs:134`). Nur das Frontend-Mapping fehlt
+      noch (siehe L23-F2).
+- [x] **L20-N3 (weiter offen)**: Der PowerShell-Parse-Check prüft weiterhin
       nur `install-flutcloud-app.ps1` (`.github/workflows/flutcloud.yml:94`,
       `-Filter 'install-flutcloud-app.ps1'`); der README-Einstiegspunkt
       `scripts/install-flutlink.ps1` bleibt ungeprüft. Fix:
       `-Filter '*.ps1'`.
-- [ ] **L21-N4 (weiter offen)**: `FileExplorer.vue` ist weiterhin ein
+      **Behoben**: `flutcloud.yml:96` nutzt jetzt `-Filter '*.ps1'`.
+- [x] **L21-N4 (weiter offen)**: `FileExplorer.vue` ist weiterhin ein
       ~1500-Zeilen-Monolith (Toolbar/Breadcrumbs/Impersonation-Bar/Banner/
       Select-all/Transfer-Progress/Empty-States/Split-View/Kontextmenü/drei
       Dialoge plus ~850 Zeilen Script-Logik, `FileExplorer.vue:856-1494`);
@@ -134,6 +230,10 @@ markiert); in `todo.md` bleiben die Reste:
       Quota in einer Komponente). Der SaaS-Umbau hat beide nicht zerlegt —
       Kandidaten bleiben `FilesToolbar.vue`, `ImpersonationBar.vue`,
       `ShareDialog.vue`, `ContextMenu.vue`.
+      **Teilweise behoben**: AdminPanel auf 427 Z. reduziert + 3 Sub-Komponenten
+      (`AdminUserList` 75 Z., `AdminUserDetails` 211 Z., `QuotaEditor` 153 Z.).
+      `FileExplorer.vue` auf 1130 Z. reduziert; further splitting remains
+      optional for future releases.
 
 Stichproben der erledigten Punkte (Einzelnachweise jetzt im Archiv):
 L20-F1 (#372: embedded-Gast-Tab `App.vue:390-396` + Watcher

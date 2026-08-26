@@ -298,6 +298,7 @@ const dict: Record<Lang, Record<string, string>> = {
     errParse: "Parse error: {detail}",
     errNotFlutCloud: "FlutLink is a dedicated client for the FlutCloud server and cannot connect to '{detail}'.",
     errFlutcloudAppMissing: "This server is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled.",
+    errFlutcloudAppTooOld: "The FlutCloud Nextcloud app is too old for guest access. Please update the app to the required version.",
     errUpdate: "Update failed: {detail}",
     errTargetExists:
       "A file or folder named '{detail}' already exists. Choose a different name.",
@@ -637,6 +638,7 @@ const dict: Record<Lang, Record<string, string>> = {
     errParse: "Parse-Fehler: {detail}",
     errNotFlutCloud: "FlutLink ist ein dedizierter Client für den FlutCloud-Server und kann sich nicht mit '{detail}' verbinden.",
     errFlutcloudAppMissing: "Dieser Server ist kein FlutCloud-Server: Die FlutCloud-Nextcloud-App ist nicht installiert oder deaktiviert.",
+    errFlutcloudAppTooOld: "Die FlutCloud-Nextcloud-App ist zu alt für den Gastzugriff. Bitte aktualisieren Sie die App auf die erforderliche Version.",
     errUpdate: "Update fehlgeschlagen: {detail}",
     errTargetExists:
       "Eine Datei oder ein Ordner namens '{detail}' existiert bereits. Bitte wähle einen anderen Namen.",
@@ -716,6 +718,7 @@ const ERROR_CODE_KEYS: Record<string, string> = {
   parse: "errParse",
   not_flutcloud: "errNotFlutCloud",
   flutcloud_app_missing: "errFlutcloudAppMissing",
+  flutcloud_app_too_old: "errFlutcloudAppTooOld",
   update: "errUpdate",
   target_exists: "errTargetExists",
   sync_folder_conflict: "errSyncFolderConflict",

@@ -757,7 +757,7 @@ pub async fn open_remote_file(
 
     let cache_dir = open_cache_dir();
     // Clean up leftovers from previous open operations (best-effort).
-    if let Ok(parent) = cache_dir.parent() {
+    if let Some(parent) = cache_dir.parent() {
         if let Ok(entries) = std::fs::read_dir(parent) {
             for entry in entries.flatten() {
                 if entry.path() != cache_dir {
@@ -1330,7 +1330,7 @@ pub async fn guest_open_file(
     crate::guest::validate_guest_target(&token, &remote_path)?;
 
     let cache_dir = open_cache_dir();
-    if let Ok(parent) = cache_dir.parent() {
+    if let Some(parent) = cache_dir.parent() {
         if let Ok(entries) = std::fs::read_dir(parent) {
             for entry in entries.flatten() {
                 if entry.path() != cache_dir {
