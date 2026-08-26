@@ -755,13 +755,15 @@ pub async fn open_remote_file(
         return Err(AppError::Forbidden);
     }
 
-    let cache_dir = std::env::temp_dir().join("flutlink-open");
-    // Leftovers from previous opens are removed before the new download so the
-    // cache holds at most one file. A file still locked by the viewer app is
-    // skipped and cleaned up on the next open.
-    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-        for entry in entries.flatten() {
-            let _ = std::fs::remove_file(entry.path());
+    let cache_dir = open_cache_dir();
+    // Clean up leftovers from previous open operations (best-effort).
+    if let Ok(parent) = cache_dir.parent() {
+        if let Ok(entries) = std::fs::read_dir(parent) {
+            for entry in entries.flatten() {
+                if entry.path() != cache_dir {
+                    let _ = std::fs::remove_dir_all(entry.path());
+                }
+            }
         }
     }
     std::fs::create_dir_all(&cache_dir)?;
@@ -1258,6 +1260,18 @@ pub async fn webdav_rename(
     .await
 }
 
+/// Create a unique, unpredictable temp directory for a single open-file
+/// operation.  Using a random-looking subdirectory under the well-known
+/// cache root prevents symlink attacks (TOCTOU): an attacker cannot
+/// predict the path before the download starts.
+fn open_cache_dir() -> PathBuf {
+    let ts = now_nanos();
+    let pid = std::process::id();
+    std::env::temp_dir()
+        .join("flutlink-open")
+        .join(format!("{pid}-{ts}"))
+}
+
 // --- Guest access (complete public shares, no account required) ----------
 
 /// Verify that the fixed FlutCloud server supports guest browsing
@@ -1315,10 +1329,14 @@ pub async fn guest_open_file(
 ) -> AppResult<()> {
     crate::guest::validate_guest_target(&token, &remote_path)?;
 
-    let cache_dir = std::env::temp_dir().join("flutlink-open");
-    if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-        for entry in entries.flatten() {
-            let _ = std::fs::remove_file(entry.path());
+    let cache_dir = open_cache_dir();
+    if let Ok(parent) = cache_dir.parent() {
+        if let Ok(entries) = std::fs::read_dir(parent) {
+            for entry in entries.flatten() {
+                if entry.path() != cache_dir {
+                    let _ = std::fs::remove_dir_all(entry.path());
+                }
+            }
         }
     }
     std::fs::create_dir_all(&cache_dir)?;
