@@ -329,20 +329,12 @@ async function createUser() {
 
 <template>
   <div class="flex h-full flex-col gap-4 overflow-hidden p-6">
-    <div>
-      <h2 class="text-lg font-semibold">{{ t("adminPanelTitle") }}</h2>
-      <p class="text-sm text-muted">{{ t("adminPanelSubtitle") }}</p>
-    </div>
-
-    <div v-if="error" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
-      {{ error }}
-    </div>
-    <div v-if="editMsg" class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
-      {{ editMsg }}
-    </div>
-
-    <div class="flex items-center gap-2">
-      <div class="relative flex-1">
+    <div class="flex items-center gap-3">
+      <div class="min-w-0 flex-1">
+        <h2 class="text-lg font-semibold">{{ t("adminPanelTitle") }}</h2>
+        <p class="text-xs text-muted">{{ t("adminPanelSubtitle") }}</p>
+      </div>
+      <div class="relative w-64 shrink-0">
         <Icon name="search" :size="16" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
           v-model="search"
@@ -354,6 +346,13 @@ async function createUser() {
       <button type="button" class="btn btn-primary shrink-0" @click="showCreate = !showCreate">
         + {{ t("createUser") }}
       </button>
+    </div>
+
+    <div v-if="error" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
+      {{ error }}
+    </div>
+    <div v-if="editMsg" class="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
+      {{ editMsg }}
     </div>
 
     <div v-if="showCreate" class="card p-4">
@@ -419,7 +418,7 @@ async function createUser() {
           </AdminUserDetails>
         </template>
         <div v-else class="flex h-full flex-col items-center justify-center text-center">
-          <Icon name="person" :size="40" class="mb-3 text-muted/40" />
+          <Icon name="person" :size="48" class="mb-3 text-muted/30" />
           <p class="text-sm text-muted">{{ t("selectUser") }}</p>
         </div>
       </div>
