@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { computed, reactive, watch } from "vue";
 import type { UserQuota } from "../lib/ipc";
 import { formatBytes } from "../lib/format";
 import { useUiStore } from "../stores/ui";
@@ -22,44 +22,24 @@ const t = (key: string) => translate(ui.lang, key);
 const MB = 1024 * 1024;
 const GB = 1024 * 1024 * 1024;
 
-type QuotaPresetId = "1gb" | "5gb" | "10gb" | "unlimited" | "custom";
-const QUOTA_PRESETS: { id: Exclude<QuotaPresetId, "unlimited" | "custom">; value: number; unit: "gb" }[] = [
-  { id: "1gb", value: 1, unit: "gb" },
-  { id: "5gb", value: 5, unit: "gb" },
-  { id: "10gb", value: 10, unit: "gb" },
-];
-
 const edits = reactive({
   quotaValue: null as number | null,
   quotaUnit: "gb" as "gb" | "mb" | "unlimited",
-  quotaPreset: "custom" as QuotaPresetId,
 });
 
 function setQuotaFromTotal(total: number | null) {
   if (total === null || total < 0) {
     edits.quotaValue = null;
     edits.quotaUnit = "unlimited";
-    edits.quotaPreset = "unlimited";
-    return;
-  }
-  const gbValue = Math.round((total / GB) * 10) / 10;
-  const preset = QUOTA_PRESETS.find(
-    (p) => p.value === gbValue && p.unit === "gb"
-  );
-  if (preset) {
-    edits.quotaValue = gbValue;
-    edits.quotaUnit = "gb";
-    edits.quotaPreset = preset.id;
     return;
   }
   if (total >= GB) {
     edits.quotaUnit = "gb";
-    edits.quotaValue = gbValue;
+    edits.quotaValue = Math.round((total / GB) * 10) / 10;
   } else {
     edits.quotaUnit = "mb";
     edits.quotaValue = Math.round((total / MB) * 10) / 10;
   }
-  edits.quotaPreset = "custom";
 }
 
 // Initial mount + every parent-side `revision` bump (user selection).
@@ -69,38 +49,15 @@ watch(
   { immediate: true }
 );
 
+// When switching to unlimited, clear the value.
 watch(
-  () => edits.quotaPreset,
-  (preset) => {
-    if (preset === "unlimited") {
-      edits.quotaValue = null;
-      edits.quotaUnit = "unlimited";
-      return;
-    }
-    if (preset === "custom") return;
-    const found = QUOTA_PRESETS.find((p) => p.id === preset);
-    if (found) {
-      edits.quotaValue = found.value;
-      edits.quotaUnit = found.unit;
-    }
+  () => edits.quotaUnit,
+  (unit) => {
+    if (unit === "unlimited") edits.quotaValue = null;
   }
 );
 
-watch(
-  () => [edits.quotaValue, edits.quotaUnit] as const,
-  ([value, unit]) => {
-    if (edits.quotaPreset === "unlimited") return;
-    if (unit === "unlimited") {
-      edits.quotaPreset = "unlimited";
-      return;
-    }
-    if (edits.quotaPreset === "custom") return;
-    const matches = QUOTA_PRESETS.some(
-      (p) => p.value === value && p.unit === unit
-    );
-    if (!matches) edits.quotaPreset = "custom";
-  }
-);
+const isUnlimited = computed(() => edits.quotaUnit === "unlimited");
 
 function save() {
   let quota: string;
@@ -135,6 +92,12 @@ function quotaFree(q: UserQuota | null): string {
   if (free < 0) return `-${formatBytes(-free)}`;
   return formatBytes(free);
 }
+
+const usagePercent = computed(() => {
+  const q = props.quota;
+  if (!q || q.total === null || q.total <= 0 || q.used === null) return null;
+  return Math.min(100, Math.round((q.used / q.total) * 100));
+});
 </script>
 
 <template>
@@ -151,6 +114,13 @@ function quotaFree(q: UserQuota | null): string {
       <span class="text-muted">{{ t("free") }}</span>
       <span class="tabular-nums">{{ quotaFree(quota) }}</span>
     </div>
+    <div v-if="usagePercent !== null" class="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+      <div
+        class="h-full rounded-full transition-all duration-300"
+        :class="usagePercent > 90 ? 'bg-error' : 'bg-primary'"
+        :style="{ width: usagePercent + '%', background: usagePercent > 70 && usagePercent <= 90 ? 'oklch(0.7 0.17 80)' : undefined }"
+      ></div>
+    </div>
   </div>
 
   <div>
@@ -158,35 +128,24 @@ function quotaFree(q: UserQuota | null): string {
       {{ t("setQuota") }}
     </label>
     <div class="flex gap-2">
-      <select
-        v-model="edits.quotaPreset"
-        class="input w-32 shrink-0"
-      >
-        <option value="1gb">1 GB</option>
-        <option value="5gb">5 GB</option>
-        <option value="10gb">10 GB</option>
-        <option value="unlimited">{{ t("unlimited") }}</option>
-        <option value="custom">{{ t("custom") }}</option>
-      </select>
       <input
         type="number"
         :value="edits.quotaValue"
         @input="edits.quotaValue = ($event.target as HTMLInputElement).valueAsNumber"
-        :disabled="edits.quotaUnit === 'unlimited'"
+        :disabled="isUnlimited"
         min="0"
         step="0.1"
         class="input flex-1"
       />
       <select
         v-model="edits.quotaUnit"
-        :disabled="edits.quotaUnit === 'unlimited'"
-        class="input w-24 shrink-0"
+        class="input w-28 shrink-0"
       >
         <option value="gb">{{ t("gb") }}</option>
         <option value="mb">{{ t("mb") }}</option>
         <option value="unlimited">{{ t("unlimited") }}</option>
       </select>
-      <button type="button" class="btn btn-primary shrink-0" @click="save">
+      <button type="button" class="btn btn-outline shrink-0" @click="save">
         {{ t("save") }}
       </button>
     </div>

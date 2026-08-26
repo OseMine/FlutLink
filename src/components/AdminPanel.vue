@@ -386,7 +386,7 @@ async function createUser() {
 
     <div class="flex min-h-0 flex-1 gap-4">
       <!-- User list (30 %) -->
-      <div class="w-[30%] shrink-0">
+      <div class="h-full w-[30%] shrink-0">
         <AdminUserList
           :users="users"
           :selected-id="selected?.id ?? null"

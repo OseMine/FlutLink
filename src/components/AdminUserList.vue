@@ -20,7 +20,7 @@ const t = (key: string) => translate(ui.lang, key);
 </script>
 
 <template>
-  <div class="card min-h-0 overflow-y-auto !rounded-md">
+  <div class="card h-full min-h-0 overflow-y-auto !rounded-md">
     <ul v-if="users.length" class="divide-y divide-line">
       <li v-for="userId in users" :key="userId">
         <button

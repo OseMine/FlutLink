@@ -187,6 +187,30 @@ nächsten Lauf die vier neuen L22-Befunde oben als Issues erfassen.
       600er-Datei unter `$XDG_STATE_HOME/flutlink` (siehe
       `FileKeyValueStorage`), Parität zum Tauri-Client (`keyring`).
 
+## Admin-Panel UI-Review (Issue: Layout, Formular & UX-Verbesserungen)
+
+Implementiert am 2026-08-26:
+
+- [x] **Linke Spalte: volle Höhe** — `h-full` auf Wrapper (`AdminPanel.vue:389`)
+      und Card (`AdminUserList.vue:23`) damit die Liste nicht nach 2 Einträgen
+      abschneidet.
+- [x] **Header-Struktur** — `justify-between` + innere Gruppierung Avatar+Name
+      (`AdminUserDetails.vue:53-81`). „Benutzer löschen" bekommt dezenten
+      roten Border/BG statt schwebendes `btn-danger`.
+- [x] **Kontingent-Redundanz** — Preset-Dropdown entfernt; nur noch
+      Eingabefeld (Wert) + Einheiten-Dropdown (MB/GB/Unlimited)
+      (`QuotaEditor.vue`).
+- [x] **Kontingent-Speichern** — Button von `btn-primary` auf `btn-outline`
+      umgestellt, visuell de-emphasiert.
+- [x] **Fortschrittsanzeige** — Progress Bar unter Quota-Statistik (grün bei
+      ≤70%, amber bei 71-90%, rot bei >90%).
+- [x] **Passwort: Augensymbol** — Eye/Eye-off Icon inline im Input statt
+      separatem Text-Button; zwei Icons zu `Icon.vue` hinzugefügt.
+- [x] **Passwort: Bestätigung** — Zweites Input „Passwort bestätigen" +
+      Validierung; zentraler Save-Button bleibt deaktiviert bis Passwörter
+      übereinstimmen.
+- [x] **i18n** — `confirmPassword`/`passwordsMismatch` in en + de.
+
 ## Performance-Analyse (ergänzt 2026-08-25)
 
 ### High Priority
