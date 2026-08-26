@@ -237,6 +237,11 @@ async function selectUser(userId: string) {
 
 async function saveField(key: "displayname" | "email" | "password") {
   if (!selected.value) return;
+  // L22-F3: share selectUser's sequence counter — if another user was picked
+  // while the PUT/refetch was in flight, its late response must not overwrite
+  // the new selection or wipe its unsaved edits.
+  const seq = selectSeq;
+  const userId = selected.value.id;
   const value = edits[key === "displayname" ? "displayName" : key];
   error.value = null;
   editMsg.value = null;
@@ -250,15 +255,19 @@ async function saveField(key: "displayname" | "email" | "password") {
     return;
   }
   try {
-    editMsg.value = await api.adminEditUser(selected.value.id, key, value);
+    editMsg.value = await api.adminEditUser(userId, key, value);
+    if (seq !== selectSeq) return; // selection changed meanwhile, discard
     if (key === "displayname" || key === "email") {
-      selected.value = await api.adminGetUser(selected.value.id);
-      edits.displayName = selected.value.displayName ?? "";
-      edits.email = selected.value.email ?? "";
+      const details = await api.adminGetUser(userId);
+      if (seq !== selectSeq) return; // out-of-order response, discard
+      selected.value = details;
+      edits.displayName = details.displayName ?? "";
+      edits.email = details.email ?? "";
     } else {
       edits.password = "";
     }
   } catch (e) {
+    if (seq !== selectSeq) return;
     error.value = invokeError(e).message;
   }
 }

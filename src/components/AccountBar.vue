@@ -168,7 +168,7 @@ const storageFreeLabel = computed(() => {
         </p>
         <button
           type="button"
-          class="mt-2 text-xs text-muted underline-offset-2 transition hover:text-error hover:underline"
+          class="mt-2 text-xs text-muted underline-offset-2 transition hover:text-error hover:underline hover:cursor-pointer"
           @click="remove(store.active.username, store.active.instanceUrl)"
         >
           {{ t("removeAccount") }}
