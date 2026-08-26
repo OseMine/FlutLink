@@ -87,11 +87,27 @@ class PublicPagesController extends Controller
 
     private function renderPage(?string $category): TemplateResponse
     {
-        $categories = array_values($this->service->getCategories());
-        $shares = array_values(array_filter(
-            $this->service->listCompletePublicShares(),
-            static fn (array $share): bool => $category === null || $share['category'] === $category
+        $allCategories = $this->service->getCategories();
+        // Only show public-visibility categories in the chip navigation.
+        // Link-only categories are still accessible via direct URL but
+        // should not appear in the bundled listing.
+        $categories = array_values(array_filter(
+            $allCategories,
+            static fn (array $cat): bool => ($cat['visibility'] ?? 'public') === 'public'
         ));
+
+        if ($category !== null) {
+            // Specific category page: show all its shares regardless of
+            // visibility (link-only categories work via direct URL).
+            $allShares = $this->service->listAllCompletePublicShares();
+            $shares = array_values(array_filter(
+                $allShares,
+                static fn (array $share): bool => $share['category'] === $category
+            ));
+        } else {
+            // "All" view: only public-visibility shares.
+            $shares = array_values($this->service->listCompletePublicShares());
+        }
 
         // Base of the guest web routes ("/…/public"); chips append the
         // category name only — appending a route URL would double the

@@ -1345,12 +1345,13 @@ pub async fn guest_admin_set_category(
     state: State<'_, AppState>,
     name: String,
     prefixless: bool,
+    visibility: String,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
     if !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    crate::guest::set_category(&state.http_client, &account, &name, prefixless).await
+    crate::guest::set_category(&state.http_client, &account, &name, prefixless, &visibility).await
 }
 
 #[tauri::command]

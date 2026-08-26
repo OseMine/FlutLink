@@ -242,6 +242,35 @@ namespace {
         $fail("Kategorie 'docs' muss prefixless=false melden.");
     }
 
+    // 3b) Sichtbarkeit: Default ist 'public', setzbar auf 'link-only'.
+    $service->setCategory('public-cat', false, 'public');
+    $service->setCategory('hidden-cat', false, 'link-only');
+    $cats = $service->getCategories();
+    if (($cats['public-cat']['visibility'] ?? null) !== 'public') {
+        $fail("Kategorie 'public-cat' muss visibility='public' melden.");
+    }
+    if (($cats['hidden-cat']['visibility'] ?? null) !== 'link-only') {
+        $fail("Kategorie 'hidden-cat' muss visibility='link-only' melden.");
+    }
+    // Ungültige Sichtbarkeit wird auf 'public' zurückgesetzt.
+    $service->setCategory('fallback-cat', false, 'bogus');
+    $cats2 = $service->getCategories();
+    if (($cats2['fallback-cat']['visibility'] ?? null) !== 'public') {
+        $fail("Kategorie mit ungültiger Sichtbarkeit muss auf 'public' zurückfallen.");
+    }
+    // Update ändert nur die übergebenen Felder.
+    $service->setCategory('hidden-cat', true, 'link-only');
+    $cats3 = $service->getCategories();
+    if (($cats3['hidden-cat']['prefixless'] ?? null) !== true) {
+        $fail("Update muss prefixless ändern können.");
+    }
+    if (($cats3['hidden-cat']['visibility'] ?? null) !== 'link-only') {
+        $fail("Update darf visibility nicht zurücksetzen.");
+    }
+    $service->deleteCategory('public-cat');
+    $service->deleteCategory('hidden-cat');
+    $service->deleteCategory('fallback-cat');
+
     try {
         $service->assignShare('tok123', 'does-not-exist');
         $fail('Zuweisung einer unbekannten Kategorie muss abgelehnt werden.');

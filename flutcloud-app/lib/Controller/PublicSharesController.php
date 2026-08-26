@@ -98,7 +98,11 @@ class PublicSharesController extends OcsControllerBase
     // ---------------------------------------------------------------------
 
     /**
-     * Create/update a category. Body: `name`, optional `prefixless` ("1"/"true").
+     * Create/update a category. Body: `name`, optional `prefixless` ("1"/"true"),
+     * optional `visibility` ("public"|"link-only").
+     *
+     * When updating an existing category, omitted fields keep their current
+     * values — the caller only needs to send what changed.
      */
     public function setCategory(): DataResponse
     {
@@ -109,8 +113,19 @@ class PublicSharesController extends OcsControllerBase
             ['1', 'true', 'yes'],
             true
         );
-        return $this->run(function () use ($name, $prefixless) {
-            $this->service->setCategory($name, $prefixless);
+        $visibilityRaw = $this->request->getParam('visibility');
+        // Preserve existing visibility when not provided (partial update).
+        $visibility = 'public';
+        if ($visibilityRaw === null) {
+            $existing = $this->service->getCategories()[$name] ?? null;
+            if ($existing !== null) {
+                $visibility = $existing['visibility'] ?? 'public';
+            }
+        } else {
+            $visibility = (string)$visibilityRaw;
+        }
+        return $this->run(function () use ($name, $prefixless, $visibility) {
+            $this->service->setCategory($name, $prefixless, $visibility);
             return ['status' => 'ok'];
         });
     }

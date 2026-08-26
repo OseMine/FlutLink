@@ -59,7 +59,12 @@
         document.querySelectorAll('#fc-categories tbody tr').forEach(function (row) {
             const name = row.getAttribute('data-name');
             row.querySelector('.fc-prefixless').addEventListener('change', function (e) {
-                run(ocs('POST', '/categories', { name: name, prefixless: e.target.checked ? 'true' : 'false' }));
+                const visibility = row.querySelector('.fc-visibility').value;
+                run(ocs('POST', '/categories', { name: name, prefixless: e.target.checked ? 'true' : 'false', visibility: visibility }));
+            });
+            row.querySelector('.fc-visibility').addEventListener('change', function (e) {
+                const prefixless = row.querySelector('.fc-prefixless').checked;
+                run(ocs('POST', '/categories', { name: name, prefixless: prefixless ? 'true' : 'false', visibility: e.target.value }));
             });
             row.querySelector('.fc-delete-cat').addEventListener('click', function () {
                 if (!window.confirm(t('flutcloud', "Kategorie '{name}' löschen?").replace('{name}', name))) { return; }
@@ -72,7 +77,8 @@
             const name = document.getElementById('fc-new-cat-name').value.trim();
             if (!name) { return; }
             const prefixless = document.getElementById('fc-new-cat-prefixless').checked ? 'true' : 'false';
-            run(ocs('POST', '/categories', { name: name, prefixless: prefixless }));
+            const visibility = document.getElementById('fc-new-cat-visibility').value;
+            run(ocs('POST', '/categories', { name: name, prefixless: prefixless, visibility: visibility }));
         });
 
         // --- share assignment --------------------------------------------

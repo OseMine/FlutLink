@@ -61,9 +61,37 @@ class PublicShareService
     /**
      * Every completely public shared folder at one place ("alle an einem Ort").
      *
+     * Only shares assigned to a category with visibility "public" are
+     * included. Uncategorized shares and shares in link-only categories are
+     * excluded — they remain accessible via direct link URL but do not
+     * appear in the bundled listing.
+     *
      * @return array<int, array<string, mixed>>
      */
     public function listCompletePublicShares(): array
+    {
+        return $this->listSharesFiltered(includeAll: false);
+    }
+
+    /**
+     * All complete public shares without visibility filtering.
+     *
+     * Used by specific-category pages where link-only categories should
+     * still be browsable via direct URL.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listAllCompletePublicShares(): array
+    {
+        return $this->listSharesFiltered(includeAll: true);
+    }
+
+    /**
+     * Core share listing with optional visibility filtering.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function listSharesFiltered(bool $includeAll): array
     {
         $categories = $this->getCategories();
         $assignments = $this->getAssignments();
@@ -76,6 +104,16 @@ class PublicShareService
             $entry = $this->describeCompletePublicShare($share, $categories);
             if ($entry === null) {
                 continue;
+            }
+            if (!$includeAll) {
+                // Only include shares in a public-visibility category.
+                $cat = $assignments[$entry['token']] ?? null;
+                if ($cat === null || !isset($categories[$cat])) {
+                    continue;
+                }
+                if (($categories[$cat]['visibility'] ?? 'public') !== 'public') {
+                    continue;
+                }
             }
             $nodeId = $share->getNodeId();
             if (!isset($byNode[$nodeId])) {
@@ -147,16 +185,28 @@ class PublicShareService
     /**
      * Create or update a category.
      *
+     * When updating an existing category, only the provided values are
+     * applied — omitted fields keep their current state.
+     *
+     * @param string $visibility 'public' (listed in bundled view) or 'link-only' (direct link only)
      * @throws InvalidNameException on invalid names
      */
-    public function setCategory(string $name, bool $prefixless): void
+    public function setCategory(string $name, bool $prefixless, string $visibility = 'public'): void
     {
         $name = trim($name);
         if ($name === '') {
             throw new InvalidNameException('category must not be empty');
         }
+        if (!in_array($visibility, ['public', 'link-only'], true)) {
+            $visibility = 'public';
+        }
         $categories = $this->getCategories();
-        $categories[$name] = ['name' => $name, 'prefixless' => $prefixless];
+        $existing = $categories[$name] ?? null;
+        $categories[$name] = [
+            'name' => $name,
+            'prefixless' => $prefixless,
+            'visibility' => $visibility,
+        ];
         $this->writeJson(self::CONFIG_CATEGORIES, $categories);
     }
 

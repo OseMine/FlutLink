@@ -22,11 +22,17 @@ style('flutcloud', 'flutcloud-admin');
     </p>
 
     <h3><?php p($l->t('Kategorien')); ?></h3>
+    <p class="settings-hint">
+        Öffentliche Kategorien werden in der Browserview angezeigt.
+        Link-only-Kategorien sind nur über den direkten Link erreichbar
+        und erscheinen nicht in der Übersicht.
+    </p>
     <table id="fc-categories" class="grid">
         <thead>
             <tr>
                 <th><?php p($l->t('Name')); ?></th>
                 <th><?php p($l->t('Ohne /public/-Präfix')); ?></th>
+                <th><?php p($l->t('Sichtbarkeit')); ?></th>
                 <th></th>
             </tr>
         </thead>
@@ -36,6 +42,18 @@ style('flutcloud', 'flutcloud-admin');
                 <td><?= htmlspecialchars($cat['name']) ?></td>
                 <td><input type="checkbox" class="fc-prefixless"
                            <?= $cat['prefixless'] ? 'checked' : '' ?>></td>
+                <td>
+                    <select class="fc-visibility">
+                        <option value="public"
+                            <?= ($cat['visibility'] ?? 'public') === 'public' ? 'selected' : '' ?>>
+                            <?php p($l->t('Öffentlich')); ?>
+                        </option>
+                        <option value="link-only"
+                            <?= ($cat['visibility'] ?? 'public') === 'link-only' ? 'selected' : '' ?>>
+                            <?php p($l->t('Link-only')); ?>
+                        </option>
+                    </select>
+                </td>
                 <td><button class="icon-delete fc-delete-cat" title="<?php p($l->t('Kategorie löschen')); ?>"></button></td>
             </tr>
             <?php endforeach; ?>
@@ -47,6 +65,12 @@ style('flutcloud', 'flutcloud-admin');
         <label>
             <input type="checkbox" id="fc-new-cat-prefixless">
             <?php p($l->t('Ohne Präfix')); ?>
+        </label>
+        <label>
+            <select id="fc-new-cat-visibility">
+                <option value="public"><?php p($l->t('Öffentlich')); ?></option>
+                <option value="link-only"><?php p($l->t('Link-only')); ?></option>
+            </select>
         </label>
         <button type="submit" class="primary"><?php p($l->t('Kategorie erstellen')); ?></button>
     </form>

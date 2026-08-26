@@ -218,6 +218,7 @@ pub async fn set_category(
     account: &Account,
     name: &str,
     prefixless: bool,
+    visibility: &str,
 ) -> AppResult<()> {
     let url = format!(
         "{}/ocs/v2.php/apps/flutcloud/api/v1/public/categories",
@@ -226,6 +227,7 @@ pub async fn set_category(
     let form = [
         ("name", name),
         ("prefixless", if prefixless { "true" } else { "false" }),
+        ("visibility", visibility),
     ];
     let res = nextcloud::request(client, account, Method::POST, &url, Some(&form)).await?;
     let json: Value = res.json().await?;

@@ -44,6 +44,7 @@ const busyPath = ref<string | null>(null);
 const showCategoryDialog = ref(false);
 const newCategoryName = ref("");
 const newCategoryPrefixless = ref(false);
+const newCategoryVisibility = ref("public");
 
 // Admin: share-category assignment dropdown (token -> open state)
 const assigningToken = ref<string | null>(null);
@@ -174,10 +175,11 @@ async function createCategory() {
   const name = newCategoryName.value.trim();
   if (!name) return;
   try {
-    await api.guestAdminSetCategory(name, newCategoryPrefixless.value);
+    await api.guestAdminSetCategory(name, newCategoryPrefixless.value, newCategoryVisibility.value);
     if (!categories.value.includes(name)) categories.value.push(name);
     newCategoryName.value = "";
     newCategoryPrefixless.value = false;
+    newCategoryVisibility.value = "public";
     showCategoryDialog.value = false;
     ui.toast(t("guestAdminCategoryCreated"), "success");
   } catch (e) {
@@ -568,6 +570,12 @@ onMounted(() => void load());
         <label class="mb-4 flex cursor-pointer select-none items-center gap-2 text-xs text-muted">
           <input v-model="newCategoryPrefixless" type="checkbox" class="checkbox" />
           {{ t("guestAdminCategoryPrefixless") }}
+        </label>
+        <label class="mb-4 flex cursor-pointer select-none items-center gap-2 text-xs text-muted">
+          <select v-model="newCategoryVisibility" class="input !py-1.5 !text-xs">
+            <option value="public">{{ t("guestAdminVisibilityPublic") }}</option>
+            <option value="link-only">{{ t("guestAdminVisibilityLinkOnly") }}</option>
+          </select>
         </label>
         <div class="flex justify-end gap-2">
           <button type="button" class="btn btn-outline" @click="showCategoryDialog = false">

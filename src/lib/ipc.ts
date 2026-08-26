@@ -320,8 +320,8 @@ export const api = {
     invoke<void>("guest_open_file", { token, remotePath }),
 
   // Guest admin (require authenticated admin session):
-  guestAdminSetCategory: (name: string, prefixless: boolean) =>
-    invoke<void>("guest_admin_set_category", { name, prefixless }),
+  guestAdminSetCategory: (name: string, prefixless: boolean, visibility: string = "public") =>
+    invoke<void>("guest_admin_set_category", { name, prefixless, visibility }),
 
   guestAdminDeleteCategory: (name: string) =>
     invoke<void>("guest_admin_delete_category", { name }),
