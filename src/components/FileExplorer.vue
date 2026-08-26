@@ -9,8 +9,28 @@ import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareO
 import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
 import { registerEscapeCloser } from "../lib/escape";
-import Icon from "./Icon.vue";
-import EntryList from "./EntryList.vue";
+
+// Concurrency semaphore for thumbnail requests (max 6 parallel)
+let thumbSemaphore = 6;
+const thumbWaiting: Promise<void>[] = [];
+
+// Acquire a slot (decreases semaphore, waits if at capacity)
+function acquireThumbSlot(): Promise<void> {
+  if (thumbSemaphore > 0) {
+    thumbSemaphore--;
+    return Promise.resolve();
+  }
+  const p = new Promise<void>(resolve => {
+    thumbWaiting.push(resolve);
+  });
+  return p;
+}
+
+function releaseThumbSlot() {
+  thumbSemaphore++;
+  const resolve = thumbWaiting.shift();
+  if (resolve) resolve();
+}
 
 const accounts = useAccountsStore();
 const files = useFilesStore();
@@ -301,11 +321,17 @@ function pruneCaches() {
 async function loadThumb(entry: WebDavEntry) {
   if (entry.isDir || !entry.contentType?.startsWith("image/")) return;
   if (thumbs.has(entry.path) || thumbLoading.has(entry.path)) return;
-  thumbLoading.add(entry.path);
-  const dataUrl = await files.getThumbnail(entry.path);
-  thumbLoading.delete(entry.path);
-  if (dataUrl && (isInCurrentFolder(entry.path) || isInPairedFolder(entry.path))) {
-    thumbs.set(entry.path, dataUrl);
+  await acquireThumbSlot();
+  try {
+    if (thumbs.has(entry.path) || thumbLoading.has(entry.path)) return;
+    thumbLoading.add(entry.path);
+    const dataUrl = await files.getThumbnail(entry.path);
+    thumbLoading.delete(entry.path);
+    if (dataUrl && (isInCurrentFolder(entry.path) || isInPairedFolder(entry.path))) {
+      thumbs.set(entry.path, dataUrl);
+    }
+  } finally {
+    releaseThumbSlot();
   }
 }
 
@@ -579,9 +605,9 @@ async function copyLink(path: string) {
   }
 }
 
-async function loadAllShares() {
+async function loadAllShares(path: string = files.currentPath) {
   try {
-    const shares = await files.listShares();
+    const shares = await files.listShares(path);
     const map = new Map<string, Share[]>();
     for (const share of shares) {
       const key = share.path ?? "";
@@ -778,7 +804,7 @@ watch(
     for (const key of [...shareState.keys()]) {
       if (!paths.has(key)) shareState.delete(key);
     }
-    void loadAllShares();
+    void loadAllShares(files.currentPath);
     for (const entry of display) void loadThumb(entry);
     for (const entry of paired) void loadThumb(entry);
   }
@@ -806,7 +832,7 @@ watch(
 onMounted(async () => {
   if (accounts.active) {
     await files.refresh();
-    void loadAllShares();
+    void loadAllShares(files.currentPath);
   }
   void files.bindProgress();
   unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {

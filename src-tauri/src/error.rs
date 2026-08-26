@@ -48,6 +48,7 @@ impl AppError {
             AppError::Parse(_) => "parse",
             AppError::NotFlutCloud(_) => "not_flutcloud",
             AppError::FlutCloudAppMissing => "flutcloud_app_missing",
+            AppError::FlutCloudAppTooOld => "flutcloud_app_too_old",
             AppError::Update(_) => "update",
             AppError::TargetExists(_) => "target_exists",
             AppError::SyncFolderConflict { .. } => "sync_folder_conflict",
@@ -127,6 +128,14 @@ impl AppError {
                     .unwrap_or_else(|_| "the FlutCloud server".to_string());
                 format!(
                     "'{}' is not a FlutCloud server: the FlutCloud Nextcloud app is not installed or disabled. Install it from the 'flutcloud-app' folder of the FlutLink repository.",
+                    server
+                )
+            }
+            AppError::FlutCloudAppTooOld => {
+                let server = crate::flutcloud::flutcloud_url()
+                    .unwrap_or_else(|_| "the FlutCloud server".to_string());
+                format!(
+                    "'{}' is not a FlutCloud server: the FlutCloud Nextcloud app is too old for guest access. Please update the FlutCloud app to the required version.",
                     server
                 )
             }

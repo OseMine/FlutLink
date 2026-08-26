@@ -172,7 +172,7 @@ fn unique_conflict_target(
     rel: &str,
     local: &BTreeMap<String, LocalEntry>,
     remote: &BTreeMap<String, RemoteEntry>,
-    used: &mut BTreeSet<String>,
+    used: &mut BTreeMap<String, bool>,
 ) -> String {
     let mut n = 0u64;
     loop {
@@ -180,9 +180,13 @@ fn unique_conflict_target(
         let candidate = conflict_name_n(rel, n);
         if !local.contains_key(&candidate)
             && !remote.contains_key(&candidate)
-            && !used.contains(&candidate)
+            && !used.contains_key(&candidate)
         {
-            used.insert(candidate.clone());
+            used.insert(candidate, true);
+            return candidate;
+        }
+    }
+}
             return candidate;
         }
     }
@@ -391,10 +395,13 @@ async fn list_remote(
     account: &Account,
     root: &str,
 ) -> AppResult<RemoteListing> {
+    let semaphore = tokio::sync::Semaphore::new(8);
     let mut map = BTreeMap::new();
     let mut dirty_dirs = BTreeSet::new();
     let mut pending = vec![root.trim_matches('/').to_string()];
     while let Some(dir) = pending.pop() {
+        let permit = semaphore.clone().acquire_owned().await?;
+        let _guard = Some(permit);
         let entries = match webdav::list(client, account, &dir, None).await {
             Ok(entries) => entries,
             Err(AppError::Status { status: 404, .. }) => Vec::new(),
@@ -565,7 +572,7 @@ fn plan_ops(
         rels.insert(rel.clone());
     }
 
-    let mut used_targets: BTreeSet<String> = BTreeSet::new();
+    let mut used_targets: BTreeMap<String, bool> = BTreeMap::new();
     let mut file_ops: Vec<Action> = Vec::new();
     let mut uploads: Vec<String> = Vec::new();
     let mut moved_dirs: Vec<String> = Vec::new();
@@ -574,7 +581,7 @@ fn plan_ops(
         match action {
             Action::Skip(_) => {}
             Action::Upload(p) => {
-                used_targets.insert(p.clone());
+                used_targets.entry(p.clone()).or_insert(true);
                 uploads.push(p.clone());
                 file_ops.push(Action::Upload(p));
             }

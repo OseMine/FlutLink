@@ -1078,11 +1078,6 @@ async fn upload_tree(
                 .await?;
             files_written += Box::pin(upload_tree(ctx.clone(), &path, &remote, overwrite)).await?;
         } else {
-            if !overwrite
-                && webdav::exists(&ctx.state.http_client, ctx.account, &remote, ctx.target).await?
-            {
-                return Err(AppError::TargetExists(remote));
-            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -1096,14 +1091,18 @@ async fn upload_tree(
                 ctx.index,
                 ctx.total_files,
             );
-            webdav::put_file_as_progress(
+            webdav::put_file_params(
                 &ctx.state.http_client,
                 ctx.account,
-                &remote,
-                &path,
-                mtime,
-                ctx.target,
-                Some(progress),
+                webdav::PutParams {
+                    remote_rel: &remote,
+                    local_path: std::path::Path::new(&path),
+                    mtime_secs: mtime,
+                    target_user: ctx.target,
+                    on_progress: Some(progress),
+                    if_match: None,
+                    forbid_overwrite: !overwrite,
+                },
             )
             .await?;
             files_written += 1;
@@ -1162,11 +1161,6 @@ pub async fn webdav_upload_local_paths(
                 .await?;
             upload_tree(ctx.clone(), &path, &remote, overwrite).await?;
         } else if path.is_file() {
-            if !overwrite
-                && webdav::exists(&state.http_client, &account, &remote, target.as_deref()).await?
-            {
-                return Err(AppError::TargetExists(remote));
-            }
             let mtime = std::fs::metadata(&path)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -1175,14 +1169,18 @@ pub async fn webdav_upload_local_paths(
                 .unwrap_or(0);
             let progress =
                 transfer_progress(app.clone(), "upload", &remote, ctx.index, total_files);
-            webdav::put_file_as_progress(
+            webdav::put_file_params(
                 &state.http_client,
                 &account,
-                &remote,
-                &path,
-                mtime,
-                target.as_deref(),
-                Some(progress),
+                webdav::PutParams {
+                    remote_rel: &remote,
+                    local_path: std::path::Path::new(&path),
+                    mtime_secs: mtime,
+                    target_user: target.as_deref(),
+                    on_progress: Some(progress),
+                    if_match: None,
+                    forbid_overwrite: !overwrite,
+                },
             )
             .await?;
         }
