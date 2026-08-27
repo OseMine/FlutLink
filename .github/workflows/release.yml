@@ -196,6 +196,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_BODY: ${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}
         run: |
           if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
             echo "::notice::Kein Tag-Push (workflow_dispatch) - keine Release-Seite"
@@ -206,10 +207,11 @@ jobs:
             echo "::notice::Release ${TAG} existiert bereits - wird wiederverwendet"
             exit 0
           fi
+          printf '%s' "$RELEASE_BODY" > /tmp/release-notes.txt
           gh release create "$TAG" \
             --draft \
             --title "FlutLink ${TAG}" \
-            --notes "${{ needs.release-notes.outputs.body || 'Download the assets below to install this version.' }}"
+            --notes-file /tmp/release-notes.txt
 
   build-and-release:
     # Desktop installers only for real tag releases; a stray workflow_dispatch
