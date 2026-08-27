@@ -41,12 +41,14 @@ if [ "${1:-}" = "--pick-only" ]; then
 fi
 
 probe() {
-  local model="$1" code body
+  local model="$1" code body escaped_model
   body="$(mktemp)"
+  # Escape the model name for safe JSON embedding (prevent injection).
+  escaped_model=$(printf '%s' "$model" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\//\\\//g')
   code="$(curl -sS -m 30 -o "$body" -w '%{http_code}' -X POST "$ZEN_URL" \
     -H "Authorization: Bearer ${OPENCODE_API_KEY:-}" \
     -H "Content-Type: application/json" \
-    -d '{"model":"'"$model"'","messages":[{"role":"user","content":"Reply with the single word OK."}],"max_tokens":5}' 2>/dev/null || echo 000)"
+    -d '{"model":"'"$escaped_model"'","messages":[{"role":"user","content":"Reply with the single word OK."}],"max_tokens":5}' 2>/dev/null || echo 000)"
   rm -f "$body"
   [ "$code" = "200" ]
 }

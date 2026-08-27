@@ -1184,12 +1184,24 @@ pub async fn webdav_upload_local_paths(
 }
 
 fn count_files(path: &Path) -> u64 {
+    count_files_inner(path, &mut std::collections::HashSet::new())
+}
+
+fn count_files_inner(
+    path: &Path,
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+) -> u64 {
+    // Resolve symlinks and skip already-visited directories to prevent loops.
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if !visited.insert(canonical) {
+        return 0;
+    }
     let mut count = 0u64;
     if let Ok(entries) = std::fs::read_dir(path) {
         for entry in entries.flatten() {
             let p = entry.path();
             if p.is_dir() {
-                count += count_files(&p);
+                count += count_files_inner(&p, visited);
             } else {
                 count += 1;
             }
@@ -1253,30 +1265,24 @@ pub async fn webdav_rename(
 }
 
 /// Create a unique, unpredictable temp directory for a single open-file
-/// operation.  Using a random-looking subdirectory under the well-known
-/// cache root prevents symlink attacks (TOCTOU): an attacker cannot
-/// predict the path before the download starts.
+/// operation.  Using a cryptographically random subdirectory under the
+/// well-known cache root prevents symlink attacks (TOCTOU): an attacker
+/// cannot predict the path before the download starts.
 fn open_cache_dir() -> PathBuf {
-    let ts = now_nanos();
-    let pid = std::process::id();
-    std::env::temp_dir()
-        .join("flutlink-open")
-        .join(format!("{pid}-{ts}"))
+    let mut buf = [0u8; 16];
+    getrandom::getrandom(&mut buf).expect("failed to generate random bytes");
+    let random_id = buf.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+    std::env::temp_dir().join("flutlink-open").join(random_id)
 }
 
 /// Remove stale `flutlink-open/*` directories left by earlier open operations
-/// that were interrupted.  Only directories owned by the same PID are cleaned
-/// up so concurrent app instances are not affected.
+/// that were interrupted.  All stale directories are cleaned up (best-effort).
 fn cleanup_open_cache() {
     let base = std::env::temp_dir().join("flutlink-open");
-    if let Some(parent) = base.parent() {
-        if let Ok(entries) = std::fs::read_dir(parent) {
-            let prefix = format!("{}-", std::process::id());
-            for entry in entries.flatten() {
-                let name_str = entry.file_name().to_string_lossy().into_owned();
-                if name_str.starts_with(&prefix) && entry.path() != base {
-                    let _ = std::fs::remove_dir_all(entry.path());
-                }
+    if let Ok(entries) = std::fs::read_dir(&base) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                let _ = std::fs::remove_dir_all(entry.path());
             }
         }
     }
@@ -1323,7 +1329,7 @@ pub async fn guest_download_file(
     if local_path.is_empty() || local_path.contains('\0') {
         return Err(AppError::App("Invalid local path.".into()));
     }
-    for segment in local_path.split('/') {
+    for segment in local_path.split(['/', '\\']) {
         if segment == ".." {
             return Err(AppError::App("Local path must not contain '..'.".into()));
         }

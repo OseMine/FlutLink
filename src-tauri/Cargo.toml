@@ -37,6 +37,7 @@ futures-util = "0.3"
 httpdate = "1"
 dotenvy = "0.15"
 sha2 = "0.11"
+getrandom = "0.2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

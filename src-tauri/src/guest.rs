@@ -12,7 +12,6 @@
 //! locks on the FlutCloud server.
 
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::{Client, Method};
 use serde::{Deserialize, Serialize};
@@ -197,16 +196,16 @@ pub async fn download_file(
         std::fs::create_dir_all(parent)?;
     }
     // Unpredictable temp file name to prevent symlink attacks (TOCTOU).
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let pid = std::process::id();
+    let mut rand_bytes = [0u8; 16];
+    getrandom::getrandom(&mut rand_bytes).expect("failed to generate random bytes");
+    let random_hex = rand_bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
     let tmp = dest.with_file_name(format!(
-        "{}.flutlink-{}-{}",
+        "{}.flutlink-{}",
         dest.file_stem().and_then(|s| s.to_str()).unwrap_or("file"),
-        pid,
-        nanos
+        random_hex
     ));
     {
         use std::io::Write;

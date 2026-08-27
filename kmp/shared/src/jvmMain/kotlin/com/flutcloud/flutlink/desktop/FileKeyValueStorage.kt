@@ -6,6 +6,7 @@ import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Properties
+import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
@@ -79,16 +80,32 @@ class FileKeyValueStorage(
 
     // --- AES-256-GCM encryption for secure mode ---
 
+    /** Salt file path (same directory as the encrypted data file). */
+    private val saltPath: Path
+        get() = path.resolveSibling(path.fileName.toString() + ".salt")
+
+    /** Derive the AES key using a machine-specific password + random salt. */
     private fun deriveKey(): SecretKey {
         val hostname = java.net.InetAddress.getLocalHost().hostName
         val username = System.getProperty("user.name")
-        // Use PBKDF2-HMAC-SHA256 with a fixed but hostname-specific salt
-        // instead of raw SHA-256 to resist brute-force / dictionary attacks.
-        val salt = "flutlink-salt:$hostname:$username".toByteArray()
+        // Password derived from machine identity — not hardcoded.
+        val password = "flutlink:$hostname:$username".toCharArray()
+        val salt = loadOrCreateSalt()
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val spec = PBEKeySpec("flutlink-credential-encryption".toCharArray(), salt, 310_000, 256)
+        val spec = PBEKeySpec(password, salt, 310_000, 256)
         val tmp = factory.generateSecret(spec)
         return SecretKeySpec(tmp.encoded, "AES")
+    }
+
+    /** Load the random 16-byte salt from disk, or generate and persist it. */
+    private fun loadOrCreateSalt(): ByteArray {
+        if (Files.exists(saltPath)) {
+            return Files.readAllBytes(saltPath)
+        }
+        val salt = ByteArray(16)
+        SecureRandom().nextBytes(salt)
+        Files.write(saltPath, salt)
+        return salt
     }
 
     private fun saveEncrypted() {
@@ -137,6 +154,8 @@ class FileKeyValueStorage(
                 java.nio.file.attribute.PosixFilePermission.OWNER_READ,
                 java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
             )))
+        }.onFailure { ex ->
+            System.err.println("warn: failed to restrict file permissions for $p: ${ex.message}")
         }
     }
 
