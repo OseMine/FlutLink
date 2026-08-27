@@ -9,6 +9,123 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Feature-Ideen und Verbesserungsvorschläge (2026-08-27)
+
+Basierend auf der vollständigen Code-Review aller Backend- und Frontend-Dateien.
+Sortiert nach Umsetzungsaufwand (klein → groß).
+
+### Quick Wins (klein, 1–2 Tage)
+
+- [ ] **Suche: `d:eq` → `d:contains`** — `webdav.rs:202-205` nutzt den
+      XML-Operator `d:eq` für exakten Name-Match; `d:contains` oder `d:like`
+      würde echte Teilstring-Suche ermöglichen. Betroffen:
+      `search_request_body()`.
+- [ ] **Admin-Panel: Debounce für Suche** — Jeder Tastendrach bei
+      `AdminUserList.vue` löst sofortigen `admin_list_users`-Aufruf aus.
+      Ein 300ms-Debounce (wie in FileExplorer `searchFiles`) reduziert die
+      Serverlast bei schneller Eingabe.
+- [ ] **i18n: `retry`-Key wird nirgends genutzt** — `i18n.ts:334/675`
+      definiert `retry` (en+de), aber kein Component nutzt ihn. Network-
+      Error-Toasts könnten einen Retry-Button erhalten (`ipc.ts:186-202`).
+- [ ] **Bulk-Upload: Fortschrittsanzeige pro Datei** — `transfer_progress()`
+      in `commands.rs:868-897` wird für Single-File-Uploads genutzt, aber
+      `webdav_upload_local_paths` emittiert kein `file://progress`-Event
+      pro Datei (nur `upload_tree` für rekursive Uploads). Für den
+      nicht-rekursiven Datei-Zweig (`commands.rs:1157-1179`) fehlt der
+      Progress-Callback.
+- [ ] **CLI: `--download` und `--list`-Befehle** — Aktuell gibt es nur
+      `--sync`, `--path`, `--url`, `--tray` (`lib.rs:148-192`). Headless-
+      Nutzung (z.B. Skripting) könnte `--download <remote> <local>` und
+      `--list <path>` gebrauchen.
+
+### Medium Features (3–7 Tage)
+
+- [ ] **Selective Sync (`.flutlinkignore`)** — Sync-Engine (`sync.rs`)
+      synchronisiert den gesamten Ordner. Ein Ignore-Mechanismus
+      (ähnlich `.gitignore`) pro Sync-Ordner würde `node_modules/`, `*.tmp`
+      etc. ausschließen. Erfordert: Filter in `list_local`/`plan_ops`,
+      UI-Setting in `SyncPanel.vue`, Persistenz in `SyncFolder`.
+- [ ] **Dateiversionen (Nextcloud Versions-API)** — OCS-Endpunkt
+      `/apps/files_versions/` anzeigen, ältere Versionen herunterladen/
+      wiederherstellen. Neue Komponente `VersionDialog.vue` + IPC-Commands
+      `webdav_list_versions`, `webdav_restore_version`.
+- [ ] **Freigabe-Benachrichtigungen** — Tauri Notification-Plugin wird
+      bereits initialisiert (`tauri_plugin_notification::init()` in
+      `lib.rs:203`), aber nur für Update-Meldungen genutzt. Ein periodically
+      Check (ähnlich `refresh_admin_flags`) könnte neue Freigaben erkennen.
+- [ ] **Datei-Schnellvorschau (Quick Look)** — Leertaste-Taste → Overlay-
+      Vorschau für Bilder/PDFs/Texte. Die `preview`-API (`webdav.rs:693-739`)
+      liefert bereits Thumbnails; eine erweiterte Vorschau (höhere Auflösung,
+      Inline-Renderer) wäre eine natürliche Erweiterung.
+- [ ] **Kopieren/Verschieben zwischen Ordnern** — WebDAV COPY/MOVE über
+      neue IPC-Commands `webdav_copy`, `webdav_move`. Aktuell gibt es nur
+      `webdav_rename` (`commands.rs:1241-1265`) und Upload/Download.
+- [ ] **Share-Editing (Passwort, Ablauf, Berechtigungen)** — OCS
+      `PUT /shares/{id}` ermöglicht nachträgliche Änderungen. Aktuell gibt
+      es nur Create/Delete (`commands.rs:514-586`). Neue Commands
+      `webdav_edit_share` + erweitertes `ShareDialog.vue`.
+- [ ] **Quota-Warnung (Desktop-Notification)** — `account_storage`
+      (`commands.rs:464-488`) lädt den Quota-Wert bereits. Ein periodischer
+      Check (z.B. alle 30 Min.) mit Schwellwert >90% könnte eine
+      Notification emittieren.
+- [ ] **Sync-Protokoll / Historie** — Die Journal-Daten (`sync.rs`
+      `Journal`/`JournalEntry`) existieren bereits. Eine UI-Ansicht
+      (letzte Sync-Aktionen, Konflikte) wäre ein leichtes Add-on.
+- [ ] **Ordner-Lesezeichen** — Schnellzugriff auf häufig besuchte Ordner.
+      Persistenz im `ui.ts` Store (wie `filesView`), Anzeige im
+      `EntryList.vue` Sidebar-Bereich.
+- [ ] **Globale Tastenkürzel** — Strg/Cmd+F (Suche), Strg/Cmd+N (Ordner),
+      Entf (Löschen), F5 (Refresh). Die Escape-Stack-Infrastruktur
+      (`src/lib/escape.ts`) existiert bereits.
+- [ ] **Share-Link-Vorschau mit QR-Code** — Beim Erstellen eines Share-Links:
+      Vorschau + Copy-Button + optionaler QR-Code (Canvas-basiert).
+
+### Large Features (1–3 Wochen)
+
+- [ ] **Offline-Bearbeitung mit Conflict-Resolution-UI** — Bei Konflikten
+      (beide Seiten geändert): Inline-Diff-Ansicht (Textdateien) oder
+      „meine Version / Server-Version / Beide behalten". Die Sync-Engine
+      (`sync.rs`) erzeugt bereits Konflikt-Kopien; eine UI dafür fehlt.
+- [ ] **Virtuelle Dateisystem-Integration (VFS)** — On-Demand-Dateizugriff
+      via FUSE/WinFSP. Desktop-only (Plattform-Gründe, s. `kmp/README.md`).
+      Big-Picture-Feature, erfordert native Integration pro Plattform.
+- [ ] **WebSocket/SSE für Live-Updates** — Statt polling-basiertem Refresh
+      (aktuell: `listen("accounts-changed")` / `listen("sync-status")`):
+      Server-seitige Echtzeit-Events für Dateiänderungen, Shares, Admin-
+      Aktionen.
+- [ ] **2FA-Unterstützung (TOTP/WebAuthn)** — Nextcloud unterstützt 2FA;
+      aktuell wird nur App-Passwort genutzt. Erfordert OAuth2-Flow oder
+      erweiterte App-Passwort-Generierung.
+- [ ] **Automatisches Token-Rotieren** — Periodisches Erneuern des
+      App-Passworts über die Nextcloud Security-API.
+- [ ] **Gruppen-Bulk-Verwaltung** — Mehrere Benutzer gleichzeitig einer
+      Gruppe zuweisen/entfernen. Aktuell: Einzel-Aktionen
+      (`commands.rs:1574-1598`).
+- [ ] **Französisch / Spanisch als weitere Sprachen** — Tauri-User-Base
+      international; die i18n-Infrastruktur (`src/lib/i18n.ts`) ist
+      erweiterbar.
+- [ ] **Tauri Updater-Plugin als Fallback** — Aktuell: eigene GitHub-API-
+      Abfrage (`updater.rs`). Das Tauri Updater-Plugin bietet
+      Signaturverifikation out-of-the-box.
+- [ ] **Admin-Aktivitäts-Log** — Nextcloud Activity-API
+      (`/ocs/v2.php/activity/events`) für Benutzer-Aktivitäten anzeigen.
+
+### UI / UX Verbesserungen
+
+- [ ] **Datei-Sync-Status in der Dateiliste** — Icon/Label für lokale
+      Dateien die Teil eines Sync-Ordners sind (synced, pending, conflict).
+- [ ] **Drag & Drop zwischen Accounts** — Dateien vom einen Konto auf das
+      andere ziehen (Multi-Account-Infrastruktur vorhanden).
+- [ ] **Share-Link mit QR-Code** — Beim Share-Erstellen: QR-Code generieren.
+- [ ] **Passwort-Stärke-Anzeige** — Visuelle Stärkeanzeige beim Share-
+      Passwort (Pattern existiert bereits im Admin-Panel).
+- [ ] **Admin: Kontingent-Warnungen im Panel** — Visualisierung wenn
+      Quota >90% (Progress Bar existiert bereits in `QuotaEditor.vue`).
+- [ ] **Datei-Historie (zuletzt geöffnet)** — Basierend auf
+      `open_cache_dir`-Aktionen eine „Zuletzt geöffnete Dateien"-Liste.
+- [ ] **System-Tray: Quick-Actions** — Sync auslösen, Uploads pausieren,
+      Online/Offline-Status im Tray-Kontextmenü.
+
 ## Review 2026-08-26 (Lauf 23, Release-v1.2.0-Vorabprüfung — neue Befunde)
 
 Gegenstand: Vollständige Code-Review gegen HEAD `1e82994` (Merge PRs #395–397,
