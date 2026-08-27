@@ -179,7 +179,7 @@ jobs:
 
   prepare-release:
     name: Create release page (draft)
-    needs: [release-notes, checks, security-gate]
+    needs: [checks, security-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: write
