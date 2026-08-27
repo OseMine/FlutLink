@@ -65,43 +65,47 @@ private data class BrandSurfaces(
 )
 
 private val LightSurfaces = BrandSurfaces(
-    background = Color(0xFFF4F4F7),
-    onBackground = Color(0xFF09090B),
-    surface = Color(0xFFF4F4F7),
-    onSurface = Color(0xFF09090B),
-    surfaceDim = Color(0xFFD8D8DF),
+    // Surface hierarchy mirrors desktop [data-theme="light"] tokens:
+    // canvas → panel → card → card-hover
+    background = Color(0xFFF4F4F6),      // --color-canvas
+    onBackground = Color(0xFF1B1B1F),     // --color-fg
+    surface = Color(0xFFF4F4F6),          // --color-canvas
+    onSurface = Color(0xFF1B1B1F),        // --color-fg
+    surfaceDim = Color(0xFFE8E8EC),
     surfaceBright = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFFFFFFFF),
-    onSurfaceVariant = Color(0xFF52525B),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFAFAFC),
-    surfaceContainer = Color(0xFFFFFFFF),
-    surfaceContainerHigh = Color(0xFFECECF1),
+    surfaceVariant = Color(0xFFECECEE),   // --color-panel
+    onSurfaceVariant = Color(0xFF65676F), // --color-muted
+    surfaceContainerLowest = Color(0xFFFFFFFF),  // --color-card
+    surfaceContainerLow = Color(0xFFF8F8FA),
+    surfaceContainer = Color(0xFFECECEE), // --color-panel
+    surfaceContainerHigh = Color(0xFFF1F1F3),    // --color-card-hover
     surfaceContainerHighest = Color(0xFFD7D7E0),
-    outline = Color(0xFFB9B9C6),
-    outlineVariant = Color(0xFFECECF1),
-    inverseSurface = Color(0xFF2E2E36),
-    inverseOnSurface = Color(0xFFF4F4F7)
+    outline = Color(0xFFB9B9C6),          // --color-line-strong
+    outlineVariant = Color(0xFFE8E8EC),   // --color-line
+    inverseSurface = Color(0xFF1B1B1F),
+    inverseOnSurface = Color(0xFFF4F4F6)
 )
 
 private val MidnightSurfaces = BrandSurfaces(
-    background = Color(0xFF05070F),
-    onBackground = Color(0xFFF8FAFC),
-    surface = Color(0xFF05070F),
-    onSurface = Color(0xFFF8FAFC),
-    surfaceDim = Color(0xFF05070F),
-    surfaceBright = Color(0xFF16224B),
-    surfaceVariant = Color(0xFF0A0F22),
-    onSurfaceVariant = Color(0xFFA3B1D6),
-    surfaceContainerLowest = Color(0xFF02040C),
-    surfaceContainerLow = Color(0xFF081021),
-    surfaceContainer = Color(0xFF0A0F22),
-    surfaceContainerHigh = Color(0xFF111A3A),
-    surfaceContainerHighest = Color(0xFF1B2A57),
-    outline = Color(0xFF2C4079),
-    outlineVariant = Color(0xFF0E1529),
-    inverseSurface = Color(0xFFEEF1FA),
-    inverseOnSurface = Color(0xFF111A3A)
+    // Surface hierarchy mirrors desktop [data-theme="midnight"] tokens:
+    // canvas → panel → card → card-hover
+    background = Color(0xFF121316),      // --color-canvas
+    onBackground = Color(0xFFECECEE),    // --color-fg
+    surface = Color(0xFF121316),         // --color-canvas
+    onSurface = Color(0xFFECECEE),       // --color-fg
+    surfaceDim = Color(0xFF0E0F12),
+    surfaceBright = Color(0xFF1C1D21),
+    surfaceVariant = Color(0xFF1C1D21),  // --color-panel
+    onSurfaceVariant = Color(0xFF90929E), // --color-muted
+    surfaceContainerLowest = Color(0xFF25262B),  // --color-card
+    surfaceContainerLow = Color(0xFF1E1F23),
+    surfaceContainer = Color(0xFF1C1D21), // --color-panel
+    surfaceContainerHigh = Color(0xFF2C2D33),    // --color-card-hover
+    surfaceContainerHighest = Color(0xFF35363C),
+    outline = Color(0xFF3A3B42),          // --color-line-strong
+    outlineVariant = Color(0xFF222328),   // --color-line
+    inverseSurface = Color(0xFFECECEE),
+    inverseOnSurface = Color(0xFF121316)
 )
 
 /** Bright Daylight brand palette (`[data-theme="light"]`, light mode). */

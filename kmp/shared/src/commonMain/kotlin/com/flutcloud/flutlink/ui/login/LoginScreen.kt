@@ -13,8 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,13 +25,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.components.ErrorBanner
+import com.flutcloud.flutlink.ui.components.FlutGhostButton
+import com.flutcloud.flutlink.ui.components.FlutOutlineButton
+import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.components.ScrollableColumn
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.viewmodel.LoginViewModel
@@ -88,6 +89,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
             Text(
                 stringResource(Res.string.app_name),
                 style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight(650),
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
@@ -97,10 +99,11 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
             )
             Spacer(Modifier.height(24.dp))
 
+            // Desktop-style mode toggle (segmented control)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
                     .padding(4.dp)
             ) {
                 ModeButton(
@@ -205,20 +208,24 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
                     step?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall) }
                 }
             } else {
-                Button(
+                FlutPrimaryButton(
                     onClick = {
                         if (registerMode) vm.register(onLoggedIn) else vm.signIn(onLoggedIn)
                     },
                     enabled = serverUrl.isNotBlank() && username.isNotBlank() && token.isNotBlank() &&
                         (!registerMode || (adminUsername.isNotBlank() && adminPassword.isNotBlank())),
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
                 ) {
-                    Text(if (registerMode) stringResource(Res.string.login_tab_register) else stringResource(Res.string.login_tab_sign_in))
+                    Text(
+                        if (registerMode) stringResource(Res.string.login_tab_register)
+                        else stringResource(Res.string.login_tab_sign_in)
+                    )
                 }
-                // Guest entry: read-only browsing of complete public shares.
-                TextButton(
+                // Guest entry
+                Spacer(Modifier.height(8.dp))
+                FlutGhostButton(
                     onClick = onContinueAsGuest,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
                 ) {
                     Text(stringResource(Res.string.guest_browse))
                 }
@@ -230,15 +237,17 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
 
 @Composable
 private fun ModeButton(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(
+    androidx.compose.material3.TextButton(
         onClick = onClick,
-        colors = if (selected) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.surfaceContainerLowest
+            else androidx.compose.ui.graphics.Color.Transparent,
+            contentColor = if (selected) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.small,
         modifier = modifier
     ) {
-        Text(text)
+        Text(text, fontWeight = if (selected) FontWeight(600) else FontWeight.Normal)
     }
 }

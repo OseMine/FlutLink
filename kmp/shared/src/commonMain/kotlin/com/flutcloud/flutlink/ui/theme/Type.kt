@@ -6,48 +6,57 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Material 3 "Expressive" typography: heavier weights and tighter tracking on
-// the display/headline roles, keeping body copy neutral.
-private val Expressive = Typography()
+// FlutLink typography mirrors the desktop CSS hierarchy:
+// Headings: weight 650/600, tight tracking; body: neutral; labels: 11px uppercase.
+private val Base = Typography()
 
 val FlutTypography = Typography(
-    displayLarge = Expressive.displayLarge.copy(
-        fontWeight = FontWeight.Bold,
+    displayLarge = Base.displayLarge.copy(
+        fontWeight = FontWeight(650),
         letterSpacing = (-0.5).sp
     ),
-    displayMedium = Expressive.displayMedium.copy(
-        fontWeight = FontWeight.Bold,
+    displayMedium = Base.displayMedium.copy(
+        fontWeight = FontWeight(650),
         letterSpacing = (-0.5).sp
     ),
-    displaySmall = Expressive.displaySmall.copy(
-        fontWeight = FontWeight.Bold,
+    displaySmall = Base.displaySmall.copy(
+        fontWeight = FontWeight(650),
         letterSpacing = (-0.5).sp
     ),
-    headlineLarge = Expressive.headlineLarge.copy(
-        fontWeight = FontWeight.Bold,
-        letterSpacing = (-0.25).sp
+    headlineLarge = Base.headlineLarge.copy(
+        fontWeight = FontWeight(650),
+        letterSpacing = (-0.4).sp
     ),
-    headlineMedium = Expressive.headlineMedium.copy(
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.25).sp
+    headlineMedium = Base.headlineMedium.copy(
+        fontWeight = FontWeight(600),
+        letterSpacing = (-0.3).sp
     ),
-    headlineSmall = Expressive.headlineSmall.copy(
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.25).sp
+    headlineSmall = Base.headlineSmall.copy(
+        fontWeight = FontWeight(600),
+        letterSpacing = (-0.2).sp
     ),
-    titleLarge = Expressive.titleLarge.copy(
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = (-0.25).sp
+    titleLarge = Base.titleLarge.copy(
+        fontWeight = FontWeight(600),
+        letterSpacing = (-0.2).sp
     ),
-    titleMedium = Expressive.titleMedium.copy(
-        fontWeight = FontWeight.SemiBold
+    titleMedium = Base.titleMedium.copy(
+        fontWeight = FontWeight(600)
     ),
-    titleSmall = Expressive.titleSmall.copy(
-        fontWeight = FontWeight.SemiBold
+    titleSmall = Base.titleSmall.copy(
+        fontWeight = FontWeight(600)
     ),
-    bodyLarge = Expressive.bodyLarge.copy(fontFamily = FontFamily.Default),
-    labelLarge = Expressive.labelLarge.copy(
-        fontWeight = FontWeight.Medium,
+    bodyLarge = Base.bodyLarge.copy(fontFamily = FontFamily.Default),
+    bodyMedium = Base.bodyMedium,
+    bodySmall = Base.bodySmall,
+    labelLarge = Base.labelLarge.copy(
+        fontWeight = FontWeight(500),
         letterSpacing = 0.1.sp
+    ),
+    labelMedium = Base.labelMedium.copy(
+        fontWeight = FontWeight(500)
+    ),
+    labelSmall = Base.labelSmall.copy(
+        fontWeight = FontWeight(600),
+        letterSpacing = 0.5.sp
     )
 )

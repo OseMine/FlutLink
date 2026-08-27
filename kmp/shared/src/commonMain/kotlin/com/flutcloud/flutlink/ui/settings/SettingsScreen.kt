@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +27,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -35,6 +35,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +54,9 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.core.AccountMeta
+import com.flutcloud.flutlink.ui.components.FlutBadge
+import com.flutcloud.flutlink.ui.components.FlutGhostButton
+import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.components.SectionHeader
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.theme.defaultAccentHue
@@ -144,43 +148,32 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
         ) {
             // Account
             SectionHeader(stringResource(Res.string.account))
-            ListItem(
-                headlineContent = {
-                    Text(session?.username ?: stringResource(Res.string.not_signed_in), style = MaterialTheme.typography.titleMedium)
-                },
-                supportingContent = {
-                    Text(session?.normalizedBaseUrl ?: "")
-                },
-                leadingContent = {
-                    Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(36.dp))
-                }
+            SettingsRow(
+                title = session?.username ?: stringResource(Res.string.not_signed_in),
+                subtitle = session?.normalizedBaseUrl ?: "",
+                leading = { Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(36.dp)) }
             )
             serverInfo?.let { info ->
-                ListItem(
-                    headlineContent = { Text(info.name ?: stringResource(Res.string.flut_cloud_app)) },
-                supportingContent = {
-                    Text(
-                        listOfNotNull(
-                            info.version,
-                            info.user,
-                            info.features?.size?.let { stringResource(Res.string.feature_count, it) },
-                            info.managedBy?.let { "@$it" }
-                        ).joinToString(" · ")
-                    )
-                },
-                    leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
+                SettingsRow(
+                    title = info.name ?: stringResource(Res.string.flut_cloud_app),
+                    subtitle = listOfNotNull(
+                        info.version,
+                        info.user,
+                        info.features?.size?.let { stringResource(Res.string.feature_count, it) },
+                        info.managedBy?.let { "@$it" }
+                    ).joinToString(" · "),
+                    leading = { Icon(Icons.Default.Info, contentDescription = null) }
                 )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Appearance. "System" (the default) follows the device's
-            // dark/light setting; light/midnight are manual overrides.
+            // Appearance
             SectionHeader(stringResource(Res.string.appearance))
-            ListItem(
-                headlineContent = { Text(stringResource(Res.string.theme)) },
-                supportingContent = { Text(stringResource(Res.string.theme_hint)) },
-                leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
+            SettingsRow(
+                title = stringResource(Res.string.theme),
+                subtitle = stringResource(Res.string.theme_hint),
+                leading = { Icon(Icons.Default.DarkMode, contentDescription = null) }
             )
             val themeOptions = listOf(
                 "midnight" to Res.string.theme_midnight,
@@ -216,7 +209,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { vm.setAccentHue(null) }) {
+                    FlutGhostButton(onClick = { vm.setAccentHue(null) }) {
                         Text(stringResource(Res.string.accent_reset))
                     }
                 }
@@ -232,27 +225,30 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 )
             }
             if (container.supportsDynamicColor) {
-                ListItem(
-                    headlineContent = { Text(stringResource(Res.string.dynamic_color)) },
-                    supportingContent = { Text(stringResource(Res.string.dynamic_color_hint)) },
-                    leadingContent = { Icon(Icons.Default.Palette, contentDescription = null) },
-                    trailingContent = {
+                SettingsRow(
+                    title = stringResource(Res.string.dynamic_color),
+                    subtitle = stringResource(Res.string.dynamic_color_hint),
+                    leading = { Icon(Icons.Default.Palette, contentDescription = null) },
+                    trailing = {
                         Switch(checked = dynamicColor, onCheckedChange = { vm.setDynamicColor(it) })
                     }
                 )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
             // Updates / version
             SectionHeader(stringResource(Res.string.updates))
-            ListItem(
-                headlineContent = { Text(stringResource(Res.string.flutlink_mobile)) },
-                supportingContent = { Text(stringResource(Res.string.version_format, vm.appVersion)) },
-                leadingContent = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
-                trailingContent = {
+            SettingsRow(
+                title = stringResource(Res.string.flutlink_mobile),
+                subtitle = stringResource(Res.string.version_format, vm.appVersion),
+                leading = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
+                trailing = {
                     if (container.updatesSupported) {
-                        TextButton(onClick = { vm.checkForUpdate() }, enabled = !checkingUpdate && !installingUpdate) {
+                        FlutGhostButton(
+                            onClick = { vm.checkForUpdate() },
+                            enabled = !checkingUpdate && !installingUpdate
+                        ) {
                             Text(
                                 if (checkingUpdate) stringResource(Res.string.checking)
                                 else stringResource(Res.string.check_for_updates)
@@ -262,7 +258,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 }
             )
 
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
             // Accounts
             SectionHeader(stringResource(Res.string.accounts))
@@ -311,9 +307,9 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
-            TextButton(
+            FlutGhostButton(
                 onClick = { vm.signOut() },
-                modifier = Modifier.fillMaxWidth().height(48.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
@@ -336,7 +332,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(onClick = { uriHandler.openUri(MAINTAINER_URL) }) {
+                FlutGhostButton(onClick = { uriHandler.openUri(MAINTAINER_URL) }) {
                     Text(MAINTAINER_HANDLE)
                 }
             }
@@ -373,6 +369,38 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
     }
 }
 
+/** Generic settings row with optional trailing content. */
+@Composable
+private fun SettingsRow(
+    title: String,
+    subtitle: String? = null,
+    leading: @Composable (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        leading?.invoke()
+        if (leading != null) Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            subtitle?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        trailing?.invoke()
+    }
+}
+
 @Composable
 private fun AccountRow(
     meta: AccountMeta,
@@ -381,25 +409,21 @@ private fun AccountRow(
     onRemove: () -> Unit
 ) {
     var confirmRemove by remember { mutableStateOf(false) }
-    ListItem(
-        headlineContent = {
-            Text(
-                if (isActive) stringResource(Res.string.account_active, meta.username) else meta.username,
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        supportingContent = { Text(meta.instanceUrl) },
-        leadingContent = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
-        trailingContent = {
+    SettingsRow(
+        title = if (isActive) stringResource(Res.string.account_active, meta.username) else meta.username,
+        subtitle = meta.instanceUrl,
+        leading = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+        trailing = {
             if (!isActive) {
-                TextButton(onClick = onSwitch) { Text(stringResource(Res.string.switch_account)) }
+                FlutGhostButton(onClick = onSwitch) {
+                    Text(stringResource(Res.string.switch_account))
+                }
             } else {
                 IconButton(onClick = { confirmRemove = true }) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(Res.string.remove_account))
                 }
             }
-        },
-        modifier = Modifier.fillMaxWidth()
+        }
     )
     if (confirmRemove) {
         androidx.compose.material3.AlertDialog(

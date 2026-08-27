@@ -1,5 +1,9 @@
 package com.flutcloud.flutlink.ui.admin
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -21,22 +26,21 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -50,18 +54,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.dto.ManagedUser
 import com.flutcloud.flutlink.ui.components.EmptyState
+import com.flutcloud.flutlink.ui.components.FlutBadge
+import com.flutcloud.flutlink.ui.components.FlutGhostButton
+import com.flutcloud.flutlink.ui.components.FlutOutlineButton
+import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.AdminViewModel
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.resources.actions
 import com.flutcloud.flutlink.resources.add_user
@@ -152,6 +162,7 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
         }
     ) { innerPadding ->
         Column(Modifier.padding(innerPadding).fillMaxSize()) {
+            // Search field
             TextField(
                 value = search,
                 onValueChange = { vm.search.value = it },
@@ -159,6 +170,9 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
             when {
                 loading && users.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -248,7 +262,7 @@ private fun LoadMoreButton(loading: Boolean, onClick: () -> Unit) {
         if (loading) {
             CircularProgressIndicator(Modifier.size(24.dp))
         } else {
-            Button(onClick = onClick) {
+            FlutOutlineButton(onClick = onClick) {
                 Text(stringResource(Res.string.admin_load_more))
             }
         }
@@ -266,125 +280,148 @@ private fun UserRow(
     onViewFiles: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    ListItem(
-        headlineContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    user.displayName ?: user.id,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                if (!user.enabled) {
-                    Spacer(Modifier.width(8.dp))
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { },
+        color = MaterialTheme.colorScheme.surfaceContainerLowest
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Leading icon
+            Icon(
+                Icons.Default.Person,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+
+            // Content
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(Res.string.disabled),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        user.displayName ?: user.id,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!user.enabled) {
+                        Spacer(Modifier.width(8.dp))
+                        FlutBadge(
+                            text = stringResource(Res.string.disabled),
+                            dotColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                val quotaText = user.quota?.let { q ->
+                    val used = q.used
+                    val total = q.total
+                    when {
+                        used != null && total != null && total > 0 ->
+                            "${formatBytes(used)} / ${formatBytes(total)}"
+                        total == null || total <= 0 -> stringResource(Res.string.unlimited)
+                        else -> formatBytes(total)
+                    }
+                } ?: stringResource(Res.string.quota_unknown)
+                Text(
+                    listOf(
+                        "@${user.id}",
+                        quotaText,
+                        user.email?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.no_email)
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Trailing: switch + menu
+            Switch(
+                checked = user.enabled,
+                onCheckedChange = { onToggleEnabled() },
+                colors = SwitchDefaults.colors(
+                    checkedTrackColor = MaterialTheme.colorScheme.primary
+                )
+            )
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.actions))
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.quota_unlimited)) },
+                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onQuota(null)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.quota_1gb)) },
+                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onQuota(GB)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.quota_5gb)) },
+                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onQuota(5 * GB)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.quota_10gb)) },
+                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onQuota(10 * GB)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.quota_custom)) },
+                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onQuotaCustom()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.admin_manage_groups)) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onManageGroups()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.view_files)) },
+                        leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onViewFiles()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.delete_user)) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        }
                     )
                 }
             }
-        },
-        supportingContent = {
-            val quotaText = user.quota?.let { q ->
-                val used = q.used
-                val total = q.total
-                when {
-                    used != null && total != null && total > 0 ->
-                        "${formatBytes(used)} / ${formatBytes(total)}"
-                    total == null || total <= 0 -> stringResource(Res.string.unlimited)
-                    else -> formatBytes(total)
-                }
-            } ?: stringResource(Res.string.quota_unknown)
-            Text(
-                listOf(
-                    "@${user.id}",
-                    quotaText,
-                    user.email?.takeIf { it.isNotBlank() } ?: stringResource(Res.string.no_email)
-                ).joinToString(" · ")
-            )
-        },
-        leadingContent = {
-            Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = user.enabled, onCheckedChange = { onToggleEnabled() })
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.actions))
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.quota_unlimited)) },
-                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onQuota(null)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.quota_1gb)) },
-                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onQuota(GB)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.quota_5gb)) },
-                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onQuota(5 * GB)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.quota_10gb)) },
-                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onQuota(10 * GB)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.quota_custom)) },
-                            leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onQuotaCustom()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.admin_manage_groups)) },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onManageGroups()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.view_files)) },
-                            leadingIcon = { Icon(Icons.Default.Cloud, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onViewFiles()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.delete_user)) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onDelete()
-                            }
-                        )
-                    }
-                }
-            }
         }
-    )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable
@@ -447,19 +484,13 @@ private fun GroupsDialog(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                shape = MaterialTheme.shapes.small,
+                            FlutBadge(
+                                text = group,
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    group,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
+                            )
+                            FlutGhostButton(onClick = { onRemoveFromGroup(group) }) {
+                                Text(stringResource(Res.string.remove))
                             }
-                            TextButton(onClick = { onRemoveFromGroup(group) }) { Text(stringResource(Res.string.remove)) }
                         }
                     }
                 }
@@ -481,11 +512,12 @@ private fun GroupsDialog(
         },
         confirmButton = {
             Row {
-                TextButton(
+                FlutPrimaryButton(
                     onClick = { onCreateGroup(groupInput.trim()) },
                     enabled = groupInput.isNotBlank()
                 ) { Text(stringResource(Res.string.admin_create_group)) }
-                TextButton(
+                Spacer(Modifier.width(8.dp))
+                FlutPrimaryButton(
                     onClick = {
                         onAddToGroup(groupInput.trim())
                         groupInput = ""
@@ -580,7 +612,7 @@ private fun CustomQuotaDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 Box {
-                    OutlinedButton(onClick = { unitMenuOpen = true }) {
+                    FlutOutlineButton(onClick = { unitMenuOpen = true }) {
                         Text(
                             if (unit == QuotaUnit.GB) stringResource(Res.string.quota_unit_gb)
                             else stringResource(Res.string.quota_unit_mb)

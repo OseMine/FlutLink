@@ -1,5 +1,6 @@
 package com.flutcloud.flutlink.ui.guest
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -24,11 +26,8 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,10 +49,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.components.ErrorBanner
+import com.flutcloud.flutlink.ui.components.FlutBadge
+import com.flutcloud.flutlink.ui.components.FlutGhostButton
+import com.flutcloud.flutlink.ui.components.FlutOutlineButton
+import com.flutcloud.flutlink.ui.components.FlutPill
+import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.GuestViewModel
@@ -138,7 +145,9 @@ fun GuestScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onSignIn) { Text(stringResource(Res.string.sign_in)) }
+                    FlutGhostButton(onClick = onSignIn) {
+                        Text(stringResource(Res.string.sign_in))
+                    }
                 }
             )
 
@@ -152,7 +161,7 @@ fun GuestScreen(
             error?.let { err ->
                 ErrorBanner(err.resolve(), Modifier.padding(horizontal = 16.dp))
                 if (!loading && shares.isEmpty()) {
-                    TextButton(onClick = { vm.load() }, modifier = Modifier.padding(16.dp)) {
+                    FlutGhostButton(onClick = { vm.load() }, modifier = Modifier.padding(16.dp)) {
                         Text(stringResource(Res.string.retry))
                     }
                 }
@@ -173,7 +182,8 @@ fun GuestScreen(
                         ) {
                             Text(
                                 stringResource(Res.string.guest_admin_categories),
-                                style = MaterialTheme.typography.titleSmall
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight(600)
                             )
                             IconButton(onClick = { showCreateCategoryDialog = true }) {
                                 Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.guest_admin_new_category))
@@ -189,20 +199,17 @@ fun GuestScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 for (cat in allCategories) {
-                                    AssistChip(
-                                        onClick = { showDeleteCategoryDialog = cat },
-                                        label = { Text(cat) },
-                                        trailingIcon = {
-                                            Icon(Icons.Default.Delete, contentDescription = null,
-                                                modifier = Modifier.height(14.dp))
-                                        }
+                                    FlutPill(
+                                        text = cat,
+                                        selected = false,
+                                        onClick = { showDeleteCategoryDialog = cat }
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Category filter ("alle an einem Ort" + /public/<kategorie>).
+                    // Category filter (desktop-style pills)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -210,14 +217,16 @@ fun GuestScreen(
                             .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        AssistChip(
-                            onClick = { categoryFilter = null },
-                            label = { Text(stringResource(Res.string.guest_all)) }
+                        FlutPill(
+                            text = stringResource(Res.string.guest_all),
+                            selected = categoryFilter == null,
+                            onClick = { categoryFilter = null }
                         )
                         for (category in categories) {
-                            AssistChip(
-                                onClick = { categoryFilter = category },
-                                label = { Text(category) }
+                            FlutPill(
+                                text = category,
+                                selected = categoryFilter == category,
+                                onClick = { categoryFilter = category }
                             )
                         }
                     }
@@ -236,7 +245,15 @@ fun GuestScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(visibleShares, key = { it.token }) { share ->
-                                Card(modifier = Modifier.fillMaxWidth().clickable { vm.enter(share) }) {
+                                // Desktop-style card
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { vm.enter(share) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -255,7 +272,7 @@ fun GuestScreen(
                                         }
                                         share.category?.let {
                                             Spacer(Modifier.width(8.dp))
-                                            AssistChip(onClick = {}, label = { Text(it) })
+                                            FlutBadge(text = it)
                                         }
                                         // Admin: assign-category button.
                                         if (isAdmin) {
@@ -397,7 +414,7 @@ private fun CreateCategoryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim(), prefixless) },
+            FlutPrimaryButton(onClick = { onConfirm(name.trim(), prefixless) },
                 enabled = name.isNotBlank()) {
                 Text(stringResource(Res.string.create))
             }
@@ -446,13 +463,13 @@ private fun AssignCategoryDialog(
                     )
                 } else {
                     for (cat in categories) {
-                        FilledTonalButton(
+                        FlutOutlineButton(
                             onClick = { onAssign(cat) },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(cat) }
                     }
                 }
-                FilledTonalButton(
+                FlutOutlineButton(
                     onClick = onRemove,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(Res.string.guest_admin_remove_category)) }

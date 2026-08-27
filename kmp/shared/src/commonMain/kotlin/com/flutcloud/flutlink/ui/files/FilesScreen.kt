@@ -1,12 +1,16 @@
 package com.flutcloud.flutlink.ui.files
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +34,9 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -40,6 +49,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -64,19 +74,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Image
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.dto.Share
 import com.flutcloud.flutlink.data.dto.WebDavEntry
 import okio.Path.Companion.toPath
+import com.flutcloud.flutlink.ui.components.Breadcrumb
 import com.flutcloud.flutlink.ui.components.EmptyState
+import com.flutcloud.flutlink.ui.components.FlutBadge
+import com.flutcloud.flutlink.ui.components.FlutSegmentedControl
 import com.flutcloud.flutlink.ui.components.QuotaBar
 import com.flutcloud.flutlink.ui.components.fileIcon
 import com.flutcloud.flutlink.ui.components.FileMetaLine
 import com.flutcloud.flutlink.ui.flutLinkViewModel
+import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.rememberDownloadsPermissionRequester
 import com.flutcloud.flutlink.ui.rememberFilePickLauncher
 import com.flutcloud.flutlink.ui.viewmodel.FilesViewModel
@@ -142,6 +157,12 @@ import com.flutcloud.flutlink.resources.virtual
 
 internal const val ROOT = "/"
 
+/** View mode for file listing (list vs grid). */
+private enum class ViewMode(val icon: ImageVector, val label: String) {
+    List(Icons.Default.List, "List"),
+    Grid(Icons.Default.GridView, "Grid")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilesScreen(
@@ -179,6 +200,7 @@ fun FilesScreen(
     var pendingDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var pendingZipDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var bulkDeleteConfirm by remember { mutableStateOf(false) }
+    var viewMode by remember { mutableStateOf(ViewMode.List) }
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -297,7 +319,9 @@ fun FilesScreen(
                         if (parent != null) vm.listFolder(parent)
                     },
                     canGoBack = path != ROOT,
-                    onSearch = { showSearch = true }
+                    onSearch = { showSearch = true },
+                    viewMode = viewMode,
+                    onViewModeChange = { viewMode = it }
                 )
             }
         },
@@ -343,6 +367,16 @@ fun FilesScreen(
             if (offline) {
                 OfflineBanner()
             }
+
+            // Breadcrumbs
+            if (path != ROOT) {
+                Breadcrumb(
+                    segments = buildBreadcrumbSegments(path) { vm.listFolder(it) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+
             if (showSearch) {
                 SearchResults(
                     results = searchResults,
@@ -366,23 +400,47 @@ fun FilesScreen(
                     hint = stringResource(Res.string.folder_empty_hint)
                 )
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(entries, key = { it.path }) { entry ->
-                        EntryRow(
-                            entry = entry,
-                            preview = if (!entry.isDir) previews[entry.path] else null,
-                            selected = entry.path in selected,
-                            selectionMode = selected.isNotEmpty(),
-                            onClick = { vm.open(entry) },
-                            onToggleSelect = { vm.toggleSelected(entry.path) },
-                            onDownload = { requestDownload(entry) },
-                            onDownloadZip = { requestFolderZip(entry) },
-                            onShareFile = { vm.downloadAndShare(entry) },
-                            onRename = { renameTarget = entry },
-                            onShareLink = { shareTarget = entry },
-                            onDelete = { deleteTarget = entry },
-                            onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
-                        )
+                when (viewMode) {
+                    ViewMode.List -> LazyColumn(Modifier.fillMaxSize()) {
+                        items(entries, key = { it.path }) { entry ->
+                            EntryRow(
+                                entry = entry,
+                                preview = if (!entry.isDir) previews[entry.path] else null,
+                                selected = entry.path in selected,
+                                selectionMode = selected.isNotEmpty(),
+                                onClick = { vm.open(entry) },
+                                onToggleSelect = { vm.toggleSelected(entry.path) },
+                                onDownload = { requestDownload(entry) },
+                                onDownloadZip = { requestFolderZip(entry) },
+                                onShareFile = { vm.downloadAndShare(entry) },
+                                onRename = { renameTarget = entry },
+                                onShareLink = { shareTarget = entry },
+                                onDelete = { deleteTarget = entry },
+                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
+                            )
+                        }
+                    }
+                    ViewMode.Grid -> LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 100.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(entries, key = { it.path }) { entry ->
+                            EntryGridItem(
+                                entry = entry,
+                                preview = if (!entry.isDir) previews[entry.path] else null,
+                                selected = entry.path in selected,
+                                selectionMode = selected.isNotEmpty(),
+                                onClick = { vm.open(entry) },
+                                onToggleSelect = { vm.toggleSelected(entry.path) },
+                                onLongClick = { if (!entry.isVirtualLink) vm.toggleSelected(entry.path) },
+                                onDownload = { requestDownload(entry) },
+                                onShareFile = { vm.downloadAndShare(entry) },
+                                onRename = { renameTarget = entry },
+                                onShareLink = { shareTarget = entry },
+                                onDelete = { deleteTarget = entry },
+                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
+                            )
+                        }
                     }
                 }
             }
@@ -470,13 +528,34 @@ fun FilesScreen(
 
 /** Convert a platform-provided file path string back into an okio [okio.Path]. */
 private fun toOkioPath(path: String): okio.Path = path.toPath()
+
+/** Build breadcrumb segments from a path. */
+private fun buildBreadcrumbSegments(
+    path: String,
+    onNavigate: (String) -> Unit
+): List<Pair<String, () -> Unit>> {
+    if (path == ROOT) return emptyList()
+    val segments = mutableListOf<Pair<String, () -> Unit>>()
+    segments.add("Files" to { onNavigate(ROOT) })
+    val parts = path.trim('/').split('/')
+    var accumulated = ""
+    for (part in parts) {
+        accumulated += "/$part"
+        val capturedPath = accumulated
+        segments.add(part to { onNavigate(capturedPath) })
+    }
+    return segments
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilesTopBar(
     path: String,
     onBack: () -> Unit,
     canGoBack: Boolean,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    viewMode: ViewMode,
+    onViewModeChange: (ViewMode) -> Unit
 ) {
     TopAppBar(
         title = {
@@ -494,6 +573,13 @@ private fun FilesTopBar(
             }
         },
         actions = {
+            // View mode toggle (desktop-style segmented control)
+            FlutSegmentedControl(
+                selectedIndex = viewMode.ordinal,
+                items = ViewMode.entries.map { it.label to it.icon },
+                onSelect = { idx -> onViewModeChange(ViewMode.entries[idx]) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
             IconButton(onClick = onSearch) {
                 Icon(Icons.Default.Search, contentDescription = stringResource(Res.string.search))
             }
@@ -714,19 +800,110 @@ internal fun EntryRow(
     }
 }
 
+/** Grid item for file listing. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryGridItem(
+    entry: WebDavEntry,
+    onClick: () -> Unit,
+    onToggleSelect: () -> Unit,
+    onDownload: () -> Unit,
+    onShareFile: () -> Unit,
+    onRename: () -> Unit,
+    onShareLink: () -> Unit,
+    onDelete: () -> Unit,
+    onJumpToPaired: () -> Unit,
+    preview: ImageBitmap? = null,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onLongClick: () -> Unit = {}
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val (icon, tint) = fileIcon(entry)
+
+    Surface(
+        modifier = Modifier
+            .padding(4.dp)
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelect() else onClick() },
+                onLongClick = onLongClick
+            ),
+        shape = MaterialTheme.shapes.small,
+        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+        else MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Icon or preview
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (preview != null && !entry.isDir) {
+                    Image(
+                        bitmap = preview,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // Name
+            Text(
+                entry.name,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Size
+            if (!entry.isDir) {
+                entry.size?.let { size ->
+                    Text(
+                        formatBytes(size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Virtual link badge
+            if (entry.isVirtualLink) {
+                Spacer(Modifier.height(2.dp))
+                LinkBadge()
+            }
+        }
+    }
+}
+
 @Composable
 private fun LinkBadge() {
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = MaterialTheme.shapes.small
-    ) {
-        Text(
-            stringResource(Res.string.virtual),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
-    }
+    FlutBadge(
+        text = stringResource(Res.string.virtual),
+        dotColor = MaterialTheme.colorScheme.secondary
+    )
 }
 
 @Composable
@@ -928,8 +1105,7 @@ private fun ImpersonationBanner(user: String, onStop: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        shape = MaterialTheme.shapes.small
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -952,8 +1128,7 @@ private fun OfflineBanner() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        shape = MaterialTheme.shapes.small
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
     ) {
         Text(
             stringResource(Res.string.files_offline_banner),
