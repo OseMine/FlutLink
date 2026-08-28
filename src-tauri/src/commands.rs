@@ -851,6 +851,26 @@ pub fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
     crate::settings::save(&app, &settings)
 }
 
+/// #407: fetch recent sync log entries (newest first).
+#[tauri::command]
+pub fn sync_log_list(app: AppHandle, limit: Option<usize>) -> AppResult<Vec<crate::sync::SyncLogEntry>> {
+    let mut entries = crate::sync::load_sync_log(&app)?;
+    if let Some(limit) = limit {
+        entries.truncate(limit);
+    }
+    Ok(entries)
+}
+
+/// #407: clear the sync log.
+#[tauri::command]
+pub fn sync_log_clear(app: AppHandle) -> AppResult<()> {
+    let path = crate::sync::sync_log_file(&app)?;
+    if path.exists() {
+        std::fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 /// #421: return all relative paths that are currently synced for the given
 /// account (union of all journal keys). Used to show green check icons.
 #[tauri::command]

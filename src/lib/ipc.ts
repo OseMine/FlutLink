@@ -196,6 +196,16 @@ export interface FileHistoryEntry {
   openedAt: number;
 }
 
+// #407: sync log entry.
+export interface SyncLogEntry {
+  timestamp: number;
+  folderId: string;
+  action: string;
+  path: string;
+  result: string;
+  detail?: string | null;
+}
+
 export interface UpdateStatus {
   code: string;
   assetName?: string | null;
@@ -361,6 +371,10 @@ export const api = {
 
   // #421: synced paths for status icons.
   syncSyncedPaths: (accountKey: string) => tauri<string[]>("sync_synced_paths", { accountKey }),
+
+  // #407: sync log.
+  syncLogList: (limit?: number) => tauri<SyncLogEntry[]>("sync_log_list", { limit }),
+  syncLogClear: () => tauri<void>("sync_log_clear"),
 
   webdavDownloadZip: (remotePath: string, localPath: string, targetUser?: string) =>
     tauri<void>("webdav_download_zip", { remotePath, localPath, targetUser }),

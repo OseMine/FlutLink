@@ -404,6 +404,8 @@ pub fn run() {
             commands::file_history_clear,
             commands::set_share_notify,
             commands::sync_synced_paths,
+            commands::sync_log_list,
+            commands::sync_log_clear,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,
