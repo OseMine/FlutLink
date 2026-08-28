@@ -126,6 +126,158 @@ Sortiert nach Umsetzungsaufwand (klein → groß).
 - [x] **System-Tray: Quick-Actions** — Sync auslösen, Uploads pausieren,
       Online/Offline-Status im Tray-Kontextmenü. (#428)
 
+## Review 2026-08-28 (Lauf 25, Fokus KMP Mobile UI — neue Befunde)
+
+Gegenstand: die komplette KMP-Mobile-UI (`kmp/shared/src/commonMain/kotlin/.../ui/`,
+~6.000 Zeilen in 22 Dateien: `FlutLinkRoot.kt`, `navigation/AppNavigation.kt`,
+`HomeScreen.kt`, `files/FilesScreen.kt` (1.166 Z.), `admin/AdminScreen.kt`,
+`guest/GuestScreen.kt`, `settings/SettingsScreen.kt` + ViewModels +
+`composeResources/values{,;-de}/strings.xml`) gegen die Desktop-Features
+(`src/`, IPC-Commands, `commands.rs`, `ocs.rs`). Auftrag: UI „looks off and
+not clean", fehlende Tabs, fehlende Desktop-Admin-Features auf Mobile
+abgleichen. Zusätzlich der Standard-Bereich (IPC/State/CI) und die
+Nachprüfung der L24-Befunde gegen HEAD `3d55fbb`.
+
+Verifikation: In dieser CI-Umgebung nicht vollständig ausführbar — `cargo
+clippy`/`cargo test` scheitern am fehlenden System-Toolchain-paket `glib-2.0`
+(pkg-config), `npm run build` an fehlendem `node_modules` (`vue-tsc: not
+found`). **ABER:** `cargo fmt --check` läuft und schlägt **auf HEAD weiterhin
+fehl** (Diff in `commands.rs:853` und `sync.rs:1170/1177`) — L24-F1 ist unverändert
+verifiziert (siehe Nachprüfung unten). Die KMP-Befunde sind reine
+Quelltext-Verifikation (README des KMP-Moduls: Pull-Test `:shared:build`
+nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgeführt).
+
+### Neu gefunden (Fokus KMP Mobile UI)
+
+- [ ] **KMP-F1 (Feature-Lücke, hoch — direkt aus dem Auftrag): Mobile Admin
+      fehlt die komplette `admin_edit_user`-Funktionalität des Desktops
+      (E-Mail / DisplayName / Passwort).** `AdminViewModel.kt` (230 Z.,
+      komplett gelesen) kennt nur `createUser`/`deleteUser`/`setQuota`/
+      `setEnabled`/`addToGroup`/`removeFromGroup`/`createGroup`; `AdminScreen.kt`
+      bietet dafür maximal Quota-/Gruppen-/Enable-Dropdowns. Der Desktop kann
+      über `admin_edit_user` (`commands.rs:1781`, Whitelist `ADMIN_EDIT_KEYS`:
+      displayname/email/password/quota/language/locale/enabled) Nutzerdaten
+      editieren (`AdminUserDetails.vue`, 211 Z.). Die Mobile-OCS-API bietet das
+      bereits an — `FlutCloudOcs.kt:76 updateUser(session, userId, key, value)` —
+      wird aber nur für `quota`/`enabled` genutzt (`setUserQuota` :86,
+      `setEnabled` in `AdminViewModel.kt:166`). Fix: `editUser()`-Methoden +
+      „Details"-Dialog (E-Mail/DisplayName/Passwort) im `AdminScreen`, damit
+      alle Desktop-Admin-Features auch auf Mobile vorhanden sind.
+- [ ] **KMP-F2 (Bug, mittel): Grid-Ansicht rendert keinerlei Aktionen —
+      `EntryGridItem` deklariert `menuOpen` + 6 Callbacks, nutzt sie aber nie.**
+      `FilesScreen.kt:806-899`: Die Parameter `onDownload`/`onShareFile`/
+      `onRename`/`onShareLink`/`onDelete`/`onJumpToPaired` und der State-
+      `menuOpen` (Zeile 821) werden akzeptiert und von der Aufrufstelle
+      (`FilesScreen.kt:428-442`) gefüttert, aber im Grid-Item nie gezeichnet —
+      ein `DropdownMenu` existiert nicht. Grid-Einträge sind dadurch nur
+      „öffnen" + Long-Press-Select; Download/Share/Löschen sind im Grid-Modus
+      unerreichbar (die Desktop-Grid-Hover-Buttons in `EntryList.vue:275-317`
+      haben hier kein Gegenstück). Fix: Ellipsis-`DropdownMenu` (wie
+      `EntryRow`, Zeile 745+) ins Grid-Item einbauen oder Callbacks/State
+      entfernen.
+- [ ] **KMP-F3 (UX-Limit, mittel): Admin-Userliste ist ohne Suchbegriff leer —
+      es gibt keinen „Alle anzeigen"-Pfad.** `AdminViewModel.loadUsers()`
+      (`AdminViewModel.kt:48-58`) returned bei leerem `search` früh und leert
+      `users`; `AdminScreen.kt:138-142` (`LaunchedEffect(search)`) ruft bei
+      leerem Feld `clearSearch()`. Der Desktop-`admin_list_users`
+      (`commands.rs:1638`) erlaubt leere Suche („everything"). Auf Mobile muss
+      ein Admin erst mindestens einen Buchstaben tippen, um irgendeinen User zu
+      sehen. Fix: leere Suche = erste Seite laden (limit 200), nicht leeren.
+- [ ] **KMP-F4 (Race, minor): `loadUsers` vs. `loadMore` teilen `offset`/
+      `users` unsynchronisiert.** `AdminViewModel.kt:78-94` startet
+      `loadPage(append=true)` mit dem gemeinsamen `offset`, während ein neuer
+      `LaunchedEffect(search)`-Zyklus `loadUsers` → `loadPage(append=false)`
+      anstoßen kann; eine langsame loadMore-Antwort hängt ihren Block danach
+      (leere/doppelte Seiten), und `createUser`/`setQuota`/`setEnabled`
+      (Zeilen 114/148/167) rufen `loadUsers()` auf, was bei leerem Suchfeld
+      die gerade geleerte Liste erneut leert. Fix: Sequenz-/Generations-Guard
+      pro Request (Desktop-Pattern aus `AdminPanel.vue saveField`/`selectSeq`,
+      Review L22-F3) + Abbruch untergeordneter Lade-Coroutines.
+- [ ] **KMP-F5 (Cleanup, minor): Unlokalisierte UI-Literale.** `"Files"` in
+      `buildBreadcrumbSegments` (`FilesScreen.kt:539`) und `"List"`/`"Grid"`
+      im `ViewMode`-Enum (`FilesScreen.kt:162-163`) sind hart kodiert; der
+      Desktop lokalisiert beides (`viewList`/`viewGrid`, `files`). Fix:
+      Ressourcen-Keys statt String-Literale.
+- [ ] **KMP-F6 (UX, minor): Doppelte App-Chrome — Desktop-Header-Reproduktion
+      auf Mobile.** `HomeScreen.kt:77-156` rendert ein Desktop-Style-Surface
+      (Logo-Zeile + Tab-Zeile mit Unterstrich-`Box`), und jeder Screen
+      (FilesScreen `TopAppBar`, AdminScreen `TopAppBar`, SettingsScreen
+      `TopAppBar`) fügt einen zweiten Header darunter ein — zwei gestapelte
+      Title-Bars („looks off"). Mobile-Konvention: echte Material-3-`
+      NavigationBar` (Bottom-Tabs) + eine einzige `TopAppBar` pro Screen;
+      derzeit ist die Tab-Zeile zudem kein `NavigationBar`, sondern ein
+      handgebauter Desktop-Tabstrip ohne `role`/Semantik.
+- [ ] **KMP-F7 (Konsistenz, minor): Nicht-Admins sehen den Admin-Tab gar
+      nicht; Desktop zeigt ihn als gesperrt mit Hinweis.** `HomeScreen.kt:112`
+      `val visible = tab != Tab.Admin || isAdmin` blendet Admin komplett aus;
+      im Desktop rendert `App.vue` `navItems` den Admin-Tab als gesperrt
+      (Lock-Icon, disabled, `adminLockedTitle`/`adminLockedText`). Fix: gleiche
+      „lock"-Darstellung auf Mobile, damit die Tab-Leiste konsistent bleibt.
+- [ ] **KMP-F8 (Doku, minor): README/Archiv beschreiben `iosMain` als
+      „Placeholder-UI", das ist veraltet.** `kmp/README.md:38-39`; tatsächlich
+      hostet `kmp/shared/src/iosMain/kotlin/com/flutcloud/flutlink/Main.kt`
+      die volle geteilte Compose-UI via `FlutLinkRoot` (feat-commit `2dce6e1`).
+- [ ] **KMP-F9 (Feature-Lücke, mittel — Desktop-Parität): Mobile fehlen
+      Copy/Move, QR-Code, QuickLook** — Desktop `webdav_copy`/`webdav_move`
+      (#411, `commands.rs:1383/1410`), `QrCode.vue` (#409) und `QuickLook.vue`
+      (#405) haben kein Mobile-Pendant: weder eine `copy`/`move`-Route in
+      `FlutCloudApi`/`FilesViewModel.kt` noch Clipboard-/QR-Zugriff auf den
+      Share-Link (`link_created`-Toast ist die einzige Rückgabe,
+      `FilesScreen.kt:283-288`) noch eine Vollbild-Preview. Reihenfolge nach
+      KMP-F1/F2 einplanen.
+
+Keine neuen Befunde im Desktop/Kern dieses Laufs: IPC-Registry
+(`lib.rs:364-427` vs. `ipc.ts`), `sync_log_list`/`sync_log_clear`
+nachträglich registriert (Kommentar in L24-F3), Keyring, Fehler-
+Serialisierung, WebDAV/OCS-Layer, Guest-Backend, Sync-Engine — alle
+unverändert zu Lauf 24.
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `3d55fbb`)
+
+Die L24-Befunde wurden gegen den neuen HEAD nachgeprüft; nur zwei sind
+teilweise/verbessert, keiner komplett abgeschlossen:
+
+- **L24-F1** (clippy `redundant_closure` `sync.rs:1332` + fmt-Diff
+  `sync.rs:1170/1177`, `commands.rs:853`): **unverändert offen** —
+  `sync.rs:1332` hat weiter `.map_err(|e| AppError::Json(e))`, und
+  `cargo fmt --check` schlägt auf HEAD mit exakt diesen Diffs fehl
+  (frisch verifiziert).
+- **L24-F2** (Share-Notify-Schalter erreicht Backend nie): **unverändert
+  offen** — `ui.ts:148-151` schreibt weiterhin nur `localStorage`, kein
+  `api.setShareNotify`-Aufruf (grep bestätigt: einziger Aufrufer ist
+  `SettingsModal.vue:409` → `ui.setShareNotify`).
+- **L24-F3** (Sync-Log): **teilweise umgesetzt** — Commit `3d55fbb` ergänzt
+  `sync_log_list`/`sync_log_clear` (`commands.rs:854-872`), `SyncLog.vue`
+  (184 Z.) und i18n-Keys (en/de/fr/es). **Der Append-Reihenfolgen-/Trunkierungs-
+  Bug bleibt:** `load_sync_log` (`sync.rs:1337-1347`) reverset (neueste zuerst),
+  `append_sync_log` (`sync.rs:1322-1334`) pusht ans Ende der
+  neueste-zuerst-Liste und drainet beim Überlauf vorn → verwirft die
+  neuesten Einträge; der persistierte Stand wird bei jedem Append invertiert
+  (drei Appends → `[E2, E1, E3]`).
+- **L24-F4…L24-N7** (Settings-Lost-Update, Retry-Idempotenz, QuickLook-Race,
+  Share-Edit-Permissions/Expiry, Copy/Move-Normalisierung, Sync-Log-
+  Write-Amplification, settings.json-Quarantäne, CLI-Validierung,
+  history-clear-Race, QuickLook-Ränder, Thumbnail-MIME, Impersonation-Toast):
+  **alle unverändert offen** — die einzigen Commits seit Lauf 24 sind
+  `ee8c360` (todo.md) und `3d55fbb` (Sync-Log, oben eingeordnet).
+
+Zu verschieben: keine — kein L24-/L25-Befund ist vollständig erledigt;
+die beiden Teilfortschritte (L24-F3a) sind oben dokumentiert.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe verboten). `git log`
+seit Lauf 24 (`197df7f..HEAD`) enthält genau zwei Commits: `3d55fbb`
+(Sync-Log-Listing/Clear, PR-Merge `7fe8879` #429 — referenziert **keine**
+neue Issue-Nummer, nur #429 als PR) und `ee8c360` (todo.md-Update des
+Review-Workflows). Die umgesetzte Hälfte von L24-F3 entspricht dem Issue
+#407 (Sync-Protokoll). Es sind damit keine neuen Issue-Referenzen
+aufgetaucht, die die offenen L24-Befunde (F1/F2/F3b/F4–N7) schließen;
+die L25-KMP-Befunde (v.a. KMP-F1, die im Auftrag geforderte
+Desktop-Admin-Parität) sollten vom `opencode-todo-issues`-Workflow beim
+nächsten Lauf als Issues erfasst werden. Ob parallel weitere offene Issues
+entstanden sind oder veralten, ist hier nicht feststellbar.
+
 ## Review 2026-08-28 (Lauf 24, Fokus Feature-Reihe #399–#428 — neue Befunde)
 
 Gegenstand: die seit Lauf 23 (HEAD `1e82994`) eingelandeten Feature-Commits
