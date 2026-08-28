@@ -2044,3 +2044,21 @@ Issues entfernt werden.
       `gobject-2.0`) nicht erneut laufen; die gemeldete `redundant_closure`
       ist aber entfernt. Offen bleibt der Sync-Log-Append-/Trunkierungs-Bug
       (in `todo.md`, L24-F3b).
+
+## Erledigt (2026-08-28, KMP-F13 — Material3-Dependency auf Expressive-Support)
+
+- [x] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` war in der
+      aktuell genutzten Material3-Abhängigkeit nicht verfügbar.**
+      `kmp/shared/build.gradle.kts` nutzte ausschließlich das Plugin-DSL-
+      `api(compose.material3)`, das in Compose Multiplatform 1.11.1 auf die
+      stabile Material3-Version (`org.jetbrains.compose.material3:material3:1.9.0`,
+      Jetpack M3 1.4.0-stable) auflöst — in der die Expressive-API entfernt ist.
+      Behoben: `composeMaterial3 = "1.9.0-alpha04"` in
+      `kmp/gradle/libs.versions.toml` (mit Erklär-Kommentar zur
+      Plugin-Entkopplung) verankert und `kmp/shared/build.gradle.kts` auf
+      `api(libs.compose.material3)` umgestellt. Verifiziert mit
+      `cd kmp && ./gradlew :shared:build` (Android + JVM grün; iOS-Targets nur
+      auf macOS kompilierbar). Ein `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`
+      ist an keiner Stelle nötig, da der aktuelle UI-Code keine Expressive-API
+      nutzt — es wird beim UI-Revert (KMP-F14) an den neuen
+      `Material3ExpressiveTheme`-/`MotionScheme`-Nutzungsstellen ergänzt.
