@@ -1,6 +1,55 @@
 import { invoke } from "@tauri-apps/api/core";
 import { currentLang, translateError } from "./i18n";
 
+/// #399: Buffer the last network-level IPC failure so an error toast can offer
+/// a "Retry" action that re-invokes the exact same command without the caller
+/// having to capture and replay its arguments manually.
+interface FailedCall {
+  cmd: string;
+  args: Record<string, unknown>;
+  at: number;
+}
+
+let lastFailed: FailedCall | null = null;
+const RETRY_WINDOW_MS = 60_000;
+
+function tauri<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
+  return invoke<T>(cmd, args).catch((e: unknown) => {
+    // Only network-level failures (`http` in the backend) are worth retrying;
+    // logic errors (404, forbidden, ...) would fail again identically.
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as Partial<AppError>).code === "http"
+    ) {
+      lastFailed = { cmd, args, at: Date.now() };
+    }
+    throw e;
+  });
+}
+
+/// Re-invoke the last buffered network command. Returns true on success (and
+/// clears the buffer), false when there is nothing buffered or the retry fails.
+export async function retryLast(): Promise<boolean> {
+  const failed = lastFailed;
+  if (!failed || Date.now() - failed.at > RETRY_WINDOW_MS) return false;
+  try {
+    await invoke(failed.cmd, failed.args);
+    lastFailed = null;
+    return true;
+  } catch {
+    lastFailed = { ...failed, at: Date.now() };
+    return false;
+  }
+}
+
+/// True while a recent network failure is buffered that a Retry button could
+/// act on.
+export function canRetry(): boolean {
+  return lastFailed !== null && Date.now() - lastFailed.at <= RETRY_WINDOW_MS;
+}
+
 export interface AccountMeta {
   username: string;
   instanceUrl: string;
@@ -62,6 +111,13 @@ export interface CreateShareOptions {
   publicUpload?: boolean;
 }
 
+export interface ShareUpdateOptions {
+  // undefined keeps the current value; "" clears password/expiry.
+  password?: string;
+  expireDate?: string;
+  publicUpload?: boolean;
+}
+
 export interface OcsUser {
   id: string;
   displayName: string | null;
@@ -100,6 +156,7 @@ export interface SyncFolderStatus {
   remotePath: string;
   paused: boolean;
   followSymlinks: boolean;
+  uploadPaused: boolean;
   state: SyncState;
   pendingUploads: number;
   pendingDownloads: number;
@@ -130,6 +187,13 @@ export interface UpdateProgress {
   downloaded: number;
   total: number;
   percent: number;
+}
+
+// #427: recently-opened remote file.
+export interface FileHistoryEntry {
+  path: string;
+  name: string;
+  openedAt: number;
 }
 
 export interface UpdateStatus {
@@ -202,10 +266,10 @@ export function invokeError(e: unknown): AppErrorLike {
 }
 
 export const api = {
-  getFlutcloudUrl: () => invoke<string>("get_flutcloud_url"),
+  getFlutcloudUrl: () => tauri<string>("get_flutcloud_url"),
 
   accountAdd: (instanceUrl: string, username: string, token: string) =>
-    invoke<AccountMeta>("account_add", { instanceUrl, username, token }),
+    tauri<AccountMeta>("account_add", { instanceUrl, username, token }),
 
   registerUser: (input: {
     instanceUrl: string;
@@ -214,33 +278,33 @@ export const api = {
     displayName?: string;
     adminUsername: string;
     adminPassword: string;
-  }) => invoke<AccountMeta>("register_user", input),
+  }) => tauri<AccountMeta>("register_user", input),
 
-  accountList: () => invoke<AccountMeta[]>("account_list"),
+  accountList: () => tauri<AccountMeta[]>("account_list"),
 
   accountSwitch: (username: string, instanceUrl: string) =>
-    invoke<AccountMeta>("account_switch", { username, instanceUrl }),
+    tauri<AccountMeta>("account_switch", { username, instanceUrl }),
 
   accountRemove: (username: string, instanceUrl: string) =>
-    invoke<AccountMeta[]>("account_remove", { username, instanceUrl }),
+    tauri<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
-  accountStorage: () => invoke<StorageResult>("account_storage"),
+  accountStorage: () => tauri<StorageResult>("account_storage"),
 
   accountFilterInfo: () =>
-    invoke<AccountFilterInfo | null>("account_filter_info"),
+    tauri<AccountFilterInfo | null>("account_filter_info"),
 
   webdavList: (path: string, targetUser?: string) =>
-    invoke<WebDavListResult>("webdav_list", { path, targetUser }),
+    tauri<WebDavListResult>("webdav_list", { path, targetUser }),
 
   webdavSearch: (query: string, targetUser?: string) =>
-    invoke<WebDavEntry[]>("webdav_search", { query, targetUser }),
+    tauri<WebDavEntry[]>("webdav_search", { query, targetUser }),
 
   webdavCreateShare: (
     path: string,
     options: CreateShareOptions,
     targetUser?: string
   ) =>
-    invoke<Share>("webdav_create_share", {
+    tauri<Share>("webdav_create_share", {
       path,
       targetUser,
       options: {
@@ -253,38 +317,59 @@ export const api = {
     }),
 
   webdavListShares: (path?: string, targetUser?: string) =>
-    invoke<Share[]>("webdav_list_shares", { path, targetUser }),
+    tauri<Share[]>("webdav_list_shares", { path, targetUser }),
 
   webdavDeleteShare: (shareId: number, targetUser?: string) =>
-    invoke<void>("webdav_delete_share", { shareId, targetUser }),
+    tauri<void>("webdav_delete_share", { shareId, targetUser }),
+
+  // #406: password/expiry/public-upload changes; undefined leaves the server
+  // value untouched, "" clears password/expiry.
+  webdavUpdateShare: (
+    shareId: number,
+    options: ShareUpdateOptions,
+    targetUser?: string
+  ) =>
+    tauri<void>("webdav_update_share", {
+      shareId,
+      targetUser,
+      update: {
+        password: options.password,
+        expireDate: options.expireDate,
+        publicUpload: options.publicUpload,
+      },
+    }),
 
   webdavUploadFile: (
     remotePath: string,
     localPath: string,
     targetUser?: string,
     overwrite = false
-  ) => invoke<void>("webdav_upload_file", { remotePath, localPath, targetUser, overwrite }),
+  ) => tauri<void>("webdav_upload_file", { remotePath, localPath, targetUser, overwrite }),
 
   webdavDownloadFile: (remotePath: string, localPath: string, targetUser?: string) =>
-    invoke<void>("webdav_download_file", { remotePath, localPath, targetUser }),
+    tauri<void>("webdav_download_file", { remotePath, localPath, targetUser }),
 
   openRemoteFile: (remotePath: string, targetUser?: string) =>
-    invoke<void>("open_remote_file", { remotePath, targetUser }),
+    tauri<void>("open_remote_file", { remotePath, targetUser }),
+
+  // #427: recently opened files.
+  fileHistoryList: () => tauri<FileHistoryEntry[]>("file_history_list"),
+  fileHistoryClear: () => tauri<void>("file_history_clear"),
 
   webdavDownloadZip: (remotePath: string, localPath: string, targetUser?: string) =>
-    invoke<void>("webdav_download_zip", { remotePath, localPath, targetUser }),
+    tauri<void>("webdav_download_zip", { remotePath, localPath, targetUser }),
 
   webdavThumbnail: (path: string, size?: number, targetUser?: string) =>
-    invoke<string | null>("webdav_thumbnail", { path, size, targetUser }),
+    tauri<string | null>("webdav_thumbnail", { path, size, targetUser }),
 
   webdavDelete: (path: string, targetUser?: string) =>
-    invoke<void>("webdav_delete", { path, targetUser }),
+    tauri<void>("webdav_delete", { path, targetUser }),
 
   webdavBulkDelete: (paths: string[], targetUser?: string) =>
-    invoke<void>("webdav_bulk_delete", { paths, targetUser }),
+    tauri<void>("webdav_bulk_delete", { paths, targetUser }),
 
   webdavBulkDownload: (targets: BulkTarget[], destDir: string, targetUser?: string) =>
-    invoke<void>("webdav_bulk_download", { targets, destDir, targetUser }),
+    tauri<void>("webdav_bulk_download", { targets, destDir, targetUser }),
 
   webdavUploadLocalPaths: (
     localPaths: string[],
@@ -292,7 +377,7 @@ export const api = {
     targetUser?: string,
     overwrite = false
   ) =>
-    invoke<void>("webdav_upload_local_paths", {
+    tauri<void>("webdav_upload_local_paths", {
       localPaths,
       remoteDir,
       targetUser,
@@ -300,99 +385,105 @@ export const api = {
     }),
 
   webdavMkdir: (path: string, targetUser?: string) =>
-    invoke<void>("webdav_mkdir", { path, targetUser }),
+    tauri<void>("webdav_mkdir", { path, targetUser }),
 
   webdavRename: (path: string, newName: string, targetUser?: string) =>
-    invoke<void>("webdav_rename", { path, newName, targetUser }),
+    tauri<void>("webdav_rename", { path, newName, targetUser }),
+
+  webdavCopy: (source: string, destFolder: string, targetUser?: string) =>
+    tauri<void>("webdav_copy", { source, destFolder, targetUser }),
+
+  webdavMove: (source: string, destFolder: string, targetUser?: string) =>
+    tauri<void>("webdav_move", { source, destFolder, targetUser }),
 
   // Guest access (complete public shares, no account required):
-  guestVerifyServer: () => invoke<void>("guest_verify_server"),
+  guestVerifyServer: () => tauri<void>("guest_verify_server"),
 
-  guestListShares: () => invoke<GuestShare[]>("guest_list_shares"),
+  guestListShares: () => tauri<GuestShare[]>("guest_list_shares"),
 
   guestListEntries: (token: string, path?: string) =>
-    invoke<GuestListing>("guest_list_entries", { token, path }),
+    tauri<GuestListing>("guest_list_entries", { token, path }),
 
   guestDownloadFile: (token: string, remotePath: string, localPath: string) =>
-    invoke<void>("guest_download_file", { token, remotePath, localPath }),
+    tauri<void>("guest_download_file", { token, remotePath, localPath }),
 
   guestOpenFile: (token: string, remotePath: string) =>
-    invoke<void>("guest_open_file", { token, remotePath }),
+    tauri<void>("guest_open_file", { token, remotePath }),
 
   // Guest admin (require authenticated admin session):
   guestAdminSetCategory: (name: string, prefixless: boolean, visibility: string = "public") =>
-    invoke<void>("guest_admin_set_category", { name, prefixless, visibility }),
+    tauri<void>("guest_admin_set_category", { name, prefixless, visibility }),
 
   guestAdminDeleteCategory: (name: string) =>
-    invoke<void>("guest_admin_delete_category", { name }),
+    tauri<void>("guest_admin_delete_category", { name }),
 
   guestAdminAssignCategory: (token: string, category: string) =>
-    invoke<void>("guest_admin_assign_category", { token, category }),
+    tauri<void>("guest_admin_assign_category", { token, category }),
 
   guestAdminUnassignCategory: (token: string) =>
-    invoke<void>("guest_admin_unassign_category", { token }),
+    tauri<void>("guest_admin_unassign_category", { token }),
 
   guestAdminLockPath: (token: string, path: string) =>
-    invoke<string[]>("guest_admin_lock_path", { token, path }),
+    tauri<string[]>("guest_admin_lock_path", { token, path }),
 
   guestAdminUnlockPath: (token: string, path: string) =>
-    invoke<string[]>("guest_admin_unlock_path", { token, path }),
+    tauri<string[]>("guest_admin_unlock_path", { token, path }),
 
   /** #373: current lock list of a share, so locked folders render locked. */
   guestAdminListLocks: (token: string) =>
-    invoke<string[]>("guest_admin_list_locks", { token }),
+    tauri<string[]>("guest_admin_list_locks", { token }),
 
   adminListUsers: (
     search: string,
     limit?: number,
     offset?: number
   ): Promise<AdminUsersResult> =>
-    invoke<AdminUsersResult>("admin_list_users", { search, limit, offset }),
+    tauri<AdminUsersResult>("admin_list_users", { search, limit, offset }),
 
   adminGetUser: (userId: string) =>
-    invoke<UserDetails>("admin_get_user", { userId }),
+    tauri<UserDetails>("admin_get_user", { userId }),
 
   adminSetUserQuota: (userId: string, quota: string) =>
-    invoke<string>("admin_set_user_quota", { userId, quota }),
+    tauri<string>("admin_set_user_quota", { userId, quota }),
 
   adminEditUser: (userId: string, key: string, value: string) =>
-    invoke<string>("admin_edit_user", { userId, key, value }),
+    tauri<string>("admin_edit_user", { userId, key, value }),
 
   adminCreateUser: (userId: string, password: string, displayName?: string) =>
-    invoke<string>("admin_create_user", { userId, password, displayName }),
+    tauri<string>("admin_create_user", { userId, password, displayName }),
 
   adminDeleteUser: (userId: string) =>
-    invoke<string>("admin_delete_user", { userId }),
+    tauri<string>("admin_delete_user", { userId }),
 
   adminListGroups: (search: string) =>
-    invoke<string[]>("admin_list_groups", { search }),
+    tauri<string[]>("admin_list_groups", { search }),
 
   adminCreateGroup: (groupId: string) =>
-    invoke<string>("admin_create_group", { groupId }),
+    tauri<string>("admin_create_group", { groupId }),
 
   adminAddGroupMember: (groupId: string, userId: string) =>
-    invoke<string>("admin_add_group_member", { groupId, userId }),
+    tauri<string>("admin_add_group_member", { groupId, userId }),
 
   adminRemoveGroupMember: (groupId: string, userId: string) =>
-    invoke<string>("admin_remove_group_member", { groupId, userId }),
+    tauri<string>("admin_remove_group_member", { groupId, userId }),
 
-  syncList: () => invoke<SyncFolderStatus[]>("sync_list"),
+  syncList: () => tauri<SyncFolderStatus[]>("sync_list"),
 
   syncAdd: (localPath: string, followSymlinks?: boolean) =>
-    invoke<SyncFolderStatus>("sync_add", {
+    tauri<SyncFolderStatus>("sync_add", {
       localPath,
       followSymlinks: followSymlinks ?? false,
     }),
 
-  syncRemove: (folderId: string) => invoke<void>("sync_remove", { folderId }),
+  syncRemove: (folderId: string) => tauri<void>("sync_remove", { folderId }),
 
   syncSetPaused: (folderId: string, paused: boolean) =>
-    invoke<void>("sync_set_paused", { folderId, paused }),
+    tauri<void>("sync_set_paused", { folderId, paused }),
 
-  syncTrigger: () => invoke<void>("sync_trigger"),
+  syncTrigger: () => tauri<void>("sync_trigger"),
 
-  checkUpdate: () => invoke<ReleaseInfo | null>("check_update"),
+  checkUpdate: () => tauri<ReleaseInfo | null>("check_update"),
 
   downloadAndInstallUpdate: () =>
-    invoke<void>("download_and_install_update"),
+    tauri<void>("download_and_install_update"),
 };
