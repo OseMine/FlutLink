@@ -36,7 +36,7 @@ kmp/
 │       ├── androidUnitTest/     — JVM-Unit-Tests (WebDAV/OCS-Parsing, Stores;
 │       │                          Task `testAndroidHostTest`)
 │       └── iosMain/kotlin/      — iOS-Einstiegspunkt (Main →
-│                                  ComposeUIViewController mit Placeholder-UI)
+│                                  ComposeUIViewController mit voller geteilter UI)
 └── iosApp/                      — Xcode-Hülle für den iOS-Build
     ├── Config.xcconfig          — App-Name, Bundle-ID, Version
     ├── iosApp/                  — SwiftUI-Shell (iOSApp.swift, ContentView.swift,
