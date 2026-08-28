@@ -4,7 +4,7 @@
 # Linux and macOS.
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
+#   curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.sh | bash
 #
 # Options (only when saved to a file and executed):
 #   -t, --tag <ref>     Install a specific release tag (e.g. "v1.0.0").

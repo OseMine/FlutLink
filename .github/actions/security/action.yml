@@ -22,7 +22,7 @@ inputs:
   models:
     description: >-
       OpenCode model chain (comma separated, first usable wins) for the AI
-      review. See scripts/opencode-with-fallback.sh.
+      review. See .github/opencode-with-fallback.sh.
     required: false
     default: "big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free"
   virustotal-api-key:
@@ -197,7 +197,7 @@ runs:
           echo '{"findings":[{"title":"<kurzer Titel>","severity":"critical|high|medium|low","file":"<pfad>","detail":"<1-2 Sätze>"}],"summary":"<ein Satz Gesamteinschätzung>"}'
         } > ai-review-prompt.txt
 
-        timeout 900 bash scripts/opencode-with-fallback.sh "$(cat ai-review-prompt.txt)" || true
+        timeout 900 bash .github/opencode-with-fallback.sh "$(cat ai-review-prompt.txt)" || true
 
         node -e '
           const fs = require("fs");

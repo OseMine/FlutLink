@@ -14,7 +14,7 @@ concurrency:
   group: opencode-review
   cancel-in-progress: true
 
-# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# Central OpenCode model chain (see .github/opencode-with-fallback.sh):
 # override once via the repo variable OPENCODE_MODELS.
 env:
   OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free' }}
@@ -44,7 +44,7 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: echo "model=$(bash scripts/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+        run: echo "model=$(bash .github/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
 
       - name: Run OpenCode review
         uses: anomalyco/opencode/github@826d9ad46a22bef0294998e08daa3c4904fea28f # v1.18.21
@@ -178,7 +178,7 @@ jobs:
             echo "$REVIEW_PROMPT" > /tmp/review-prompt.txt
 
             OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
-              bash scripts/opencode-with-fallback.sh --auto "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
+              bash .github/opencode-with-fallback.sh --auto "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
 
             RESULT=$(grep -E '^(MERGE|APPROVE|REJECT)' /tmp/review-result.txt | head -1 || echo "REJECT")
             RATIONALE=$(tail -n +2 /tmp/review-result.txt 2>/dev/null | tr '\n' ' ' || echo "Review execution failed")
@@ -278,7 +278,7 @@ jobs:
           6. Committen Sie die Datei"
 
           OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
-            bash scripts/opencode-with-fallback.sh --auto "$PROMPT" 2>&1 || echo "opencode finished with error"
+            bash .github/opencode-with-fallback.sh --auto "$PROMPT" 2>&1 || echo "opencode finished with error"
 
           if [ -n "$(git status --porcelain todo.md)" ]; then
             git add todo.md

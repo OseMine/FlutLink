@@ -27,14 +27,14 @@
   Skip the SHA-256 checksum verification (not recommended).
 
 .EXAMPLE
-  iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
+  iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1)
 
 .EXAMPLE
-  curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
+  curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 | iex
 
 .EXAMPLE
-  irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-  ./install-flutlink.ps1 -Tag v1.0.0 -NoRun
+  irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 -OutFile install-client.ps1
+  ./install-client.ps1 -Tag v1.0.0 -NoRun
 #>
 [CmdletBinding()]
 param(

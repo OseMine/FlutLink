@@ -5,14 +5,12 @@ on:
     branches: [main]
     paths:
       - "flutcloud-app/**"
-      - "scripts/install-flutcloud-app.sh"
-      - "scripts/install-flutcloud-app.ps1"
+      - "scripts/install-nextcloud.sh"
       - ".github/workflows/flutcloud.yml"
   pull_request:
     paths:
       - "flutcloud-app/**"
-      - "scripts/install-flutcloud-app.sh"
-      - "scripts/install-flutcloud-app.ps1"
+      - "scripts/install-nextcloud.sh"
       - ".github/workflows/flutcloud.yml"
   workflow_dispatch:
 

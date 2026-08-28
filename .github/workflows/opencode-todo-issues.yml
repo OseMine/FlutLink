@@ -18,7 +18,7 @@ permissions:
   contents: write
   issues: write
 
-# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# Central OpenCode model chain (see .github/opencode-with-fallback.sh):
 # override once via the repo variable OPENCODE_MODELS.
 env:
   OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
@@ -44,7 +44,7 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: echo "model=$(bash scripts/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+        run: echo "model=$(bash .github/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
 
       - name: Run opencode to create issues from todo.md
         uses: anomalyco/opencode/github@826d9ad46a22bef0294998e08daa3c4904fea28f # v1.18.21

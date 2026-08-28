@@ -5,7 +5,7 @@
 # enables it with occ and verifies it.
 #
 # Usage:
-#   curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
+#   curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-nextcloud.sh | bash
 #
 # Options (only when saved to a file and executed):
 #   -d, --nextcloud-root <path>   Nextcloud installation (folder containing occ).

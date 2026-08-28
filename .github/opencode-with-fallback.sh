@@ -7,7 +7,7 @@
 # the next candidate instead of failing the workflow.
 #
 # Usage:
-#   scripts/opencode-with-fallback.sh [--pick-only] [opencode-run-args...]
+#   .github/opencode-with-fallback.sh [--pick-only] [opencode-run-args...]
 #
 #   --pick-only   print "opencode/<id>" of the first usable model and exit
 #                 (for action inputs that take a static model string)

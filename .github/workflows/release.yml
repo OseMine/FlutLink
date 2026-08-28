@@ -32,7 +32,7 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
-# Central OpenCode model chain (see scripts/opencode-with-fallback.sh):
+# Central OpenCode model chain (see .github/opencode-with-fallback.sh):
 # override once via the repo variable OPENCODE_MODELS; entries are probed
 # in order and the first usable model wins.
 env:
@@ -105,7 +105,7 @@ jobs:
 
           # The prompt is passed as a positional message — `opencode run`
           # (1.18.x) has no --prompt flag.
-          bash scripts/opencode-with-fallback.sh "$PROMPT"
+          bash .github/opencode-with-fallback.sh "$PROMPT"
 
       - name: Read release notes
         id: read

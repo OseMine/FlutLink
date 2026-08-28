@@ -66,8 +66,8 @@ if [ "$SERVER_MODE" = 1 ]; then
         PASSTHROUGH+=(--nextcloud-root "$ROOT_ARG")
     fi
     echo "Installing the FlutCloud Nextcloud app (server) ..."
-    curl -sSL "$BASE/install-flutcloud-app.sh" | bash -s -- "${PASSTHROUGH[@]}"
+    curl -sSL "$BASE/install-nextcloud.sh" | bash -s -- "${PASSTHROUGH[@]}"
 else
     echo "Installing the FlutLink desktop client ..."
-    curl -sSL "$BASE/install-flutlink.sh" | bash -s -- "${PASSTHROUGH[@]}"
+    curl -sSL "$BASE/install-client.sh" | bash -s -- "${PASSTHROUGH[@]}"
 fi
