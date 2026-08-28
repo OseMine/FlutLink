@@ -58,6 +58,7 @@ const t = (key: string) => translate(ui.lang, key);
       <div class="flex h-8 w-52 items-center gap-1.5 rounded-sm border border-line-strong bg-card px-2 transition focus-within:border-primary">
         <Icon name="search" :size="14" class="shrink-0 text-muted" />
         <input
+          id="flutlink-search"
           v-model="search"
           type="text"
           :placeholder="t('searchPlaceholder')"

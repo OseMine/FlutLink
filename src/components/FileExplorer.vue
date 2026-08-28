@@ -5,10 +5,11 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useAccountsStore } from "../stores/accounts";
 import { useFilesStore } from "../stores/files";
 import { useUiStore, type ViewMode } from "../stores/ui";
-import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type Share, type WebDavEntry } from "../lib/ipc";
+import { api, invokeError, type AppErrorLike, type BulkTarget, type CreateShareOptions, type FileHistoryEntry, type Share, type WebDavEntry } from "../lib/ipc";
 import { sortEntries, type EntrySortKey } from "../lib/sort";
 import { translate } from "../lib/i18n";
 import { registerEscapeCloser } from "../lib/escape";
+import { registerShortcut } from "../lib/shortcuts";
 import Icon from "./Icon.vue";
 import EntryList from "./EntryList.vue";
 import FilesToolbar from "./FilesToolbar.vue";
@@ -16,7 +17,9 @@ import ImpersonationBar from "./ImpersonationBar.vue";
 import ContextMenu from "./ContextMenu.vue";
 import NewFolderDialog from "./NewFolderDialog.vue";
 import RenameDialog from "./RenameDialog.vue";
-import ShareDialog, { type ShareFormValues } from "./ShareDialog.vue";
+import QuickLook from "./QuickLook.vue";
+import MoveTargetDialog from "./MoveTargetDialog.vue";
+import ShareDialog, { type ShareFormValues, type ShareUpdateValues } from "./ShareDialog.vue";
 
 // Concurrency semaphore for thumbnail requests (max 6 parallel)
 let thumbSemaphore = 6;
@@ -215,7 +218,7 @@ function closeCtx() {
   ctxMenu.value = null;
 }
 
-type CtxAction = "open" | "download" | "rename" | "share" | "delete";
+type CtxAction = "open" | "download" | "rename" | "share" | "bookmark" | "copyTo" | "moveTo" | "delete";
 
 /// Dispatch a context-menu action, then close the menu — same ordering as the
 /// former inline handlers (`action(); ctxMenu = null`).
@@ -226,8 +229,69 @@ function onCtxAction(action: CtxAction, entry: WebDavEntry) {
     else void download(entry);
   } else if (action === "rename") startRename(entry);
   else if (action === "share") void openShareDialog(entry);
+  else if (action === "bookmark") toggleBookmark(entry);
+  else if (action === "copyTo" || action === "moveTo") startMove(entry, action === "copyTo" ? "copy" : "move");
   else void removeEntry(entry);
   closeCtx();
+}
+
+// #416: folder bookmarks (persisted in the ui store, max. 20).
+function toggleBookmark(entry: WebDavEntry) {
+  if (ui.isBookmarked(entry.path)) {
+    ui.removeBookmark(entry.path);
+    ui.toast(t("bookmarkRemoved"), "success");
+  } else {
+    ui.addBookmark(entry.path, entry.name);
+    ui.toast(t("bookmarkAdded"), "success");
+  }
+}
+
+// #427: recently opened files (backend-persisted, newest first).
+const historyOpen = ref(false);
+const historyEntries = ref<FileHistoryEntry[]>([]);
+
+async function loadHistory() {
+  try {
+    historyEntries.value = await api.fileHistoryList();
+  } catch {
+    historyEntries.value = [];
+  }
+}
+
+function toggleHistory() {
+  if (historyOpen.value) historyOpen.value = false;
+  else {
+    void loadHistory();
+    historyOpen.value = true;
+  }
+}
+
+async function openFromHistory(entry: FileHistoryEntry) {
+  historyOpen.value = false;
+  try {
+    await api.openRemoteFile(entry.path, files.targetUser ?? undefined);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+async function clearHistory() {
+  try {
+    await api.fileHistoryClear();
+    historyEntries.value = [];
+    historyOpen.value = false;
+    ui.toast(t("historyCleared"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  }
+}
+
+function relativeTime(secs: number): string {
+  const diff = Math.max(0, Math.floor(Date.now() / 1000) - secs);
+  if (diff < 60) return t("historyJustNow");
+  if (diff < 3600) return t("historyMinutes").replace("{n}", String(Math.floor(diff / 60)));
+  if (diff < 86400) return t("historyHours").replace("{n}", String(Math.floor(diff / 3600)));
+  return t("historyDays").replace("{n}", String(Math.floor(diff / 86400)));
 }
 
 async function open(entry: WebDavEntry) {
@@ -365,13 +429,14 @@ function goBack() {
 }
 
 /// Keyboard navigation over the entry list: arrows move the focus, Enter opens
-/// the focused entry, Delete/Backspace removes it (or the selection).
+/// the focused entry, Space shows Quick Look, Delete/Backspace removes it (or
+/// the selection).
 function onKeydown(e: KeyboardEvent) {
   const entries = sortedEntries.value;
   if (!entries.length) return;
   const target = e.target as HTMLElement | null;
-  const typing = !!target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
-  if (typing) return;
+  const consuming = !!target && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName);
+  if (consuming) return;
   switch (e.key) {
     case "ArrowDown":
     case "ArrowRight":
@@ -383,22 +448,108 @@ function onKeydown(e: KeyboardEvent) {
       e.preventDefault();
       kbdIndex.value = kbdIndex.value <= 0 ? entries.length - 1 : kbdIndex.value - 1;
       break;
+    case " ":
+      if (kbdIndex.value < 0) return;
+      e.preventDefault();
+      openQuickLook(entries[kbdIndex.value]);
+      break;
     case "Enter":
       if (e.target !== e.currentTarget || kbdIndex.value < 0) return;
       e.preventDefault();
       void open(entries[kbdIndex.value]);
       break;
-    case "Delete":
-    case "Backspace":
-      if (e.target !== e.currentTarget) return;
-      e.preventDefault();
-      if (kbdIndex.value >= 0) {
+    // Delete/Backspace is handled globally via #408 shortcuts so it also works
+    // when the list container does not hold the focus (see onMounted).
+  }
+}
+
+// #405: Quick Look (Space) — overlay preview of the focused entry.
+const quickLookEntry = ref<WebDavEntry | null>(null);
+const quickLookIndex = ref(-1);
+const quickLookImage = ref<string | null>(null);
+
+async function refreshQuickLookImage() {
+  const entry = quickLookEntry.value;
+  quickLookImage.value = null;
+  if (entry && !entry.isDir && entry.contentType?.startsWith("image/")) {
+    try {
+      quickLookImage.value = await files.getThumbnail(entry.path);
+    } catch {
+      quickLookImage.value = null;
+    }
+  }
+}
+
+function openQuickLook(entry: WebDavEntry) {
+  const entries = sortedEntries.value;
+  quickLookIndex.value = entries.findIndex((e) => e.path === entry.path);
+  quickLookEntry.value = entry;
+  void refreshQuickLookImage();
+}
+
+function closeQuickLook() {
+  quickLookEntry.value = null;
+  quickLookImage.value = null;
+}
+
+function quickLookStep(delta: number) {
+  const entries = sortedEntries.value;
+  if (!entries.length) return;
+  quickLookIndex.value = (quickLookIndex.value + delta + entries.length) % entries.length;
+  quickLookEntry.value = entries[quickLookIndex.value];
+  void refreshQuickLookImage();
+}
+
+function quickLookOpen() {
+  const entry = quickLookEntry.value;
+  if (!entry) return;
+  closeQuickLook();
+  void open(entry);
+}
+
+function quickLookDownload() {
+  const entry = quickLookEntry.value;
+  if (!entry) return;
+  closeQuickLook();
+  if (entry.isDir) void downloadZip(entry);
+  else void download(entry);
+}
+
+/// #408: global keyboard shortcuts while this view is active.
+const unregisterShortcuts: (() => void)[] = [];
+
+function registerViewShortcuts() {
+  unregisterShortcuts.push(
+    registerShortcut("focus-search", () => {
+      // The search field lives in FilesToolbar; focusing by id is the least
+      // fragile cross-component handle here.
+      document.querySelector<HTMLInputElement>("#flutlink-search")?.focus();
+    }),
+    registerShortcut("new-folder", () => {
+      if (!busyPath.value) openNewFolder();
+    }),
+    registerShortcut("select-all", () => {
+      if (files.displayEntries.length > 0) toggleSelectAll();
+    }),
+    registerShortcut("refresh", () => {
+      void files.refresh();
+      void loadAllShares(files.currentPath);
+    }),
+    // Entf: delete the focused entry or the whole selection (with confirm).
+    registerShortcut("delete-selection", () => {
+      if (busyPath.value) return;
+      const entries = sortedEntries.value;
+      if (kbdIndex.value >= 0 && kbdIndex.value < entries.length) {
         void removeEntry(entries[kbdIndex.value]);
       } else if (selected.value.size > 0) {
         void bulkDelete();
       }
-      break;
-  }
+    })
+  );
+}
+
+function unregisterViewShortcuts() {
+  for (const unregister of unregisterShortcuts.splice(0)) unregister();
 }
 
 async function uploadFiles() {
@@ -546,6 +697,43 @@ async function doRename() {
   }
 }
 
+// #411: WebDAV COPY/MOVE into another folder; the dialog defaults to the
+// currently browsed folder, the source file name is preserved.
+const moveTarget = ref<{ entry: WebDavEntry; mode: "copy" | "move" } | null>(null);
+const moveDest = ref("");
+
+function startMove(entry: WebDavEntry, mode: "copy" | "move") {
+  moveTarget.value = { entry, mode };
+  moveDest.value = files.currentPath;
+}
+
+function cancelMove() {
+  moveTarget.value = null;
+  moveDest.value = "";
+}
+
+async function doMove(destFolder: string) {
+  const target = moveTarget.value;
+  if (!target || !destFolder.startsWith("/")) {
+    ui.toast(t("destinationInvalid"), "error");
+    return;
+  }
+  try {
+    if (target.mode === "copy") {
+      await api.webdavCopy(target.entry.path, destFolder);
+    } else {
+      await api.webdavMove(target.entry.path, destFolder);
+    }
+    await files.refresh();
+    ui.toast(t(target.mode === "copy" ? "fileCopied" : "fileMoved"), "success");
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    moveTarget.value = null;
+    moveDest.value = "";
+  }
+}
+
 async function removeEntry(entry: WebDavEntry) {
   if (!window.confirm(t("deleteConfirm").replace("{name}", entry.name))) return;
   try {
@@ -654,6 +842,25 @@ function closeShareDialog() {
   shareDialog.value = null;
 }
 
+// #406: persist password/expiry/permission edits for an existing share. On
+// success the edit panel closes and the list refreshes; on failure it stays
+// open so the typed values survive.
+async function editShare(share: Share, values: ShareUpdateValues) {
+  const entry = shareDialog.value?.entry;
+  if (!entry || submitting.value) return;
+  submitting.value = true;
+  try {
+    await api.webdavUpdateShare(share.id, values, files.targetUser ?? undefined);
+    ui.toast(t("shareUpdated"), "success");
+    shareDialogComp.value?.cancelEdit();
+    await refreshShares(entry);
+  } catch (e) {
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    submitting.value = false;
+  }
+}
+
 // L19-N1: Escape closes the context menu and every dialog — one overlay per
 // press, most recent first. The closers are (re)registered whenever the set
 // of open overlays changes.
@@ -666,6 +873,9 @@ const overlayClosers = computed<(() => void)[]>(() => {
   const closers: (() => void)[] = [];
   if (showNewFolder.value) closers.push(cancelNewFolder);
   if (renameTarget.value) closers.push(cancelRename);
+  if (moveTarget.value) closers.push(cancelMove);
+  if (historyOpen.value) closers.push(() => (historyOpen.value = false));
+  if (quickLookEntry.value) closers.push(closeQuickLook);
   if (shareDialog.value) closers.push(closeShareDialog);
   if (ctxMenu.value) closers.push(closeCtx);
   return closers;
@@ -698,9 +908,11 @@ async function createShare(form: ShareFormValues) {
   }
   submitting.value = true;
   try {
-    await files.createShare(entry.path, options);
+    const created = await files.createShare(entry.path, options);
     ui.toast(t("shareCreated"), "success");
     shareDialogComp.value?.resetForm();
+    // #423: show the QR right after a link share was created.
+    if (created?.url) shareDialogComp.value?.revealQr(created.url);
     await refreshShares(entry);
   } catch (e) {
     ui.toast(invokeError(e).message, "error");
@@ -783,6 +995,7 @@ onMounted(async () => {
     await files.refresh();
     void loadAllShares(files.currentPath);
   }
+  registerViewShortcuts();
   void files.bindProgress();
   unlistenDragDrop = await getCurrentWebview().onDragDropEvent((event) => {
     const payload = event.payload;
@@ -801,6 +1014,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   unlistenDragDrop?.();
+  unregisterViewShortcuts();
   // L15-F9/#290: a pending 300 ms search debounce must not fire after the
   // component is gone (tab switch destroys it via v-if).
   if (searchTimer) {
@@ -855,6 +1069,77 @@ watch(
       @new-folder="openNewFolder"
       @upload="uploadFiles"
     />
+
+    <!-- #416: quick-access folder bookmarks -->
+    <div
+      v-if="ui.bookmarks.length > 0"
+      class="flex items-center gap-2 overflow-x-auto border-b border-line bg-panel px-6 py-1.5 text-xs text-muted"
+    >
+      <Icon name="bookmark" :size="13" class="shrink-0" />
+      <a
+        v-for="bookmark in ui.bookmarks"
+        :key="bookmark.path"
+        href="#"
+        class="flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-0.5 transition hover:bg-card-hover hover:text-fg"
+        :class="files.currentPath === bookmark.path ? 'bg-card-hover font-semibold text-fg' : ''"
+        :title="bookmark.path"
+        @click.prevent="navigateTo(bookmark.path)"
+      >
+        <Icon name="folder" :size="13" />
+        <span class="max-w-32 truncate">{{ bookmark.label }}</span>
+        <button
+          type="button"
+          class="grid h-4 w-4 place-items-center rounded-sm text-muted transition hover:text-error"
+          :title="t('removeBookmark')"
+          @click.prevent.stop="ui.removeBookmark(bookmark.path)"
+        >
+          <Icon name="close" :size="11" />
+        </button>
+      </a>
+    </div>
+
+    <!-- #427: recently opened files -->
+    <div class="flex items-center gap-2 border-b border-line bg-panel px-6 py-1.5 text-xs">
+      <button
+        type="button"
+        class="flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition hover:bg-card-hover hover:text-fg"
+        :class="historyOpen ? 'bg-card-hover font-semibold text-fg' : 'text-muted'"
+        :title="t('historyTitle')"
+        @click="toggleHistory"
+      >
+        <Icon name="history" :size="13" />
+        {{ t("history") }}
+      </button>
+      <span v-if="historyOpen" class="text-muted">{{ historyEntries.length }} {{ t("recentFiles") }}</span>
+      <button
+        v-if="historyOpen && historyEntries.length > 0"
+        type="button"
+        class="ml-auto rounded-sm px-1.5 py-0.5 text-muted underline-offset-2 transition hover:text-fg hover:underline"
+        @click="clearHistory"
+      >
+        {{ t("clearHistory") }}
+      </button>
+    </div>
+    <div
+      v-if="historyOpen"
+      class="max-h-64 overflow-y-auto border-b border-line bg-panel"
+    >
+      <p v-if="!historyEntries.length" class="px-6 py-3 text-xs text-muted">
+        {{ t("historyEmpty") }}
+      </p>
+      <button
+        v-for="entry in historyEntries"
+        :key="entry.path"
+        type="button"
+        class="flex w-full items-center gap-2 px-6 py-1.5 text-left text-xs transition hover:bg-card-hover"
+        :title="entry.path"
+        @click="openFromHistory(entry)"
+      >
+        <Icon name="file" :size="13" class="shrink-0 text-muted" />
+        <span class="min-w-0 flex-1 truncate">{{ entry.name }}</span>
+        <span class="shrink-0 text-muted/70">{{ relativeTime(entry.openedAt) }}</span>
+      </button>
+    </div>
 
     <ImpersonationBar />
 
@@ -1114,6 +1399,15 @@ watch(
       @cancel="cancelRename"
     />
 
+    <MoveTargetDialog
+      v-if="moveTarget"
+      v-model="moveDest"
+      :entry-name="moveTarget.entry.name"
+      :mode="moveTarget.mode"
+      @save="doMove"
+      @cancel="cancelMove"
+    />
+
     <ShareDialog
       v-if="shareDialog"
       ref="shareDialogComp"
@@ -1125,6 +1419,21 @@ watch(
       @create="createShare"
       @revoke="revokeShare"
       @copy="copyShareUrl"
+      @edit="editShare"
+    />
+
+    <QuickLook
+      v-if="quickLookEntry"
+      :key="quickLookEntry.path"
+      :entry="quickLookEntry"
+      :image-url="quickLookImage"
+      :can-prev="sortedEntries.length > 1"
+      :can-next="sortedEntries.length > 1"
+      @close="closeQuickLook"
+      @prev="quickLookStep(-1)"
+      @next="quickLookStep(1)"
+      @open="quickLookOpen"
+      @download="quickLookDownload"
     />
   </div>
 </template>
