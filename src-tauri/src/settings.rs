@@ -68,8 +68,7 @@ pub fn load(app: &AppHandle) -> AppSettings {
 /// Atomically persist settings.
 pub fn save(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
     let path = settings_file(app)?;
-    let json = serde_json::to_string_pretty(settings)
-        .map_err(AppError::Json)?;
+    let json = serde_json::to_string_pretty(settings).map_err(AppError::Json)?;
     crate::persist::atomic_write(&path, &json)
 }
 
@@ -87,12 +86,12 @@ pub async fn check_share_notifications(
     for account in accounts {
         let key = crate::sync::account_key(account);
         let seen = settings.share_seen.entry(key.clone()).or_default();
-        let shares = match crate::nextcloud::ocs::list_shares(&state.http_client, account, None, None)
-            .await
-        {
-            Ok(s) => s,
-            Err(_) => continue, // stay silent on server errors — same pattern as quota checks
-        };
+        let shares =
+            match crate::nextcloud::ocs::list_shares(&state.http_client, account, None, None).await
+            {
+                Ok(s) => s,
+                Err(_) => continue, // stay silent on server errors — same pattern as quota checks
+            };
         for share in &shares {
             if seen.contains(&share.id) {
                 continue;
@@ -119,7 +118,10 @@ pub async fn check_share_notifications(
 fn share_label(share: &crate::state::Share) -> String {
     if share.share_type == 3 {
         // Public link share.
-        return share.url.clone().unwrap_or_else(|| "public link".to_string());
+        return share
+            .url
+            .clone()
+            .unwrap_or_else(|| "public link".to_string());
     }
     share
         .path

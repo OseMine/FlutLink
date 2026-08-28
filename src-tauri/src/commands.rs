@@ -851,6 +851,18 @@ pub fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
     crate::settings::save(&app, &settings)
 }
 
+/// #421: return all relative paths that are currently synced for the given
+/// account (union of all journal keys). Used to show green check icons.
+#[tauri::command]
+pub fn sync_synced_paths(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    account_key: String,
+) -> AppResult<Vec<String>> {
+    let engine = state.sync.clone();
+    engine.synced_paths_for_account(&app, &account_key)
+}
+
 /// Download a cloud folder as a ZIP archive (Nextcloud WebDAV extension) to
 /// `local_path`.
 #[tauri::command]

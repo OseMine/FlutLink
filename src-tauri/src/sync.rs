@@ -1482,6 +1482,28 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Return the union of all journal keys (relative paths) for folders of
+    /// the given account. These are paths that have been successfully synced
+    /// (both sides matched at the last pass).
+    pub fn synced_paths_for_account(
+        &self,
+        app: &AppHandle,
+        account_key: &str,
+    ) -> AppResult<Vec<String>> {
+        let folders = self.folders_snapshot();
+        let mut all: BTreeSet<String> = BTreeSet::new();
+        for folder in folders {
+            if folder.account_key != account_key {
+                continue;
+            }
+            let journal = load_journal(app, &folder.id)?;
+            for rel in journal.keys() {
+                all.insert(rel.clone());
+            }
+        }
+        Ok(all.into_iter().collect())
+    }
+
     /// Statuses in folder order, for the frontend list.
     pub fn statuses(&self) -> Vec<SyncFolderStatus> {
         let folders = self.folders_snapshot();
