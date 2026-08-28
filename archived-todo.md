@@ -2030,3 +2030,17 @@ Punkte sind inzwischen alle umgesetzt und dürfen aus den bestehenden
 Issues entfernt werden.
 
 
+
+## Erledigt (2026-08-28, Lauf 26 — L24-F1: Sync-Log-fmt/clippy CI-Blocker)
+
+- [x] **L24-F1 (Bug, hoch / CI-Blocker): `cargo clippy` + `cargo fmt` sind
+      auf HEAD nicht grün.** `4c2f25e` vereinfacht die redundante Closure in
+      `sync.rs` (`sync.rs:1339` → `.map_err(AppError::Json)`) und formatiert
+      die beiden `Move*.Conflict`-Match-Arme (`sync.rs:1173-1184`) neu;
+      `cargo fmt --check` ist auf HEAD `0585c2b` grün (verifiziert). Der
+      zugehörige Teil „Sync-Log-Command nicht registriert" (Lauf-25-F3a) ist
+      ebenfalls behoben (`sync_log_list`/`sync_log_clear` in `lib.rs` + UI).
+      Hinweis: `cargo clippy` konnte bei Lauf 26 umgebungsbedingt (fehlendes
+      `gobject-2.0`) nicht erneut laufen; die gemeldete `redundant_closure`
+      ist aber entfernt. Offen bleibt der Sync-Log-Append-/Trunkierungs-Bug
+      (in `todo.md`, L24-F3b).
