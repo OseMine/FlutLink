@@ -53,11 +53,12 @@ entfernt) sind in `kmp/` aufgegangen. Details in `kmp/README.md`.
   des FlutCloud-Servers (Capability, `resources`/`parts`-Virtuelle-Links,
   Projektordner). FlutLink verbindet sich nur mit Servern, die diese App
   ausführen.
-- `scripts/` — Installationsskripte, via `curl ... | iex` (PowerShell) bzw.
-  `curl ... | bash` (Linux/macOS) nutzbar:
-  `install-flutlink.ps1` / `install-flutlink.sh` (Desktop-Client vom
-  GitHub-Release), `install-flutcloud-app.ps1` / `install-flutcloud-app.sh`
-  (Nextcloud-App auf dem Server)
+- `scripts/` — Installations- und Update-Skripte:
+  `install-client.ps1` / `install-client.sh` (Desktop-Client vom GitHub-Release,
+  via `curl ... | iex` bzw. `curl ... | bash` nutzbar),
+  `install-nextcloud.sh` (Nextcloud-App auf dem Server),
+  `update-nc-dev.sh` / `update-nc.sh` (Server-App-Update von `main` bzw. vom
+  neuesten Release), `update-altstore-sources.mjs` (AltStore-Quellen)
 - `.github/workflows/` — CI (build/lint/checks) + automatisierte Reviews
 - `.opencode/` — opencode-Konfiguration (Agent `reviewer`, Commands)
 - `docs/` — zweisprachige Architektur-Dokumentation (`docs/en/` + `docs/de/`,

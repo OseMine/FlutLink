@@ -48,14 +48,32 @@
           "takesValue": true,
           "multiple": false
         },
-        {
-          "name": "tray",
-          "short": "t",
-          "description": "Start minimized to the system tray",
-          "takesValue": false,
-          "multiple": false
-        }
-      ]
+{
+            "name": "tray",
+            "short": "t",
+            "description": "Start minimized to the system tray",
+            "takesValue": false,
+            "multiple": false
+          },
+          {
+            "name": "download",
+            "description": "Headless download of a remote file: flutlink --download <remote_path> --download-to <local_path>",
+            "takesValue": true,
+            "multiple": false
+          },
+          {
+            "name": "download-to",
+            "description": "Local target path for --download",
+            "takesValue": true,
+            "multiple": false
+          },
+          {
+            "name": "list",
+            "description": "Headless listing of a cloud folder: flutlink --list <remote_path> (prints JSON to stdout)",
+            "takesValue": true,
+            "multiple": false
+          }
+        ]
     }
   },
   "bundle": {
