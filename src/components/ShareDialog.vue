@@ -6,12 +6,21 @@ export type ShareFormValues = {
   expireDate: string;
   publicUpload: boolean;
 };
+
+// #406: password/expiry/permission edits for an existing share. `password`/
+// `expireDate` at undefined keep the current server value; "" clears them.
+export type ShareUpdateValues = {
+  password?: string;
+  expireDate?: string;
+  publicUpload?: boolean;
+};
 </script>
 
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, ref } from "vue";
 import type { Share, WebDavEntry } from "../lib/ipc";
 import Icon from "./Icon.vue";
+import QrCode from "./QrCode.vue";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 
@@ -27,6 +36,7 @@ const emit = defineEmits<{
   create: [form: ShareFormValues];
   revoke: [share: Share];
   copy: [url: string];
+  edit: [share: Share, values: ShareUpdateValues];
 }>();
 
 const form = reactive<ShareFormValues>({
@@ -45,7 +55,7 @@ function resetForm() {
   form.publicUpload = false;
 }
 
-defineExpose({ resetForm });
+defineExpose({ resetForm, cancelEdit, revealQr });
 
 const shareTypes = computed<{ value: "link" | "user" | "group"; label: string }[]>(() => [
   { value: "link", label: t("shareTypeLink") },
@@ -64,8 +74,93 @@ function shareTarget(share: Share): string {
   return share.shareWithDisplayname || share.shareWith || "";
 }
 
+// #406: inline edit form for an existing share (link shares: password, expiry,
+// upload permission). Fields start empty/undetermined and are only sent when
+// the user actually changed them.
+const editing = ref<Share | null>(null);
+const editPassword = ref("");
+const editExpiry = ref("");
+const editPublicUpload = ref(false);
+const clearPassword = ref(false);
+
+function startEdit(share: Share) {
+  editing.value = share;
+  editPassword.value = "";
+  editExpiry.value = share.expiration ?? "";
+  editPublicUpload.value = (share.permissions ?? 1) >= 15;
+  clearPassword.value = false;
+}
+
+function cancelEdit() {
+  editing.value = null;
+}
+
+function submitEdit() {
+  const share = editing.value;
+  if (!share) return;
+  const values: ShareUpdateValues = {
+    password: clearPassword.value ? "" : editPassword.value.trim() || undefined,
+    expireDate: editExpiry.value || undefined,
+    publicUpload: editPublicUpload.value,
+  };
+  emit("edit", share, values);
+}
+
+// #409/#423: QR preview for a share link, generated locally. `revealQr` is
+// called by the parent right after a link share was created.
+const qrUrl = ref<string | null>(null);
+
+function toggleQr(url: string) {
+  qrUrl.value = qrUrl.value === url ? null : url;
+}
+
+function revealQr(url: string) {
+  qrUrl.value = url;
+}
+
+function closeQr() {
+  qrUrl.value = null;
+}
+
+// #424: visual strength meter for the share password. Scores 0..4 by counting
+// satisfied criteria; empty passwords score 0 and hide the bar.
+const passwordStrength = computed<{ score: number; label: string }>(() => {
+  const pw = form.password;
+  if (!pw) return { score: 0, label: "" };
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const labels = [
+    "",
+    t("passwordWeak"),
+    t("passwordFair"),
+    t("passwordGood"),
+    t("passwordStrong"),
+    t("passwordStrong"),
+  ];
+  return { score, label: labels[Math.min(score, 5)] };
+});
+
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
+
+const passwordBarClass = computed(() => {
+  const s = passwordStrength.value.score;
+  if (s === 0) return "bg-line";
+  if (s <= 2) return "bg-danger";
+  if (s === 3) return "bg-warning";
+  return "bg-primary";
+});
+
+const passwordTextClass = computed(() => {
+  const s = passwordStrength.value.score;
+  if (s <= 2) return "text-danger";
+  if (s === 3) return "text-warning";
+  return "text-muted";
+});
 </script>
 
 <template>
@@ -122,6 +217,28 @@ const t = (key: string) => translate(ui.lang, key);
               ⧉
             </button>
             <button
+              v-if="share.shareType === 3 && share.url"
+              type="button"
+              class="action-badge shrink-0"
+              :title="t('qrCode')"
+              @click="toggleQr(share.url ?? '')"
+            >
+              <Icon
+                name="qr"
+                :size="14"
+                :class="qrUrl === (share.url ?? '') ? 'text-primary' : ''"
+              />
+            </button>
+            <button
+              v-if="share.shareType === 3"
+              type="button"
+              class="action-badge shrink-0"
+              :title="t('editShare')"
+              @click="startEdit(share)"
+            >
+              <Icon name="edit" :size="14" />
+            </button>
+            <button
               type="button"
               class="btn btn-danger h-7 shrink-0 px-2 text-xs"
               @click="emit('revoke', share)"
@@ -130,6 +247,61 @@ const t = (key: string) => translate(ui.lang, key);
             </button>
           </li>
         </ul>
+
+        <div v-if="qrUrl" class="card mb-4 space-y-2 p-4">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {{ t("qrCode") }}
+            </p>
+            <button
+              type="button"
+              class="action-badge shrink-0"
+              :title="t('close')"
+              @click="closeQr"
+            >
+              {{ t("close") }}
+            </button>
+          </div>
+          <QrCode :value="qrUrl" />
+          <p class="break-all text-center text-[11px] text-muted">{{ qrUrl }}</p>
+        </div>
+
+        <div v-if="editing" class="card mb-4 space-y-3 p-3">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {{ t("editShare") }} — {{ editing.path ?? shareTarget(editing) }}
+          </p>
+          <input
+            v-model="editPassword"
+            type="password"
+            :placeholder="editing.hasPassword ? t('newPasswordKeepPlaceholder') : t('sharePasswordPlaceholder')"
+            class="input"
+          />
+          <label
+            v-if="editing.hasPassword"
+            class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted"
+          >
+            <input type="checkbox" class="checkbox" v-model="clearPassword" />
+            {{ t("clearPassword") }}
+          </label>
+          <input v-model="editExpiry" type="date" class="input" />
+          <label class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted">
+            <input type="checkbox" class="checkbox" v-model="editPublicUpload" />
+            {{ t("publicUpload") }}
+          </label>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-outline" @click="cancelEdit">
+              {{ t("cancel") }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              :disabled="submitting"
+              @click="submitEdit"
+            >
+              {{ t("save") }}
+            </button>
+          </div>
+        </div>
 
         <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
           {{ t("newShare") }}
@@ -162,6 +334,19 @@ const t = (key: string) => translate(ui.lang, key);
               :placeholder="t('sharePasswordPlaceholder')"
               class="input"
             />
+            <div v-if="form.password" class="space-y-1">
+              <div class="flex gap-1">
+                <div
+                  v-for="segment in 5"
+                  :key="segment"
+                  class="h-1 flex-1 rounded-full"
+                  :class="passwordStrength.score >= segment ? passwordBarClass : 'bg-line'"
+                />
+              </div>
+              <p class="text-[11px]" :class="passwordTextClass">
+                {{ passwordStrength.label }}
+              </p>
+            </div>
             <input
               v-model="form.expireDate"
               type="date"

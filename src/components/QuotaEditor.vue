@@ -98,6 +98,19 @@ const usagePercent = computed(() => {
   if (!q || q.total === null || q.total <= 0 || q.used === null) return null;
   return Math.min(100, Math.round((q.used / q.total) * 100));
 });
+
+/// #426: store nearly full → amber at 71-90 %, red beyond. `ok` ≤ 70 %.
+const quotaState = computed<"ok" | "warn" | "critical">(() => {
+  const p = usagePercent.value;
+  if (p === null) return "ok";
+  if (p > 90) return "critical";
+  if (p > 70) return "warn";
+  return "ok";
+});
+
+const warningText = computed(() =>
+  quotaState.value === "critical" ? t("quotaCritical") : quotaState.value === "warn" ? t("quotaWarning") : ""
+);
 </script>
 
 <template>
@@ -117,10 +130,17 @@ const usagePercent = computed(() => {
     <div v-if="usagePercent !== null" class="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
       <div
         class="h-full rounded-full transition-all duration-300"
-        :class="usagePercent > 90 ? 'bg-error' : 'bg-primary'"
-        :style="{ width: usagePercent + '%', background: usagePercent > 70 && usagePercent <= 90 ? 'oklch(0.7 0.17 80)' : undefined }"
+        :class="quotaState === 'ok' ? 'bg-primary' : quotaState === 'warn' ? 'bg-warning' : 'bg-error'"
+        :style="{ width: usagePercent + '%' }"
       ></div>
     </div>
+    <p
+      v-if="warningText"
+      class="mt-1.5 text-xs font-medium"
+      :class="quotaState === 'critical' ? 'text-error' : 'text-warning'"
+    >
+      {{ warningText }}
+    </p>
   </div>
 
   <div>
