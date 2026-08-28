@@ -112,9 +112,10 @@ jobs:
         shell: bash
         run: |
           if [ -s release-notes.md ]; then
-            echo "body<<EOF" >> "$GITHUB_OUTPUT"
+            delimiter="RELEASE_NOTES_$(date +%s%N)"
+            echo "body<<$delimiter" >> "$GITHUB_OUTPUT"
             cat release-notes.md >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            echo "$delimiter" >> "$GITHUB_OUTPUT"
           fi
 
   checks:
@@ -179,7 +180,7 @@ jobs:
 
   prepare-release:
     name: Create release page (draft)
-    needs: [checks, security-gate]
+    needs: [checks, security-gate, release-notes]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -229,7 +230,9 @@ jobs:
           - platform: ubuntu-latest
             args: --bundles deb,appimage
           - platform: windows-latest
-            args: ""
+            # Keep both installer formats explicit so the updater always has
+            # a Windows asset even if Tauri's default bundle set changes.
+            args: --bundles msi,nsis
 
     runs-on: ${{ matrix.platform }}
 
@@ -505,15 +508,12 @@ jobs:
               missing=1
             fi
           done
-          if ! echo "$ASSETS" | grep -Eq "\.(msi|exe)$"; then
-            echo "::warning::Kein Windows-Installer (.msi/.exe) im Release"
-          fi
-          if ! echo "$ASSETS" | grep -Eq "\.dmg$"; then
-            echo "::warning::Kein macOS-Image (.dmg) im Release"
-          fi
-          if ! echo "$ASSETS" | grep -Eq "\.(deb|AppImage)$"; then
-            echo "::warning::Kein Linux-Paket (.deb/.AppImage) im Release"
-          fi
+          for pattern in "\.(msi|exe)$" "\.dmg$" "\.(deb|AppImage)$"; do
+            if ! echo "$ASSETS" | grep -Eqi "$pattern"; then
+              echo "::error::Release $TAG unvollstaendig: kein Desktop-Asset matcht $pattern"
+              missing=1
+            fi
+          done
           [ "$missing" -eq 0 ] || exit 1
 
           gh release edit "$TAG" --draft=false
