@@ -54,9 +54,6 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.core.AccountMeta
-import com.flutcloud.flutlink.ui.components.FlutBadge
-import com.flutcloud.flutlink.ui.components.FlutGhostButton
-import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.components.SectionHeader
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.theme.defaultAccentHue
@@ -209,7 +206,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f)
                     )
-                    FlutGhostButton(onClick = { vm.setAccentHue(null) }) {
+                    TextButton(onClick = { vm.setAccentHue(null) }) {
                         Text(stringResource(Res.string.accent_reset))
                     }
                 }
@@ -245,7 +242,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                 leading = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
                 trailing = {
                     if (container.updatesSupported) {
-                        FlutGhostButton(
+                        TextButton(
                             onClick = { vm.checkForUpdate() },
                             enabled = !checkingUpdate && !installingUpdate
                         ) {
@@ -307,7 +304,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
-            FlutGhostButton(
+            TextButton(
                 onClick = { vm.signOut() },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -332,7 +329,7 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                FlutGhostButton(onClick = { uriHandler.openUri(MAINTAINER_URL) }) {
+                TextButton(onClick = { uriHandler.openUri(MAINTAINER_URL) }) {
                     Text(MAINTAINER_HANDLE)
                 }
             }
@@ -415,7 +412,7 @@ private fun AccountRow(
         leading = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
         trailing = {
             if (!isActive) {
-                FlutGhostButton(onClick = onSwitch) {
+                TextButton(onClick = onSwitch) {
                     Text(stringResource(Res.string.switch_account))
                 }
             } else {

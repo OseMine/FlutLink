@@ -31,7 +31,7 @@ unverändert offen (re-quelltext-verifiziert).
 
 Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
 
-- [ ] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` ist in der
+- [x] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` ist in der
       aktuell genutzten Material3-Abhängigkeit gar nicht verfügbar — der
       „Revert auf Platin/Expressive" kompiliert so nicht.** Die KMP-Module
       beziehen Material 3 ausschließlich über das Plugin-DSL-`api(compose.material3)`
@@ -53,7 +53,7 @@ Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
       kennt nur `composeMultiplatform = "1.11.1"`, keinen Material3-
       Versions-Overload — die Dependency-Umstellung ist ein eigenständiger,
       expliziter Schritt.
-- [ ] **KMP-F14 (Konzept, mittel): Der Auftrag ist **kein** blindes
+- [x] **KMP-F14 (Konzept, mittel): Der Auftrag ist **kein** blindes
       `git revert` von `2dce6e1` — der Commit trägt neben dem Theme auch die
       gewünschte Desktop-Parität.** `2dce6e1` (feat(kmp): overhaul mobile UI to
       match desktop design system) hat nicht nur Material-3-Komponenten
@@ -72,7 +72,7 @@ Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
       bleiben dabei unangetastet. `HomeScreen.kt:77-156` (Desktop-Header + Tab-
       Strip statt M3-`NavigationBar`) ist dabei der größte Brocken und deckt
       sich mit KMP-F6.
-- [ ] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
+- [x] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
       Der Revert macht Teile des `Flut*`-Satzes und der `FlutLinkTheme`-
       Palette überflüssig bzw. umgekehrt.** `dynamicColor = true` ist Default
       in `FlutLinkRoot.kt:46`; die Expressive-Theming baut darauf, gewollte

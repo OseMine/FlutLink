@@ -1,9 +1,7 @@
 package com.flutcloud.flutlink.ui.login
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,11 +11,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,9 +34,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.components.ErrorBanner
-import com.flutcloud.flutlink.ui.components.FlutGhostButton
-import com.flutcloud.flutlink.ui.components.FlutOutlineButton
-import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.components.ScrollableColumn
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.viewmodel.LoginViewModel
@@ -99,25 +98,22 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
             )
             Spacer(Modifier.height(24.dp))
 
-            // Desktop-style mode toggle (segmented control)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.small)
-                    .padding(4.dp)
-            ) {
-                ModeButton(
-                    text = stringResource(Res.string.login_tab_sign_in),
+            // Desktop-style mode toggle (M3 segmented control)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(
                     selected = !registerMode,
                     onClick = { if (registerMode) vm.toggleMode() },
-                    modifier = Modifier.weight(1f)
-                )
-                ModeButton(
-                    text = stringResource(Res.string.login_tab_register),
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                ) {
+                    Text(stringResource(Res.string.login_tab_sign_in))
+                }
+                SegmentedButton(
                     selected = registerMode,
                     onClick = { if (!registerMode) vm.toggleMode() },
-                    modifier = Modifier.weight(1f)
-                )
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                ) {
+                    Text(stringResource(Res.string.login_tab_register))
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -208,7 +204,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
                     step?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall) }
                 }
             } else {
-                FlutPrimaryButton(
+                Button(
                     onClick = {
                         if (registerMode) vm.register(onLoggedIn) else vm.signIn(onLoggedIn)
                     },
@@ -223,7 +219,7 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
                 }
                 // Guest entry
                 Spacer(Modifier.height(8.dp))
-                FlutGhostButton(
+                TextButton(
                     onClick = onContinueAsGuest,
                     modifier = Modifier.fillMaxWidth().height(40.dp)
                 ) {
@@ -232,22 +228,5 @@ fun LoginScreen(container: AppContainer, onLoggedIn: () -> Unit, onContinueAsGue
             }
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun ModeButton(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    androidx.compose.material3.TextButton(
-        onClick = onClick,
-        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.surfaceContainerLowest
-            else androidx.compose.ui.graphics.Color.Transparent,
-            contentColor = if (selected) MaterialTheme.colorScheme.onSurface
-            else MaterialTheme.colorScheme.onSurfaceVariant
-        ),
-        shape = MaterialTheme.shapes.small,
-        modifier = modifier
-    ) {
-        Text(text, fontWeight = if (selected) FontWeight(600) else FontWeight.Normal)
     }
 }
