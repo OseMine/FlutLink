@@ -3,6 +3,7 @@ package com.flutcloud.flutlink.ui.files
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -55,6 +58,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -85,8 +91,6 @@ import com.flutcloud.flutlink.data.dto.WebDavEntry
 import okio.Path.Companion.toPath
 import com.flutcloud.flutlink.ui.components.Breadcrumb
 import com.flutcloud.flutlink.ui.components.EmptyState
-import com.flutcloud.flutlink.ui.components.FlutBadge
-import com.flutcloud.flutlink.ui.components.FlutSegmentedControl
 import com.flutcloud.flutlink.ui.components.QuotaBar
 import com.flutcloud.flutlink.ui.components.fileIcon
 import com.flutcloud.flutlink.ui.components.FileMetaLine
@@ -573,13 +577,18 @@ private fun FilesTopBar(
             }
         },
         actions = {
-            // View mode toggle (desktop-style segmented control)
-            FlutSegmentedControl(
-                selectedIndex = viewMode.ordinal,
-                items = ViewMode.entries.map { it.label to it.icon },
-                onSelect = { idx -> onViewModeChange(ViewMode.entries[idx]) },
-                modifier = Modifier.padding(end = 8.dp)
-            )
+            // View mode toggle (M3 segmented control)
+            SingleChoiceSegmentedButtonRow(Modifier.padding(end = 8.dp)) {
+                ViewMode.entries.forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = viewMode == mode,
+                        onClick = { onViewModeChange(mode) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = ViewMode.entries.size)
+                    ) {
+                        Icon(mode.icon, contentDescription = mode.label, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
             IconButton(onClick = onSearch) {
                 Icon(Icons.Default.Search, contentDescription = stringResource(Res.string.search))
             }
@@ -900,9 +909,17 @@ private fun EntryGridItem(
 
 @Composable
 private fun LinkBadge() {
-    FlutBadge(
-        text = stringResource(Res.string.virtual),
-        dotColor = MaterialTheme.colorScheme.secondary
+    AssistChip(
+        onClick = {},
+        label = { Text(stringResource(Res.string.virtual)) },
+        leadingIcon = {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondary)
+            )
+        }
     )
 }
 

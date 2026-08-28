@@ -1,6 +1,5 @@
 package com.flutcloud.flutlink.ui.guest
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -26,16 +24,20 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,11 +57,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.ui.components.ErrorBanner
-import com.flutcloud.flutlink.ui.components.FlutBadge
-import com.flutcloud.flutlink.ui.components.FlutGhostButton
-import com.flutcloud.flutlink.ui.components.FlutOutlineButton
-import com.flutcloud.flutlink.ui.components.FlutPill
-import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.GuestViewModel
@@ -145,7 +142,7 @@ fun GuestScreen(
                     }
                 },
                 actions = {
-                    FlutGhostButton(onClick = onSignIn) {
+                    TextButton(onClick = onSignIn) {
                         Text(stringResource(Res.string.sign_in))
                     }
                 }
@@ -161,7 +158,7 @@ fun GuestScreen(
             error?.let { err ->
                 ErrorBanner(err.resolve(), Modifier.padding(horizontal = 16.dp))
                 if (!loading && shares.isEmpty()) {
-                    FlutGhostButton(onClick = { vm.load() }, modifier = Modifier.padding(16.dp)) {
+                    TextButton(onClick = { vm.load() }, modifier = Modifier.padding(16.dp)) {
                         Text(stringResource(Res.string.retry))
                     }
                 }
@@ -199,17 +196,16 @@ fun GuestScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 for (cat in allCategories) {
-                                    FlutPill(
-                                        text = cat,
-                                        selected = false,
-                                        onClick = { showDeleteCategoryDialog = cat }
+                                    AssistChip(
+                                        onClick = { showDeleteCategoryDialog = cat },
+                                        label = { Text(cat) }
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Category filter (desktop-style pills)
+                    // Category filter (M3 filter chips)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -217,16 +213,16 @@ fun GuestScreen(
                             .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FlutPill(
-                            text = stringResource(Res.string.guest_all),
+                        FilterChip(
                             selected = categoryFilter == null,
-                            onClick = { categoryFilter = null }
+                            onClick = { categoryFilter = null },
+                            label = { Text(stringResource(Res.string.guest_all)) }
                         )
                         for (category in categories) {
-                            FlutPill(
-                                text = category,
+                            FilterChip(
                                 selected = categoryFilter == category,
-                                onClick = { categoryFilter = category }
+                                onClick = { categoryFilter = category },
+                                label = { Text(category) }
                             )
                         }
                     }
@@ -245,14 +241,10 @@ fun GuestScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(visibleShares, key = { it.token }) { share ->
-                                // Desktop-style card
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { vm.enter(share) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                // Desktop-style card (M3 outlined card)
+                                OutlinedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { vm.enter(share) }
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -272,7 +264,7 @@ fun GuestScreen(
                                         }
                                         share.category?.let {
                                             Spacer(Modifier.width(8.dp))
-                                            FlutBadge(text = it)
+                                            AssistChip(onClick = {}, label = { Text(it) })
                                         }
                                         // Admin: assign-category button.
                                         if (isAdmin) {
@@ -414,7 +406,7 @@ private fun CreateCategoryDialog(
             }
         },
         confirmButton = {
-            FlutPrimaryButton(onClick = { onConfirm(name.trim(), prefixless) },
+            Button(onClick = { onConfirm(name.trim(), prefixless) },
                 enabled = name.isNotBlank()) {
                 Text(stringResource(Res.string.create))
             }
@@ -463,13 +455,13 @@ private fun AssignCategoryDialog(
                     )
                 } else {
                     for (cat in categories) {
-                        FlutOutlineButton(
+                        OutlinedButton(
                             onClick = { onAssign(cat) },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(cat) }
                     }
                 }
-                FlutOutlineButton(
+                OutlinedButton(
                     onClick = onRemove,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(stringResource(Res.string.guest_admin_remove_category)) }

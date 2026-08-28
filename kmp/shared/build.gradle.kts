@@ -54,10 +54,10 @@ kotlin {
         commonMain.dependencies {
             api(compose.runtime)
             api(compose.foundation)
-            // Use the pre-release Material3 (Expressive-support) instead of the
-            // stable `compose.material3` alias, which ships without the
-            // Expressive theme/components. See kmp/gradle/libs.versions.toml.
-            api(libs.compose.material3)
+            // KMP-F13: The stable `compose.material3` alias (1.9.0) removed the
+            // Material 3 Expressive API. Use the pre-release that still ships it
+            // (`Material3ExpressiveTheme`, expressive `MotionScheme`, ...).
+            api("org.jetbrains.compose.material3:material3:1.9.0-alpha04")
             api(compose.materialIconsExtended)
             api(compose.ui)
             implementation(compose.components.resources)

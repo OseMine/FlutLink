@@ -1,6 +1,5 @@
 package com.flutcloud.flutlink.ui.admin
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -25,6 +24,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -62,10 +65,6 @@ import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
 import com.flutcloud.flutlink.data.dto.ManagedUser
 import com.flutcloud.flutlink.ui.components.EmptyState
-import com.flutcloud.flutlink.ui.components.FlutBadge
-import com.flutcloud.flutlink.ui.components.FlutGhostButton
-import com.flutcloud.flutlink.ui.components.FlutOutlineButton
-import com.flutcloud.flutlink.ui.components.FlutPrimaryButton
 import com.flutcloud.flutlink.ui.flutLinkViewModel
 import com.flutcloud.flutlink.ui.format.formatBytes
 import com.flutcloud.flutlink.ui.viewmodel.AdminViewModel
@@ -262,7 +261,7 @@ private fun LoadMoreButton(loading: Boolean, onClick: () -> Unit) {
         if (loading) {
             CircularProgressIndicator(Modifier.size(24.dp))
         } else {
-            FlutOutlineButton(onClick = onClick) {
+            OutlinedButton(onClick = onClick) {
                 Text(stringResource(Res.string.admin_load_more))
             }
         }
@@ -312,9 +311,17 @@ private fun UserRow(
                     )
                     if (!user.enabled) {
                         Spacer(Modifier.width(8.dp))
-                        FlutBadge(
-                            text = stringResource(Res.string.disabled),
-                            dotColor = MaterialTheme.colorScheme.error
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(stringResource(Res.string.disabled)) },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.error)
+                                )
+                            }
                         )
                     }
                 }
@@ -484,11 +491,12 @@ private fun GroupsDialog(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            FlutBadge(
-                                text = group,
+                            AssistChip(
+                                onClick = {},
+                                label = { Text(group) },
                                 modifier = Modifier.weight(1f)
                             )
-                            FlutGhostButton(onClick = { onRemoveFromGroup(group) }) {
+                            TextButton(onClick = { onRemoveFromGroup(group) }) {
                                 Text(stringResource(Res.string.remove))
                             }
                         }
@@ -512,12 +520,12 @@ private fun GroupsDialog(
         },
         confirmButton = {
             Row {
-                FlutPrimaryButton(
+                Button(
                     onClick = { onCreateGroup(groupInput.trim()) },
                     enabled = groupInput.isNotBlank()
                 ) { Text(stringResource(Res.string.admin_create_group)) }
                 Spacer(Modifier.width(8.dp))
-                FlutPrimaryButton(
+                Button(
                     onClick = {
                         onAddToGroup(groupInput.trim())
                         groupInput = ""
@@ -612,7 +620,7 @@ private fun CustomQuotaDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 Box {
-                    FlutOutlineButton(onClick = { unitMenuOpen = true }) {
+                    OutlinedButton(onClick = { unitMenuOpen = true }) {
                         Text(
                             if (unit == QuotaUnit.GB) stringResource(Res.string.quota_unit_gb)
                             else stringResource(Res.string.quota_unit_mb)

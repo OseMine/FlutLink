@@ -1,24 +1,16 @@
 package com.flutcloud.flutlink.ui.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -37,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -222,228 +213,6 @@ fun SectionHeader(title: String) {
     )
 }
 
-// ---------------------------------------------------------------------------
-// Desktop-style components matching src/style.css `.btn`, `.pill`, `.badge`,
-// `.segment` classes. Cleaned up in KMP-F15: `FlutCard` (`.card`) and
-// `FlutIconButton` (`.icon-btn`) were unused and removed; on the M3-Expressive
-// revert (KMP-F14) the remaining ones here are replaced by M3 primitives
-// (see kmp/README.md "Theme-Entscheidung").
-// ---------------------------------------------------------------------------
-
-/** Neutral pill badge with an optional colored status dot. Mirrors `.badge`. */
-@Composable
-fun FlutBadge(
-    text: String,
-    modifier: Modifier = Modifier,
-    dotColor: Color? = null
-) {
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            if (dotColor != null) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(dotColor)
-                )
-            }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/** Micro-toggle pill for filter/view toggles. Mirrors `.pill` / `.pill-active`. */
-@Composable
-fun FlutPill(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-    } else {
-        MaterialTheme.colorScheme.outline
-    }
-    val bgColor = if (selected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-    } else {
-        Color.Transparent
-    }
-    val textColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    Surface(
-        modifier = modifier
-            .height(28.dp)
-            .clip(RoundedCornerShape(9999.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(9999.dp),
-        color = bgColor,
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = textColor
-            )
-        }
-    }
-}
-
-/** Segmented control (e.g. list/grid toggle). Mirrors `.segment`. */
-@Composable
-fun FlutSegmentedControl(
-    selectedIndex: Int,
-    items: List<Pair<String, ImageVector>>,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier.height(28.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Row(Modifier.fillMaxWidth()) {
-            items.forEachIndexed { index, (label, icon) ->
-                val isSelected = selectedIndex == index
-                val bgColor = if (isSelected) {
-                    MaterialTheme.colorScheme.surfaceContainerLowest
-                } else {
-                    Color.Transparent
-                }
-                val textColor = if (isSelected) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(bgColor)
-                        .clickable { onSelect(index) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        tint = textColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                if (index < items.lastIndex) {
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** Ghost button matching desktop `.btn-ghost`. */
-@Composable
-fun FlutGhostButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            content = content
-        )
-    }
-}
-
-/** Outline button matching desktop `.btn-outline`. */
-@Composable
-fun FlutOutlineButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            content = content
-        )
-    }
-}
-
-/** Primary filled button matching desktop `.btn-primary`. */
-@Composable
-fun FlutPrimaryButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .height(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = if (enabled) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            content = content
-        )
-    }
-}
-
 /** Breadcrumb segment for file navigation. */
 @Composable
 fun Breadcrumb(
@@ -474,16 +243,4 @@ fun Breadcrumb(
             }
         }
     }
-}
-
-/** Section label matching desktop label style (11px uppercase). */
-@Composable
-fun SectionLabel(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 1.sp,
-        modifier = modifier.padding(start = 4.dp, bottom = 4.dp)
-    )
 }
