@@ -6,11 +6,14 @@ import { useUiStore } from "../stores/ui";
 import { translate, translateError } from "../lib/i18n";
 import { invokeError } from "../lib/ipc";
 import Icon from "./Icon.vue";
+import SyncLog from "./SyncLog.vue";
 
 const sync = useSyncStore();
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 const followSymlinks = ref(false);
+const showSyncLog = ref(false);
+const logFolderId = ref<string | undefined>(undefined);
 
 function errorLabel(err: { code: string; detail?: string | null }): string {
   return translateError(ui.lang, err.code, err.detail);
@@ -119,6 +122,10 @@ async function syncNow() {
           />
           {{ t("followSymlinks") }}
         </label>
+        <button type="button" class="btn btn-outline" @click="showSyncLog = true; logFolderId = undefined">
+          <Icon name="history" :size="14" />
+          {{ t("syncLogTitle") }}
+        </button>
         <button type="button" class="btn btn-primary" @click="pickFolder">
           <Icon name="add" :size="14" />
           {{ t("addFolder") }}
@@ -183,4 +190,11 @@ async function syncNow() {
       </div>
     </div>
   </div>
+
+  <SyncLog
+    v-if="showSyncLog"
+    :folder-id="logFolderId"
+    :limit="200"
+    @close="showSyncLog = false"
+  />
 </template>

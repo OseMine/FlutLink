@@ -1170,14 +1170,22 @@ async fn run_pass(
         for action in ops.iter().take(MAX_OPS_PER_PASS) {
             let (action_type, rel, detail) = match action {
                 Action::Upload(rel) => ("upload", rel.as_str(), None),
-                Action::UploadConflict { rel, target } => ("conflict", rel.as_str(), Some(target.clone())),
+                Action::UploadConflict { rel, target } => {
+                    ("conflict", rel.as_str(), Some(target.clone()))
+                }
                 Action::Download(rel) => ("download", rel.as_str(), None),
                 Action::DeleteRemote(rel) => ("delete", rel.as_str(), Some("remote".into())),
                 Action::DeleteLocal(rel) => ("delete", rel.as_str(), Some("local".into())),
                 Action::DeleteRemoteDir(rel) => ("delete", rel.as_str(), Some("remote_dir".into())),
                 Action::EnsureDir(rel) => ("mkdir", rel.as_str(), None),
-                Action::MoveRemoteConflict { rel, target } => ("conflict", rel.as_str(), Some(format!("remote->{}", target))),
-                Action::MoveLocalConflict { rel, target } => ("conflict", rel.as_str(), Some(format!("local->{}", target))),
+                Action::MoveRemoteConflict { rel, target } => (
+                    "conflict",
+                    rel.as_str(),
+                    Some(format!("remote->{}", target)),
+                ),
+                Action::MoveLocalConflict { rel, target } => {
+                    ("conflict", rel.as_str(), Some(format!("local->{}", target)))
+                }
                 Action::Seed(rel) => ("seed", rel.as_str(), None),
                 Action::Skip(_) => continue,
             };
@@ -1309,7 +1317,7 @@ fn journal_file(app: &AppHandle, folder_id: &str) -> AppResult<PathBuf> {
 }
 
 /// #407: path to the sync log file (global, one per app).
-fn sync_log_file(app: &AppHandle) -> AppResult<PathBuf> {
+pub(crate) fn sync_log_file(app: &AppHandle) -> AppResult<PathBuf> {
     let dir = app
         .path()
         .app_data_dir()
@@ -1328,13 +1336,12 @@ fn append_sync_log(app: &AppHandle, entry: &SyncLogEntry) -> AppResult<()> {
         let drain = entries.len() - MAX_SYNC_LOG_ENTRIES;
         entries.drain(0..drain);
     }
-    let json = serde_json::to_string_pretty(&entries)
-        .map_err(|e| AppError::Json(e))?;
+    let json = serde_json::to_string_pretty(&entries).map_err(AppError::Json)?;
     crate::persist::atomic_write(&path, &json)
 }
 
 /// #407: load the sync log (newest first).
-fn load_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
+pub(crate) fn load_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
     let path = sync_log_file(app)?;
     if !path.exists() {
         return Ok(Vec::new());

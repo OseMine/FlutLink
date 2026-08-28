@@ -68,7 +68,7 @@ Sortiert nach Umsetzungsaufwand (klein → groß).
       (`commands.rs:464-488`) lädt den Quota-Wert bereits. Ein periodischer
       Check (z.B. alle 30 Min.) mit Schwellwert >90% könnte eine
       Notification emittieren. (#413)
-- [ ] **Sync-Protokoll / Historie** — Die Journal-Daten (`sync.rs`
+- [x] **Sync-Protokoll / Historie** — Die Journal-Daten (`sync.rs`
       `Journal`/`JournalEntry`) existieren bereits. Eine UI-Ansicht
       (letzte Sync-Aktionen, Konflikte) wäre ein leichtes Add-on. (#407)
 - [x] **Ordner-Lesezeichen** — Schnellzugriff auf häufig besuchte Ordner.

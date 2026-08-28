@@ -10,6 +10,8 @@ const props = defineProps<{
   limit?: number;
 }>();
 
+const emit = defineEmits<{ close: [] }>();
+
 const ui = useUiStore();
 const t = (key: string) => translate(ui.lang, key);
 
@@ -107,8 +109,8 @@ async function clearLog() {
     await api.syncLogClear();
     entries.value = [];
     ui.toast(t("syncLogCleared"), "success");
-  } catch (e) {
-    ui.toast(e.message, "error");
+  } catch (e: unknown) {
+    ui.toast((e as Error).message ?? String(e), "error");
   }
 }
 </script>
@@ -138,6 +140,9 @@ async function clearLog() {
         <button type="button" class="btn btn-outline btn-sm" @click="clearLog">
           <Icon name="trash" :size="13" />
           {{ t("clear") }}
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" @click="emit('close')">
+          <Icon name="close" :size="13" />
         </button>
       </div>
     </div>

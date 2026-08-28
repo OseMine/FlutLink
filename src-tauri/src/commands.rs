@@ -853,7 +853,10 @@ pub fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
 
 /// #407: fetch recent sync log entries (newest first).
 #[tauri::command]
-pub fn sync_log_list(app: AppHandle, limit: Option<usize>) -> AppResult<Vec<crate::sync::SyncLogEntry>> {
+pub fn sync_log_list(
+    app: AppHandle,
+    limit: Option<usize>,
+) -> AppResult<Vec<crate::sync::SyncLogEntry>> {
     let mut entries = crate::sync::load_sync_log(&app)?;
     if let Some(limit) = limit {
         entries.truncate(limit);
