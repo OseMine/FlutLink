@@ -9,6 +9,122 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Review 2026-08-28 (Lauf 27, Fokus „Revert Mobile UI auf Platin / Material 3 Expressive" — neue Befunde)
+
+Gegenstand: der Auftrag, die Mobile-UI (`kmp/shared/src/commonMain/.../ui/`)
+auf **Material 3 Expressive** („Platin") zurückzuführen — weg von der
+desktop-angeglichenen Custom-Compose-UI (Commit `2dce6e1`) — plus
+Folgereview der offenen KMP-Befunde (L25 KMP-F1…F9, L26 KMP-F10…F12) gegen
+HEAD `f2a28a6`. Der Fokus prüft vor allem die **Machbarkeit/Sauberkeit des
+thematisierten Reverts** und ob die aktuelle Abhängigkeits- und
+Komponenten-Lage das überhaupt zulässt.
+
+Verifikation: `cargo fmt --check` **grün** (Exit 0). `cargo clippy`/`cargo
+test`/`npm run build` sind umgebungsbedingt weiter nicht ausführbar
+(fehlende Tauri-Linux-Systemdeps bzw. `node_modules`); der KMP-Build
+(`:shared:build`) ist hier nicht lauffähig (iOS nur macOS, Android ohne
+Netz). Sämtliche KMP-/Dependency-Befunde sind Quelltext- plus
+Versionskatalog- plus Web-Verifikation. Zwischen Lauf 26 und diesem Lauf
+liegen nur noch `5364aa1` (Version 1.3.1), `7935823` (Merge) und `f2a28a6`
+(AltStore) — **kein KMP-Anwendungscode-Change**; KMP-F1…F12 sind daher
+unverändert offen (re-quelltext-verifiziert).
+
+Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
+
+- [ ] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` ist in der
+      aktuell genutzten Material3-Abhängigkeit gar nicht verfügbar — der
+      „Revert auf Platin/Expressive" kompiliert so nicht.** Die KMP-Module
+      beziehen Material 3 ausschließlich über das Plugin-DSL-`api(compose.material3)`
+      (`kmp/shared/build.gradle.kts:44`). Dieser Alias löst in Compose
+      Multiplatform 1.11.1 auf die **stabile** Material3-Version auf
+      (`org.jetbrains.compose.material3:material3:1.9.0`, basiert auf Jetpack
+      M3 1.4.0-stable), und genau mit dem Stable-Schnitt ist die Expressive-API
+      **entfernt** worden: Alle mit `ExperimentalMaterial3ExpressiveApi` /
+      `ExperimentalMaterial3ComponentOverrideApi` markierten öffentlichen APIs
+      (`Material3ExpressiveTheme`, `MaterialExpressiveTheme`, expressive
+      `MotionScheme`/Komponenten) sind aus dem Stable-Build entfernt
+      (JetBrains/compose-multiplatform-core#2278 — „use the previous Material3
+      alpha version explicitly"). Für den Auftrag muss daher **vor** dem UI-
+      Umbau die Material3-Dependency des KMP-Moduls auf eine Pre-Release-Version
+      mit Expressive-Support umgestellt werden (z. B.
+      `org.jetbrains.compose.material3:material3:1.9.0-alpha04` bzw. eine
+      neuere pre-release-Variante) und überall `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`
+      gesetzt werden. Hinweis: `versionCatalog` (`gradle/libs.versions.toml`)
+      kennt nur `composeMultiplatform = "1.11.1"`, keinen Material3-
+      Versions-Overload — die Dependency-Umstellung ist ein eigenständiger,
+      expliziter Schritt.
+- [ ] **KMP-F14 (Konzept, mittel): Der Auftrag ist **kein** blindes
+      `git revert` von `2dce6e1` — der Commit trägt neben dem Theme auch die
+      gewünschte Desktop-Parität.** `2dce6e1` (feat(kmp): overhaul mobile UI to
+      match desktop design system) hat nicht nur Material-3-Komponenten
+      ersetzt, sondern die geforderten Desktop-Paritäts-Features eingeführt:
+      Breadcrumb + List/Grid-Toggle + Grid-Ansicht (`FilesScreen.kt:158-164/233-236/423-444`),
+      Impersonation-Handoff Admin→Files (`HomeScreen.kt:128-131` + `68`),
+      Custom-Quota-Dialog (`AdminScreen.kt:584-652`), Gruppen-Dialog, custom
+      Login/SegmentedControl (`LoginScreen.kt:103-121`). Ein `git revert`
+      würde all das (und damit Teile von KMP-F1/F9) zurücksetzen. Empfohlener
+      Weg für den „Revert": **nur die Darstellung** zurück auf M3-Expressive-
+      Primitives bringen, also die `Flut*`-Hilfskomponenten
+      (`Components.kt:226-526`) durch echte M3-Komponenten ersetzen
+      (`Button`/`SegmentedButton`/`SingleChoiceSegmentedButtonRow`/`Chip`/
+      `Card` + `Material3ExpressiveTheme` mit `motionScheme = MotionScheme.expressive()`)
+      und die Screens darauf umstellen — die Breadcrumb/Grid/Files-Logik
+      bleiben dabei unangetastet. `HomeScreen.kt:77-156` (Desktop-Header + Tab-
+      Strip statt M3-`NavigationBar`) ist dabei der größte Brocken und deckt
+      sich mit KMP-F6.
+- [ ] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
+      Der Revert macht Teile des `Flut*`-Satzes und der `FlutLinkTheme`-
+      Palette überflüssig bzw. umgekehrt.** `dynamicColor = true` ist Default
+      in `FlutLinkRoot.kt:46`; die Expressive-Theming baut darauf, gewollte
+      FlutCloud-Brand-Paletten (`Color.kt` `lightScheme`/`midnightScheme`,
+      `defaultAccentHue` und der Akzent-Hue-Slider in `SettingsScreen.kt:200-226`)
+      zu behalten. Bei „revert to expressive" entscheiden, welche
+      `Flut*`-Komponenten (die ohnehin nur von `FilesScreen`/`GuestScreen`/
+      `AdminScreen`/`LoginScreen`/`SettingsScreen` genutzt werden) entfallen
+      und ob `Material3ExpressiveTheme` (Brand-`colorScheme`/`typography`/
+      `shapes` + expressive `motionScheme`) als neuer Wrapper in
+      `FlutLinkTheme` (`Theme.kt:46-80`) eingebaut wird. Ohne diese
+      Entscheidung bleibt ein hybrider Zustand (M3-Expressive-Komponenten auf
+      Custom-Flut-Typo/Shapes), der genau das „looks off"-Problem der L25-Prämisse
+      reproduziert.
+
+Weiter offen (Lauf 25/26-Status unverändert, gegen HEAD re-verifiziert):
+KMP-F1 (Admin-`editUser`-Lücke), KMP-F2 (Grid ohne Aktionen), KMP-F3
+(Admin-Suche leer), KMP-F4 (loadUsers/loadMore-Race), KMP-F5 (unlokalisierte
+`"Files"`/`"List"`/`"Grid"`), KMP-F6 (doppelte Chrome / kein M3-`NavigationBar`
+— direkt relevant für KMP-F14), KMP-F7 (Admin-Tab für Nicht-Admins
+unsichtbar), KMP-F8 (iosMain-Doku veraltet), KMP-F9 (Copy/Move/QR/QuickLook
+fehlen), KMP-F10 (`viewMode` nicht persistiert, `FilesScreen.kt:203`),
+KMP-F11 (Gast-Kategorie-Chip löscht beim Antippen, `GuestScreen.kt:201-207`),
+KMP-F12 (`"Files"`, `"List"`/`"Grid"`-Literale). Ebenso weiter offen aus
+früheren Läufen: L24-F2 (Share-Notify erreicht Backend nie), L24-F3b
+(Sync-Log-Append/Trunkierung), L24-F4…F8/N1…N7, Perf-Analyse und
+„Desktop-JVM: Token-Speicher härten".
+
+Keine neuen Desktop-/Kern-Befunde: zwischen Lauf 26 und HEAD ist kein
+Desktop-Anwendungscode geändert worden (nur Versionsnummern); IPC-Registry,
+Keyring, Fehler-Serialisierung, WebDAV/OCS, Guest-Backend, Sync-Engine und
+CI/Workflows sind unverändert zu Lauf 26 (dort „keine neuen Befunde"
+vermerkt).
+
+### todo.md-Nachprüfung (Schritt 5)
+
+Seit Lauf 26 sind keine KMP-/Desktop-Befunde erledigt worden — keine
+betreffenden Anwendungscode-Commits (`5364aa1`/`7935823`/`f2a28a6` sind
+Versionsnummern, Merge bzw. AltStore). **Es gibt nichts nach
+`archived-todo.md` zu verschieben.** Alle offenen `[ ]`-Einträge bleiben
+unangetastet; keine neue Erledigung zu markieren.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe verboten).
+`git log 0585c2b..HEAD` enthält ausschließlich `5364aa1`, `7935823` und
+`f2a28a6` — **kein Commit schließt eine offene Issue** und es gibt keine
+neuen Issue-referenzierenden Commits. Der `opencode-todo-issues`-Workflow
+sollte die neuen KMP-F13 (Expressive-Dependency-Blocker) sowie die weiterhin
+offenen KMP-F1…F12 (= gewünschte Desktop-Parität auf Mobile) beim nächsten
+Lauf als Issues erfassen.
+
 ## Review 2026-08-28 (Lauf 26, Fokus „Back to Jetpack Compose on KMP" — neue Befunde)
 
 Gegenstand: die komplette KMP-Compose-UI erneut begutachtet
