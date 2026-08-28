@@ -31,7 +31,7 @@ unverändert offen (re-quelltext-verifiziert).
 
 Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
 
-- [ ] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` ist in der
+- [x] **KMP-F13 (Blocker/Feasibility, hoch): `Material3Expressive` ist in der
       aktuell genutzten Material3-Abhängigkeit gar nicht verfügbar — der
       „Revert auf Platin/Expressive" kompiliert so nicht.** Die KMP-Module
       beziehen Material 3 ausschließlich über das Plugin-DSL-`api(compose.material3)`
@@ -52,7 +52,15 @@ Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
       gesetzt werden. Hinweis: `versionCatalog` (`gradle/libs.versions.toml`)
       kennt nur `composeMultiplatform = "1.11.1"`, keinen Material3-
       Versions-Overload — die Dependency-Umstellung ist ein eigenständiger,
-      expliziter Schritt.
+      expliziter Schritt. — **BEHOBEN**: `composeMaterial3 = "1.9.0-alpha04"`
+      in `kmp/gradle/libs.versions.toml` verankert; `kmp/shared/build.gradle.kts`
+      nutzt `api(libs.compose.material3)` statt `api(compose.material3)`.
+      `cd kmp && ./gradlew :shared:build` grün (Android + JVM; iOS-Targets wie
+      üblich nur auf macOS kompilierbar). Ein `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`
+      ist an noch **keiner** Stelle nötig — der aktuelle UI-Code nutzt keine
+      Expressive-API; das Opt-In wird beim eigentlichen UI-Revert (KMP-F14)
+      an den neuen `Material3ExpressiveTheme`-/`MotionScheme`-Nutzungsstellen
+      ergänzt.
 - [ ] **KMP-F14 (Konzept, mittel): Der Auftrag ist **kein** blindes
       `git revert` von `2dce6e1` — der Commit trägt neben dem Theme auch die
       gewünschte Desktop-Parität.** `2dce6e1` (feat(kmp): overhaul mobile UI to
