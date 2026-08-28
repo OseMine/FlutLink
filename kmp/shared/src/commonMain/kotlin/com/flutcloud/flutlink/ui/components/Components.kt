@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -225,7 +224,10 @@ fun SectionHeader(title: String) {
 
 // ---------------------------------------------------------------------------
 // Desktop-style components matching src/style.css `.btn`, `.pill`, `.badge`,
-// `.segment`, `.card`, `.icon-btn` classes.
+// `.segment` classes. Cleaned up in KMP-F15: `FlutCard` (`.card`) and
+// `FlutIconButton` (`.icon-btn`) were unused and removed; on the M3-Expressive
+// revert (KMP-F14) the remaining ones here are replaced by M3 primitives
+// (see kmp/README.md "Theme-Entscheidung").
 // ---------------------------------------------------------------------------
 
 /** Neutral pill badge with an optional colored status dot. Mirrors `.badge`. */
@@ -365,26 +367,6 @@ fun FlutSegmentedControl(
     }
 }
 
-/** Card surface matching desktop `.card` style. */
-@Composable
-fun FlutCard(
-    modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
-    }
-}
-
 /** Ghost button matching desktop `.btn-ghost`. */
 @Composable
 fun FlutGhostButton(
@@ -459,25 +441,6 @@ fun FlutPrimaryButton(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             content = content
         )
-    }
-}
-
-/** Square quiet icon button matching desktop `.icon-btn`. */
-@Composable
-fun FlutIconButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
     }
 }
 
