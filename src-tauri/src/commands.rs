@@ -843,6 +843,14 @@ pub fn file_history_clear(app: AppHandle) -> AppResult<()> {
     history::clear(&app)
 }
 
+/// #410: toggle whether the backend announces newly appeared shares.
+#[tauri::command]
+pub fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
+    let mut settings = crate::settings::load(&app);
+    settings.share_notify_enabled = enabled;
+    crate::settings::save(&app, &settings)
+}
+
 /// Download a cloud folder as a ZIP archive (Nextcloud WebDAV extension) to
 /// `local_path`.
 #[tauri::command]

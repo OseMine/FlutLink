@@ -1664,12 +1664,21 @@ impl SyncEngine {
                 }
             }
         }
+
+        // #410: announce newly shared files/folders via native notifications.
+        // Re-uses the sync-tick cadence (no extra worker); the seen-share-id
+        // set is persisted so notifications fire once per share, not every tick.
+        {
+            let mut settings = crate::settings::load(app);
+            crate::settings::check_share_notifications(app, &accounts, &mut settings).await;
+            let _ = crate::settings::save(app, &settings);
+        }
     }
 }
 
 /// Show a native OS notification via `tauri-plugin-notification` (Q1).
 /// Best-effort: platform notification errors are deliberately ignored.
-fn notify(app: &AppHandle, title: &str, body: &str) {
+pub(crate) fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 

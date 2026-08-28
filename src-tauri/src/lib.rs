@@ -7,6 +7,7 @@ mod guest;
 mod history;
 mod nextcloud;
 mod persist;
+mod settings;
 mod state;
 mod sync;
 mod updater;
@@ -401,6 +402,7 @@ pub fn run() {
             commands::guest_admin_list_locks,
             commands::file_history_list,
             commands::file_history_clear,
+            commands::set_share_notify,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,
