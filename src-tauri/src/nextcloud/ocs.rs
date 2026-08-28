@@ -613,6 +613,71 @@ pub async fn delete_share(
     Ok(())
 }
 
+/// Fields that may be changed on an existing share (#406). A field left at
+/// `None` keeps the current server-side value; an empty string clears the
+/// password/expiry (`PUT shares/{id}` accepts empty values for both).
+#[derive(Debug, Clone, Default)]
+pub struct ShareUpdate<'a> {
+    /// New password; `Some("")` removes an existing password.
+    pub password: Option<&'a str>,
+    /// New expiry date (`YYYY-MM-DD`); `Some("")` clears it.
+    pub expire_date: Option<&'a str>,
+    /// Explicit OCS permission bits (public links: 1 = read-only, 15 = upload).
+    pub permissions: Option<u32>,
+}
+
+/// OCS update form: only `Some` fields are posted, so untouched values stay
+/// untouched on the server.
+fn build_share_update_form(update: &ShareUpdate<'_>) -> Vec<(String, String)> {
+    let mut form = Vec::new();
+    if let Some(password) = update.password {
+        form.push(("password".to_string(), password.to_string()));
+    }
+    if let Some(expire) = update.expire_date {
+        form.push(("expireDate".to_string(), expire.to_string()));
+    }
+    if let Some(p) = update.permissions {
+        form.push(("permissions".to_string(), p.to_string()));
+    }
+    form
+}
+
+/// Update an existing share (#406): change its password, expiry date or
+/// permissions via `PUT shares/{id}`. Impersonation identical to
+/// [`create_share`].
+pub async fn update_share(
+    client: &Client,
+    account: &Account,
+    share_id: u64,
+    target_user: Option<&str>,
+    update: &ShareUpdate<'_>,
+) -> AppResult<()> {
+    let url = format!(
+        "{}/ocs/v2.php/apps/files_sharing/api/v1/shares/{}?format=json",
+        account.base_url(),
+        share_id
+    );
+    let form = build_share_update_form(update);
+    let fields: Vec<(&str, &str)> = form
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
+    let res = request_as(
+        client,
+        account,
+        Method::PUT,
+        &url,
+        Some(&fields),
+        target_user,
+    )
+    .await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(())
+}
+
 /// Parse a share object from the OCS `data` payload. Unknown/falsy fields are
 /// mapped to `None` so a partially malformed response does not break the whole
 /// listing.
@@ -786,6 +851,38 @@ mod tests {
         assert_eq!(share.share_with.as_deref(), Some("alice"));
         assert_eq!(share.has_password, Some(false));
         assert!(share.url.is_none());
+    }
+
+    #[test]
+    fn share_update_form_posts_only_changed_fields() {
+        // untouched fields stay untouched
+        let keep_all = ShareUpdate::default();
+        assert!(build_share_update_form(&keep_all).is_empty());
+
+        // empty strings clear, Some sets
+        let clear_pw = ShareUpdate {
+            password: Some(""),
+            ..ShareUpdate::default()
+        };
+        let form = build_share_update_form(&clear_pw);
+        let map = form_map(&form);
+        assert_eq!(map.get("password"), Some(&""));
+
+        let set_expire = ShareUpdate {
+            expire_date: Some("2026-12-31"),
+            ..ShareUpdate::default()
+        };
+        let form = build_share_update_form(&set_expire);
+        let map = form_map(&form);
+        assert_eq!(map.get("expireDate"), Some(&"2026-12-31"));
+
+        let perms = ShareUpdate {
+            permissions: Some(15),
+            ..ShareUpdate::default()
+        };
+        let form = build_share_update_form(&perms);
+        let map = form_map(&form);
+        assert_eq!(map.get("permissions"), Some(&"15"));
     }
 
     #[test]

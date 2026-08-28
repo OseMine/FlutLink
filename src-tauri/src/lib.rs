@@ -4,6 +4,7 @@ mod commands;
 mod error;
 mod flutcloud;
 mod guest;
+mod history;
 mod nextcloud;
 mod persist;
 mod state;
@@ -31,17 +32,44 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Build the tray menu: "Show", a dynamic "Accounts" submenu and "Quit".
+/// Build the tray menu: sync quick actions, "Show", a dynamic "Accounts"
+/// submenu and "Quit".
 ///
 /// The Accounts submenu lists every configured account and marks the active
 /// one. Clicking an entry switches to that account (see `setup_tray`).
 fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let show = MenuItem::<Wry>::with_id(app, "show", "Show FlutLink", true, None::<&str>)?;
     let quit = MenuItem::<Wry>::with_id(app, "quit", "Quit FlutLink", true, None::<&str>)?;
+    let sync_now = MenuItem::<Wry>::with_id(app, "sync-now", "Sync now", true, None::<&str>)?;
+    let separator = tauri::menu::PredefinedMenuItem::separator(app)?;
 
     let state = app.state::<AppState>();
     let accounts = state.accounts_snapshot();
     let active_key = state.current().map(|a| crate::sync::account_key(&a));
+
+    // #428: global upload pause toggle — the label flips with the state and
+    // the menu is rebuilt after every toggle.
+    let upload_label = if state.sync.is_upload_paused() {
+        "Resume uploads"
+    } else {
+        "Pause uploads"
+    };
+    let toggle_uploads =
+        MenuItem::<Wry>::with_id(app, "toggle-uploads", upload_label, true, None::<&str>)?;
+    // #428: Online/Offline status indicator (disabled, informational). "Online"
+    // tracks whether an account is connected; while a sync pass is in flight
+    // the tooltip stays truthful because the worker is live either way.
+    let online_status = MenuItem::<Wry>::with_id(
+        app,
+        "online-status",
+        if accounts.is_empty() {
+            "Status: Offline"
+        } else {
+            "Status: Online"
+        },
+        false,
+        None::<&str>,
+    )?;
 
     let mut account_items: Vec<MenuItem<Wry>> = Vec::new();
     if accounts.is_empty() {
@@ -84,7 +112,19 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .collect();
     let accounts_sub = Submenu::with_items(app, "Accounts", true, &account_refs)?;
 
-    Menu::with_items(app, &[&show, &accounts_sub, &quit])
+    Menu::with_items(
+        app,
+        &[
+            &show,
+            &separator,
+            &sync_now,
+            &toggle_uploads,
+            &online_status,
+            &separator,
+            &accounts_sub,
+            &quit,
+        ],
+    )
 }
 
 /// Rebuild the tray menu from the current account list (used after accounts
@@ -114,6 +154,18 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
             "quit" => {
                 quit_flag.store(true, Ordering::SeqCst);
                 app.exit(0);
+            }
+            "sync-now" => {
+                // #428: run every sync folder immediately from the tray.
+                app.state::<AppState>().sync.notify_one();
+            }
+            "toggle-uploads" => {
+                // #428: flip the global upload pause, rebuild the menu so the
+                // label follows, and tell the frontend to re-read statuses.
+                let engine = app.state::<AppState>().sync.clone();
+                engine.set_upload_paused(!engine.is_upload_paused());
+                let _ = refresh_tray_menu(app);
+                let _ = app.emit("sync-folders-changed", ());
             }
             id if id.starts_with("switch:") => {
                 // Tray ids carry the composite identity: switch:user@instance
@@ -146,7 +198,9 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
 }
 
 /// Handle CLI flags passed to the app binary:
-/// `-s/--sync`, `-p/--path <dir>`, `-u/--url <url>`, `-t/--tray`.
+/// `-s/--sync`, `-p/--path <dir>`, `-u/--url <url>`, `-t/--tray`,
+/// `--download <remote> --download-to <local>` and `--list <path>` (the latter
+/// two are headless: they print JSON to stdout and need not show a window).
 fn handle_cli(app: &tauri::App) {
     let Ok(matches) = app.cli().matches() else {
         return;
@@ -166,6 +220,74 @@ fn handle_cli(app: &tauri::App) {
 
     if let Some(url) = cli_url {
         let _ = app.emit("flutlink:cli-open", url);
+    }
+
+    // #400: headless `--download <remote> --download-to <local>`.
+    let cli_download = args
+        .get("download")
+        .and_then(|a| a.value.as_str())
+        .map(str::to_string);
+    let cli_download_to = args
+        .get("download-to")
+        .and_then(|a| a.value.as_str())
+        .map(str::to_string);
+    match (cli_download, cli_download_to) {
+        (Some(remote), Some(local)) => {
+            if let Some(parent) = std::path::Path::new(&local).parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let state = handle.state::<AppState>();
+                let Some(account) = state.current() else {
+                    eprintln!("flutlink --download: no active account (connect one first)");
+                    return;
+                };
+                match nextcloud::webdav::get_file(
+                    &state.http_client,
+                    &account,
+                    &remote,
+                    std::path::Path::new(&local),
+                )
+                .await
+                {
+                    Ok(()) => println!(
+                        "{}",
+                        serde_json::json!({ "ok": true, "remote": remote, "local": local })
+                    ),
+                    Err(err) => eprintln!("flutlink --download: {}", err.message()),
+                }
+            });
+        }
+        (Some(_), None) | (None, Some(_)) => {
+            eprintln!(
+                "flutlink: --download requires both --download <remote> and --download-to <local>"
+            );
+        }
+        _ => {}
+    }
+
+    // #400: headless `--list <path>` — print the folder listing as JSON.
+    if let Some(path) = args
+        .get("list")
+        .and_then(|a| a.value.as_str())
+        .map(str::to_string)
+    {
+        let handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            let state = handle.state::<AppState>();
+            let Some(account) = state.current() else {
+                eprintln!("flutlink --list: no active account (connect one first)");
+                return;
+            };
+            match nextcloud::webdav::list(&state.http_client, &account, &path, None).await {
+                Ok(entries) => match serde_json::to_string(&entries) {
+                    Ok(json) => println!("{json}"),
+                    Err(err) => eprintln!("flutlink --list: could not serialize: {err}"),
+                },
+                Err(err) => eprintln!("flutlink --list: {}", err.message()),
+            }
+        });
     }
 
     if let Some(path) = cli_path {
@@ -250,6 +372,7 @@ pub fn run() {
             commands::webdav_search,
             commands::webdav_create_share,
             commands::webdav_list_shares,
+            commands::webdav_update_share,
             commands::webdav_delete_share,
             commands::webdav_upload_file,
             commands::webdav_download_file,
@@ -262,6 +385,8 @@ pub fn run() {
             commands::webdav_upload_local_paths,
             commands::webdav_mkdir,
             commands::webdav_rename,
+            commands::webdav_copy,
+            commands::webdav_move,
             commands::guest_verify_server,
             commands::guest_list_shares,
             commands::guest_list_entries,
@@ -274,6 +399,8 @@ pub fn run() {
             commands::guest_admin_lock_path,
             commands::guest_admin_unlock_path,
             commands::guest_admin_list_locks,
+            commands::file_history_list,
+            commands::file_history_clear,
             commands::admin_list_users,
             commands::admin_get_user,
             commands::admin_set_user_quota,

@@ -179,6 +179,9 @@ pub struct SyncFolderStatus {
     pub paused: bool,
     /// Whether symbolic links in the local folder are followed during sync.
     pub follow_symlinks: bool,
+    /// #428: globally paused uploads (tray quick action) — downloads/deletes
+    /// continue while this is set.
+    pub upload_paused: bool,
     /// "idle" | "syncing" | "paused" | "error"
     pub state: String,
     pub pending_uploads: u64,

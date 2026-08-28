@@ -11,6 +11,7 @@ use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{Notify, Semaphore};
 
 use crate::error::{AppError, AppResult};
+use crate::nextcloud::ocs;
 use crate::nextcloud::webdav;
 use crate::state::{Account, AppState, SyncFolder, SyncFolderStatus};
 
@@ -1071,6 +1072,7 @@ async fn run_pass(
     client: &reqwest::Client,
     account: &Account,
     folder: &SyncFolder,
+    upload_paused: bool,
 ) -> AppResult<PassResult> {
     let local_root = PathBuf::from(&folder.local_path);
     if !local_root.is_dir() {
@@ -1091,6 +1093,12 @@ async fn run_pass(
     let local = walked.map;
     let remote = remote_listing.entries;
     let mut ops = plan_ops(&local, &remote, &journal, &remote_listing.dirty_dirs);
+
+    // #428: a globally paused upload clock stops outbound pushes while
+    // downloads/deletes continue normally (tray quick action).
+    if upload_paused {
+        ops.retain(|a| !matches!(a, Action::Upload(_) | Action::UploadConflict { .. }));
+    }
 
     // Fail closed (L15-S1): when the local snapshot is incomplete an entry
     // may be missing for reasons other than deletion. Suppress every
@@ -1202,6 +1210,13 @@ pub struct SyncEngine {
     notifying_failure: AtomicBool,
     /// Consecutive failing passes; re-reminds only every Nth pass.
     failure_streak: AtomicU64,
+    /// #428: globally pause uploads from the system tray (downloads/deletes
+    /// keep running). Runtime-only toggle — intentional: it reflects a
+    /// present-moment user action, not a persistent preference.
+    upload_paused: AtomicBool,
+    /// #413: account keys that already delivered a >90% quota warning.
+    /// Reset when usage drops back to/below the threshold.
+    quota_warned: RwLock<BTreeSet<String>>,
 }
 
 /// Re-notify about persistent failures every Nth consecutive failing pass.
@@ -1215,6 +1230,8 @@ impl Default for SyncEngine {
             notify: Notify::new(),
             notifying_failure: AtomicBool::new(false),
             failure_streak: AtomicU64::new(0),
+            upload_paused: AtomicBool::new(false),
+            quota_warned: RwLock::new(BTreeSet::new()),
         }
     }
 }
@@ -1276,7 +1293,7 @@ fn persist_journal_to_disk(path: &Path, journal: &Journal) -> AppResult<()> {
     crate::persist::atomic_write(path, &json)
 }
 
-fn initial_status(folder: &SyncFolder) -> SyncFolderStatus {
+fn initial_status(folder: &SyncFolder, upload_paused: bool) -> SyncFolderStatus {
     SyncFolderStatus {
         folder_id: folder.id.clone(),
         account_key: folder.account_key.clone(),
@@ -1284,6 +1301,7 @@ fn initial_status(folder: &SyncFolder) -> SyncFolderStatus {
         remote_path: folder.remote_path.clone(),
         paused: folder.paused,
         follow_symlinks: folder.follow_symlinks,
+        upload_paused,
         state: if folder.paused {
             "paused".into()
         } else {
@@ -1302,6 +1320,15 @@ impl SyncEngine {
     /// Wake up the worker to run a pass immediately.
     pub fn notify_one(&self) {
         self.notify.notify_one();
+    }
+
+    // #428: global upload pause used by the system-tray quick action.
+    pub fn set_upload_paused(&self, paused: bool) {
+        self.upload_paused.store(paused, Ordering::Relaxed);
+    }
+
+    pub fn is_upload_paused(&self) -> bool {
+        self.upload_paused.load(Ordering::Relaxed)
     }
 
     pub fn folders_snapshot(&self) -> Vec<SyncFolder> {
@@ -1343,7 +1370,7 @@ impl SyncEngine {
             for folder in folders {
                 status_guard
                     .entry(folder.id.clone())
-                    .or_insert_with(|| initial_status(&folder));
+                    .or_insert_with(|| initial_status(&folder, self.is_upload_paused()));
             }
         }
     }
@@ -1372,7 +1399,7 @@ impl SyncEngine {
             guard.push(folder.clone());
         }
         self.persist(app)?;
-        let status = initial_status(&folder);
+        let status = initial_status(&folder, self.is_upload_paused());
         if let Ok(mut guard) = self.statuses.write() {
             guard.insert(folder.id.clone(), status.clone());
         }
@@ -1493,6 +1520,7 @@ impl SyncEngine {
     pub async fn run_all(&self, app: &AppHandle) {
         let state = app.state::<AppState>();
         let accounts = state.accounts_snapshot();
+        let upload_paused = self.is_upload_paused();
         let mut statuses: Vec<SyncFolderStatus> = Vec::new();
         // Totals across all folders, used to decide whether a native
         // notification is warranted (Q1: no spam on every idle tick).
@@ -1507,6 +1535,7 @@ impl SyncEngine {
                 remote_path: folder.remote_path.clone(),
                 paused: folder.paused,
                 follow_symlinks: folder.follow_symlinks,
+                upload_paused,
                 state: "idle".into(),
                 pending_uploads: 0,
                 pending_downloads: 0,
@@ -1538,7 +1567,7 @@ impl SyncEngine {
             };
 
             status.state = "syncing".into();
-            match run_pass(app, &state.http_client, &account, &folder).await {
+            match run_pass(app, &state.http_client, &account, &folder, upload_paused).await {
                 Ok(result) => {
                     files_done += result.done as u64;
                     files_failed += result.failures;
@@ -1600,6 +1629,39 @@ impl SyncEngine {
                     "FlutLink Sync",
                     &format!("{files_done} file(s) synced successfully."),
                 );
+            }
+        }
+
+        // #413: native quota warning when an account crosses 90% storage use.
+        // Warn once per crossing (no re-spam every tick); dipping back to/below
+        // the threshold re-arms the account. Quota fetch failures stay silent.
+        {
+            let warned = self
+                .quota_warned
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default();
+            for account in &accounts {
+                let key = account_key(account);
+                let pct = match ocs::get_current_quota(&state.http_client, account).await {
+                    Ok(Some(quota)) => quota.relative.unwrap_or(0.0),
+                    _ => continue,
+                };
+                if pct > 90.0 && !warned.contains(&key) {
+                    notify(
+                        app,
+                        "FlutLink Storage",
+                        &format!(
+                            "{:.0}% of storage in use for {}.",
+                            pct, account.meta.username
+                        ),
+                    );
+                    if let Ok(mut guard) = self.quota_warned.write() {
+                        guard.insert(key);
+                    }
+                } else if let Ok(mut guard) = self.quota_warned.write() {
+                    guard.remove(&key);
+                }
             }
         }
     }

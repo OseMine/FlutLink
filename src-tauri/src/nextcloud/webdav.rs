@@ -175,9 +175,9 @@ pub async fn search(
     }
 }
 
-/// Build the WebDAV-SEARCH body searching `displayname` (which Nextcloud
-/// interprets as a case-insensitive "contains" on the file name) over the
-/// whole `depth: infinity` tree of `user`.
+/// Build the WebDAV-SEARCH body searching `displayname` for a substring
+/// (`d:contains`, case-insensitive) over the whole `depth: infinity` tree of
+/// `user`.
 fn search_request_body(user: &str, query: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -199,10 +199,10 @@ fn search_request_body(user: &str, query: &str) -> String {
       </d:scope>
     </d:from>
     <d:where>
-      <d:eq>
+      <d:contains>
         <d:prop><d:displayname/></d:prop>
         <d:literal>{}</d:literal>
-      </d:eq>
+      </d:contains>
     </d:where>
     <d:orderby/>
   </d:basicsearch>
@@ -866,6 +866,38 @@ pub async fn rename_as(
     let url = remote_url(account, remote_rel, target_user);
     let dest = remote_url(account, new_rel, target_user);
     let method = Method::from_bytes(b"MOVE").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Destination", dest)
+            .header("Overwrite", "F"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    if status.as_u16() == 412 {
+        return Err(AppError::TargetExists(new_rel.to_string()));
+    }
+    status_check(res).await
+}
+
+/// Copy a remote resource (file or folder) to a new location via COPY
+/// (`Overwrite: F`, in another user's namespace when `target_user` is set).
+/// Like rename, refuses to overwrite an existing destination (`Overwrite: F`
+/// → 412 → [`AppError::TargetExists`]).
+pub async fn copy_as(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    new_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = remote_url(account, remote_rel, target_user);
+    let dest = remote_url(account, new_rel, target_user);
+    let method = Method::from_bytes(b"COPY").expect("valid HTTP method");
     let res = impersonation_header(
         client
             .request(method, &url)
@@ -1602,6 +1634,10 @@ mod tests {
         assert!(
             body.contains("<d:literal>report &amp; final&lt;1&gt;</d:literal>"),
             "search term is XML-escaped"
+        );
+        assert!(
+            body.contains("<d:contains>") && !body.contains("<d:eq>"),
+            "substring search uses d:contains instead of exact d:eq"
         );
     }
 }

@@ -8,6 +8,7 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::accounts;
 use crate::error::{AppError, AppResult};
+use crate::history;
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
     Account, AccountMeta, AdminUsersResult, AppState, Share, StorageResult, SyncFolder,
@@ -585,6 +586,51 @@ pub async fn webdav_delete_share(
     ocs::delete_share(&state.http_client, &account, share_id, target.as_deref()).await
 }
 
+/// #406: change password, expiry date or permissions of an existing share.
+///
+/// `password`/`expire_date` at `null` leave the value untouched; an empty
+/// string removes it. `public_upload` (link shares) toggles the permission
+/// bits (15) without touching either text field.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareUpdateInput {
+    /// New password; empty string clears an existing password.
+    pub password: Option<String>,
+    /// New expiry date as `YYYY-MM-DD`; empty string clears it.
+    pub expire_date: Option<String>,
+    /// Allow uploads to a public link.
+    pub public_upload: Option<bool>,
+}
+
+#[tauri::command]
+pub async fn webdav_update_share(
+    state: State<'_, AppState>,
+    share_id: u64,
+    target_user: Option<String>,
+    update: Option<ShareUpdateInput>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let update = update.unwrap_or_default();
+    let permissions = update.public_upload.map(|allow| if allow { 15 } else { 1 });
+    let opts = ocs::ShareUpdate {
+        password: update.password.as_deref(),
+        expire_date: update.expire_date.as_deref(),
+        permissions,
+    };
+    ocs::update_share(
+        &state.http_client,
+        &account,
+        share_id,
+        target.as_deref(),
+        &opts,
+    )
+    .await
+}
+
 /// Reject paths that are not absolute or escape the user's root (`..`).
 ///
 /// This base check applies to every WebDAV command, read and write alike:
@@ -781,7 +827,20 @@ pub async fn open_remote_file(
     app.opener()
         .open_path(local_path.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| AppError::App(e.to_string()))?;
+    history::record_open(&app, &remote_path);
     Ok(())
+}
+
+/// #427: recently opened remote files, newest first.
+#[tauri::command]
+pub fn file_history_list(app: AppHandle) -> AppResult<Vec<history::FileHistoryEntry>> {
+    history::load(&app)
+}
+
+/// #427: clear the "recently opened" history.
+#[tauri::command]
+pub fn file_history_clear(app: AppHandle) -> AppResult<()> {
+    history::clear(&app)
 }
 
 /// Download a cloud folder as a ZIP archive (Nextcloud WebDAV extension) to
@@ -1259,6 +1318,75 @@ pub async fn webdav_rename(
         &account,
         &path,
         &new_path,
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Destination path for a copy/move into `dest_folder` (#411): the source's
+/// file name is appended verbatim, so moving `/A/report.pdf` into `/B` targets
+/// `/B/report.pdf`.
+fn move_dest_path(source: &str, dest_folder: &str) -> String {
+    let name = source
+        .rsplit_once('/')
+        .map(|(_, name)| name)
+        .unwrap_or(source);
+    if dest_folder == "/" {
+        format!("/{}", name)
+    } else {
+        format!("{}/{}", dest_folder, name)
+    }
+}
+
+/// Copy a cloud file or folder into `dest_folder` via WebDAV COPY (#411).
+#[tauri::command]
+pub async fn webdav_copy(
+    state: State<'_, AppState>,
+    source: String,
+    dest_folder: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_writable_dav_path(&source)?;
+    validate_writable_dav_path(&dest_folder)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let dest = move_dest_path(&source, &dest_folder);
+    validate_writable_dav_path(&dest)?;
+    webdav::copy_as(
+        &state.http_client,
+        &account,
+        &source,
+        &dest,
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Move a cloud file or folder into `dest_folder` via WebDAV MOVE (#411).
+#[tauri::command]
+pub async fn webdav_move(
+    state: State<'_, AppState>,
+    source: String,
+    dest_folder: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    validate_writable_dav_path(&source)?;
+    validate_writable_dav_path(&dest_folder)?;
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    let dest = move_dest_path(&source, &dest_folder);
+    validate_writable_dav_path(&dest)?;
+    webdav::rename_as(
+        &state.http_client,
+        &account,
+        &source,
+        &dest,
         target.as_deref(),
     )
     .await
@@ -1800,6 +1928,14 @@ mod tests {
         assert!(validate_rename_name("neu.pdf").is_ok());
         assert!(validate_rename_name("bericht 2024.txt").is_ok());
         assert!(validate_rename_name("_unterordner").is_ok());
+    }
+
+    #[test]
+    fn move_dest_path_appends_source_name_to_folder() {
+        assert_eq!(move_dest_path("/A/report.pdf", "/B"), "/B/report.pdf");
+        assert_eq!(move_dest_path("/A/report.pdf", "/"), "/report.pdf");
+        assert_eq!(move_dest_path("/readme.md", "/Docs"), "/Docs/readme.md");
+        assert_eq!(move_dest_path("/A/B/c.txt", "/A"), "/A/c.txt");
     }
 
     #[test]
