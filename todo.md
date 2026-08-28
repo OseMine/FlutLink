@@ -126,6 +126,226 @@ Sortiert nach Umsetzungsaufwand (klein → groß).
 - [x] **System-Tray: Quick-Actions** — Sync auslösen, Uploads pausieren,
       Online/Offline-Status im Tray-Kontextmenü. (#428)
 
+## Review 2026-08-28 (Lauf 24, Fokus Feature-Reihe #399–#428 — neue Befunde)
+
+Gegenstand: die seit Lauf 23 (HEAD `1e82994`) eingelandeten Feature-Commits
+(`197df7f`…`26612a1`, 24 Commits: Sync-Log, Sync-Synced-Paths, Share-
+Notifications, Tastenkürzel, QrCode/QuickLook, Copy/Move, Datei-Historie,
+Retry-Mechanismus, CLI `--download`/`--list`, Install-Skripte, KMP-UI-
+Overhaul) plus die Standard-Bereiche (IPC-Commands, WebDAV/OCS, Keyring,
+Fehler-/State-Management, CI) und die Nachprüfung der offenen Punkte gegen
+HEAD `197df7f`.
+
+Verifikation frisch ausgeführt (Tauri-Linux-Systemdeps nachinstalliert):
+`cargo test --manifest-path src-tauri/Cargo.toml` → **116 passed / 0 failed**
+(+9 gegenüber Lauf 23: Sync-Log/Share-Notify/File-History-Tests);
+`npm run build` (vue-tsc + vite) **grün** (Haupt-Chunk ~279 kB / gzip 91 kB).
+**ABER:** `cargo clippy --all-targets -- -D warnings` und
+`cargo fmt --all --check` **schlagen auf HEAD fehl** (siehe L24-F1 unten) —
+die CI würde aktuell rot laufen.
+
+### Neu gefunden
+
+- [ ] **L24-F1 (Bug, hoch / CI-Blocker): `cargo clippy` + `cargo fmt` sind
+      auf HEAD nicht grün.** (a) clippy `redundant_closure`:
+      `sync.rs:1332` `.map_err(|e| AppError::Json(e))` → `.map_err(AppError::Json)`.
+      (b) `cargo fmt --check`: Formatdiff in `sync.rs:1177` (die beiden
+      `Move*.Conflict`-Match-Arme) und `sync.rs:1328-1334` (der
+      `serde_json::to_string_pretty`-Aufruf). Beides stammt aus dem neuen
+      Sync-Log-Code (`197df7f`). Ohne Fix scheitert die Rust-CI
+      (`clippy`/`fmt`-Job) und jeder Release-Build. Fix: `cargo fmt` ausführen
+      + die Closure vereinfachen.
+- [ ] **L24-F2 (Bug, hoch): Der Share-Notification-Schalter ist rein
+      dekorativ — er erreicht das Backend nie.** `SettingsModal.vue:409`
+      ruft nur `ui.setShareNotify(...)` auf; das schreibt lediglich
+      `localStorage["flutlink.shareNotify"]` (`ui.ts:148-149`) und ruft
+      **nie** `api.setShareNotify` (der Wrapper `ipc.ts:360` hat keinerlei
+      Aufrufer, per grep verifiziert). Das Backend-Flag
+      `settings.share_notify_enabled` (default `true`), das in
+      `check_share_notifications` (`settings.rs:82`) das eigentliche Gate
+      bildet, bleibt damit unverändert `true` — der User kann die
+      Notifications **nicht** abschalten, egal wie der Schalter steht (und
+      die beiden Flags können auseinanderdriften). Fix: in
+      `ui.setShareNotify` zusätzlich `await api.setShareNotify(value)` und die
+      Backend-Einstellung beim Start lesbar machen (`get_settings`-Command),
+      damit der Schalter den echten Zustand anzeigt.
+- [ ] **L24-F3 (Bug, mittel — Sync-Log doppelt defekt): Die
+      `append_sync_log`-Trunkierung wirft die falschen Einträge weg und
+      verkantet die Reihenfolge; und das Feature ist komplett unerreichbar.**
+      `load_sync_log` (`sync.rs:1337-1347`) kehrt die Liste um (neueste zuerst);
+      `append_sync_log` (`sync.rs:1322-1334`) pusht den neuen Eintrag ans
+      **Ende** dieser neueste-zuerst-Liste und drainet beim Überlauf
+      (`MAX_SYNC_LOG_ENTRIES=200`) **vorn** — es verwirft also die neuesten
+      und behält die ältesten, exakt das Gegenteil von „letzte N behalten".
+      Zusätzlich wird der persistierte Stand bei jedem Append umgekehrt neu
+      geschrieben (drei Appends → `[E2, E1, E3]`). Außerdem existiert **kein**
+      `#[tauri::command]`, das `load_sync_log` ausstellt (weder in `commands.rs`
+      noch in `lib.rs` `generate_handler!` noch in `ipc.ts`) — die Log-Daten
+      sind toter, nur-schreibender Bestand. Fix: Speicherung beibehalten
+      append-Order (alt→neu), beim UI-Serving erst reversen; und einen
+      `sync_log`-Command + Wrapper + SyncPanel-Ansicht ergänzen (#407).
+- [ ] **L24-F4 (Race, mittel): Lost-Update auf `settings.json` zwischen
+      Sync-Worker und `set_share_notify`.** `SyncEngine::run_all`
+      (`sync.rs:1786-1788`) macht `load` → `check_share_notifications(...)`
+      → `save` mit einem `await` (Netzwerk-I/O über alle Konten) dazwischen;
+      `set_share_notify` (`commands.rs:848-852`) macht eine eigene
+      separate read-modify-write. Ein Toggle während des Worker-Fensters wird
+      von dessen veralteter Kopie rückgängig gemacht (und umgekehrt wird
+      `share_seen`-Fortschritt beim Toggle überschrieben). Dazu kollidieren
+      beide Schreiber auf denselben festen Temp-Namen `tmp-{pid}`
+      (`persist.rs:15`): `File::create` des einen truncat e die offene Datei
+      des anderen, der verlierende rename kann eine leere Datei einrollen.
+      Fix: Settings-Zugriff hinter `Mutex<AppSettings>` in `AppState`
+      serialisieren (load→modify→save als kritischer Abschnitt) und
+      `persist.rs` pro Write eindeutigen Temp-Namen (uuid/counter+pid) nutzen
+      (wie `webdav.rs` es beim Download bereits tut).
+- [ ] **L24-F5 (Robustheit, mittel): Der Retry-Mechanismus verwirft das
+      Ergebnis und ist nicht idempotenz-sicher.** `retryLast()`
+      (`ipc.ts:34-45`) spielt `invoke(failed.cmd, failed.args)` nach, verwirft
+      aber den Rückgabewert — der ursprüngliche Aufrufer (z.B. `files.refresh()
+      → webdav_list`) hat seinen Fehlerzustand bereits gesetzt und bekommt das
+      frische Ergebnis nie; „Retry erfolgreich" hinterlässt die UI im alten
+      fehlerhaften Zustand. Zudem puffert `tauri()` (`ipc.ts:16-30`) **jede**
+      `http`-Klasse, auch nicht-idempotente Mutationen (`webdav_delete`,
+      `webdav_copy/move`, `webdav_create_share/update_share`, Uploads): ein
+      Retry nach verlorener Antwort wendet die Mutation doppelt an. Fix: Das
+      Retry-Ergebnis an den Original-Caller zurückleiten (bzw. nach Erfolg
+      den betroffenen View-Store refreshen) und Retry nur für idempotente
+      Lese-Commands anbieten (oder Caller stellt `idempotent`-Flag).
+- [ ] **L24-F6 (Race, mittel): QuickLook zeigt beim schnellen Blättern das
+      Thumbnail des vorherigen Eintrags.** `refreshQuickLookImage`
+      (`FileExplorer.vue:497-507`) captured `entry` beim Aufruf und weist
+      das `await files.getThumbnail(entry.path)`-Ergebnis später dem einzigen
+      `quickLookImage`-Ref zu. Blättert man schnell A→B (Prev/Next in
+      `quickLookStep`, `:521-527`), überschreibt As späte Antwort
+      `quickLookImage` während B angezeigt wird. Fix: Zuweisung guarden
+      (`if (entry.path === quickLookEntry.value?.path) …`) oder Request-
+      Generationszähler.
+- [ ] **L24-F7 (Bug, mittel): Share-Bearbeitung setzt bei jedem Edit die
+      Berechtigungen zurück und kann ein Ablaufdatum nie entfernen.**
+      `submitEdit` (`ShareDialog.vue:98-107`) sendet `publicUpload` (Boolean)
+      **immer** mit; das Backend (`commands.rs:618`, `public_upload.map(…15/1)`)
+      schreibt deshalb bei jedem Edit `permissions=15` oder `1` und wäscht
+      damit zwischenliegende Rechte (z.B. create-only, 2–14) zugunsten von
+      read-only aus. Und `expireDate: editExpiry.value || undefined`
+      (`ShareDialog.vue:103`) wandelt ein geleertes Datum (`""`, falsy) zu
+      `undefined` — der Backend-Pfad „leeres expireDate löscht" wird nie
+      erreicht, Sperren lassen sich so nicht entfernen. Fix: `publicUpload`
+      nur senden, wenn sich der Wert geändert hat (sonst Verhalten „nicht
+      anfassen"); `expireDate: editExpiry.value === "" ? "" : (… )`.
+- [ ] **L24-F8 (Robustheit, mittel): Copy/Move-Pfadkomposition ohne
+      Normalisierung.** `move_dest_path` (`commands.rs:1349-1359`) fügt
+      `"{dest_folder}/{name}"` wörtlich an: ein `dest_folder` mit nachgestelltem
+      `/` (das Dialogfeld ist editierbar) ergibt `"/B//name"`, ein `source`
+      mit `/` ein leeres `name`/`"/B/"` — beides lässt `validate_writable_dav_path`
+      (`commands.rs:658-668`, prüft nur absolute + kein `..`) durch, genauso wie
+      das Verschieben eines Ordners in seinen eigenen Unterbaum (`/A`→`/A/A`).
+      Fix: `dest_folder` trailendes `/` trimmen, leeren Namen ablehnen,
+      `dest == source`/dest-in-source für Ordner verhindern; leere Segmente in
+      `validate_dav_path` verbieten.
+- [ ] **L24-N1 (Perf, mittel): Sync-Log wird pro geplantem Op komplett
+      neu geschrieben (Write-Amplification).** `append_sync_log` wird je
+      Plan-Op aufgerufen (`sync.rs:1217-1226`, bis zu `MAX_OPS_PER_PASS=200`
+      pro Ordner) und macht bei jedem Aufruf `load` (ganze Datei) +
+      `to_string_pretty` + `atomic_write` (ganze Datei) + `create_dir_all`.
+      Dazu toter No-op-`match result { … }` mit lauter Unit-Armen
+      (`sync.rs:1227-1231`). Fix: Log-Einträge im Pass sammeln und einmal
+      flushen; No-op-Match entfernen.
+- [ ] **L24-N2 (Robustheit, minor): Kaputtes `settings.json` wird still
+      überschrieben statt einkarantäniert; erster Tick benachrichtigt für alle
+      Bestandsshares.** `settings::load` (`settings.rs:56-66`) gibt bei
+      korrumpierter Datei Defaults zurück, ohne die Datei zu quarantänen
+      (anders als Journal/Persist-Pattern), und der Worker `save`t
+      anschließend bedingungslos — die kaputte Datei verschwindet spurlos.
+      Außerdem startet `share_seen` leer, sodass der **erste** Tick nach
+      Fresh-Install bzw. gelöschter Datei für **jeden** existierenden Share
+      eine Notification feuert (`settings.rs:88-112`); `seen.retain`
+      (`:113`) ist O(n²) und leert `share_seen` bei temporär leerer Liste
+      (→ Re-Notifications). Fix: Quarantäne beim Corrupt-Pfad, nur speichern
+      wenn geändert, `share_seen` beim ersten Listing ohne Meldung seeden.
+- [ ] **L24-N3 (Validierung, minor): Headless-CLI `--download`/`--list`
+      umgehen die Pfadvalidierung aller IPC-Commands.** `lib.rs:247/284`
+      reichen `remote`/`path` unvalidiert an `get_file`/`list` durch (kein
+      `validate_dav_path`, `..`/leere Segmente möglich) und der Prozess
+      beendet sich nach dem Ausdruck nicht (nur mit `--tray` wird das Fenster
+      versteckt; kein Exit-Code). Fix: `validate_dav_path` in beiden CLI-
+      Pfaden aufrufen; für Headless-`--download`/`--list` Fenster ausblenden
+      bzw. nach Output beenden.
+- [ ] **L24-N4 (Race, minor): `history::clear` vs. `record_open`.**
+      `record_open` schreibt atomar (temp+rename), `clear` macht `remove_file`
+      (`history.rs:87-93`). Eine Clear während eines in-flight Open kann das
+      „geleerte" Journal per rename wiederbeleben. Beides bleibt unsynchronisiert
+      (gleiche Klasse wie L24-F4). Fix: hinter denselben Lock / Clear entfernt
+      auch verwaiste Temp-Dateien.
+- [ ] **L24-N5 (Race, minor): QuickLook-Prev/Next-Buttons sind auch an den
+      Rändern aktiv** (`FileExplorer.vue:1458-1459` nutzen
+      `sortedEntries.length > 1` statt `quickLookIndex` an 0/letztem) und
+      wrappen über das Modulo — Zustand wirkt falsch aktiviert. Fix:
+      `canPrev = quickLookIndex > 0` / `canNext = quickLookIndex < len-1`
+      (oder bewusst wrappen lassen und Labels anpassen).
+- [ ] **L24-N6 (Security/Defense, minor): Thumbnail-`data:`-URL übernimmt
+      den Server-Content-Type ungeprüft.** `commands.rs:921-925` baut
+      `data:{content_type};base64,…` aus der Server-Antwort (SVG möglich) in
+      ein `<img>` in QuickLook. Moderne Browser blockieren Skripte in
+      `<img>`-SVG großteils, aber eine Mime-Whitelist (png/jpeg/webp, sonst
+      Fallback) wäre robuster. (`webdav.rs:728-738` liefert den Typ.)
+- [ ] **L24-N7 (UX/Konsistenz, minor): `ImpersonationBar.vue:28-33` zeigt bei
+      leeren Such-Enter/Retry erneut einen Info-Toast** — bei schnellem
+      Klicken wiederholte Infos. Hinweis lieber einmalig/inline statt Toast.
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs:389-406` registriert alle neuen Commands außer dem fehlenden
+`sync_log` (L24-F3) — `file_history_list/clear`, `set_share_notify`,
+`sync_synced_paths`, `webdav_copy/move/edit_share` korrekt; die TS-Wrapper in
+`ipc.ts` (inkl. `webdavCopy`/`webdavMove` camelCase-Args) passen), Keyring
+(`accounts.rs`), Fehler-Serialisierung (`error.rs` ↔ `ERROR_CODE_KEYS`
+inkl. `flutcloud_app_too_old` aus L23-F2 — in den Feature-Commits nachgezogen),
+Offline-Cache (`cache.rs`), WebDAV-Layer (`webdav.rs`: Impersonation, Chunked
+v2, TOCTOU/If-Match — unverändert), OCS-Layer (`ocs.rs`:
+`build_share_update_form` postet nur gesetzte Felder korrekt, Permission-Map
+konsistent), Guest-Backend (`guest.rs`), Sync-Engine-Kern (`sync.rs`
+fail-closed, SyncLog ohne Befund außer L24-F3/L24-N1), FlutCloud-only-Policy,
+Updater, Tray/CLI (bis auf L24-N3), i18n (`shortcuts.ts`/QuickLook/QrCode/
+MoveTarget i18n-Keys en+de vorhanden).
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `197df7f`)
+
+Die im Lauf-23-Abschnitt als offen markierten Punkte sind überprüft:
+
+- **L23-F1** (Complier-Fehler `Path::parent()` Result→Option): Mit Lauf-24
+  umgesetzt — `cargo test` baut und läuft (116 passed), `cargo clippy`
+  meldet nur noch das neue L24-F1. ✓ erledigt.
+- **L23-F2** (`flutcloud_app_too_old`-Frontend-Mapping): Im Feature-Zweig
+  nachgezogen (i18n `errFlutcloudAppTooOld` + `ERROR_CODE_KEYS`).
+  ✓ erledigt (verifiziert in der Verifikation oben „Fehler-Serialisierung").
+- **„Desktop-JVM: Token-Speicher härten"** (`## Offen` + Lauf 20/21): bleibt
+  **offen** — `kmp/shared/src/jvmMain/.../FileKeyValueStorage.kt:14`
+  dokumentiert die Keyring-Anbindung weiterhin als Follow-up.
+- **„CI security gate auf v1.2.0"** (`## Offen`): bleibt offen — reine
+  Vorab-Prüfung, ob die 7 AI-Befunde actionable sind; kein neuer Befund.
+- **Performance-Analyse**: alle Punkte als umgesetzt markiert (v1.2.0).
+
+Zu verschieben: Die im Abschnitt „Erledigt (2026-08-26, Review-Läufe 20–21)"
+und oben stehenden L20–L23-Punkte sind bereits abgehakt; keine neuen
+Abschnitte sind komplett abzuschließen — die L24-Befunde oben bleiben offen.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe verboten):
+`git log 1e82994..HEAD` zeigt die 24 oben genannten Feature-Commits; die
+Messages referenzieren Issue-Nummern **#399–#428** (die Items der
+„Feature-Ideen"-Sektion). Viele davon sind im Code als umgesetzt verifiziert
+(Retry #399, CLI #400, Suche `d:contains` #401, Quick-Look #405, Share-Editing
+#406, Sync-Log #407, Kürzel #408/#423, Share-Notify #410, Copy/Move #411,
+Quota-Warnung #413, Lesezeichen #416, Sprachen #419, Sync-Status #421,
+QR-Code #423/#409, Passwort-Stärke #424, Quota-Warnung-Panel #426, Historie
+#427, Tray #428) — die zugehörigen Issues wären zu schließen (hier nicht
+prüfbar). Mehrere L24-Befunde betreffen genau diese neuen Features (F2=#410,
+F3=#407, F5=#399, F7=#406, F8=#411) — hier noch nacharbeiten. Ob parallel
+weitere offene Issues entstanden sind oder veralten, ist nicht feststellbar;
+der `opencode-todo-issues`-Workflow sollte beim nächsten Lauf die L24-Befunde
+oben als Issues erfassen.
+
 ## Review 2026-08-26 (Lauf 23, Release-v1.2.0-Vorabprüfung — neue Befunde)
 
 Gegenstand: Vollständige Code-Review gegen HEAD `1e82994` (Merge PRs #395–397,
