@@ -72,21 +72,23 @@ Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
       bleiben dabei unangetastet. `HomeScreen.kt:77-156` (Desktop-Header + Tab-
       Strip statt M3-`NavigationBar`) ist dabei der größte Brocken und deckt
       sich mit KMP-F6.
-- [ ] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
-      Der Revert macht Teile des `Flut*`-Satzes und der `FlutLinkTheme`-
-      Palette überflüssig bzw. umgekehrt.** `dynamicColor = true` ist Default
-      in `FlutLinkRoot.kt:46`; die Expressive-Theming baut darauf, gewollte
-      FlutCloud-Brand-Paletten (`Color.kt` `lightScheme`/`midnightScheme`,
-      `defaultAccentHue` und der Akzent-Hue-Slider in `SettingsScreen.kt:200-226`)
-      zu behalten. Bei „revert to expressive" entscheiden, welche
-      `Flut*`-Komponenten (die ohnehin nur von `FilesScreen`/`GuestScreen`/
-      `AdminScreen`/`LoginScreen`/`SettingsScreen` genutzt werden) entfallen
-      und ob `Material3ExpressiveTheme` (Brand-`colorScheme`/`typography`/
-      `shapes` + expressive `motionScheme`) als neuer Wrapper in
-      `FlutLinkTheme` (`Theme.kt:46-80`) eingebaut wird. Ohne diese
-      Entscheidung bleibt ein hybrider Zustand (M3-Expressive-Komponenten auf
-      Custom-Flut-Typo/Shapes), der genau das „looks off"-Problem der L25-Prämisse
-      reproduziert.
+- [x] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
+      Entscheidung dokumentiert + tote Komponenten entfernt.** Die
+      Entscheidung steht in `kmp/README.md` „Theme-Entscheidung
+      (KMP-F15)": `Material3ExpressiveTheme` wird der neue Wrapper in
+      `FlutLinkTheme` (`Theme.kt:46-80`) mit Brand-`colorScheme`/
+      `typography`/`shapes` + `motionScheme = MotionScheme.expressive()`
+      (sobald KMP-F13 die Material3-Pre-Release geliefert hat);
+      entfallen beim Revert (`FlutBadge`, `FlutPill`, `FlutSegmentedControl`,
+      `FlutCard`, `FlutGhostButton`, `FlutOutlineButton`, `FlutPrimaryButton`,
+      `FlutIconButton`) samt M3-Mapping, bleiben die Utility-Komponenten
+      (`ErrorBanner`/`EmptyState`/`QuotaBar`/`FileMetaLine`/`ScrollableColumn`/
+      `SectionHeader`/`Breadcrumb`/`SectionLabel`/`fileIcon`). `dynamicColor =
+      true` bleibt Default; `Color.kt` (Brand-Paletten) und der
+      Akzent-Hue-Slider (`SettingsScreen.kt:200-226`) bleiben unangetastet.
+      Die bereits ungenutzten `FlutCard`/`FlutIconButton` sind aus
+      `Components.kt` entfernt (kein hybrider Zustand, Build grün). Der
+      mechanische Swap selbst ist Aufgabe von KMP-F14.
 
 Weiter offen (Lauf 25/26-Status unverändert, gegen HEAD re-verifiziert):
 KMP-F1 (Admin-`editUser`-Lücke), KMP-F2 (Grid ohne Aktionen), KMP-F3

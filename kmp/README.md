@@ -144,6 +144,45 @@ Server.
    `main` und hängt die JSON-Datei ans Release an (Skript:
    `scripts/update-altstore-sources.mjs`).
 
+## Theme-Entscheidung („Revert auf Material 3 Expressive", KMP-F15)
+
+Stand: 2026-08-28. Der Revert selbst (KMP-F13/F14: Material3-Pre-Release mit
+Expressive-Support + Austausch der `Flut*`-Hilfskomponenten gegen
+M3-Primitives) ist noch offen; die Entscheidung zu KMP-F15 ist hiermit
+festgelegt, damit der Revert keinen hybriden Zustand hinterlässt
+(M3-Expressive-Komponenten auf Custom-Flut-Typo/Shapes).
+
+- **`Material3ExpressiveTheme` wird der neue Wrapper in `FlutLinkTheme`
+  (`ui/theme/Theme.kt:46-80`).** Sobald die Material3-Dependency (KMP-F13)
+  eine Pre-Release mit Expressive-Support ist, ersetzt
+  `Material3ExpressiveTheme` den `MaterialTheme`-Aufruf als Wrapper:
+  `colorScheme`/`typography`/`shapes` bleiben die FlutCloud-Brand-Werte
+  (`lightScheme`/`midnightScheme`, `FlutTypography`, `FlutShapes`),
+  dazu `motionScheme = MotionScheme.expressive()`; SDK-übergreifend
+  `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`. `dynamicColor = true`
+  bleibt Default (`FlutLinkRoot.kt:46`).
+- **Entfallen beim Revert (direkte M3-Äquivalente, Swap in KMP-F14):**
+  `FlutBadge`, `FlutPill`, `FlutSegmentedControl`, `FlutCard`,
+  `FlutGhostButton`, `FlutOutlineButton`, `FlutPrimaryButton`,
+  `FlutIconButton`. Mapping: `FlutGhostButton` → `TextButton`,
+  `FlutOutlineButton` → `OutlinedButton`, `FlutPrimaryButton` → `Button`,
+  `FlutSegmentedControl` → `SingleChoiceSegmentedButtonRow`,
+  `FlutPill` → `FilterChip`/`AssistChip`, `FlutBadge` →
+  `AssistChip`/`Surface`-Label, `FlutCard` → `Card`, `FlutIconButton` →
+  `IconButton`. `FlutCard` und `FlutIconButton` waren bereits ohne
+  Verwendung und sind in KMP-F15 entfernt worden.
+- **Bleiben (keine Darstellungskomponenten mit Custom-Styling, kein
+  M3-Äquivalent):** `ErrorBanner`, `EmptyState`, `QuotaBar`, `FileMetaLine`,
+  `ScrollableColumn`, `SectionHeader`, `Breadcrumb`, `SectionLabel`,
+  `fileIcon`. Sie komponieren ausschließlich M3-Tokens
+  (`MaterialTheme.colorScheme`/`typography`/`shapes`) und reproduzieren
+  keinen Desktop-Look.
+- **Brand-Paletten + Akzent-Hue-Slider bleiben funktional erhalten:**
+  `Color.kt` (`lightScheme`/`midnightScheme`/`defaultAccentHue`) und der
+  Slider in `SettingsScreen.kt:200-226` bleiben die einzige Quelle der
+  FlutCloud-Farbwelt; der `Material3ExpressiveTheme`-Wrapper reicht sie nur
+  durch.
+
 ## Hinweise
 
 - Neue UI-Texte brauchen Schlüssel in

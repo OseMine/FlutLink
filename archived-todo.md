@@ -2031,6 +2031,26 @@ Issues entfernt werden.
 
 
 
+## Erledigt (2026-08-28, Lauf 27 — KMP-F15: Theme-/Komponenten-Entscheidung)
+
+- [x] **KMP-F15 (Bereinigung, minor — im Zuge des Reverts gleich mit):
+      Entscheidung dokumentiert + tote Komponenten entfernt.** Die
+      Entscheidung steht in `kmp/README.md` „Theme-Entscheidung (KMP-F15)":
+      `Material3ExpressiveTheme` wird der neue Wrapper in `FlutLinkTheme`
+      (`Theme.kt:46-80`) mit Brand-`colorScheme`/`typography`/`shapes` +
+      `motionScheme = MotionScheme.expressive()` (sobald KMP-F13 die
+      Material3-Pre-Release geliefert hat); entfallen beim Revert
+      (`FlutBadge`, `FlutPill`, `FlutSegmentedControl`, `FlutCard`,
+      `FlutGhostButton`, `FlutOutlineButton`, `FlutPrimaryButton`,
+      `FlutIconButton`) samt M3-Mapping, bleiben die Utility-Komponenten
+      (`ErrorBanner`/`EmptyState`/`QuotaBar`/`FileMetaLine`/`ScrollableColumn`/
+      `SectionHeader`/`Breadcrumb`/`SectionLabel`/`fileIcon`).
+      `dynamicColor = true` bleibt Default; `Color.kt` (Brand-Paletten) und
+      der Akzent-Hue-Slider (`SettingsScreen.kt:200-226`) bleiben
+      unangetastet. Die bereits ungenutzten `FlutCard`/`FlutIconButton` sind
+      aus `Components.kt` entfernt. Der mechanische Swap selbst ist Aufgabe
+      von KMP-F14.
+
 ## Erledigt (2026-08-28, Lauf 26 — L24-F1: Sync-Log-fmt/clippy CI-Blocker)
 
 - [x] **L24-F1 (Bug, hoch / CI-Blocker): `cargo clippy` + `cargo fmt` sind
