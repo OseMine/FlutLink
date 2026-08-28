@@ -44,6 +44,28 @@ WebDAV- und OCS-Requests setzt das Backend ab, das bedeutet:
   Frontend zeigt beim Durchsuchen fremder Benutzerdateien einen
   „Admin-Impersonation"-Hinweis.
 
+## FlutCloud-only-Durchsetzung
+
+FlutLink verbindet sich ausschließlich mit dem FlutCloud-Server und lehnt
+alle anderen ab:
+
+- Die Server-URL wird aus `FLUTCLOUD_URL` in `.env`
+  (`src-tauri/src/flutcloud.rs`) gelesen und über `get_flutcloud_url` an das
+  Frontend weitergegeben. CI-Release-Builds baken die URL zur Kompilierzeit
+  in die Binaries ein (`option_env!`), sodass installierte Apps ohne lokale
+  `.env` funktionieren.
+- Der mobile Client (`kmp/`) bakt dieselbe URL in
+  `BuildConfig.FLUTCLOUD_URL` aus der Umgebungsvariable `FLUTCLOUD_URL`
+  (Fallback: `-PflutcloudUrl` Gradle-Property) und sperrt das
+  Server-Eingabefeld im Login, wenn eine URL einkompiliert ist.
+- `account_add` / `register_user` lehnt andere URLs ab
+  (`AppError::NotFlutCloud`).
+- Vor dem Verbinden wird der OCS-Capabilities-Endpoint auf die
+  `flutcloud`-Capability geprüft (`AppError::FlutCloudAppMissing` bei
+  Fehlen).
+- Konten, die für andere Server persistiert sind, werden beim Start
+  entfernt.
+
 ## Fehlerbehandlung
 
 - Alle Commands geben einen serialisierten `AppError { code, message }`

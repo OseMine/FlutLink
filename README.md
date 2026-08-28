@@ -1,5 +1,15 @@
 # FlutLink
 
+<p align="center">
+  <a href="https://github.com/OseMine/FlutLink/releases/latest">
+    <img src="https://img.shields.io/github/v/release/OseMine/FlutLink?style=flat-square" alt="Latest release">
+  </a>
+  <a href="https://github.com/OseMine/FlutLink/releases">
+    <img src="https://img.shields.io/github/downloads/OseMine/FlutLink/total?style=flat-square" alt="Downloads">
+  </a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-informational?style=flat-square" alt="Platforms">
+</p>
+
 A high-performance sync and management desktop client for the **FlutCloud**
 server built with **Tauri v2** (Rust backend, Vue 3 + TypeScript + Tailwind
 frontend). A companion **mobile client** (`kmp/`) ports the same features to
@@ -16,207 +26,55 @@ Kotlin Multiplatform (Android, iOS).
 All HTTP traffic (WebDAV, OCS) is handled in Rust, which avoids CORS, enables
 custom HTTP methods like `PROPFIND`, and keeps credentials out of the renderer.
 
+## Overview
+
+| Component | Latest version | Platform |
+| --- | --- | --- |
+| Desktop client | **1.2.0** | Windows, macOS, Linux (Tauri v2) |
+| Mobile client (`kmp/`) | **1.1.1** | Android, iOS (Kotlin Multiplatform) |
+| FlutCloud server app | **1.2.0** | Nextcloud 28–37 (PHP) |
+
+## Tech stack
+
+- **Backend:** Rust (Tauri v2) — WebDAV + OCS in-process, OS keychain,
+  offline cache, two-way sync engine.
+- **Frontend:** Vue 3 + TypeScript + Tailwind v4 (Composition API, Pinia).
+- **Mobile:** Kotlin Multiplatform (`kmp/`) — Android + iOS in one codebase.
+
 ## Documentation
 
 Full bilingual documentation (English + German) lives in
 [`docs/`](docs/README.md) — getting started, features, architecture, sync
 engine, tray & CLI, security and development guide.
 
-Installing the server-side FlutCloud Nextcloud app:
-[`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) /
-[`docs/de/flutcloud-app.md`](docs/de/flutcloud-app.md).
-
 ## Installation
 
-The single entry point at the repository root picks the right installer:
-it installs the FlutCloud Nextcloud app when a Nextcloud installation is
-found nearby, otherwise the FlutLink desktop client:
+### Client (Desktop)
 
-```bash
-curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | bash
-```
+1. Download the installer binary from the [GitHub Release page](https://github.com/OseMine/FlutLink/releases/latest)
+2. Run the installer
 
-To force the server app install: `... | bash -s -- --path ~/nextcloud`.
-See [Install scripts](docs/en/install-scripts.md) for all one-liners.
+### Client (Mobile)
 
-### FlutLink desktop client
+#### Android
 
-Install the latest FlutLink release on your device (Windows, macOS or Linux —
-PowerShell 7+ required for the PowerShell one-liner):
+1. Download the APK from the [GitHub Release page](https://github.com/OseMine/FlutLink/releases/latest/download/android-app-release.apk)
+2. Install the APK
 
-```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
-```
+#### iOS
 
-or with `curl`:
+1. Install AltStore Classic using [AltServer](https://faq.altstore.io/altstore-classic) or [AltStore PAL (EU only)](https://faq.altstore.io/altstore-pal).
+2. Add the FlutCloud source to AltStore (Sources → +):
+   ```
+   https://YOUR-FLUTCLOUD-URL/apps/flutcloud/ios/classic
+   ```
+3. Install and sign using your Apple ID. Signing must be renewed every 7
+   days when using a non-developer Apple ID.
 
-```powershell
-curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
-```
+### Server (Ubuntu/Debian)
 
-On macOS and Linux the native bash installer works without PowerShell:
-
-```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
-```
-
-The scripts download the installer for your platform from the latest GitHub
-release, verify its SHA-256 checksum and run it. Save them to a file first to
-pass options (e.g. a specific version, or only download):
-
-```powershell
-irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v1.0.0 -NoRun
-```
-
-```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v1.0.0 --no-run
-```
-
-### FlutCloud server app
-
-Install (or update) the `flutcloud` Nextcloud app on your server — run the
-one-liner on the server host (or use `-DockerContainer nextcloud` for the
-official Nextcloud image):
-
-```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
-```
-
-On Ubuntu/Debian servers the native bash installer works without PowerShell:
-
-```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
-```
-
-The scripts download the app from the repository, copy it to
-`nextcloud/apps/flutcloud`, enable it with `occ` and verify it. See
-[`docs/en/flutcloud-app.md`](docs/en/flutcloud-app.md) for manual
-installation, the API and troubleshooting.
-
-## Architecture
-
-```
-flutlink/
-├── src/                        # Vue 3 + TypeScript + Tailwind v4 frontend
-│   ├── components/
-│   │   ├── AccountBar.vue      # Account switcher + add/remove + keychain-backed sign-in
-│   │   ├── FileExplorer.vue    # WebDAV browser: grid/list, search, sort, multi-select, file ops, sharing
-│   │   ├── EntryList.vue       # Shared list/grid rendering + pairing button
-│   │   ├── GuestBrowser.vue    # Anonymous guest access to public shares
-│   │   ├── AdminPanel.vue      # OCS user & group provisioning (list, create, edit, delete, quota)
-│   │   ├── AdminUserDetails.vue # User detail form (edit, password, quota)
-│   │   ├── AdminUserList.vue   # User list sidebar with search
-│   │   ├── QuotaEditor.vue     # Quota input with presets and progress bar
-│   │   ├── SyncPanel.vue       # Two-way sync folders (add/pause/remove, status)
-│   │   ├── LoginModal.vue / SettingsModal.vue  # Sign-in dialog + settings/updates
-│   │   └── ToastStack.vue / Icon.vue / AppLogo.vue / WelcomeScreen.vue  # UI primitives
-│   ├── lib/                    # ipc.ts (typed invoke wrappers), i18n.ts, format.ts, sort.ts, escape.ts
-│   ├── stores/                 # Pinia: accounts + files + sync + ui state
-│   └── App.vue                 # Shell: sidebar + Files/Sync/Admin tabs
-├── src-tauri/                  # Rust backend
-│   ├── src/
-│   │   ├── main.rs / lib.rs    # App bootstrap, state injection, tray, CLI, command registry
-│   │   ├── state.rs            # AppState: shared reqwest client + account + sync engine
-│   │   ├── error.rs            # Serializable AppError (code + message) for the frontend
-│   │   ├── accounts.rs         # OS keychain (keyring) + accounts.json persistence
-│   │   ├── cache.rs            # Offline cache for file listings + quota
-│   │   ├── commands.rs         # All #[tauri::command] IPC endpoints
-│   │   ├── flutcloud.rs        # FlutCloud-only enforcement (URL check + capability probe)
-│   │   ├── guest.rs            # Guest/public share API (anonymous access, categories, locks)
-│   │   ├── persist.rs          # Atomic write helpers (temp+rename) for config files
-│   │   ├── sync.rs             # Two-way sync engine (journal, planner, worker)
-│   │   ├── updater.rs          # Update check, SHA-256 download, install
-│   │   └── nextcloud/
-│   │       ├── mod.rs          # Shared auth request helper + URL/encoding utils
-│   │       ├── webdav.rs       # PROPFIND, multistatus XML parsing, transfer helpers
-│   │       └── ocs.rs          # OCS: user info, admin probe, user provisioning, share links
-│   └── tauri.conf.json         # Tauri config & branding
-├── kmp/                        # FlutLink mobile client (Kotlin Multiplatform)
-│   │                           # Port of the desktop app to Kotlin, generated by opencode
-│   ├── shared/                 # KMP module: Android app + JVM + iOS targets
-│   │   └── src/
-│   │       ├── commonMain/     # Platform-agnostic core (AuthSession, DTOs, JsonUtil)
-│   │       ├── androidMain/    # Full Android app: Compose UI (Login, Files, Admin,
-│   │       │                   # Settings), FlutCloudApi/WebDavApi, stores, manifest/res
-│   │       ├── androidUnitTest/# JVM unit tests
-│   │       └── iosMain/        # iOS entry point (MainViewController → Compose UI)
-│   └── iosApp/                 # Xcode shell for the iOS build (unsigned IPA in CI)
-└── flutcloud-app/              # FlutCloud Nextcloud server app (non-standard server features)
-    ├── appinfo/                # info.xml + OCS routes
-    ├── lib/                    # Capabilities, ApiController, LinkService, GuestApi
-    └── composer.json           # OCA\FlutCloud autoloading
-```
-
-### FlutCloud-only policy
-
-FlutLink connects exclusively to the server configured in the local `.env`
-file (`FLUTCLOUD_URL`) and only to servers that run the FlutCloud Nextcloud app:
-
-- The server URL is never hard-coded in source; the backend reads
-  `FLUTCLOUD_URL` from `.env` (`src-tauri/src/flutcloud.rs`) and exposes it to
-  the frontend via the `get_flutcloud_url` command. CI release builds bake
-  the URL into the binaries at compile time (`option_env!`) so installed
-  apps work without a local `.env`.
-- The mobile client (`kmp/`) bakes the same URL into
-  `BuildConfig.FLUTCLOUD_URL` from the `FLUTCLOUD_URL` environment variable
-  (falling back to the `-PflutcloudUrl` Gradle property) and locks the login
-  server field when a URL is compiled in.
-- `account_add` / `register_user` reject other URLs
-  (`AppError::NotFlutCloud`).
-- Before connecting, the OCS capabilities endpoint is probed for the
-  `flutcloud` capability (`AppError::FlutCloudAppMissing` if absent).
-- Accounts persisted for other servers are dropped when the app starts.
-
-### Security model
-
-- **Tokens never touch the renderer or disk** in plaintext. They are stored in the OS keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service) via the `keyring` crate, and kept in Rust-managed memory only (`AppState`).
-- `accounts.json` (app-data dir) persists **metadata only** (username, instance URL, display name, admin flag, active flag). Tokens are rehydrated from the keychain on startup; accounts without a token are skipped.
-- All commands return a serialized `AppError { code, message }`, surfaced as toasts/inline errors in the UI.
-
-### Key commands
-
-| Command | Backend | Purpose |
-| --- | --- | --- |
-| `account_add` | OCS `/cloud/user` + admin probe | Verify credentials, store token in keychain, add/activate account |
-| `account_switch` / `account_remove` / `account_list` | state | Multi-account lifecycle (switch emits `accounts-changed`) |
-| `account_storage` | WebDAV quota | Quota info (offline-cached via `cache.rs`) |
-| `refresh_admin_flags` | OCS | Re-evaluate stored admin flags at startup |
-| `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Browse a folder; entries flagged `isResource` / `isPart`; offline cache fallback |
-| `webdav_search` | WebDAV `SEARCH` | Global file search across the server |
-| `webdav_create_share` / `webdav_list_shares` / `webdav_delete_share` | OCS share API | Create public/user/group shares; list and revoke shares |
-| `webdav_upload_file` / `webdav_download_file` / `open_remote_file` | WebDAV | Upload / download / open via cache dir (admins may target another user) |
-| `webdav_mkdir` / `webdav_rename` / `webdav_delete` | WebDAV | Create folder, rename and delete (rename validated, overwrite guarded) |
-| `webdav_upload_local_paths` / `webdav_bulk_delete` / `webdav_bulk_download` | WebDAV | Drag & drop upload + bulk operations (`file://progress` events) |
-| `webdav_download_zip` / `webdav_thumbnail` | WebDAV | Folder ZIP download / image thumbnails |
-| `guest_verify_server` / `guest_list_shares` / `guest_list_entries` / `guest_download_file` / `guest_open_file` | Guest API (`guest.rs`) | Anonymous guest access to public shares |
-| `guest_admin_*` (categories, locks) | Guest API (`guest.rs`) | Admin: manage categories and recursive subfolder locks for public shares |
-| `admin_list_users` / `admin_get_user` / `admin_set_user_quota` / `admin_edit_user` / `admin_create_user` / `admin_delete_user` | OCS Provisioning API | Admin panel (admin accounts only) |
-| `admin_list_groups` / `admin_create_group` / `admin_add_group_member` / `admin_remove_group_member` | OCS Groups API | Group management (admin accounts only) |
-| `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Manage two-way sync folders |
-| `sync_trigger` | `sync.rs` | Kick off a sync pass immediately |
-| `check_update` / `download_and_install_update` | `updater.rs` | Update check (SHA-256 verified) and install |
-
-### Two-way sync
-
-Folders are mirrored to `/FlutLink/<folder>` on Nextcloud. A JSON journal
-(`sync-journal-<id>.json` in the app-data dir) records the last-synced
-local/remote `{size, mtime}` fingerprint per file; the background worker (10 s
-interval) propagates local uploads, remote downloads and deletions. Conflicts
-upload the local copy as `name (conflict copy).ext`.
-
-### System tray & CLI
-
-Closing the window hides FlutLink to the system tray instead of quitting; the
-tray menu restores the window or quits the app.
-
-```bash
-flutlink --sync          # run a sync pass after startup
-flutlink --path <dir>    # add a local folder to sync
-flutlink --url           # open the login dialog (the FlutCloud server is fixed)
-flutlink --tray          # start minimized to the system tray
-```
+1. Download the latest Nextcloud app package from the [GitHub Release page](https://github.com/OseMine/FlutLink/releases/latest/download/flutcloud-app.zip)
+2. Unzip it to your Nextcloud apps path (e.g. `~/nextcloud/apps`)
 
 ## Development
 
@@ -234,12 +92,3 @@ npm run build              # vue-tsc + vite build
 cargo check                # Rust type check
 cargo test                 # Rust unit tests (incl. WebDAV XML parser)
 ```
-
-## Roadmap
-
-- **Phase 1 (done):** Tauri v2 + Vite + Tailwind scaffold; Rust backend with keychain auth, multi-account state, WebDAV listing, OCS admin endpoints; account switcher UI.
-- **Phase 2 (done):** Two-way sync engine with journal, background worker, sync panel; system tray + close-to-tray; CLI flags; official FlutLink/OperationFlut branding.
-- **Phase 3 (done):** Chunked uploads/downloads with progress events (`file://progress`), drag & drop upload, select-all and bulk download/delete, global file search, folder ZIP downloads + thumbnails, back button + keyboard navigation, `resources`/`parts` dual-pane workflows (pairing + split view), symlink-following sync option + link targets.
-- **Phase 4 (done):** Full provisioning UI (users, groups, impersonation) with quota presets, native OS notifications, offline cache, startup update check + banner.
-- **Phase 5 (done):** Mobile client (`kmp/`) — Kotlin Multiplatform port of the desktop app (files, sharing, admin, FlutCloud-only policy); Android + iOS targets in one codebase; see [`kmp/README.md`](kmp/README.md).
-- **Next:** Code-signing/notarization automation.

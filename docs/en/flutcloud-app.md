@@ -39,43 +39,30 @@ only needed for the `OCA\FlutCloud\` namespace (PSR-4 → `lib/`).
 
 ### Via install script
 
-Run the following on the machine that hosts the Nextcloud server (PowerShell
-7+). The script detects the Nextcloud installation (or accepts
-`-NextcloudRoot`), downloads the app from the repository into
-`nextcloud/apps/flutcloud`, enables it with `occ` and verifies it:
-
-```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
-```
-
-or with `curl`:
-
-```powershell
-curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 | iex
-```
-
-On Ubuntu/Debian servers the native bash installer works without PowerShell:
+Run the following on the machine that hosts the Nextcloud server (Ubuntu/Debian
+or any Linux with the `occ` script). The script detects the Nextcloud
+installation (or accepts `--nextcloud-root`), downloads the app from the
+repository into `nextcloud/apps/flutcloud`, enables it with `occ` and verifies
+it:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-nextcloud.sh | bash
 ```
 
 Save the script to a file first to pass parameters — for example for the
 official Nextcloud Docker image, or to generate the Composer autoloader:
 
-```powershell
-irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 -OutFile install-flutcloud-app.ps1
-./install-flutcloud-app.ps1 -DockerContainer nextcloud -Composer
+```bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-nextcloud.sh -o install-nextcloud.sh
+./install-nextcloud.sh --docker-container nextcloud --composer
 ```
 
-Useful parameters: `-NextcloudRoot <path>` (detected automatically otherwise),
-`-Ref <tag-or-branch>` (defaults to the latest release), `-WebUser <user>`
-(default `www-data`), `-NoSudo`, `-SkipVerify` (bash equivalents:
-`--nextcloud-root`, `--ref`, `--web-user`, `--no-sudo`, `--skip-verify`, plus
-`--docker-container` and `--composer`). For how the `curl | iex` /
-`curl | bash` patterns work, options and troubleshooting, see
-[Install scripts](install-scripts.md). The manual steps below are equivalent
-to what the scripts do.
+Useful parameters: `--nextcloud-root <path>` (detected automatically
+otherwise), `--ref <tag-or-branch>` (defaults to the latest release),
+`--web-user <user>` (default `www-data`), `--no-sudo`, `--skip-verify`,
+`--docker-container` and `--composer`. For how the `curl | bash` pattern
+works, options and troubleshooting, see [Install scripts](install-scripts.md).
+The manual steps below are equivalent to what the script does.
 
 ### Manual installation
 

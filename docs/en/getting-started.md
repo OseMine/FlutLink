@@ -12,19 +12,19 @@ The easiest way to install the latest FlutLink release on Windows, macOS or
 Linux is the install script (PowerShell 7+):
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1)
 ```
 
 or with `curl`:
 
 ```powershell
-curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 | iex
 ```
 
 On macOS and Linux the native bash installer works without PowerShell:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.sh | bash
 ```
 
 The scripts download the installer for your platform from the latest GitHub
@@ -32,21 +32,20 @@ release, verify its SHA-256 checksum and run it. To pick a specific release or
 only download the installer, save the script and pass parameters:
 
 ```powershell
-irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v1.0.0 -NoRun
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 -OutFile install-client.ps1
+./install-client.ps1 -Tag v1.0.0 -NoRun
 ```
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v1.0.0 --no-run
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.sh -o install-client.sh
+./install-client.sh --tag v1.0.0 --no-run
 ```
 
 For how the `curl | iex` / `curl | bash` one-liners work, the available
 options and troubleshooting, see [Install scripts](install-scripts.md).
 
 The server must run the `flutcloud` Nextcloud app — install it with
-[`install-flutcloud-app.ps1`](flutcloud-app.md) (PowerShell) or
-[`install-flutcloud-app.sh`](flutcloud-app.md) (bash, Ubuntu/Debian) — and the
+[`install-nextcloud.sh`](flutcloud-app.md) (bash, Ubuntu/Debian) — and the
 FlutCloud server URL must be configured via `FLUTCLOUD_URL` (see
 [FlutCloud account](#adding-a-flutcloud-account)).
 

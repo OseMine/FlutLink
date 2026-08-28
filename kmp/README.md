@@ -123,7 +123,7 @@ mkdir -p iosApp/build/Payload && \
 
 Wie beim Desktop-Client wird die FlutCloud-URL zur Compile-Zeit in
 `BuildConfig.FLUTCLOUD_URL` gebrannt: die Umgebungsvariable `FLUTCLOUD_URL`
-hat Vorrang (genau so machen es es die Release-/Build-Workflows), lokal geht
+hat Vorrang (genau so machen es die Release-/Build-Workflows), lokal geht
 auch `-PflutcloudUrl=…`. Ist eine URL eingebrannt, sperrt der Login-Screen
 das Server-Feld — der Client verbindet sich dann ausschließlich mit diesem
 Server.

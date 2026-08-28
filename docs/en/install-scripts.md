@@ -1,15 +1,15 @@
 # Install scripts (curl & iex)
 
-FlutLink ships four install scripts under `scripts/` that can be run directly
-from the GitHub repository without cloning it:
+FlutLink ships three install scripts under `scripts/`, plus a root `install.sh`
+wrapper. All can be run directly from the GitHub repository without cloning
+it:
 
 | Script | Target | Shell |
 | --- | --- | --- |
 | `install.sh` | auto-select: FlutCloud server app or FlutLink client | bash |
-| `install-flutlink.ps1` | FlutLink desktop client (Windows, macOS, Linux) | PowerShell 7+ |
-| `install-flutlink.sh` | FlutLink desktop client (macOS, Linux) | bash |
-| `install-flutcloud-app.ps1` | FlutCloud Nextcloud app on the server | PowerShell 7+ |
-| `install-flutcloud-app.sh` | FlutCloud Nextcloud app on the server (Ubuntu/Debian) | bash |
+| `install-client.ps1` | FlutLink desktop client (Windows, macOS, Linux) | PowerShell 7+ |
+| `install-client.sh` | FlutLink desktop client (macOS, Linux) | bash |
+| `install-nextcloud.sh` | FlutCloud Nextcloud app on the server (Ubuntu/Debian) | bash |
 
 All of them are invoked the same way: the script text is streamed straight
 from the raw GitHub URL into the shell and executed in memory — nothing is
@@ -35,7 +35,7 @@ curl -sSL https://raw.githubusercontent.com/OseMine/FlutLink/main/install.sh | b
 ```
 
 Client options (e.g. `--tag`, `--no-run`) are passed through to
-`install-flutlink.sh`.
+`install-client.sh`.
 
 ## PowerShell: `iex (irm <url>)`
 
@@ -43,11 +43,7 @@ Client options (e.g. `--tag`, `--no-run`) are passed through to
 runs it:
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1)
-```
-
-```powershell
-iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1)
+iex (irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1)
 ```
 
 ## PowerShell: `curl.exe ... | iex`
@@ -57,11 +53,7 @@ PowerShell `curl` alias for `Invoke-WebRequest`) downloads the script and
 pipes it to `iex`:
 
 ```powershell
-curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 | iex
-```
-
-```powershell
-curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.ps1 | iex
+curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 | iex
 ```
 
 - `-s` silences curl's progress output, `-L` follows GitHub's redirects to the
@@ -75,11 +67,11 @@ curl.exe -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/ins
 On macOS and Linux the equivalent one-liner is:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh | bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.sh | bash
 ```
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutcloud-app.sh | bash
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-nextcloud.sh | bash
 ```
 
 The bash scripts need a POSIX `bash` (the macOS system bash 3.2 works) plus
@@ -88,11 +80,11 @@ GitHub release metadata (either one is usually present on modern systems).
 
 ## What happens when you run them
 
-1. `install-flutlink.*` queries the GitHub API for the latest release, picks
+1. `install-client.*` queries the GitHub API for the latest release, picks
    the installer for your OS/architecture, downloads it, verifies its SHA-256
    digest and runs it (AppImage/.deb on Linux, `.dmg` on macOS, `.exe`/`.msi`
    on Windows).
-2. `install-flutcloud-app.*` finds the Nextcloud installation, downloads the
+2. `install-nextcloud.sh` finds the Nextcloud installation, downloads the
    app as `flutcloud-app.zip` from the latest GitHub release, copies it into
    `apps/flutcloud`, enables the app with `occ` and verifies it. When run
    interactively (in a terminal) it first asks you to confirm the detected
@@ -106,16 +98,16 @@ detection). To pass parameters, download the script to a file first and run
 it:
 
 ```powershell
-irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.ps1 -OutFile install-flutlink.ps1
-./install-flutlink.ps1 -Tag v1.0.0 -NoRun
+irm https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.ps1 -OutFile install-client.ps1
+./install-client.ps1 -Tag v1.0.0 -NoRun
 ```
 
 ```bash
-curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-flutlink.sh -o install-flutlink.sh
-./install-flutlink.sh --tag v1.0.0 --no-run
+curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install-client.sh -o install-client.sh
+./install-client.sh --tag v1.0.0 --no-run
 ```
 
-### `install-flutlink.*`
+### `install-client.*`
 
 | PowerShell | bash | Meaning |
 | --- | --- | --- |
@@ -124,17 +116,17 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
 | `-NoRun` | `--no-run` | Only download (and verify), do not install |
 | `-NoVerify` | `--no-verify` | Skip the SHA-256 verification (not recommended) |
 
-### `install-flutcloud-app.*`
+### `install-nextcloud.sh`
 
-| PowerShell | bash | Meaning |
-| --- | --- | --- |
-| `-NextcloudRoot <path>` | `--nextcloud-root <path>` | Nextcloud folder (contains `occ`); when not given it is auto-detected and confirmed interactively |
-| `-Ref <tag-or-branch>` | `--ref <tag-or-branch>` | Install a specific release or branch: a release tag uses its `flutcloud-app.zip` asset (falling back to the tagged sources), a branch uses the current branch sources |
-| `-WebUser <user>` | `--web-user <user>` | Web-server user (default `www-data`) |
-| `-DockerContainer <id>` | `--docker-container <id>` | Run occ via `docker exec` |
-| `-Composer` | `--composer` | Generate the Composer autoloader |
-| `-NoSudo` | `--no-sudo` | Run occ/chown directly (as `www-data` or root) |
-| `-SkipVerify` | `--skip-verify` | Skip the `app:list` check afterwards |
+| bash | Meaning |
+| --- | --- |
+| `--nextcloud-root <path>` | Nextcloud folder (contains `occ`); when not given it is auto-detected and confirmed interactively |
+| `--ref <tag-or-branch>` | Install a specific release or branch: a release tag uses its `flutcloud-app.zip` asset (falling back to the tagged sources), a branch uses the current branch sources |
+| `--web-user <user>` | Web-server user (default `www-data`) |
+| `--docker-container <id>` | Run occ via `docker exec` |
+| `--composer` | Generate the Composer autoloader |
+| `--no-sudo` | Run occ/chown directly (as `www-data` or root) |
+| `--skip-verify` | Skip the `app:list` check afterwards |
 
 ## Security notes
 
@@ -154,7 +146,7 @@ curl -sL https://raw.githubusercontent.com/OseMine/FlutLink/main/scripts/install
   on PowerShell 7+ (`$PSVersionTable.PSVersion`) and that TLS 1.2+ is enabled.
 - **Execution policy** — `iex (irm ...)` is not blocked by the execution
   policy (it is an expression, not a script file). If you saved the script to
-  a file and it is blocked, run `./install-flutlink.ps1` after
+  a file and it is blocked, run `./install-client.ps1` after
   `Set-ExecutionPolicy -Scope Process Bypass` for the current session.
 - **`jq`/`python3` missing** (Linux/macOS client script) → install one of
   them, e.g. `sudo apt install jq` on Ubuntu or `brew install jq` on macOS.

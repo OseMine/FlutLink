@@ -66,7 +66,7 @@ authenticated user (except the capabilities endpoint, which is public):
 
 Link/part entries are returned as `{ name, path, readOnly }`.
 
-### Complete public shares ("Gast-Zugriff")
+### Complete public shares ("guest access")
 
 A folder counts as *completely public* when its owner granted a password-free
 link share on it. Guests browse these folders without any account — strictly

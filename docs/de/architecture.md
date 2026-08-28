@@ -61,13 +61,24 @@ src-tauri/                        # Rust-Backend
 │       ├── mod.rs                # Auth-Request-Helper, URL/Encoding-Utilities
 │       ├── webdav.rs             # PROPFIND + multistatus-Parsing, Transfers
 │       └── ocs.rs                # OCS: User-Info, Admin-Probe, Provisioning, Shares
-├── capabilities/default.json     # Fenster-Berechtigungen (core, opener, dialog, notification)
+├── capabilities/default.json     # Fenster-Berechtigungen (core, opener, dialog)
 └── tauri.conf.json               # App- + CLI-Plugin-Konfiguration, Bundling
 
 flutcloud-app/                    # FlutCloud-Nextcloud-Server-App (PHP)
 ├── appinfo/                      # info.xml, OCS-Routen (api/v1/*)
 ├── lib/                          # Capabilities, ApiController, LinkService, GuestApi
 └── composer.json                 # OCA\FlutCloud-Autoloading
+
+kmp/                              # FlutLink-Mobiler Client (Kotlin Multiplatform)
+│                                 # Port der Desktop-App nach Kotlin, von opencode generiert
+├── shared/                       # KMP-Modul: Android-App + JVM + iOS-Targets
+│   └── src/
+│       ├── commonMain/           # Plattformagnostischer Kern (AuthSession, DTOs, JsonUtil)
+│       ├── androidMain/          # Vollständige Android-App: Compose-UI (Login, Dateien, Admin,
+│       │                         # Einstellungen), FlutCloudApi/WebDavApi, Stores, manifest/res
+│       ├── androidUnitTest/      # JVM-Unit-Tests
+│       └── iosMain/              # iOS-Einstiegspunkt (MainViewController → Compose-UI)
+└── iosApp/                       # Xcode-Hülle für den iOS-Build (unsigniertes IPA in CI)
 ```
 
 ## FlutCloud-only
@@ -80,6 +91,29 @@ wenn dieser die FlutCloud-Nextcloud-App (`flutcloud-app/`) ausführt.
 `flutcloud.rs` lehnt fremde URLs ab (`AppError::NotFlutCloud`) und prüft vor
 jeder Konto-Erstellung den OCS-Capabilities-Endpoint auf die
 `flutcloud`-Capability (`AppError::FlutCloudAppMissing`).
+
+## Wichtige Commands
+
+| Command | Backend | Zweck |
+| --- | --- | --- |
+| `account_add` | OCS `/cloud/user` + Admin-Probe | Anmeldedaten prüfen, Token im Schlüsselbund speichern, Konto hinzufügen/aktivieren |
+| `account_switch` / `account_remove` / `account_list` | state | Multi-Konto-Lebenszyklus (Wechsel emittiert `accounts-changed`) |
+| `account_storage` | WebDAV-Quota | Quota-Info (offline-gecacht via `cache.rs`) |
+| `refresh_admin_flags` | OCS | Admin-Flag bei Start neu bewerten |
+| `webdav_list` | WebDAV `PROPFIND` (Depth 1) | Ordner durchsuchen; Einträge `isResource` / `isPart`; Offline-Cache-Fallback |
+| `webdav_search` | WebDAV `SEARCH` | Globale Dateisuche auf dem Server |
+| `webdav_create_share` / `webdav_list_shares` / `webdav_delete_share` | OCS-Share-API | Öffentliche/Benutzer-/Gruppen-Shares erstellen, auflisten und widerrufen |
+| `webdav_upload_file` / `webdav_download_file` / `open_remote_file` | WebDAV | Upload / Download / Öffnen über Cache-Verzeichnis (Admins können anderen Benutzer ansprechen) |
+| `webdav_mkdir` / `webdav_rename` / `webdav_delete` | WebDAV | Ordner erstellen, umbenennen und löschen (Umbenennen validiert, Überschreiben geschützt) |
+| `webdav_upload_local_paths` / `webdav_bulk_delete` / `webdav_bulk_download` | WebDAV | Drag & Drop Upload + Bulk-Operationen (`file://progress`-Events) |
+| `webdav_download_zip` / `webdav_thumbnail` | WebDAV | Ordner-ZIP-Download / Bild-Miniaturansichten |
+| `guest_verify_server` / `guest_list_shares` / `guest_list_entries` / `guest_download_file` / `guest_open_file` | Guest API (`guest.rs`) | Anonymer Gastzugriff auf öffentliche Freigaben |
+| `guest_admin_*` (Kategorien, Locks) | Guest API (`guest.rs`) | Admin: Kategorien und rekursive Unterordner-Locks für öffentliche Freigaben verwalten |
+| `admin_list_users` / `admin_get_user` / `admin_set_user_quota` / `admin_edit_user` / `admin_create_user` / `admin_delete_user` | OCS Provisioning API | Admin-Panel (nur Admin-Konten) |
+| `admin_list_groups` / `admin_create_group` / `admin_add_group_member` / `admin_remove_group_member` | OCS Groups API | Gruppenverwaltung (nur Admin-Konten) |
+| `sync_list` / `sync_add` / `sync_remove` / `sync_set_paused` | `sync.rs` | Zwei-Wege-Sync-Ordner verwalten |
+| `sync_trigger` | `sync.rs` | Sofortigen Sync-Durchlauf auslösen |
+| `check_update` / `download_and_install_update` | `updater.rs` | Update-Check (SHA-256-verifiziert) und Installation |
 
 ## Datenfluss Frontend ↔ Backend
 
