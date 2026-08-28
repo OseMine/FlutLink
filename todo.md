@@ -9,6 +9,103 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Review 2026-08-28 (Lauf 26, Fokus „Back to Jetpack Compose on KMP" — neue Befunde)
+
+Gegenstand: die komplette KMP-Compose-UI erneut begutachtet
+(`kmp/shared/src/commonMain/kotlin/.../ui/`: `FlutLinkRoot.kt`,
+`navigation/AppNavigation.kt`, `HomeScreen.kt`, `files/FilesScreen.kt`,
+`admin/AdminScreen.kt`, `guest/GuestScreen.kt`, `settings/SettingsScreen.kt`,
+`login/LoginScreen.kt`, `components/Components.kt` + alle ViewModels +
+`dto/Models.kt`, `FlutCloudApi.kt`, `FlutCloudOcs.kt`) gegen HEAD `0585c2b`.
+Auftrag unverändert: UI wirkt „looks off and not clean"; Desktop-Parität
+(Admin-Edit, fehlende Aktionen, Navigation) auf Mobile fehlt. Zusätzlich der
+Standard-Bereich (IPC/CI) und die Nachprüfung der L24-/L25-Befunde.
+
+Verifikation: `cargo fmt --check` **grün** (Exit 0) — der L24-F1-Fmt-Teil ist
+behoben. `cargo clippy`/`cargo test` scheitern weiter am fehlenden
+Systempaket `gobject-2.0` (pkg-config, Umgebungslimit); `npm run build` an
+fehlendem `node_modules`. Der KMP-Build (`:shared:build`) ist hier nicht
+ausführbar (iOS nur auf macOS; Android-Gradle ohne Netz). KMP-Befunde sind
+reine Quelltext-Verifikation.
+
+### Nachprüfung L24/L25 (Schritt 5, gegen HEAD `0585c2b`)
+
+Seit Lauf 25 gibt es nur die Commits `0585c2b` (Server-Template-Branding),
+`4c2f25e` (Sync-Log: fmt/clippy-Fix + UI-Integration) sowie todo-/merge-
+Commits — **kein KMP-Commit**; die L25-KMP-Befunde sind daher unverändert.
+
+- **L24-F1 (fmt+clippy CI-Blocker): BEHOBEN.** `4c2f25e` vereinfacht die
+  Closure (`sync.rs:1339` → `.map_err(AppError::Json)`) und formatiert die
+  beiden `Move*.Conflict`-Arme (`sync.rs:1173-1184`) neu; `cargo fmt --check`
+  ist grün (verifiziert). → unten als `[x]` markiert (clippy konnte hier
+  umgebungsbedingt nicht erneut laufen).
+- **L24-F2 (Share-Notify erreicht Backend nie): weiter offen** — `ui.ts:148`
+  schreibt weiter nur localStorage; `ipc.ts:370 setShareNotify` hat keine
+  Aufrufer (grep bestätigt).
+- **L24-F3: teilweise** — (a) `sync_log_list`/`sync_log_clear` sind
+  registriert (`lib.rs:407-408`, `commands.rs:856/869`) + `SyncLog.vue`
+  vorhanden (**BEHOBEN**); (b) **der Append-/Trunkierungs-Bug bleibt offen** —
+  `append_sync_log` (`sync.rs:1330-1341`) ist logisch unverändert (kein
+  Behälter-Reverse-/Drain-Fix).
+- **L24-F4…F8, L24-N1…N7: unverändert offen** (keine betreffenden Commits).
+- **L25 KMP-F1…F9: alle weiter offen** — F1 (kein `editUser`-Pfad in
+  `AdminViewModel.kt` / `FlutCloudOcs.updateUser` nur für quota/enabled),
+  F2 (`EntryGridItem` deklariert `menuOpen`+6 Callbacks, nutzt sie nie,
+  `FilesScreen.kt:806-899`), F3 (leere Suche → leere Liste,
+  `AdminViewModel.loadUsers`), F4 (loadUsers/loadMore-Race) re-quelltext-
+  verifiziert.
+
+### Neu gefunden (Fokus KMP Compose UI)
+
+- [ ] **KMP-F10 (UX, minor): Der List/Grid-Ansichtsmodus ist weder persistiert
+      noch übersteht er einen Tab-Wechsel.** `FilesScreen.kt:203`
+      `var viewMode by remember { mutableStateOf(ViewMode.List) }` — ein
+      bloßes `remember`, kein `rememberSaveable` und keine Persistenz. Beim
+      Tab-Wechsel wird `FilesScreen` dekomponiert (`HomeScreen.kt:162-176`
+      rendert nur den aktiven Screen in einer `when`), die Wahl geht also
+      jedes Mal verloren und springt zu List zurück. Der Desktop persistiert
+      das (`ui.ts` → `filesView`). Fix: `rememberSaveable` oder Persistenz im
+      `SettingsStore`.
+- [ ] **KMP-F11 (UX / gefährliche Default-Aktion, minor–mittel): Gast-Admin-
+      Kategorie-Chips löschen beim Antippen die Kategorie.** `GuestScreen.kt:201-209`
+      rendert jede Kategorie als `FlutPill(selected=false, onClick={
+      showDeleteCategoryDialog = cat })` — der einzige Tap-Zweck eines Chips
+      ist das Öffnen des Lösch-Dialogs für genau diese Kategorie; es gibt
+      keinerlei „verwalten"-Affordanz, und destruktive Kategorien-Chips sehen
+      aus wie die reinen Filter-Chips darunter (`:220-231`). Fix: destruktive
+      Aktion hinter ein klares Affordanz-Element (z.B. „×"-Badge) oder einen
+      separaten „Kategorien verwalten"-Dialog.
+- [ ] **KMP-F12 (Konsistenz/Localization, minor): Nicht lokalisierte
+      UI-Literale in der Dateiliste.** `ViewMode`-Labels `"List"`/`"Grid"`
+      (`FilesScreen.kt:162-163`) und der Breadcrumb-Root-`"Files"`
+      (`FilesScreen.kt:539`) sind hart kodiert; Desktop lokalisiert
+      `viewList`/`viewGrid`/`files`. (`"Files"` war als Teil von KMP-F5 offen —
+      hier bestätigt; `"List"`/`"Grid"` sind neu.) Fix: Ressourcen-Keys.
+
+Keine neuen Desktop-/Kern-Befunde: IPC-Registry (`lib.rs:364-427` vs
+`ipc.ts`), Sync-Log (nur F3b offen), Keyring, Fehler-Serialisierung,
+WebDAV/OCS-Layer, Guest-Backend, Sync-Engine — unverändert zu Lauf 25.
+
+### todo.md-Nachprüfung (Schritt 5)
+
+- `L24-F1` → als erledigt markiert (`[x]`) und nach `archived-todo.md`
+  verschoben (fmt grün, Closure vereinfacht; clippy hier nicht erneut
+  lauffähig).
+- `L24-F3` bleibt offen (nur Teil (a) erledigt; in Lauf-25 dokumentiert).
+- `L24-F2`, `L24-F4…F8`, `L24-N1…N7`, `L25 KMP-F1…F9`, neu `KMP-F10/11/12`:
+  bleiben offen.
+- Feature-Ideen: unverändert (die bereits auf `[x]` stehenden Punkte aus
+  Lauf 24/25 bleiben; die offenen `[ ]`-Punkte unangetastet).
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen (GitHub-API-/gh-Aufrufe verboten). `git log 3d55fbb..HEAD`
+enthält `0585c2b` (Branding-Template) und `4c2f25e` (Sync-Log-Fix, keine
+neue Issue-Nr.) sowie todo-/merge-Commits — **keine Commits schließen eine
+offene Issue**. Die neuen KMP-Befunde (v.a. KMP-F1, die geforderte
+Desktop-Admin-Parität) sollten vom `opencode-todo-issues`-Workflow beim
+nächsten Lauf als Issues erfasst werden.
+
 ## Feature-Ideen und Verbesserungsvorschläge (2026-08-27)
 
 Basierend auf der vollständigen Code-Review aller Backend- und Frontend-Dateien.
@@ -298,8 +395,9 @@ die CI würde aktuell rot laufen.
 
 ### Neu gefunden
 
-- [ ] **L24-F1 (Bug, hoch / CI-Blocker): `cargo clippy` + `cargo fmt` sind
-      auf HEAD nicht grün.** (a) clippy `redundant_closure`:
+- [x] **L24-F1 (Bug, hoch / CI-Blocker): `cargo clippy` + `cargo fmt` sind
+      auf HEAD nicht grün.** — BEHOBEN in `4c2f25e` (Lauf-26-Nachprüfung);
+      nach `archived-todo.md` verschoben. (a) clippy `redundant_closure`:
       `sync.rs:1332` `.map_err(|e| AppError::Json(e))` → `.map_err(AppError::Json)`.
       (b) `cargo fmt --check`: Formatdiff in `sync.rs:1177` (die beiden
       `Move*.Conflict`-Match-Arme) und `sync.rs:1328-1334` (der
