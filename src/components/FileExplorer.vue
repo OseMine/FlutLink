@@ -45,6 +45,7 @@ function releaseThumbSlot() {
 const accounts = useAccountsStore();
 const files = useFilesStore();
 const ui = useUiStore();
+const accountStore = useAccountsStore();
 const t = (key: string) => translate(ui.lang, key);
 
 // #368: layout preferences live in the ui store (localStorage-persisted), so
@@ -293,6 +294,31 @@ function relativeTime(secs: number): string {
   if (diff < 86400) return t("historyHours").replace("{n}", String(Math.floor(diff / 3600)));
   return t("historyDays").replace("{n}", String(Math.floor(diff / 86400)));
 }
+
+// #421: synced paths for the active account (green check icons in file list).
+const syncedPaths = ref<Set<string>>(new Set());
+
+async function loadSyncedPaths() {
+  try {
+    const active = accountStore.active;
+    if (!active) {
+      syncedPaths.value.clear();
+      return;
+    }
+    const key = `${active.username}@${active.instanceUrl}`;
+    const paths = await api.syncSyncedPaths(key);
+    syncedPaths.value = new Set(paths);
+  } catch {
+    syncedPaths.value.clear();
+  }
+}
+
+// Watch for account changes to reload synced paths.
+watch(
+  () => accountStore.active?.username + "@" + accountStore.active?.instanceUrl,
+  () => void loadSyncedPaths(),
+  { immediate: true }
+);
 
 async function open(entry: WebDavEntry) {
   if (entry.isDir) {
@@ -1292,6 +1318,7 @@ watch(
             :sort-key="sortKey"
             :sort-asc="sortAsc"
             :kbd-index="kbdIndex"
+            :synced-paths="syncedPaths"
             @open="open"
             @toggle-select="toggleSelect"
             @contextmenu="openCtx"
@@ -1335,6 +1362,7 @@ watch(
             :shares-by-path="sharesByPath"
             :sort-key="sortKey"
             :sort-asc="sortAsc"
+            :synced-paths="syncedPaths"
             @open="open"
             @contextmenu="openCtx"
             @rename="startRename"

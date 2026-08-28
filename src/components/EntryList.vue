@@ -23,8 +23,9 @@ const props = withDefaults(
     sortKey?: EntrySortKey;
     sortAsc?: boolean;
     kbdIndex?: number;
+    syncedPaths?: Set<string>;
   }>(),
-  { selectable: true, sortKey: "name", sortAsc: true, kbdIndex: -1 }
+  { selectable: true, sortKey: "name", sortAsc: true, kbdIndex: -1, syncedPaths: () => new Set<string>() }
 );
 
 const emit = defineEmits<{
@@ -159,7 +160,16 @@ function parentPath(path: string): string {
               <span class="badge-dot bg-success"></span>
               {{ t("part") }}
             </span>
-            <span v-else class="text-xs text-muted/70">{{ t("sync") }}</span>
+            <span v-else class="text-xs text-muted/70">
+              <Icon
+                v-if="props.syncedPaths?.has(entry.path)"
+                name="check"
+                :size="15"
+                class="text-success"
+                :title="t('syncStatusSynced')"
+              />
+              <span v-else>{{ t("sync") }}</span>
+            </span>
             <button
               v-if="entry.pairedPath"
               type="button"

@@ -397,6 +397,21 @@ onUnmounted(() => removeEscapeCloser?.());
               <p class="mt-2 text-xs text-muted/80">{{ t("systemThemeNote") }}</p>
             </div>
 
+            <div>
+              <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+                {{ t("shareNotify") }}
+              </p>
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  :checked="ui.shareNotify"
+                  @change="(e: Event) => ui.setShareNotify((e.target as HTMLInputElement).checked)"
+                />
+                <span class="text-sm">{{ t("shareNotifyDesc") }}</span>
+              </label>
+            </div>
+            
             <div class="card p-3">
               <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("updates") }}
