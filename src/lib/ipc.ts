@@ -356,6 +356,12 @@ export const api = {
   fileHistoryList: () => tauri<FileHistoryEntry[]>("file_history_list"),
   fileHistoryClear: () => tauri<void>("file_history_clear"),
 
+  // #410: share notification toggle.
+  setShareNotify: (enabled: boolean) => tauri<void>("set_share_notify", { enabled }),
+
+  // #421: synced paths for status icons.
+  syncSyncedPaths: (accountKey: string) => tauri<string[]>("sync_synced_paths", { accountKey }),
+
   webdavDownloadZip: (remotePath: string, localPath: string, targetUser?: string) =>
     tauri<void>("webdav_download_zip", { remotePath, localPath, targetUser }),
 

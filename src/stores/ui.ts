@@ -30,6 +30,7 @@ const THEME_KEY = "flutlink.theme";
 const GUEST_KEY = "flutlink.guestMode";
 const FILES_VIEW_KEY = "flutlink.filesView";
 const BOOKMARKS_KEY = "flutlink.bookmarks";
+const SHARE_NOTIFY_KEY = "flutlink.shareNotify";
 const MAX_BOOKMARKS = 20;
 
 const DEFAULT_FILES_VIEW: FilesViewPrefs = {
@@ -91,8 +92,10 @@ export const useUiStore = defineStore("ui", () => {
   // Persisted file-explorer layout preferences (#368).
   const filesView = ref<FilesViewPrefs>(normalizeFilesView(read<FilesViewPrefs>(FILES_VIEW_KEY)));
   const toasts = ref<Toast[]>([]);
-  const bookmarks = ref<FolderBookmark[]>(normalizeBookmarks(read<FolderBookmark[]>(BOOKMARKS_KEY)));
-  let nextId = 1;
+const bookmarks = ref<FolderBookmark[]>(normalizeBookmarks(read<FolderBookmark[]>(BOOKMARKS_KEY)));
+// #410: share notifications (persisted).
+const shareNotify = ref<boolean>(read<boolean>(SHARE_NOTIFY_KEY) ?? true);
+let nextId = 1;
 
   function setLang(value: Lang) {
     lang.value = value;
@@ -142,6 +145,11 @@ export const useUiStore = defineStore("ui", () => {
     localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks.value));
   }
 
+  function setShareNotify(value: boolean) {
+    shareNotify.value = value;
+    localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(value));
+  }
+
   return {
     lang,
     theme,
@@ -149,10 +157,12 @@ export const useUiStore = defineStore("ui", () => {
     filesView,
     toasts,
     bookmarks,
+    shareNotify,
     setLang,
     setTheme,
     setGuestMode,
     setFilesView,
+    setShareNotify,
     toast,
     dismiss,
     isBookmarked,

@@ -148,6 +148,9 @@ const dict: Record<Lang, Record<string, string>> = {
     historyDays: "{n} d ago",
     quickLookPrev: "Previous (Space)",
     quickLookNext: "Next (Space)",
+    shareNotify: "Share notifications",
+    shareNotifyDesc: "Show a desktop notification when someone shares a file with you.",
+    syncStatusSynced: "Synced",
     shareCreated: "Share created.",
     shareDeleted: "Share revoked.",
     shareRevokeConfirm: "Revoke this share ({recipient})?",
@@ -526,6 +529,10 @@ const dict: Record<Lang, Record<string, string>> = {
     historyDays: "vor {n} Tagen",
     quickLookPrev: "Zurück (Space)",
     quickLookNext: "Weiter (Space)",
+    shareNotify: "Freigabe-Benachrichtigungen",
+    shareNotifyDesc:
+      "Zeige eine Desktop-Benachrichtigung, wenn jemand eine Datei mit dir teilt.",
+    syncStatusSynced: "Synchronisiert",
     shareCreated: "Freigabe erstellt.",
     shareDeleted: "Freigabe widerrufen.",
     shareRevokeConfirm: "Diese Freigabe ({recipient}) widerrufen?",
@@ -1143,6 +1150,10 @@ const dict: Record<Lang, Record<string, string>> = {
     guestTabTitle: "Invités",
     guestAdminCategoryDeleteConfirm:
       "Supprimer la catégorie '{name}' ? Toutes les assignations de partage de cette catégorie seront perdues.",
+    shareNotify: "Notifications de partage",
+    shareNotifyDesc:
+      "Afficher une notification de bureau lorsqu'un fichier est partagé avec vous.",
+    syncStatusSynced: "Synchronisé",
   },
   es: {
     appName: "FlutLink",
@@ -1517,6 +1528,10 @@ const dict: Record<Lang, Record<string, string>> = {
     guestTabTitle: "Invitados",
     guestAdminCategoryDeleteConfirm:
       "¿Eliminar la categoría '{name}'? Se perderán todas las asignaciones de recursos compartidos de esta categoría.",
+    shareNotify: "Notificaciones de compartición",
+    shareNotifyDesc:
+      "Mostrar una notificación de escritorio cuando alguien comparte un archivo contigo.",
+    syncStatusSynced: "Sincronizado",
   },
 };
 
