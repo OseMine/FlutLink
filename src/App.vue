@@ -342,7 +342,7 @@ function startGuestModeOff() {
                       v-for="account in accounts.accounts"
                       :key="account.instanceUrl + '/' + account.username"
                       type="button"
-                      class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+                      class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover hover:cursor-pointer"
                       :class="account.isActive ? 'bg-primary/10' : ''"
                       @click="switchTo(account); accountMenu = false"
                     >
@@ -363,14 +363,14 @@ function startGuestModeOff() {
                   <div class="border-t border-line p-1.5">
                     <button
                       type="button"
-                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted transition hover:bg-card-hover hover:text-fg"
+                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted transition hover:bg-card-hover hover:text-fg hover:cursor-pointer"
                       @click="showSettings = true; accountMenu = false"
                     >
                       {{ t("settings") }}
                     </button>
                     <button
                       type="button"
-                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10"
+                      class="w-full rounded-sm px-2 py-1.5 text-left text-sm text-error transition hover:bg-error/10 hover:cursor-pointer"
                       @click="removeActive"
                     >
                       {{ t("removeAccount") }}

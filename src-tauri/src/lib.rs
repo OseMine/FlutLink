@@ -320,10 +320,14 @@ pub fn run() {
     let quit_flag_close = quit_flag.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new())
         .on_window_event(move |window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

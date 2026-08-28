@@ -36,6 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_updater::UpdaterExt;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
@@ -540,9 +541,14 @@ pub fn install_update(path: &Path) -> Result<(), String> {
 pub async fn check_update(app: AppHandle) -> AppResult<Option<ReleaseInfo>> {
     let current = app.package_info().version.to_string();
     let client = build_client().map_err(AppError::Update)?;
-    let info = check_for_update(&client, &current)
-        .await
-        .map_err(AppError::Update)?;
+    let info = match check_for_update(&client, &current).await {
+        Ok(info) => info,
+        Err(custom_error) => check_plugin_update(&app).await.map_err(|plugin_error| {
+            AppError::Update(format!(
+                "Custom updater failed: {custom_error}; signed updater failed: {plugin_error}"
+            ))
+        })?,
+    };
     if let Some(release) = &info {
         // Q1: notify the user that a new version is available. Best-effort.
         let _ = app
@@ -589,10 +595,13 @@ pub async fn download_and_install_update(app: AppHandle) -> AppResult<()> {
         },
     );
 
-    let info = check_for_update(&client, &current)
-        .await
-        .map_err(AppError::Update)?
-        .ok_or_else(|| AppError::Update("Already up to date".into()))?;
+    let info = match check_for_update(&client, &current).await {
+        Ok(Some(info)) => info,
+        Ok(None) => return Err(AppError::Update("Already up to date".into())),
+        Err(custom_error) => {
+            return install_plugin_update(&app, &custom_error).await;
+        }
+    };
 
     let _ = app.emit(
         "update://status",
@@ -618,6 +627,90 @@ pub async fn download_and_install_update(app: AppHandle) -> AppResult<()> {
     // success, so the Ok(()) below is only reached when installation fails.
     install_update(&installer_path).map_err(AppError::Update)?;
 
+    Ok(())
+}
+
+/// Check the signed Tauri manifest after the GitHub API path fails.
+async fn check_plugin_update(app: &AppHandle) -> Result<Option<ReleaseInfo>, String> {
+    let update = app
+        .updater()
+        .map_err(|e| format!("Could not initialize signed updater: {e}"))?
+        .check()
+        .await
+        .map_err(|e| format!("Signed updater check failed: {e}"))?;
+    Ok(update.as_ref().map(plugin_release_info))
+}
+
+fn plugin_release_info(update: &tauri_plugin_updater::Update) -> ReleaseInfo {
+    let asset_name = update
+        .download_url
+        .path_segments()
+        .and_then(|mut segments| segments.next_back())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("signed-update")
+        .to_string();
+    ReleaseInfo {
+        version: update.version.clone(),
+        name: format!("FlutLink {}", update.version),
+        notes: update.body.clone(),
+        release_url: "https://github.com/OseMine/FlutLink/releases/latest".into(),
+        asset_name,
+        asset_url: update.download_url.to_string(),
+        asset_size: 0,
+        asset_sha256: None,
+    }
+}
+
+/// Install through Tauri's signed updater when the custom GitHub updater is
+/// unavailable. Signature verification happens before installation.
+async fn install_plugin_update(app: &AppHandle, custom_error: &str) -> AppResult<()> {
+    let update = app
+        .updater()
+        .map_err(|e| AppError::Update(format!("{custom_error}; signed updater unavailable: {e}")))?
+        .check()
+        .await
+        .map_err(|e| AppError::Update(format!("{custom_error}; signed updater failed: {e}")))?
+        .ok_or_else(|| AppError::Update("Already up to date".into()))?;
+    let info = plugin_release_info(&update);
+    let _ = app.emit(
+        "update://status",
+        UpdateStatus {
+            code: "downloading".into(),
+            asset_name: Some(info.asset_name),
+        },
+    );
+    let app_for_progress = app.clone();
+    let mut downloaded = 0u64;
+    update
+        .download_and_install(
+            move |chunk, total| {
+                downloaded += chunk as u64;
+                let total = total.unwrap_or(downloaded);
+                let percent = if total == 0 {
+                    0.0
+                } else {
+                    downloaded as f64 / total as f64 * 100.0
+                };
+                let _ = app_for_progress.emit(
+                    "update://progress",
+                    DownloadProgress {
+                        downloaded,
+                        total,
+                        percent,
+                    },
+                );
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| AppError::Update(format!("Signed updater install failed: {e}")))?;
+    let _ = app.emit(
+        "update://status",
+        UpdateStatus {
+            code: "installing".into(),
+            asset_name: None,
+        },
+    );
     Ok(())
 }
 

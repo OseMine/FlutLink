@@ -266,6 +266,8 @@ jobs:
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: "FlutLink v__VERSION__"
@@ -502,7 +504,7 @@ jobs:
           ASSETS=$(gh release view "$TAG" --json assets --jq '[.assets[].name] | join("\n")')
           echo "$ASSETS"
           missing=0
-          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "flutcloud-app\.zip$"; do
+          for pattern in "\.apk$" "\.ipa$" "classic\.json$" "latest\.json$" "\.sig$" "flutcloud-app\.zip$"; do
             if ! echo "$ASSETS" | grep -Eq "$pattern"; then
               echo "::error::Release $TAG unvollstaendig: kein Asset matcht $pattern"
               missing=1
