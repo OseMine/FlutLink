@@ -47,6 +47,28 @@ pub struct JournalEntry {
     pub remote_etag: Option<String>,
 }
 
+/// #407: a single log entry for a sync action (persisted, append-only).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncLogEntry {
+    /// Unix seconds when the action occurred.
+    pub timestamp: i64,
+    /// Sync folder ID this action belongs to.
+    pub folder_id: String,
+    /// Action type: "upload" | "download" | "delete" | "mkdir" | "conflict" | "error" | "seed".
+    pub action: String,
+    /// Relative path within the sync folder.
+    pub path: String,
+    /// "ok" or "error".
+    pub result: String,
+    /// Optional detail (bytes transferred, error message, conflict target, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+/// Maximum number of log entries kept per folder (oldest are truncated).
+pub const MAX_SYNC_LOG_ENTRIES: usize = 200;
+
 /// rel path (relative to the sync root, `/`-separated) → last synced state.
 pub type Journal = BTreeMap<String, JournalEntry>;
 
@@ -1146,6 +1168,19 @@ async fn run_pass(
             journal: &mut journal,
         };
         for action in ops.iter().take(MAX_OPS_PER_PASS) {
+            let (action_type, rel, detail) = match action {
+                Action::Upload(rel) => ("upload", rel.as_str(), None),
+                Action::UploadConflict { rel, target } => ("conflict", rel.as_str(), Some(target.clone())),
+                Action::Download(rel) => ("download", rel.as_str(), None),
+                Action::DeleteRemote(rel) => ("delete", rel.as_str(), Some("remote".into())),
+                Action::DeleteLocal(rel) => ("delete", rel.as_str(), Some("local".into())),
+                Action::DeleteRemoteDir(rel) => ("delete", rel.as_str(), Some("remote_dir".into())),
+                Action::EnsureDir(rel) => ("mkdir", rel.as_str(), None),
+                Action::MoveRemoteConflict { rel, target } => ("conflict", rel.as_str(), Some(format!("remote->{}", target))),
+                Action::MoveLocalConflict { rel, target } => ("conflict", rel.as_str(), Some(format!("local->{}", target))),
+                Action::Seed(rel) => ("seed", rel.as_str(), None),
+                Action::Skip(_) => continue,
+            };
             let result = match action {
                 Action::Upload(rel) => exec_upload(&mut ctx, rel).await,
                 Action::UploadConflict { rel, target } => {
@@ -1165,15 +1200,34 @@ async fn run_pass(
                 Action::Seed(rel) => exec_seed(&mut ctx, rel).await,
                 Action::Skip(_) => continue,
             };
-            match result {
-                Ok(ExecOutcome::Applied) => done += 1,
-                Ok(ExecOutcome::Deferred) => {}
+            let (res_str, detail_str) = match &result {
+                Ok(ExecOutcome::Applied) => {
+                    done += 1;
+                    ("ok", detail.clone())
+                }
+                Ok(ExecOutcome::Deferred) => ("deferred", detail.clone()),
                 Err(err) => {
                     failures += 1;
                     if error.is_none() {
-                        error = Some(PassError::from_app_error(&err));
+                        error = Some(PassError::from_app_error(err));
                     }
+                    ("error", Some(err.message()))
                 }
+            };
+            // #407: append to sync log
+            let log_entry = SyncLogEntry {
+                timestamp: now_secs(),
+                folder_id: folder.id.clone(),
+                action: action_type.into(),
+                path: rel.into(),
+                result: res_str.into(),
+                detail: detail_str,
+            };
+            let _ = append_sync_log(app, &log_entry);
+            match result {
+                Ok(ExecOutcome::Applied) => {}
+                Ok(ExecOutcome::Deferred) => {}
+                Err(_) => {}
             }
         }
     }
@@ -1252,6 +1306,44 @@ fn journal_file(app: &AppHandle, folder_id: &str) -> AppResult<PathBuf> {
         .map_err(|e| AppError::App(e.to_string()))?;
     std::fs::create_dir_all(&dir)?;
     Ok(dir.join(format!("sync-journal-{}.json", folder_id)))
+}
+
+/// #407: path to the sync log file (global, one per app).
+fn sync_log_file(app: &AppHandle) -> AppResult<PathBuf> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::App(e.to_string()))?;
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir.join("sync-log.json"))
+}
+
+/// #407: append a log entry to the sync log (atomic write, keep last N).
+fn append_sync_log(app: &AppHandle, entry: &SyncLogEntry) -> AppResult<()> {
+    let path = sync_log_file(app)?;
+    let mut entries = load_sync_log(app).unwrap_or_default();
+    entries.push(entry.clone());
+    // Keep only the last N entries (newest at the end).
+    if entries.len() > MAX_SYNC_LOG_ENTRIES {
+        let drain = entries.len() - MAX_SYNC_LOG_ENTRIES;
+        entries.drain(0..drain);
+    }
+    let json = serde_json::to_string_pretty(&entries)
+        .map_err(|e| AppError::Json(e))?;
+    crate::persist::atomic_write(&path, &json)
+}
+
+/// #407: load the sync log (newest first).
+fn load_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
+    let path = sync_log_file(app)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut entries = serde_json::from_str::<Vec<SyncLogEntry>>(&raw).unwrap_or_default();
+    // Return newest first for UI convenience.
+    entries.reverse();
+    Ok(entries)
 }
 
 fn load_journal(app: &AppHandle, folder_id: &str) -> AppResult<Journal> {
