@@ -209,7 +209,7 @@ header('Content-Type: text/html; charset=utf-8');
     <?php endif; ?>
 
     <div class="footer">
-        Powered by FlutCloud &middot; <a href="https://github.com/OseMine/FlutLink" style="color: var(--primary); text-decoration: none;">FlutLink</a>
+        Powered by <a href="https://instagram.com/marcante_musik" style="color: var(--primary); text-decoration: none;">Marcante Musik</a> &middot; <a href="https://github.com/OseMine/FlutLink" style="color: var(--primary); text-decoration: none;">FlutLink</a>
         <?php if (!empty($isAdmin)): ?>
         <br><a href="<?= htmlspecialchars($adminUrl) ?>" style="color: var(--primary); text-decoration: none;">Admin-Verwaltung (Kategorien, Sperren)</a>
         <?php endif; ?>
