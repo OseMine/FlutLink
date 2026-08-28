@@ -36,6 +36,7 @@
   --color-error: oklch(0.66 0.19 25);
   --color-success: oklch(0.72 0.16 155);
   --color-info: oklch(0.7 0.13 245);
+  --color-warning: oklch(0.78 0.15 75);
   --color-scrim: rgb(0 0 0);
 
   /* --- Elevation: one soft shadow, only where something truly floats --- */
@@ -77,6 +78,7 @@
   --color-error: oklch(0.68 0.19 25);
   --color-success: oklch(0.74 0.16 155);
   --color-info: oklch(0.72 0.13 245);
+  --color-warning: oklch(0.8 0.15 80);
 }
 
 /* Daylight — white cards on a quiet gray canvas. */
@@ -99,6 +101,7 @@
   --color-error: oklch(0.55 0.21 25);
   --color-success: oklch(0.52 0.14 155);
   --color-info: oklch(0.5 0.13 245);
+  --color-warning: oklch(0.72 0.16 80);
 }
 
 html,

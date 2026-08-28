@@ -19,6 +19,7 @@ import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
 import { translate, updateStatusText } from "./lib/i18n";
 import { installEscapeHandler, registerEscapeCloser } from "./lib/escape";
+import { installShortcutHandler } from "./lib/shortcuts";
 import { api, invokeError, type ReleaseInfo, type UpdateProgress, type UpdateStatus } from "./lib/ipc";
 
 type Tab = "files" | "sync" | "admin" | "guest";
@@ -136,6 +137,9 @@ onMounted(() => {
   resolveTheme();
   // L19-N1: one global listener closes the topmost open menu/modal on Escape.
   installEscapeHandler();
+  // #408: global keyboard shortcuts (Ctrl/Cmd+F, Ctrl/Cmd+N, Ctrl/Cmd+A, F5,
+  // Delete) — the file view registers the actual handlers.
+  installShortcutHandler();
   window
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", resolveTheme);
