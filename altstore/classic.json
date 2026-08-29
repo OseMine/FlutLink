@@ -20,11 +20,11 @@
       "versions": [
         {
           "version": "1.3.0",
-          "buildVersion": "113",
-          "date": "2026-08-28",
+          "buildVersion": "115",
+          "date": "2026-08-29",
           "localizedDescription": "Release 1.3.0 — see the release page for details.",
           "downloadURL": "https://github.com/OseMine/FlutLink/releases/download/v1.3.0/FlutLink-ios-unsigned.ipa",
-          "size": 13402037,
+          "size": 13453734,
           "minOSVersion": "15.0"
         },
         {
