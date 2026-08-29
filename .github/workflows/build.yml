@@ -104,8 +104,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # The `artifacts` job runs on every push to main. Updater artifacts are
+      # signed with a private key that is only configured for tag-driven
+      # releases (see release.yml / `createUpdaterArtifacts`), so skip building
+      # them here to avoid failing on the missing TAURI_SIGNING_PRIVATE_KEY.
       - name: Build Tauri bundles
-        run: npm run tauri build -- ${{ matrix.args }}
+        run: npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}' ${{ matrix.args }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
