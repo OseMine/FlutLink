@@ -3,6 +3,45 @@
 Alle erledigten Aufgaben aus `todo.md`, sortiert nach Review/Lauf.
 
 
+## Erledigt (2026-08-28, Review-Lauf 27 — KMP-F13/F14/F15)
+
+Die KMP-Befunde des Fokus „Revert Mobile UI auf Platin / Material 3
+Expressive" sind umgesetzt und per Build verifiziert
+(`kmp ./gradlew :shared:build`, `:android-app:assembleDebug`; iOS-/Android-/
+JVM-Targets kompilieren, alle Unit-Tests grün). Details der ursprünglichen
+Befunde in `todo.md` Abschnitt „Review 2026-08-28 (Lauf 27)" — die Einträge
+dort sind auf `[x]` gesetzt.
+
+- [x] **KMP-F13 (Blocker/Feasibility, hoch):** `Material3Expressive` ist in der
+      stabilen Material3-Abhängigkeit nicht verfügbar. Umgesetzt: In
+      `kmp/shared/build.gradle.kts` wird `api(compose.material3)` (stable
+      1.9.0) durch das explizite Pre-Release
+      `org.jetbrains.compose.material3:material3:1.9.0-alpha04` ersetzt, das
+      die Expressive-API (in dieser Version `MaterialExpressiveTheme`,
+      `MotionScheme.expressive()`, `SegmentedButton`, `SingleChoiceSegmentedButtonRow`,
+      `Chip`, `Card`) noch liefert.
+- [x] **KMP-F14 (Konzept, mittel):** Nicht die Desktop-Parität, sondern nur
+      die Darstellung wurde auf M3-Expressive-Primitives zurückgeführt.
+      `Flut*`-Hilfskomponenten (`Components.kt:226-526`:
+      `FlutBadge`/`FlutPill`/`FlutSegmentedControl`/`FlutCard`/
+      `FlutGhostButton`/`FlutOutlineButton`/`FlutPrimaryButton`/
+      `FlutIconButton`) sind entfernt und durch echte M3-Komponenten ersetzt
+      (`Button`/`OutlinedButton`/`TextButton`/`SegmentedButton`/
+      `SingleChoiceSegmentedButtonRow`/`FilterChip`/`AssistChip`/
+      `OutlinedCard`). `FlutLinkTheme` nutzt jetzt
+      `MaterialExpressiveTheme` mit `motionScheme = MotionScheme.expressive()`
+      (bei gleichbleibender Brand-`colorScheme`/`typography`/`shapes`).
+      Breadcrumb + List/Grid-Toggle + Grid-Ansicht, Impersonation-Handoff
+      Admin→Files, Custom-Quota-Dialog, Gruppen-Dialog und
+      Login/SegmentedControl-Logik blieben unangetastet. `HomeScreen.kt:77-156`
+      (Desktop-Header + Tab-Strip) wurde auf die M3-`NavigationBar`-Konvention
+      (bottombar) umgestellt (auch KMP-F6, doppelte Chrome).
+- [x] **KMP-F15 (Bereinigung, minor):** Überflüssig gewordene `Flut*`-
+      Komponenten und dazugehörige Imports sind entfernt; `Material3ExpressiveTheme`
+      wird als neuer Wrapper in `FlutLinkTheme` genutzt (kein hybrider
+      Custom-Typo/Shapes-Zustand mehr — Typo/Shapes bleiben Flut-Brand).
+
+
 ## Erledigt (2026-08-25, Review-Läufe 17–19 abgeschlossen — Abschnitte verschoben)
 
 Alle Befunde der drei Review-Abschnitte vom 2026-08-24 (Lauf 17 „ganzes
