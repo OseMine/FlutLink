@@ -681,6 +681,17 @@ async fn install_plugin_update(app: &AppHandle, custom_error: &str) -> AppResult
     );
     let app_for_progress = app.clone();
     let mut downloaded = 0u64;
+    // Emit `installing` *before* applying the update: on Windows the signed
+    // updater calls `exit(0)` itself during install, which would otherwise
+    // swallow the final status event (R28-F2). On macOS/Linux the process
+    // keeps running and is relaunched by `relaunch_after_install` below.
+    let _ = app.emit(
+        "update://status",
+        UpdateStatus {
+            code: "installing".into(),
+            asset_name: None,
+        },
+    );
     update
         .download_and_install(
             move |chunk, total| {
@@ -704,14 +715,38 @@ async fn install_plugin_update(app: &AppHandle, custom_error: &str) -> AppResult
         )
         .await
         .map_err(|e| AppError::Update(format!("Signed updater install failed: {e}")))?;
-    let _ = app.emit(
-        "update://status",
-        UpdateStatus {
-            code: "installing".into(),
-            asset_name: None,
-        },
-    );
-    Ok(())
+    // Diverges (relaunch + exit); `AppResult<()>` via the `!` tail.
+    relaunch_after_install();
+}
+
+/// Relaunch the freshly installed app and terminate this (now obsolete)
+/// process. Mirrors the platform relaunch/exit behaviour of `install_update`
+/// for the signed-updater path, whose `download_and_install` replaces the
+/// bundle/AppImage in place but does not relaunch on macOS/Linux (R28-F2).
+/// This only runs on platforms where the plugin did not already exit: on
+/// Windows the updater calls `exit(0)` during install itself.
+fn relaunch_after_install() -> ! {
+    #[cfg(target_os = "windows")]
+    std::process::exit(0);
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("open")
+            .arg("/Applications/FlutLink.app")
+            .spawn();
+        std::process::exit(0);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(current_exe) = std::env::current_exe() {
+            let _ = Command::new(&current_exe).spawn();
+        }
+        std::process::exit(0);
+    }
+
+    #[allow(unreachable_code)]
+    std::process::exit(0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

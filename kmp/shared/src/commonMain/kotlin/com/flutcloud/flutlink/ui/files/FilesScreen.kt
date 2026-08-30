@@ -29,7 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -37,8 +37,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -156,15 +156,18 @@ import com.flutcloud.flutlink.resources.share_type_user
 import com.flutcloud.flutlink.resources.stop_impersonation
 import com.flutcloud.flutlink.resources.tab_files
 import com.flutcloud.flutlink.resources.upload
+import com.flutcloud.flutlink.resources.view_grid
+import com.flutcloud.flutlink.resources.view_list
 import com.flutcloud.flutlink.resources.virtual
 
 
 internal const val ROOT = "/"
 
-/** View mode for file listing (list vs grid). */
-private enum class ViewMode(val icon: ImageVector, val label: String) {
-    List(Icons.Default.List, "List"),
-    Grid(Icons.Default.GridView, "Grid")
+/** View mode for file listing (list vs grid). Labels are localized at the
+ *  point of use (`view_list`/`view_grid`), not hard-coded (KMP-F12). */
+private enum class ViewMode(val icon: ImageVector) {
+    List(Icons.AutoMirrored.Filled.List),
+    Grid(Icons.Default.GridView)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -204,7 +207,13 @@ fun FilesScreen(
     var pendingDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var pendingZipDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var bulkDeleteConfirm by remember { mutableStateOf(false) }
-    var viewMode by remember { mutableStateOf(ViewMode.List) }
+    // KMP-F10: persist the view mode so it survives tab switches and app
+    // restarts (mirrors the desktop `filesView`). Initialised from the store
+    // and written back on every change.
+    val savedViewMode = container.settingsStore.filesViewModeSnapshot()
+    var viewMode by remember {
+        mutableStateOf(if (savedViewMode == "grid") ViewMode.Grid else ViewMode.List)
+    }
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -325,7 +334,14 @@ fun FilesScreen(
                     canGoBack = path != ROOT,
                     onSearch = { showSearch = true },
                     viewMode = viewMode,
-                    onViewModeChange = { viewMode = it }
+                    onViewModeChange = { mode ->
+                        viewMode = mode
+                        scope.launch {
+                            container.settingsStore.setFilesViewMode(
+                                if (mode == ViewMode.Grid) "grid" else "list"
+                            )
+                        }
+                    }
                 )
             }
         },
@@ -375,7 +391,9 @@ fun FilesScreen(
             // Breadcrumbs
             if (path != ROOT) {
                 Breadcrumb(
-                    segments = buildBreadcrumbSegments(path) { vm.listFolder(it) },
+                    segments = buildBreadcrumbSegments(stringResource(Res.string.tab_files), path) {
+                        vm.listFolder(it)
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -533,14 +551,16 @@ fun FilesScreen(
 /** Convert a platform-provided file path string back into an okio [okio.Path]. */
 private fun toOkioPath(path: String): okio.Path = path.toPath()
 
-/** Build breadcrumb segments from a path. */
+/** Build breadcrumb segments from a path. Root label is localized by the
+ *  caller (KMP-F12) instead of being a hard-coded literal. */
 private fun buildBreadcrumbSegments(
+    rootLabel: String,
     path: String,
     onNavigate: (String) -> Unit
 ): List<Pair<String, () -> Unit>> {
     if (path == ROOT) return emptyList()
     val segments = mutableListOf<Pair<String, () -> Unit>>()
-    segments.add("Files" to { onNavigate(ROOT) })
+    segments.add(rootLabel to { onNavigate(ROOT) })
     val parts = path.trim('/').split('/')
     var accumulated = ""
     for (part in parts) {
@@ -572,7 +592,7 @@ private fun FilesTopBar(
         navigationIcon = {
             if (canGoBack) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = stringResource(Res.string.back))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(Res.string.back))
                 }
             }
         },
@@ -585,7 +605,14 @@ private fun FilesTopBar(
                         onClick = { onViewModeChange(mode) },
                         shape = SegmentedButtonDefaults.itemShape(index = index, count = ViewMode.entries.size)
                     ) {
-                        Icon(mode.icon, contentDescription = mode.label, modifier = Modifier.size(16.dp))
+                        Icon(
+                            mode.icon,
+                            contentDescription = stringResource(
+                                if (mode == ViewMode.List) Res.string.view_list
+                                else Res.string.view_grid
+                            ),
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }

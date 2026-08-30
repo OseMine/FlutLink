@@ -18,12 +18,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -362,7 +362,7 @@ private fun UserRow(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_unlimited)) },
-                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onQuota(null)
@@ -370,7 +370,7 @@ private fun UserRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_1gb)) },
-                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onQuota(GB)
@@ -378,7 +378,7 @@ private fun UserRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_5gb)) },
-                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onQuota(5 * GB)
@@ -386,7 +386,7 @@ private fun UserRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_10gb)) },
-                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onQuota(10 * GB)
@@ -394,7 +394,7 @@ private fun UserRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_custom)) },
-                        leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onQuotaCustom()

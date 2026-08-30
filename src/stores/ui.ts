@@ -118,6 +118,10 @@ let nextId = 1;
   }
 
   function toast(message: string, type: Toast["type"] = "info") {
+    // L24-N7: dedupe — don't stack a second identical toast while the first is
+    // still visible (e.g. the impersonation "enter a search term" hint on
+    // repeated Enter/refresh presses).
+    if (toasts.value.some((t) => t.message === message && t.type === type)) return;
     const id = nextId++;
     toasts.value.push({ id, message, type });
     window.setTimeout(() => {

@@ -5,7 +5,9 @@
 //! (rather than part of the account config) so the sync worker can read/write
 //! it in place without going through the account persistence round-trip.
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -51,8 +53,10 @@ fn settings_file(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(dir.join("settings.json"))
 }
 
-/// Load persisted settings; a missing/corrupt file resolves to defaults so a
-/// broken write never disables notifications silently.
+/// Load persisted settings; a missing file resolves to defaults so a broken
+/// write never disables notifications silently. A **corrupt** file is
+/// quarantined (like accounts.json / journals) instead of being silently
+/// overwritten by the next persist (L24-N2).
 pub fn load(app: &AppHandle) -> AppSettings {
     let path = match settings_file(app) {
         Ok(p) => p,
@@ -62,7 +66,13 @@ pub fn load(app: &AppHandle) -> AppSettings {
         return AppSettings::default();
     }
     let raw = std::fs::read_to_string(&path).unwrap_or_default();
-    serde_json::from_str::<AppSettings>(&raw).unwrap_or_default()
+    match serde_json::from_str::<AppSettings>(&raw) {
+        Ok(settings) => settings,
+        Err(_) => {
+            crate::persist::quarantine_corrupt_file(&path);
+            AppSettings::default()
+        }
+    }
 }
 
 /// Atomically persist settings.
@@ -74,44 +84,74 @@ pub fn save(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
 
 /// #410: check each account's shares for new ones and emit a notification for
 /// every newly seen share. Called once per sync tick from `SyncEngine::run_all`.
+/// Returns `true` when `settings.share_seen` changed (the caller should then
+/// persist); `false` when nothing was mutated so the worker can skip the write
+/// (L24-N2: avoid unconditional rewrites).
+///
+/// The first time an account is seen (`share_seen` has no entry yet), the
+/// current share ids are **seeded silently** — otherwise a fresh install or a
+/// cleared settings file would fire a notification for every pre-existing
+/// share on the first tick.
 pub async fn check_share_notifications(
     app: &AppHandle,
     accounts: &[Account],
     settings: &mut AppSettings,
-) {
+) -> bool {
     if !settings.share_notify_enabled {
-        return;
+        return false;
     }
     let state = app.state::<AppState>();
+    let mut changed = false;
     for account in accounts {
         let key = crate::sync::account_key(account);
-        let seen = settings.share_seen.entry(key.clone()).or_default();
         let shares =
             match crate::nextcloud::ocs::list_shares(&state.http_client, account, None, None).await
             {
                 Ok(s) => s,
                 Err(_) => continue, // stay silent on server errors — same pattern as quota checks
             };
-        for share in &shares {
-            if seen.contains(&share.id) {
-                continue;
+        let share_ids: HashSet<u64> = shares.iter().map(|s| s.id).collect();
+
+        match settings.share_seen.entry(key.clone()) {
+            Entry::Vacant(entry) => {
+                // First tick for this account: seed without notifying, so an
+                // existing share library never triggers a notification storm.
+                entry.insert(share_ids.iter().copied().collect());
+                changed = true;
             }
-            let label = share_label(share);
-            let owner = share.uid_owner.clone().unwrap_or_default();
-            let owner = owner.trim();
-            crate::sync::notify(
-                app,
-                "FlutLink Shares",
-                &format!(
-                    "{} shared '{}'.",
-                    if owner.is_empty() { "Someone" } else { owner },
-                    label
-                ),
-            );
-            seen.push(share.id);
+            Entry::Occupied(mut entry) => {
+                let seen = entry.get_mut();
+                for share in &shares {
+                    if share_ids.contains(&share.id) && !seen.contains(&share.id) {
+                        let label = share_label(share);
+                        let owner = share.uid_owner.clone().unwrap_or_default();
+                        let owner = owner.trim();
+                        crate::sync::notify(
+                            app,
+                            "FlutLink Shares",
+                            &format!(
+                                "{} shared '{}'.",
+                                if owner.is_empty() { "Someone" } else { owner },
+                                label
+                            ),
+                        );
+                        seen.push(share.id);
+                        changed = true;
+                    }
+                }
+                // Prune ids that no longer exist. Hash-set lookup keeps this
+                // O(n) instead of the previous O(n²) nested scan; only mutate
+                // when there is actually something to remove (so an empty
+                // listing does not wipe the seen-set and cause re-notifications).
+                let before = seen.len();
+                seen.retain(|id| share_ids.contains(id));
+                if seen.len() != before {
+                    changed = true;
+                }
+            }
         }
-        seen.retain(|id| shares.iter().any(|s| s.id == *id));
     }
+    changed
 }
 
 /// Human-readable label for a share notification.

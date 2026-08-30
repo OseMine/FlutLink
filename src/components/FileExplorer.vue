@@ -499,9 +499,16 @@ async function refreshQuickLookImage() {
   quickLookImage.value = null;
   if (entry && !entry.isDir && entry.contentType?.startsWith("image/")) {
     try {
-      quickLookImage.value = await files.getThumbnail(entry.path);
+      const url = await files.getThumbnail(entry.path);
+      // L24-N5: ignore a stale response if the user already navigated to a
+      // different entry while the thumbnail was loading.
+      if (entry.path === quickLookEntry.value?.path) {
+        quickLookImage.value = url;
+      }
     } catch {
-      quickLookImage.value = null;
+      if (entry.path === quickLookEntry.value?.path) {
+        quickLookImage.value = null;
+      }
     }
   }
 }
@@ -1455,8 +1462,8 @@ watch(
       :key="quickLookEntry.path"
       :entry="quickLookEntry"
       :image-url="quickLookImage"
-      :can-prev="sortedEntries.length > 1"
-      :can-next="sortedEntries.length > 1"
+      :can-prev="quickLookIndex > 0"
+      :can-next="quickLookIndex < sortedEntries.length - 1"
       @close="closeQuickLook"
       @prev="quickLookStep(-1)"
       @next="quickLookStep(1)"

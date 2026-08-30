@@ -8,7 +8,7 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.readBytes
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.ContentType
@@ -465,7 +465,7 @@ class WebDavApi(private val client: HttpClient) {
                     "http_${response.status.value}",
                     response.status.value
                 )
-                else -> response.readBytes()
+                else -> response.readRawBytes()
             }
         } catch (e: ApiException) {
             throw e

@@ -1791,8 +1791,11 @@ impl SyncEngine {
         // set is persisted so notifications fire once per share, not every tick.
         {
             let mut settings = crate::settings::load(app);
-            crate::settings::check_share_notifications(app, &accounts, &mut settings).await;
-            let _ = crate::settings::save(app, &settings);
+            let changed =
+                crate::settings::check_share_notifications(app, &accounts, &mut settings).await;
+            if changed {
+                let _ = crate::settings::save(app, &settings);
+            }
         }
     }
 }

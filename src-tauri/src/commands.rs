@@ -638,7 +638,7 @@ pub async fn webdav_update_share(
 /// (`resources`/`parts`) is legitimate — `webdav_list` serves their entries
 /// with `isResource`/`isPart` flags — so only modifications are refused via
 /// [`validate_writable_dav_path`] (L17-F2).
-fn validate_dav_path(path: &str) -> AppResult<()> {
+pub(crate) fn validate_dav_path(path: &str) -> AppResult<()> {
     if !path.starts_with('/') {
         return Err(AppError::App(
             "Path must be absolute (start with '/').".into(),
@@ -941,6 +941,13 @@ pub async fn webdav_thumbnail(
     else {
         return Ok(None);
     };
+    // L24-N6: only accept image payloads for the `data:` thumbnail URL. The
+    // content-type is server-controlled, so whitelisting to `image/*` keeps an
+    // attacker-provided `text/html`/`text/javascript` body from ever reaching
+    // the frontend `<img>`/`<iframe>`.
+    if !preview.content_type.starts_with("image/") {
+        return Ok(None);
+    }
     let data = STANDARD.encode(preview.bytes);
     Ok(Some(format!(
         "data:{};base64,{}",

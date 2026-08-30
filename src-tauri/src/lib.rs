@@ -198,48 +198,87 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
     Ok(())
 }
 
-/// Handle CLI flags passed to the app binary:
-/// `-s/--sync`, `-p/--path <dir>`, `-u/--url <url>`, `-t/--tray`,
-/// `--download <remote> --download-to <local>` and `--list <path>` (the latter
-/// two are headless: they print JSON to stdout and need not show a window).
-fn handle_cli(app: &tauri::App) {
-    let Ok(matches) = app.cli().matches() else {
-        return;
-    };
-    let args = &matches.args;
+/// Parsed CLI flags, shared by the first-instance startup path (which reads
+/// the parsed `tauri::cli` matches) and the single-instance callback (which
+/// parses the forwarded `argv` of every subsequent invocation).
+#[derive(Default)]
+struct CliArgs {
+    want_sync: bool,
+    want_tray: bool,
+    path: Option<String>,
+    url: Option<String>,
+    download: Option<String>,
+    download_to: Option<String>,
+    list: Option<String>,
+}
 
-    let want_tray = args.get("tray").is_some_and(|a| a.occurrences > 0);
-    let want_sync = args.get("sync").is_some_and(|a| a.occurrences > 0);
-    let cli_path = args
-        .get("path")
-        .and_then(|a| a.value.as_str())
-        .map(str::to_string);
-    let cli_url = args
-        .get("url")
-        .and_then(|a| a.value.as_str())
-        .map(str::to_string);
+/// Lightweight parser for the `argv` forwarded by
+/// `tauri_plugin_single_instance`. Recognises the same flags as the Tauri CLI
+/// definition (`sync`/`-s`, `tray`/`-t`, `path`/`-p`, `url`/`-u`,
+/// `download`, `download-to`, `list`), accepting both `--flag=value` and
+/// `--flag value` forms. A leading non-flag token (the program path) is
+/// skipped so it works whether or not argv[0] is included.
+fn parse_cli_argv(argv: &[String]) -> CliArgs {
+    let mut args = CliArgs::default();
+    let mut start = 0;
+    if argv.first().is_some_and(|a| !a.starts_with('-')) {
+        start = 1;
+    }
+    let mut i = start;
+    while i < argv.len() {
+        let arg = &argv[i];
+        let (flag, inline) = match arg.split_once('=') {
+            Some((f, v)) => (f.to_string(), Some(v.to_string())),
+            None => (arg.clone(), None),
+        };
+        let get_val = |idx: &mut usize, inline: &Option<String>| -> Option<String> {
+            if let Some(v) = inline {
+                return Some(v.clone());
+            }
+            if *idx + 1 < argv.len() {
+                *idx += 1;
+                Some(argv[*idx].clone())
+            } else {
+                None
+            }
+        };
+        match flag.as_str() {
+            "-s" | "--sync" => args.want_sync = true,
+            "-t" | "--tray" => args.want_tray = true,
+            "-p" | "--path" => args.path = get_val(&mut i, &inline),
+            "-u" | "--url" => args.url = get_val(&mut i, &inline),
+            "--download" => args.download = get_val(&mut i, &inline),
+            "--download-to" => args.download_to = get_val(&mut i, &inline),
+            "--list" => args.list = get_val(&mut i, &inline),
+            _ => {}
+        }
+        i += 1;
+    }
+    args
+}
 
-    if let Some(url) = cli_url {
-        let _ = app.emit("flutlink:cli-open", url);
+/// Execute the CLI actions encoded in `args`. This is the shared core behind
+/// both the first-instance startup path and every forwarded second instance.
+fn run_cli(handle: &AppHandle, args: CliArgs) {
+    if let Some(url) = args.url {
+        let _ = handle.emit("flutlink:cli-open", url);
     }
 
     // #400: headless `--download <remote> --download-to <local>`.
-    let cli_download = args
-        .get("download")
-        .and_then(|a| a.value.as_str())
-        .map(str::to_string);
-    let cli_download_to = args
-        .get("download-to")
-        .and_then(|a| a.value.as_str())
-        .map(str::to_string);
-    match (cli_download, cli_download_to) {
+    match (args.download, args.download_to) {
         (Some(remote), Some(local)) => {
             if let Some(parent) = std::path::Path::new(&local).parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
-            let handle = app.handle().clone();
+            let handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 let state = handle.state::<AppState>();
+                // L24-N3: same path rules as the WebDAV commands — reject
+                // non-absolute / `..` escapes before touching the network.
+                if let Err(err) = commands::validate_dav_path(&remote) {
+                    eprintln!("flutlink --download: {}", err.message());
+                    return;
+                }
                 let Some(account) = state.current() else {
                     eprintln!("flutlink --download: no active account (connect one first)");
                     return;
@@ -269,14 +308,14 @@ fn handle_cli(app: &tauri::App) {
     }
 
     // #400: headless `--list <path>` — print the folder listing as JSON.
-    if let Some(path) = args
-        .get("list")
-        .and_then(|a| a.value.as_str())
-        .map(str::to_string)
-    {
-        let handle = app.handle().clone();
+    if let Some(path) = args.list {
+        let handle = handle.clone();
         tauri::async_runtime::spawn(async move {
             let state = handle.state::<AppState>();
+            if let Err(err) = commands::validate_dav_path(&path) {
+                eprintln!("flutlink --list: {}", err.message());
+                return;
+            }
             let Some(account) = state.current() else {
                 eprintln!("flutlink --list: no active account (connect one first)");
                 return;
@@ -291,8 +330,8 @@ fn handle_cli(app: &tauri::App) {
         });
     }
 
-    if let Some(path) = cli_path {
-        let handle = app.handle().clone();
+    if let Some(path) = args.path {
+        let handle = handle.clone();
         tauri::async_runtime::spawn(async move {
             match commands::sync_add(handle.clone(), handle.state::<AppState>(), path, None).await {
                 Ok(_) => {
@@ -303,15 +342,55 @@ fn handle_cli(app: &tauri::App) {
         });
     }
 
-    if want_sync {
-        app.state::<AppState>().sync.notify_one();
+    if args.want_sync {
+        handle.state::<AppState>().sync.notify_one();
     }
 
-    if want_tray {
-        if let Some(window) = app.get_webview_window("main") {
+    // `--tray` is the only flag that suppresses the window; a forwarded second
+    // instance still opens the window, so only hide when explicitly requested.
+    if args.want_tray {
+        if let Some(window) = handle.get_webview_window("main") {
             let _ = window.hide();
         }
     }
+}
+
+/// Handle CLI flags passed to the first-instance binary:
+/// `-s/--sync`, `-p/--path <dir>`, `-u/--url <url>`, `-t/--tray`,
+/// `--download <remote> --download-to <local>` and `--list <path>` (the latter
+/// two are headless: they print JSON to stdout and need not show a window).
+fn handle_cli(app: &tauri::App) {
+    let Ok(matches) = app.cli().matches() else {
+        return;
+    };
+    let args = &matches.args;
+    run_cli(
+        app.handle(),
+        CliArgs {
+            want_sync: args.get("sync").is_some_and(|a| a.occurrences > 0),
+            want_tray: args.get("tray").is_some_and(|a| a.occurrences > 0),
+            path: args
+                .get("path")
+                .and_then(|a| a.value.as_str())
+                .map(str::to_string),
+            url: args
+                .get("url")
+                .and_then(|a| a.value.as_str())
+                .map(str::to_string),
+            download: args
+                .get("download")
+                .and_then(|a| a.value.as_str())
+                .map(str::to_string),
+            download_to: args
+                .get("download-to")
+                .and_then(|a| a.value.as_str())
+                .map(str::to_string),
+            list: args
+                .get("list")
+                .and_then(|a| a.value.as_str())
+                .map(str::to_string),
+        },
+    );
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -320,8 +399,14 @@ pub fn run() {
     let quit_flag_close = quit_flag.clone();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // R28-F3: a second invocation must forward its CLI action (sync,
+            // tray, headless download/list, add-path) instead of only showing
+            // the existing window — otherwise `--sync`-style scripting and
+            // headless commands silently become no-ops when the app is already
+            // running.
             show_main_window(app);
+            run_cli(app, parse_cli_argv(&argv));
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

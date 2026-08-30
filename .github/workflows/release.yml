@@ -41,6 +41,12 @@ env:
 jobs:
   release-notes:
     runs-on: ubuntu-latest
+    # R28-N1: release notes are nice-to-have. If the AI note generation fails,
+    # mark the job as succeeded-with-error so `prepare-release` (which needs
+    # this job and reads its `body` output) still runs with the fallback body
+    # instead of being skipped — otherwise every make-or-break for the release
+    # depends on the OpenCode model returning a body.
+    continue-on-error: true
     permissions:
       contents: write
     outputs:
@@ -178,6 +184,29 @@ jobs:
             || echo "::warning::Tag ${TAG} war bereits geloescht"
           echo "::error title=Release abgebrochen::Security-Gate fehlgeschlagen (Bewertung ${{ needs.security-gate.outputs.rating }}/10) - Release ${TAG} gestoppt und Tag ${TAG} geloescht"
 
+  verify-signing-secrets:
+    name: Verify updater signing secrets
+    # R28-F4: an explicit, early abort with a understandable message instead of
+    # the cryptic asset-list failure in `publish-release`. `build-and-release`
+    # drives tauri-action with TAURI_SIGNING_PRIVATE_KEY(_PASSWORD); if they are
+    # not set, no signed `latest.json` / `.sig` assets are produced and every
+    # tag release would later hard-fail at the completeness gate. This job runs
+    # always (no `if:` skip) and only fails when the secrets are missing, so it
+    # is safe to add to `needs` without the skipped-job pitfall.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secrets present
+        shell: bash
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+        run: |
+          if [ "$HAS_KEY" != "true" ] || [ "$HAS_PASSWORD" != "true" ]; then
+            echo "::error::Updater-Signatur-Secrets fehlen. TAURI_SIGNING_PRIVATE_KEY und TAURI_SIGNING_PRIVATE_KEY_PASSWORD muessen als Repo-Secrets gesetzt sein, sonst erzeugt tauri-action keine signierten Assets (latest.json + .sig) und jede Tag-Release schlaegt im Publish-Schritt fehl. Setze die rotierten Secrets und starte das Release neu."
+            exit 1
+          fi
+          echo "Signing secrets present - OK"
+
   prepare-release:
     name: Create release page (draft)
     needs: [checks, security-gate, release-notes]
@@ -218,7 +247,7 @@ jobs:
     # Desktop installers only for real tag releases; a stray workflow_dispatch
     # must never let tauri-action create/publish a release page on its own.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [prepare-release]
+    needs: [prepare-release, verify-signing-secrets]
     strategy:
       fail-fast: false
       matrix:

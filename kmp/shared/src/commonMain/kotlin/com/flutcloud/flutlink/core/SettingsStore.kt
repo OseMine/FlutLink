@@ -21,6 +21,9 @@ class SettingsStore(private val storage: KeyValueStorage) {
         // Remembered guest choice: start in guest mode instead of asking
         // for login/register on every launch.
         const val guestMode = "guest_mode"
+        // Files list view mode ("list"|"grid"), mirrored from the desktop
+        // filesView (KMP-F10).
+        const val filesViewMode = "files_view_mode"
     }
 
     private val _defaultServerUrl =
@@ -32,6 +35,8 @@ class SettingsStore(private val storage: KeyValueStorage) {
     private val _accentHue = MutableStateFlow(storage.getString(Keys.accentHue)?.toIntOrNull())
     private val _guestMode =
         MutableStateFlow(storage.getString(Keys.guestMode)?.toBooleanStrictOrNull() ?: false)
+    private val _filesViewMode =
+        MutableStateFlow(storage.getString(Keys.filesViewMode) ?: "list")
 
     val defaultServerUrl: Flow<String> = _defaultServerUrl.asStateFlow()
     val themePreference: Flow<String> = _themePreference.asStateFlow()
@@ -42,6 +47,9 @@ class SettingsStore(private val storage: KeyValueStorage) {
 
     /** Guest-mode flow so UI can react to changes live. */
     val guestMode: Flow<Boolean> = _guestMode.asStateFlow()
+
+    /** Files list view mode ("list"|"grid"), persisted across restarts/tabs. */
+    val filesViewMode: Flow<String> = _filesViewMode.asStateFlow()
 
     suspend fun setDefaultServerUrl(url: String) {
         storage.putString(Keys.defaultServerUrl, url)
@@ -68,8 +76,16 @@ class SettingsStore(private val storage: KeyValueStorage) {
         _guestMode.value = enabled
     }
 
+    suspend fun setFilesViewMode(mode: String) {
+        storage.putString(Keys.filesViewMode, mode)
+        _filesViewMode.value = mode
+    }
+
     /** Synchronous snapshot for the early start-destination decision. */
     fun isGuestMode(): Boolean = _guestMode.value
+
+    /** Synchronous snapshot of the persisted files view mode. */
+    fun filesViewModeSnapshot(): String = _filesViewMode.value
 
     suspend fun defaultServerUrlOrEmpty(): String = _defaultServerUrl.value
 }

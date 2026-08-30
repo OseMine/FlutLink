@@ -19,9 +19,13 @@
 
     <!-- Navigation -->
     <string name="tab_files">Dateien</string>
+    <string name="view_list">Liste</string>
+    <string name="view_grid">Raster</string>
     <string name="tab_admin">Admin</string>
     <string name="tab_settings">Einstellungen</string>
     <string name="settings">Einstellungen</string>
+    <string name="admin_locked_title">Admin-Zugriff erforderlich.</string>
+    <string name="admin_locked_text">Verbinde ein Admin-Konto, um Benutzer und Kontingente zu verwalten.</string>
 
     <!-- Login -->
     <string name="login_tagline">Dein FlutCloud-Client</string>

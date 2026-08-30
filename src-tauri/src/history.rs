@@ -27,6 +27,12 @@ pub struct FileHistoryEntry {
 /// Maximum number of entries kept (newer entries push older ones out).
 pub const MAX_HISTORY: usize = 20;
 
+/// Serialises `record_open` and `clear` so an in-flight atomic write (temp+
+/// rename) can never resurrect the journal right after it was cleared
+/// (L24-N4). Both operations are short and synchronous, so a plain mutex is
+/// enough.
+static HISTORY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn history_file(app: &AppHandle) -> AppResult<PathBuf> {
     let dir = app
         .path()
@@ -58,6 +64,9 @@ pub fn load(app: &AppHandle) -> AppResult<Vec<FileHistoryEntry>> {
 /// Remember that `remote_path` was opened (best-effort, never blocks the open
 /// itself). Moves an existing entry for the same path to the top.
 pub fn record_open(app: &AppHandle, remote_path: &str) {
+    let Ok(_guard) = HISTORY_LOCK.lock() else {
+        return;
+    };
     let Some(name) = Path::new(remote_path)
         .file_name()
         .and_then(|n| n.to_str())
@@ -83,9 +92,29 @@ pub fn record_open(app: &AppHandle, remote_path: &str) {
     }
 }
 
-/// Delete the whole history.
+/// Delete the whole history. Also removes any leftover atomic-write temp files
+/// (`.tmp-*`), so a stale temp can never be renamed over the (now absent)
+/// journal later (L24-N4).
 pub fn clear(app: &AppHandle) -> AppResult<()> {
+    let Ok(_guard) = HISTORY_LOCK.lock() else {
+        return Ok(());
+    };
     let path = history_file(app)?;
+    if let Some(dir) = path.parent() {
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+        if let Ok(read) = std::fs::read_dir(dir) {
+            for entry in read.flatten() {
+                let fname = entry.file_name();
+                let Some(fname) = fname.to_str() else {
+                    continue;
+                };
+                let Some(base) = &name else { continue };
+                if fname == *base || fname.starts_with(&format!("{base}.tmp-")) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
     if path.exists() {
         std::fs::remove_file(path)?;
     }

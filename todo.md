@@ -28,7 +28,7 @@ Erstmals seit Lauf 24 wieder ein vollständiger Toolchain-Lauf.
 
 Neu gefunden:
 
-- [ ] **R28-F1 (Version/Release, hoch): Die Mobile-Clients hängen bei 1.2.0,
+- [x] **R28-F1 (Version/Release, hoch): Die Mobile-Clients hängen bei 1.2.0,
       während Desktop auf 1.3.0 steht und AltStore die v1.3.0-Release-IPA als
       „1.3.0" ausweist.** `kmp/android-app/build.gradle.kts:18-19` hat
       `versionCode = 4` / `versionName = "1.2.0"`; `kmp/iosApp/Config.xcconfig`
@@ -46,7 +46,7 @@ Neu gefunden:
       auseinander. Fix: `android-app` versionName/versionCode und
       `Config.xcconfig` APP_VERSION mit dem Desktop-Release abgleichen und
       einen gemeinsamen Release-Versions-Schritt (ein Source-of-Truth) einführen.
-- [ ] **R28-F2 (Updater, mittel): Der Signed-Updater-Fallback startet die App
+- [x] **R28-F2 (Updater, mittel): Der Signed-Updater-Fallback startet die App
       nach erfolgreichem Install nie neu — Divergenz zum Custom-Pfad.**
       `install_plugin_update` (`src-tauri/src/updater.rs:666-715`) ruft
       `update.download_and_install(...)` und emittiert danach `installing`;
@@ -61,7 +61,7 @@ Neu gefunden:
       verloren (Custom-Pfad emittet vor dem Exit). Fix: nach ok-Install
       denselben Relaunch-/Exit-Code wie `install_update` ausführen bzw. das
       `install_update`-Verhalten für den Plugin-Pfad spiegeln.
-- [ ] **R28-F3 (CLI/Single-Instance, mittel): Das neue
+- [x] **R28-F3 (CLI/Single-Instance, mittel): Das neue
       `tauri_plugin_single_instance` verschluckt die CLI-Argumente aller
       Folge-Prozesse.** `lib.rs:323-325` registriert
       `.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -74,7 +74,7 @@ Neu gefunden:
       standardmäßig ein Fenster). Fix: im Callback `_argv` parsen und an
       `handle_cli`-Äquivalente delegieren (mindestens `--sync`/`--tray`/
       Headless-Kommandos), oder CLI-Verhalten dokumentieren/explizit droppen.
-- [ ] **R28-F4 (Release-CI, mittel): `release.yml` verlangt seit 38c9bb8
+- [x] **R28-F4 (Release-CI, mittel): `release.yml` verlangt seit 38c9bb8
       zwingend signierte Updater-Assets (`latest.json` + `.sig`), aber das
       Vorhandensein der rotierten Secrets ist nicht verifizierbar.**
       `855d716` rotiert den minisign-pubkey (`tauri.conf.json` →
@@ -87,21 +87,21 @@ Neu gefunden:
       schlägt im publish-Schritt hart fehl**. Fix: explizite Vorab-Prüfung der
       Secrets (z. B. Job mit `if: secrets.X != ''`), die früh und mit
       verständlicher Meldung abrichtet, statt einer kryptischen Asset-Liste.
-- [ ] **R28-N1 (CI-Robustheit, minor): `prepare-release` hängt jetzt an der
+- [x] **R28-N1 (CI-Robustheit, minor): `prepare-release` hängt jetzt an der
       AI-`release-notes`-Job (`needs: [checks, security-gate, release-notes]`,
       `release.yml:183`).** Schlägt die OpenCode-Note-Generierung fehl
       (Model-Fallback leer/Rate-Limit), blockiert das das komplette Release —
       früher war `prepare-release` davon unabhängig. Empfehlung: Fallback-Body
       (der `|| 'Download the assets below…'`-Ausdruck greift nur bei leerem
       Output, nicht bei Job-Failure) bzw. `allow-failure`-Verdrahtung.
-- [ ] **R28-N2 (KMP, minor): Deprecation-Warnungen nach dem M3-Umbau.**
+- [x] **R28-N2 (KMP, minor): Deprecation-Warnungen nach dem M3-Umbau.**
       `:shared:compileKotlinJvm` meldet: `WebDavApi.kt:468` `readBytes()` →
       `readRawBytes()`; `AdminScreen.kt:365-397` `Icons.Filled.Sort` →
       AutoMirrored; `FilesScreen.kt:166` → AutoMirrored List (unten).
       `FilesScreen.kt:575` / `Components.kt:137` ArrowBack/InsertDriveFile →
       AutoMirrored. Kein Funktionseffekt, aber API-Veraltung (künftige Compose-
       Upgrades schärfen das).
-- [ ] **R28-N3 (Doku, minor — gehört zu R28-F1): README-Versionstabelle
+- [x] **R28-N3 (Doku, minor — gehört zu R28-F1): README-Versionstabelle
       veraltet.** `README.md:31-35` nennt „Desktop client 1.2.0" / „Mobile
       client 1.1.1"; real ist Desktop 1.3.0, Mobile (Android+ iOS) 1.2.0.
 
@@ -335,7 +335,7 @@ Commits — **kein KMP-Commit**; die L25-KMP-Befunde sind daher unverändert.
 
 ### Neu gefunden (Fokus KMP Compose UI)
 
-- [ ] **KMP-F10 (UX, minor): Der List/Grid-Ansichtsmodus ist weder persistiert
+- [x] **KMP-F10 (UX, minor): Der List/Grid-Ansichtsmodus ist weder persistiert
       noch übersteht er einen Tab-Wechsel.** `FilesScreen.kt:203`
       `var viewMode by remember { mutableStateOf(ViewMode.List) }` — ein
       bloßes `remember`, kein `rememberSaveable` und keine Persistenz. Beim
@@ -353,7 +353,7 @@ Commits — **kein KMP-Commit**; die L25-KMP-Befunde sind daher unverändert.
       aus wie die reinen Filter-Chips darunter (`:220-231`). Fix: destruktive
       Aktion hinter ein klares Affordanz-Element (z.B. „×"-Badge) oder einen
       separaten „Kategorien verwalten"-Dialog.
-- [ ] **KMP-F12 (Konsistenz/Localization, minor): Nicht lokalisierte
+- [x] **KMP-F12 (Konsistenz/Localization, minor): Nicht lokalisierte
       UI-Literale in der Dateiliste.** `ViewMode`-Labels `"List"`/`"Grid"`
       (`FilesScreen.kt:162-163`) und der Breadcrumb-Root-`"Files"`
       (`FilesScreen.kt:539`) sind hart kodiert; Desktop lokalisiert
@@ -568,7 +568,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       die gerade geleerte Liste erneut leert. Fix: Sequenz-/Generations-Guard
       pro Request (Desktop-Pattern aus `AdminPanel.vue saveField`/`selectSeq`,
       Review L22-F3) + Abbruch untergeordneter Lade-Coroutines.
-- [ ] **KMP-F5 (Cleanup, minor): Unlokalisierte UI-Literale.** `"Files"` in
+- [x] **KMP-F5 (Cleanup, minor): Unlokalisierte UI-Literale.** `"Files"` in
       `buildBreadcrumbSegments` (`FilesScreen.kt:539`) und `"List"`/`"Grid"`
       im `ViewMode`-Enum (`FilesScreen.kt:162-163`) sind hart kodiert; der
       Desktop lokalisiert beides (`viewList`/`viewGrid`, `files`). Fix:
@@ -582,7 +582,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       NavigationBar` (Bottom-Tabs) + eine einzige `TopAppBar` pro Screen;
       derzeit ist die Tab-Zeile zudem kein `NavigationBar`, sondern ein
       handgebauter Desktop-Tabstrip ohne `role`/Semantik.
-- [ ] **KMP-F7 (Konsistenz, minor): Nicht-Admins sehen den Admin-Tab gar
+- [x] **KMP-F7 (Konsistenz, minor): Nicht-Admins sehen den Admin-Tab gar
       nicht; Desktop zeigt ihn als gesperrt mit Hinweis.** `HomeScreen.kt:112`
       `val visible = tab != Tab.Admin || isAdmin` blendet Admin komplett aus;
       im Desktop rendert `App.vue` `navItems` den Admin-Tab als gesperrt
@@ -779,7 +779,8 @@ die CI würde aktuell rot laufen.
       Dazu toter No-op-`match result { … }` mit lauter Unit-Armen
       (`sync.rs:1227-1231`). Fix: Log-Einträge im Pass sammeln und einmal
       flushen; No-op-Match entfernen.
-- [ ] **L24-N2 (Robustheit, minor): Kaputtes `settings.json` wird still
+ - [x] **L24-N2 (Robustheit, minor): Kaputtes `settings.json` wird still
+
       überschrieben statt einkarantäniert; erster Tick benachrichtigt für alle
       Bestandsshares.** `settings::load` (`settings.rs:56-66`) gibt bei
       korrumpierter Datei Defaults zurück, ohne die Datei zu quarantänen
@@ -791,7 +792,7 @@ die CI würde aktuell rot laufen.
       (`:113`) ist O(n²) und leert `share_seen` bei temporär leerer Liste
       (→ Re-Notifications). Fix: Quarantäne beim Corrupt-Pfad, nur speichern
       wenn geändert, `share_seen` beim ersten Listing ohne Meldung seeden.
-- [ ] **L24-N3 (Validierung, minor): Headless-CLI `--download`/`--list`
+ - [x] **L24-N3 (Validierung, minor):  Headless-CLI `--download`/`--list`
       umgehen die Pfadvalidierung aller IPC-Commands.** `lib.rs:247/284`
       reichen `remote`/`path` unvalidiert an `get_file`/`list` durch (kein
       `validate_dav_path`, `..`/leere Segmente möglich) und der Prozess
@@ -799,25 +800,25 @@ die CI würde aktuell rot laufen.
       versteckt; kein Exit-Code). Fix: `validate_dav_path` in beiden CLI-
       Pfaden aufrufen; für Headless-`--download`/`--list` Fenster ausblenden
       bzw. nach Output beenden.
-- [ ] **L24-N4 (Race, minor): `history::clear` vs. `record_open`.**
+ - [x] **L24-N4 (Race, minor): `history::clear` vs. `record_open`.**
       `record_open` schreibt atomar (temp+rename), `clear` macht `remove_file`
       (`history.rs:87-93`). Eine Clear während eines in-flight Open kann das
       „geleerte" Journal per rename wiederbeleben. Beides bleibt unsynchronisiert
       (gleiche Klasse wie L24-F4). Fix: hinter denselben Lock / Clear entfernt
       auch verwaiste Temp-Dateien.
-- [ ] **L24-N5 (Race, minor): QuickLook-Prev/Next-Buttons sind auch an den
+ - [x] **L24-N5 (Race, minor): QuickLook-Prev/Next-Buttons sind auch an den
       Rändern aktiv** (`FileExplorer.vue:1458-1459` nutzen
       `sortedEntries.length > 1` statt `quickLookIndex` an 0/letztem) und
       wrappen über das Modulo — Zustand wirkt falsch aktiviert. Fix:
       `canPrev = quickLookIndex > 0` / `canNext = quickLookIndex < len-1`
       (oder bewusst wrappen lassen und Labels anpassen).
-- [ ] **L24-N6 (Security/Defense, minor): Thumbnail-`data:`-URL übernimmt
+ - [x] **L24-N6 (Security/Defense, minor): Thumbnail-`data:`-URL übernimmt
       den Server-Content-Type ungeprüft.** `commands.rs:921-925` baut
       `data:{content_type};base64,…` aus der Server-Antwort (SVG möglich) in
       ein `<img>` in QuickLook. Moderne Browser blockieren Skripte in
       `<img>`-SVG großteils, aber eine Mime-Whitelist (png/jpeg/webp, sonst
       Fallback) wäre robuster. (`webdav.rs:728-738` liefert den Typ.)
-- [ ] **L24-N7 (UX/Konsistenz, minor): `ImpersonationBar.vue:28-33` zeigt bei
+ - [x] **L24-N7 (UX/Konsistenz, minor): `ImpersonationBar.vue:28-33` zeigt bei
       leeren Such-Enter/Retry erneut einen Info-Toast** — bei schnellem
       Klicken wiederholte Infos. Hinweis lieber einmalig/inline statt Toast.
 

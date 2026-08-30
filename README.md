@@ -30,8 +30,8 @@ custom HTTP methods like `PROPFIND`, and keeps credentials out of the renderer.
 
 | Component | Latest version | Platform |
 | --- | --- | --- |
-| Desktop client | **1.2.0** | Windows, macOS, Linux (Tauri v2) |
-| Mobile client (`kmp/`) | **1.1.1** | Android, iOS (Kotlin Multiplatform) |
+| Desktop client | **1.3.1** | Windows, macOS, Linux (Tauri v2) |
+| Mobile client (`kmp/`) | **1.3.1** | Android, iOS (Kotlin Multiplatform) |
 | FlutCloud server app | **1.2.0** | Nextcloud 28–37 (PHP) |
 
 ## Tech stack
