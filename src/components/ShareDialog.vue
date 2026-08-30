@@ -98,10 +98,20 @@ function cancelEdit() {
 function submitEdit() {
   const share = editing.value;
   if (!share) return;
+  // #406/#411 + L24-F7: raw field semantics.
+  // - expireDate is sent verbatim: "" clears the server expiry, any other
+  //   value sets it. Previously "" was folded into `undefined`, so clearing
+  //   the date never reached the backend.
+  // - publicUpload is only sent when it diverges from the share's current
+  //   permissions (prepopulated by startEdit), so an untouched toggle cannot
+  //   silently change permissions that the dialog preview doesn't fully cover.
   const values: ShareUpdateValues = {
     password: clearPassword.value ? "" : editPassword.value.trim() || undefined,
-    expireDate: editExpiry.value || undefined,
-    publicUpload: editPublicUpload.value,
+    expireDate: editExpiry.value,
+    publicUpload:
+      editPublicUpload.value !== ((share.permissions ?? 1) >= 15)
+        ? editPublicUpload.value
+        : undefined,
   };
   emit("edit", share, values);
 }

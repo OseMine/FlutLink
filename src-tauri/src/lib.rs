@@ -1,6 +1,7 @@
 mod accounts;
 mod cache;
 mod commands;
+mod disk_mount;
 mod error;
 mod flutcloud;
 mod guest;
@@ -57,6 +58,18 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     };
     let toggle_uploads =
         MenuItem::<Wry>::with_id(app, "toggle-uploads", upload_label, true, None::<&str>)?;
+    // Autostart toggle — checkable menu item that flips the OS-level autolaunch.
+    // Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
+    // let autolaunch = app.autolaunch();
+    // let autostart_enabled = autolaunch.is_enabled().unwrap_or(false);
+    let autostart_enabled = false;
+    let autostart_label = if autostart_enabled {
+        "✓  Start at login"
+    } else {
+        "Start at login"
+    };
+    let toggle_autostart =
+        MenuItem::<Wry>::with_id(app, "autostart", autostart_label, true, None::<&str>)?;
     // #428: Online/Offline status indicator (disabled, informational). "Online"
     // tracks whether an account is connected; while a sync pass is in flight
     // the tooltip stays truthful because the worker is live either way.
@@ -120,6 +133,7 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &separator,
             &sync_now,
             &toggle_uploads,
+            &toggle_autostart,
             &online_status,
             &separator,
             &accounts_sub,
@@ -168,6 +182,18 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
                 let _ = refresh_tray_menu(app);
                 let _ = app.emit("sync-folders-changed", ());
             }
+            // "autostart" => {
+            //     // Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
+            //     // let autolaunch = app.autolaunch();
+            //     // let new_state = !autolaunch.is_enabled().unwrap_or(false);
+            //     // if new_state {
+            //     //     let _ = autolaunch.enable();
+            //     // } else {
+            //     //     let _ = autolaunch.disable();
+            //     // }
+            //     // Rebuild menu to flip the checkmark.
+            //     // let _ = refresh_tray_menu(app);
+            // }
             id if id.starts_with("switch:") => {
                 // Tray ids carry the composite identity: switch:user@instance
                 let identity = id.trim_start_matches("switch:").to_string();
@@ -414,6 +440,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new())
+        .manage(disk_mount::DiskMountState::default())
         .on_window_event(move |window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if !quit_flag_close.load(Ordering::SeqCst) {
@@ -492,6 +519,11 @@ pub fn run() {
             commands::file_history_list,
             commands::file_history_clear,
             commands::set_share_notify,
+            commands::get_settings,
+            commands::mount_default_cache,
+            disk_mount::mount_disk,
+            disk_mount::unmount_disk,
+            disk_mount::get_mount_status,
             commands::sync_synced_paths,
             commands::sync_log_list,
             commands::sync_log_clear,

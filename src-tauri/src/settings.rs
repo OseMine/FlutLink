@@ -82,6 +82,21 @@ pub fn save(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
     crate::persist::atomic_write(&path, &json)
 }
 
+/// Lock the in-memory settings for a load→modify→save critical section
+/// (L24-F4). Both writers — the sync worker (`sync.rs`) and the
+/// `set_share_notify` command — must go through this lock; it re-loads the
+/// persisted file under the lock, so the last completed save is always the
+/// base the next writer mutates (lost updates are impossible) and `share_seen`
+/// progress is never overwritten by a stale copy.
+pub async fn lock<'a>(
+    app: &AppHandle,
+    state: &'a AppState,
+) -> tokio::sync::MutexGuard<'a, AppSettings> {
+    let mut guard = state.settings.lock().await;
+    *guard = load(app);
+    guard
+}
+
 /// #410: check each account's shares for new ones and emit a notification for
 /// every newly seen share. Called once per sync tick from `SyncEngine::run_all`.
 /// Returns `true` when `settings.share_seen` changed (the caller should then

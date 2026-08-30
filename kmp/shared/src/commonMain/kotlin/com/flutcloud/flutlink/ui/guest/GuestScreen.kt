@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
@@ -196,10 +198,22 @@ fun GuestScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 for (cat in allCategories) {
-                                    AssistChip(
-                                        onClick = { showDeleteCategoryDialog = cat },
-                                        label = { Text(cat) }
-                                    )
+AssistChip(
+    onClick = { showDeleteCategoryDialog = cat },
+    label = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(cat)
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(Res.string.guest_admin_delete_category),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+)
                                 }
                             }
                         }

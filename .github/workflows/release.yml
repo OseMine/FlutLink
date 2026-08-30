@@ -90,6 +90,13 @@ jobs:
           GIT_COMMITTER_NAME: GitHub Actions
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
         run: |
+          # R29-F2: only commit/push the generated notes on real tag pushes,
+          # not on manual workflow_dispatch runs (which lack a ref guard).
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::notice::workflow_dispatch - skipping commit/push of release notes"
+            exit 0
+          fi
+
           PROMPT=$(cat <<'EOF'
           Du erstellst Release-Notes für FlutLink $GITHUB_REF_NAME.
 
@@ -112,6 +119,10 @@ jobs:
           # The prompt is passed as a positional message — `opencode run`
           # (1.18.x) has no --prompt flag.
           bash .github/opencode-with-fallback.sh "$PROMPT"
+
+          # R29-F1: ensure release-notes.md ends with a trailing newline
+          # (opencode output may omit it, breaking some markdown renderers).
+          echo "" >> release-notes.md
 
       - name: Read release notes
         id: read

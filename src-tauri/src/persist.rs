@@ -6,13 +6,22 @@
 use crate::error::AppResult;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
+
+/// Monotonic counter so concurrent writers never collide on the same temp
+/// name. `atomic_write` is called from different async tasks (sync worker,
+/// IPC commands); with the old constant `tmp-{pid}` one writer's `File::create`
+/// would truncate the other's in-flight temp file and a losing `rename` could
+/// roll an empty file in (L24-F4).
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Atomically write `json` to `path`: temp file + fsync + rename. The rename
 /// is atomic on all supported platforms, so a crash can never leave a
 /// half-written target file behind (same pattern as the sync journals).
 pub fn atomic_write(path: &Path, json: &str) -> AppResult<()> {
-    let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("tmp-{}-{}", std::process::id(), seq));
     {
         let mut file = std::fs::File::create(&tmp)?;
         file.write_all(json.as_bytes())?;

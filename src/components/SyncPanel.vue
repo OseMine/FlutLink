@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSyncStore } from "../stores/sync";
 import { useUiStore } from "../stores/ui";
@@ -8,33 +8,48 @@ import { invokeError } from "../lib/ipc";
 import Icon from "./Icon.vue";
 import SyncLog from "./SyncLog.vue";
 
+interface FolderItem {
+  folderId: string;
+  localPath: string;
+  paused?: boolean;
+}
+
 const sync = useSyncStore();
 const ui = useUiStore();
-const t = (key: string) => translate(ui.lang, key);
+
 const followSymlinks = ref(false);
 const showSyncLog = ref(false);
 const logFolderId = ref<string | undefined>(undefined);
+const isProcessing = ref(false);
+
+const t = (key: string) => translate(ui.lang, key);
+const hasFolders = computed(() => sync.folders.length > 0);
 
 function errorLabel(err: { code: string; detail?: string | null }): string {
   return translateError(ui.lang, err.code, err.detail);
 }
 
 function stateLabel(state: string): string {
-  return t("state" + state.charAt(0).toUpperCase() + state.slice(1));
+  const stateKeys: Record<string, string> = {
+    idle: "stateIdle",
+    syncing: "stateSyncing",
+    paused: "statePaused",
+    error: "stateError",
+  };
+  return t(stateKeys[state] || "stateUnknown");
 }
 
 function lastSyncedLabel(ts: number | null): string {
   if (ts === null) return t("neverSynced");
-  return new Date(ts * 1000).toLocaleString();
+  return new Date(ts * 1000).toLocaleString(ui.lang);
 }
 
-/// Status badge dot color per sync state (neutral surface + colored dot).
 function stateDotClass(state: string): string {
   switch (state) {
     case "idle":
       return "bg-success";
     case "syncing":
-      return "bg-primary";
+      return "bg-primary animate-pulse";
     case "error":
       return "bg-error";
     default:
@@ -48,6 +63,8 @@ onMounted(() => {
 });
 
 async function pickFolder() {
+  if (isProcessing.value) return;
+  isProcessing.value = true;
   try {
     const selected = await open({
       directory: true,
@@ -60,89 +77,128 @@ async function pickFolder() {
     }
   } catch (e) {
     const err = invokeError(e);
-    // F10: render the friendly, translated message for the well-known
-    // "folder already synced" conflict; everything else is already
-    // localized by the N14 code/detail translation.
     sync.error =
       err.code === "sync_folder_conflict"
         ? t("syncConflictMessage")
         : err.message;
+  } finally {
+    isProcessing.value = false;
   }
 }
 
-async function remove(folder: { folderId: string; localPath: string }) {
-  // L19-F3: removing a sync folder also deletes its journal — never do that
-  // without an explicit confirmation (same pattern as file/account deletion).
+async function remove(folder: FolderItem) {
   if (!window.confirm(t("syncRemoveConfirm").replace("{path}", folder.localPath))) return;
   try {
     await sync.remove(folder.folderId);
     ui.toast(t("syncRemoved"), "success");
   } catch {
-    // error surfaced via sync.error
+    // Error state managed by sync store
   }
 }
 
-async function togglePaused(folder: { folderId: string; paused: boolean }) {
+async function togglePaused(folder: FolderItem) {
   try {
     await sync.setPaused(folder.folderId, !folder.paused);
   } catch {
-    // error surfaced via sync.error
+    // Error state managed by sync store
   }
 }
 
 async function syncNow() {
+  if (!hasFolders.value || isProcessing.value) return;
+  isProcessing.value = true;
   try {
     await sync.trigger();
     ui.toast(t("syncTriggered"), "success");
   } catch (e) {
-    // Consistent error handling (#301): localized message via invokeError,
-    // like every other handler.
     ui.toast(invokeError(e).message, "error");
+  } finally {
+    isProcessing.value = false;
   }
 }
 </script>
 
 <template>
   <div class="mx-auto w-full max-w-3xl p-6">
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-semibold">{{ t("syncFolders") }}</h2>
-        <p class="text-sm text-muted">{{ t("noSyncFoldersHint") }}</p>
+    <!-- Header Layout Fixed for Small Widths -->
+    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <div class="max-w-md shrink">
+        <h2 class="text-xl font-semibold tracking-tight">{{ t("syncFolders") }}</h2>
+        <p class="mt-1 text-xs leading-relaxed text-muted">{{ t("noSyncFoldersHint") }}</p>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
-        <button type="button" class="btn btn-outline" @click="syncNow">
+
+      <!-- Controls Row -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button
+          type="button"
+          class="btn btn-outline"
+          :disabled="!hasFolders || isProcessing"
+          @click="syncNow"
+        >
           {{ t("syncNow") }}
         </button>
-        <label class="flex cursor-pointer select-none items-center gap-2 text-sm text-muted">
-          <!-- #366: same quiet custom checkbox as everywhere else -->
+
+        <label class="flex cursor-pointer select-none items-center gap-2 text-xs text-muted hover:text-fg">
           <input
             v-model="followSymlinks"
             type="checkbox"
-            class="checkbox"
+            class="checkbox h-4 w-4 rounded border-line-strong bg-card accent-primary focus:ring-1"
           />
           {{ t("followSymlinks") }}
         </label>
-        <button type="button" class="btn btn-outline" @click="showSyncLog = true; logFolderId = undefined">
+
+        <button
+          type="button"
+          class="btn btn-outline"
+          @click="showSyncLog = true; logFolderId = undefined"
+        >
           <Icon name="history" :size="14" />
           {{ t("syncLogTitle") }}
         </button>
-        <button type="button" class="btn btn-primary" @click="pickFolder">
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="isProcessing"
+          @click="pickFolder"
+        >
           <Icon name="add" :size="14" />
           {{ t("addFolder") }}
         </button>
       </div>
     </div>
 
-    <div v-if="sync.error" class="mb-4 rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+    <!-- Error Banner -->
+    <div
+      v-if="sync.error"
+      class="mb-4 rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error"
+    >
       {{ sync.error }}
     </div>
 
-    <p v-if="sync.loading" class="text-sm text-muted">…</p>
-
-    <div v-else-if="!sync.folders.length" class="rounded-md border border-dashed border-line-strong p-8 text-center text-sm text-muted">
-      {{ t("noSyncFolders") }}
+    <!-- Loading State -->
+    <div v-if="sync.loading" class="py-8 text-center text-sm text-muted">
+      …
     </div>
 
+    <!-- Empty State with Embedded Action -->
+    <div
+      v-else-if="!hasFolders"
+      class="flex flex-col items-center justify-center rounded-lg border border-dashed border-line-strong p-10 text-center"
+    >
+      <p class="text-sm text-muted">{{ t("noSyncFolders") }}</p>
+      <button
+        type="button"
+        class="btn btn-primary mt-4"
+        :disabled="isProcessing"
+        @click="pickFolder"
+      >
+        <Icon name="add" :size="14" />
+        {{ t("addFolder") }}
+      </button>
+    </div>
+
+    <!-- Folder Cards List -->
     <div v-else class="space-y-3">
       <div
         v-for="folder in sync.folders"
@@ -159,7 +215,7 @@ async function syncNow() {
               ⤷ {{ t("followSymlinksEnabled") }}
             </p>
           </div>
-          <!-- Status: neutral surface + colored dot instead of a color block -->
+
           <span class="badge normal-case">
             <span class="badge-dot" :class="stateDotClass(folder.state)"></span>
             {{ stateLabel(folder.state) }}
@@ -170,14 +226,19 @@ async function syncNow() {
           {{ t("lastSynced") }}: {{ lastSyncedLabel(folder.lastSyncedAt) }}
         </p>
 
-        <div v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted">
+        <div
+          v-if="folder.pendingUploads || folder.pendingDownloads || folder.pendingDeletes || folder.failures"
+          class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted"
+        >
           <span v-if="folder.pendingUploads">{{ folder.pendingUploads }} {{ t("pendingUploads") }}</span>
           <span v-if="folder.pendingDownloads">{{ folder.pendingDownloads }} {{ t("pendingDownloads") }}</span>
           <span v-if="folder.pendingDeletes">{{ folder.pendingDeletes }} {{ t("pendingDeletes") }}</span>
           <span v-if="folder.failures" class="text-error">{{ folder.failures }} {{ t("failures") }}</span>
         </div>
 
-        <p v-if="folder.lastError" class="mt-1 text-xs text-error">{{ errorLabel(folder.lastError) }}</p>
+        <p v-if="folder.lastError" class="mt-1 text-xs text-error">
+          {{ errorLabel(folder.lastError) }}
+        </p>
 
         <div class="mt-3 flex gap-2">
           <button type="button" class="btn btn-outline h-7" @click="togglePaused(folder)">

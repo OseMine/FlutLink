@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+import { api } from "../lib/ipc";
 import { currentLang, LANG_KEY, type Lang } from "../lib/i18n";
 import type { EntrySortKey } from "../lib/sort";
 
@@ -31,6 +32,9 @@ const GUEST_KEY = "flutlink.guestMode";
 const FILES_VIEW_KEY = "flutlink.filesView";
 const BOOKMARKS_KEY = "flutlink.bookmarks";
 const SHARE_NOTIFY_KEY = "flutlink.shareNotify";
+const DISKMOUNT_KEY = "flutlink.diskMount";
+const DISKMOUNT_CACHE_KEY = "flutlink.diskMountCache";
+const AUTOSTART_KEY = "flutlink.autostart";
 const MAX_BOOKMARKS = 20;
 
 const DEFAULT_FILES_VIEW: FilesViewPrefs = {
@@ -92,10 +96,16 @@ export const useUiStore = defineStore("ui", () => {
   // Persisted file-explorer layout preferences (#368).
   const filesView = ref<FilesViewPrefs>(normalizeFilesView(read<FilesViewPrefs>(FILES_VIEW_KEY)));
   const toasts = ref<Toast[]>([]);
-const bookmarks = ref<FolderBookmark[]>(normalizeBookmarks(read<FolderBookmark[]>(BOOKMARKS_KEY)));
-// #410: share notifications (persisted).
-const shareNotify = ref<boolean>(read<boolean>(SHARE_NOTIFY_KEY) ?? true);
-let nextId = 1;
+  const bookmarks = ref<FolderBookmark[]>(normalizeBookmarks(read<FolderBookmark[]>(BOOKMARKS_KEY)));
+  // #410: share notifications (persisted).
+  const shareNotify = ref<boolean>(read<boolean>(SHARE_NOTIFY_KEY) ?? true);
+  // Disk-mount preference (persisted).
+  const diskMount = ref<boolean>(read<boolean>(DISKMOUNT_KEY) ?? false);
+  // Local cache folder for the mounted drive (persisted, empty = not set).
+  const diskMountCachePath = ref<string>(read<string>(DISKMOUNT_CACHE_KEY) ?? "");
+  // Autostart preference (persisted).
+  const autostart = ref<boolean>(read<boolean>(AUTOSTART_KEY) ?? false);
+  let nextId = 1;
 
   function setLang(value: Lang) {
     lang.value = value;
@@ -149,9 +159,39 @@ let nextId = 1;
     localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks.value));
   }
 
+  // #410 (L24-F2): the backend settings file is the source of truth for the
+  // sync worker. Persist the toggle immediately and keep gutter/localStorage
+  // mirrored without awaiting — the SettingsModal also seeds this ref from
+  // `getSettings` on open (`inheritShareNotify`).
   function setShareNotify(value: boolean) {
     shareNotify.value = value;
     localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(value));
+    void api.setShareNotify(value).catch(() => {
+      // The toggle stays optimistic; the backend worker continues with its own
+      // persisted flag until the settings dialog is reopened and re-seeded.
+    });
+  }
+
+  // L24-F2: adopt the backend's persisted flags (called when the settings
+  // dialog opens or after binding an account).
+  function inheritShareNotify(enabled: boolean) {
+    shareNotify.value = enabled;
+    localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(enabled));
+  }
+
+  function setDiskMount(value: boolean) {
+    diskMount.value = value;
+    localStorage.setItem(DISKMOUNT_KEY, JSON.stringify(value));
+  }
+
+  function setDiskMountCachePath(value: string) {
+    diskMountCachePath.value = value;
+    localStorage.setItem(DISKMOUNT_CACHE_KEY, JSON.stringify(value));
+  }
+
+  function setAutostart(value: boolean) {
+    autostart.value = value;
+    localStorage.setItem(AUTOSTART_KEY, JSON.stringify(value));
   }
 
   return {
@@ -162,11 +202,18 @@ let nextId = 1;
     toasts,
     bookmarks,
     shareNotify,
+    diskMount,
+    diskMountCachePath,
+    autostart,
     setLang,
     setTheme,
     setGuestMode,
     setFilesView,
     setShareNotify,
+    inheritShareNotify,
+    setDiskMount,
+    setDiskMountCachePath,
+    setAutostart,
     toast,
     dismiss,
     isBookmarked,

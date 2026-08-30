@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
-import { api, type SyncLogEntry } from "../lib/ipc";
+import { api, onRetrySuccess, type SyncLogEntry } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { translate } from "../lib/i18n";
 import Icon from "./Icon.vue";
@@ -50,6 +50,11 @@ async function load() {
 }
 
 onMounted(() => void load());
+
+// L24-F5: after a buffered `sync_log_list` retry succeeds, reload the log.
+onRetrySuccess((cmd) => {
+  if (cmd === "sync_log_list") void load();
+});
 
 watch(() => props.folderId, () => void load(), { immediate: false });
 watch(() => props.limit, () => void load(), { immediate: false });

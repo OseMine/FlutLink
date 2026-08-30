@@ -10,6 +10,7 @@ import {
   type TransferProgress,
   type WebDavEntry,
 } from "../lib/ipc";
+import { onRetrySuccess } from "../lib/ipc";
 
 /// Pair a path under the FlutCloud virtual namespaces: `/resources/…`
 /// (read-only virtual links) ↔ `/parts/…` (write-enabled). Only the
@@ -102,6 +103,16 @@ export const useFilesStore = defineStore("files", () => {
       else splitView.value = false;
     }
   }
+
+  // L24-F5: after a buffered `webdav_list`/`webdav_search` retry succeeds,
+  // re-run the active listing so the view leaves its error state.
+  onRetrySuccess((cmd) => {
+    if (cmd === "webdav_list") void refresh();
+    else if (cmd === "webdav_search") void searchFiles(searchQuery.value);
+    else if (cmd === "guest_list_entries") {
+      // GuestBrowser doesn't have a dedicated store — handled in its component.
+    }
+  });
 
   async function refreshPaired() {
     const pair = pairedPath.value;

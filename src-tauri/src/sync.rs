@@ -1157,6 +1157,9 @@ async fn run_pass(
     let mut done = 0usize;
     let mut failures = 0u64;
     let mut error = None;
+    // #407 (L24-N1): collect log entries for the whole pass and flush once
+    // instead of rewriting the whole file per planned op.
+    let mut log_entries: Vec<SyncLogEntry> = Vec::new();
     {
         let mut ctx = PassCtx {
             client,
@@ -1222,23 +1225,18 @@ async fn run_pass(
                     ("error", Some(err.message()))
                 }
             };
-            // #407: append to sync log
-            let log_entry = SyncLogEntry {
+            // #407: collect for the sync log (flushed once below — L24-N1).
+            log_entries.push(SyncLogEntry {
                 timestamp: now_secs(),
                 folder_id: folder.id.clone(),
                 action: action_type.into(),
                 path: rel.into(),
                 result: res_str.into(),
                 detail: detail_str,
-            };
-            let _ = append_sync_log(app, &log_entry);
-            match result {
-                Ok(ExecOutcome::Applied) => {}
-                Ok(ExecOutcome::Deferred) => {}
-                Err(_) => {}
-            }
+            });
         }
     }
+    let _ = flush_sync_log(app, &log_entries);
 
     // Only prune against a complete local snapshot; otherwise entries would
     // be dropped just because their subtree was unreadable.
@@ -1326,12 +1324,17 @@ pub(crate) fn sync_log_file(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(dir.join("sync-log.json"))
 }
 
-/// #407: append a log entry to the sync log (atomic write, keep last N).
-fn append_sync_log(app: &AppHandle, entry: &SyncLogEntry) -> AppResult<()> {
+/// #407: flush a batch of log entries to the sync log (one atomic rewrite,
+/// keep the last N — L24-N1). The file is stored **oldest→newest**, so
+/// truncation drains the front and never drops fresh entries (L24-F3b).
+fn flush_sync_log(app: &AppHandle, new_entries: &[SyncLogEntry]) -> AppResult<()> {
+    if new_entries.is_empty() {
+        return Ok(());
+    }
     let path = sync_log_file(app)?;
-    let mut entries = load_sync_log(app).unwrap_or_default();
-    entries.push(entry.clone());
-    // Keep only the last N entries (newest at the end).
+    let mut entries = read_sync_log(app).unwrap_or_default();
+    entries.extend(new_entries.iter().cloned());
+    // Keep only the last N entries (newest at the end of the old→new list).
     if entries.len() > MAX_SYNC_LOG_ENTRIES {
         let drain = entries.len() - MAX_SYNC_LOG_ENTRIES;
         entries.drain(0..drain);
@@ -1340,14 +1343,19 @@ fn append_sync_log(app: &AppHandle, entry: &SyncLogEntry) -> AppResult<()> {
     crate::persist::atomic_write(&path, &json)
 }
 
-/// #407: load the sync log (newest first).
-pub(crate) fn load_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
+/// Raw persisted log in chronological order (oldest first).
+fn read_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
     let path = sync_log_file(app)?;
     if !path.exists() {
         return Ok(Vec::new());
     }
     let raw = std::fs::read_to_string(&path).unwrap_or_default();
-    let mut entries = serde_json::from_str::<Vec<SyncLogEntry>>(&raw).unwrap_or_default();
+    Ok(serde_json::from_str::<Vec<SyncLogEntry>>(&raw).unwrap_or_default())
+}
+
+/// #407: load the sync log (newest first).
+pub(crate) fn load_sync_log(app: &AppHandle) -> AppResult<Vec<SyncLogEntry>> {
+    let mut entries = read_sync_log(app)?;
     // Return newest first for UI convenience.
     entries.reverse();
     Ok(entries)
@@ -1789,8 +1797,10 @@ impl SyncEngine {
         // #410: announce newly shared files/folders via native notifications.
         // Re-uses the sync-tick cadence (no extra worker); the seen-share-id
         // set is persisted so notifications fire once per share, not every tick.
+        // The settings lock (L24-F4) serializes this against `set_share_notify`.
         {
-            let mut settings = crate::settings::load(app);
+            let state = app.state::<AppState>();
+            let mut settings = crate::settings::lock(app, &state).await;
             let changed =
                 crate::settings::check_share_notifications(app, &accounts, &mut settings).await;
             if changed {

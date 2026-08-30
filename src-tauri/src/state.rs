@@ -204,6 +204,10 @@ pub struct AppState {
     /// be read at startup (lost credential store entry). They stay hidden, but
     /// the reason is surfaced to the UI.
     pub token_missing_accounts: RwLock<Vec<String>>,
+    /// Serializes the `settings.json` load→modify→save cycle so the sync
+    /// worker and `set_share_notify` can no longer clobber each other's
+    /// write (L24-F4). Access via `crate::settings::lock`.
+    pub settings: tokio::sync::Mutex<crate::settings::AppSettings>,
 }
 
 impl AppState {
@@ -224,6 +228,7 @@ impl AppState {
             sync: Arc::new(crate::sync::SyncEngine::default()),
             filtered_accounts: RwLock::new(Vec::new()),
             token_missing_accounts: RwLock::new(Vec::new()),
+            settings: tokio::sync::Mutex::new(crate::settings::AppSettings::default()),
         }
     }
 

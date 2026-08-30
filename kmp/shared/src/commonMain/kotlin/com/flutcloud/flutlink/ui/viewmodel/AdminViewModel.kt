@@ -11,6 +11,7 @@ import com.flutcloud.flutlink.data.dto.ManagedUser
 import com.flutcloud.flutlink.ui.UiMessage
 import com.flutcloud.flutlink.ui.networkUiMessage
 import com.flutcloud.flutlink.ui.toUiMessage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +33,8 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
 
     private var offset = 0
     private var searchTerm = ""
+    private var generation = 0
+    private var currentLoadJob: Job? = null
 
     fun refresh() = loadUsers()
 
@@ -45,64 +48,62 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
         error.value = null
     }
 
-    fun loadUsers() {
-        val s = session ?: return
-        val term = search.value.trim()
-        if (term.isEmpty()) {
-            searchTerm = ""
-            offset = 0
-            users.value = emptyList()
-            hasMore.value = false
+fun loadUsers() {
+    val s = session ?: return
+    val term = search.value.trim()
+    searchTerm = term
+    offset = 0
+    generation++
+    currentLoadJob?.cancel()
+    currentLoadJob = viewModelScope.launch {
+        loading.value = true
+        error.value = null
+        users.value = emptyList()
+        hasMore.value = false
+        try {
+            loadPage(s, append = false)
+        } catch (e: NetworkException) {
+            error.value = networkUiMessage(e.cause)
+        } catch (e: ApiException) {
+            error.value = e.toUiMessage()
+        } finally {
             loading.value = false
-            return
-        }
-        searchTerm = term
-        offset = 0
-        viewModelScope.launch {
-            loading.value = true
-            error.value = null
-            users.value = emptyList()
-            hasMore.value = false
-            try {
-                loadPage(s, append = false)
-            } catch (e: NetworkException) {
-                error.value = networkUiMessage(e.cause)
-            } catch (e: ApiException) {
-                error.value = e.toUiMessage()
-            } finally {
-                loading.value = false
-            }
         }
     }
+}
 
-    fun loadMore() {
-        val s = session ?: return
-        if (loading.value) return
-        viewModelScope.launch {
-            loading.value = true
-            error.value = null
-            try {
-                loadPage(s, append = true)
-            } catch (e: NetworkException) {
-                error.value = networkUiMessage(e.cause)
-            } catch (e: ApiException) {
-                error.value = e.toUiMessage()
-            } finally {
-                loading.value = false
-            }
+fun loadMore() {
+    val s = session ?: return
+    if (loading.value) return
+    generation++
+    currentLoadJob?.cancel()
+    currentLoadJob = viewModelScope.launch {
+        loading.value = true
+        error.value = null
+        try {
+            loadPage(s, append = true)
+        } catch (e: NetworkException) {
+            error.value = networkUiMessage(e.cause)
+        } catch (e: ApiException) {
+            error.value = e.toUiMessage()
+        } finally {
+            loading.value = false
         }
     }
+}
 
-    private suspend fun loadPage(s: AuthSession, append: Boolean) {
-        val page = container.ocsApi.listUsersPage(s, searchTerm, offset)
-        val managed = page.map { id ->
-            runCatching { container.ocsApi.getUser(s, id) }
-                .getOrElse { ManagedUser(id = id, displayName = null, email = null, quota = null, groups = emptyList(), enabled = true) }
-        }
-        users.value = if (append) users.value + managed else managed
-        hasMore.value = page.size == 200
-        offset += page.size
+private suspend fun loadPage(s: AuthSession, append: Boolean) {
+    val currentGen = generation
+    val page = container.ocsApi.listUsersPage(s, searchTerm, offset)
+    if (currentGen != generation) return
+    val managed = page.map { id ->
+        runCatching { container.ocsApi.getUser(s, id) }
+            .getOrElse { ManagedUser(id = id, displayName = null, email = null, quota = null, groups = emptyList(), enabled = true) }
     }
+    users.value = if (append) users.value + managed else managed
+    hasMore.value = page.size == 200
+    offset += page.size
+}
 
     fun createUser(userId: String, password: String, displayName: String?) {
         if (userId.isBlank() || password.isBlank()) return

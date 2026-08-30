@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import AppLogo from "./AppLogo.vue";
 import Icon from "./Icon.vue";
@@ -10,6 +11,7 @@ import { useUiStore, type Theme } from "../stores/ui";
 import {
   api,
   invokeError,
+  type MountStatus,
   type ReleaseInfo,
   type UpdateProgress,
   type UpdateStatus,
@@ -39,6 +41,7 @@ const tab = ref<"accounts" | "admin" | "about">("accounts");
 const users = ref<string[]>([]);
 const adminLoading = ref(false);
 const adminError = ref<string | null>(null);
+
 
 // Notarization: the project is built and managed by @marcante_musik.
 const maintainerUrl = "https://instagram.com/marcante_musik";
@@ -81,11 +84,41 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
   { value: "system", label: t("themeSystem") },
 ]);
 
+// R29-N2: `navigator.platform` is deprecated and can report nonsense
+// (e.g. "MacIntel" on Windows under unofficial builds); use the UA/UA-Client
+// hints instead, and keep the unknown fallback translatable.
+const filesApp = computed(() => {
+  const ua = window.navigator.userAgent.toLowerCase();
+  const clientHints = (window.navigator as Navigator & { userAgentData?: { platform?: string } })
+    .userAgentData?.platform
+    ?.toLowerCase();
+  const platform = clientHints ?? ua;
+  if (platform.includes("win")) return t("filesappExplorer");
+  if (platform.includes("mac")) return t("filesappFinder");
+  if (platform.includes("linux")) return t("filesappFiles");
+  return t("filesappUnknown");
+});
+const defaultMountCachePath = ref<string | null>(null);
+const mountStatus = ref<MountStatus | null>(null);
+const diskmountBusy = ref(false);
 watch(
   () => props.open,
   (open) => {
     if (open) {
       tab.value = "accounts";
+      // L24-F2: the backend settings file is the source of truth for the
+      // share-notify toggle; re-seed the UI copy whenever the dialog opens so
+      // a failed optimistic write or a worker-side change can't leave a stale
+      // switch behind.
+      void api
+        .getSettings()
+        .then((s) => ui.inheritShareNotify(s.shareNotifyEnabled))
+        .catch(() => {});
+      void api
+        .mountDefaultCache()
+        .then((p) => (defaultMountCachePath.value = p))
+        .catch(() => (defaultMountCachePath.value = null));
+      void loadMountStatus();
     }
   }
 );
@@ -201,6 +234,67 @@ watch(
   }
 );
 onUnmounted(() => removeEscapeCloser?.());
+
+// Effective cache folder: explicit choice wins, otherwise the platform default
+// inside the app-data directory (mount backend falls back to it as well).
+const mountCacheDisplay = computed(() => {
+  if (ui.diskMountCachePath) return ui.diskMountCachePath;
+  if (defaultMountCachePath.value)
+    return `${defaultMountCachePath.value} (${t("diskmountCacheDefault")})`;
+  return t("diskmountCacheNotSet");
+});
+
+async function pickMountCache() {
+  if (!ui.diskMount) return;
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: t("diskmountCacheChoose"),
+    });
+    if (typeof selected === "string") {
+      ui.setDiskMountCachePath(selected);
+    }
+  } catch {
+    // dialog dismissed — nothing to change
+  }
+}
+
+async function loadMountStatus() {
+  try {
+    mountStatus.value = await api.getMountStatus();
+    // The toggle is the persisted preference; a live mount always wins.
+    if (mountStatus.value.isMounted && !ui.diskMount) ui.setDiskMount(true);
+  } catch {
+    mountStatus.value = null;
+  }
+}
+
+async function toggleDiskMount(checked: boolean) {
+  if (diskmountBusy.value) return;
+  diskmountBusy.value = true;
+  try {
+    if (checked) {
+      const status = await api.mountDisk(ui.diskMountCachePath || undefined);
+      ui.setDiskMount(true);
+      mountStatus.value = status;
+      ui.toast(
+        t("diskmountMounted").replace("{mount}", status.mountPoint ?? ""),
+        "success"
+      );
+    } else {
+      await api.unmountDisk();
+      ui.setDiskMount(false);
+      mountStatus.value = null;
+      ui.toast(t("diskmountUnmounted"), "success");
+    }
+  } catch (e) {
+    ui.setDiskMount(!checked);
+    ui.toast(invokeError(e).message, "error");
+  } finally {
+    diskmountBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -411,7 +505,70 @@ onUnmounted(() => removeEscapeCloser?.());
                 <span class="text-sm">{{ t("shareNotifyDesc") }}</span>
               </label>
             </div>
-            
+            <div class="card p-3">
+              <p class="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+                {{ t("diskmountTitle") }}
+              </p>
+              <label class="mt-1 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-line px-3 py-2.5 transition hover:bg-card-hover">
+                <span class="text-sm">{{ t("diskmount").replace("{filesapp}", filesApp) }}</span>
+                <input
+                  type="checkbox"
+                  class="checkbox shrink-0"
+                  :checked="ui.diskMount"
+                  :disabled="diskmountBusy"
+                  @change="(e: Event) => toggleDiskMount((e.target as HTMLInputElement).checked)"
+                />
+              </label>
+              <p class="mt-2 text-xs text-muted/80">{{ t("diskmountDesc") }}</p>
+              <p v-if="diskmountBusy" class="mt-2 text-xs text-muted/80">
+                {{ t("diskmountWorking") }}
+              </p>
+              <p v-else-if="mountStatus?.isMounted" class="mt-2 text-xs text-success">
+                {{ t("diskmountMounted").replace("{mount}", mountStatus.mountPoint ?? "") }}
+              </p>
+
+              <div class="mt-3" :class="ui.diskMount ? '' : 'pointer-events-none select-none opacity-40'">
+                <p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+                  {{ t("diskmountCachePath") }}
+                </p>
+                <div class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate rounded-md border border-line bg-card px-2.5 py-1.5 text-xs text-muted">
+                    {{ mountCacheDisplay }}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn btn-outline h-7 shrink-0"
+                    :disabled="!ui.diskMount"
+                    @click="pickMountCache"
+                  >
+                    <Icon name="folder" :size="13" />
+                    {{ t("diskmountCacheChoose") }}
+                  </button>
+                  <button
+                    v-if="ui.diskMountCachePath"
+                    type="button"
+                    class="btn btn-outline h-7 shrink-0"
+                    :disabled="!ui.diskMount"
+                    @click="ui.setDiskMountCachePath('')"
+                  >
+                    {{ t("diskmountCacheReset") }}
+                  </button>
+                </div>
+                <p class="mt-1.5 text-xs text-muted/80">{{ t("diskmountCachePathHint") }}</p>
+              </div>
+            </div>
+            <div class="card p-3">
+              <p class="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+                {{ t("autostart") }}
+              </p>
+              <p class="text-xs text-muted/80">{{ t("autostartDesc") }}</p>
+                <input
+                  type="checkbox"
+                  class="checkbox mt-2"
+                  :checked="ui.autostart"
+                  @change="(e: Event) => ui.setAutostart((e.target as HTMLInputElement).checked)"
+                />
+            </div>
             <div class="card p-3">
               <p class="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted">
                 {{ t("updates") }}

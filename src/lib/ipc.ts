@@ -10,14 +10,60 @@ interface FailedCall {
   at: number;
 }
 
+/// L24-F5: only *idempotent read* commands may be retried automatically —
+/// re-running a mutation (delete/copy/move/share-create/upload) after a lost
+/// response could double-apply it on the server. Every command name in the
+/// api wrapper above is a read.
+const RETRY_SAFE_COMMANDS = new Set([
+  "get_flutcloud_url",
+  "account_list",
+  "account_filter_info",
+  "account_storage",
+  "webdav_list",
+  "webdav_search",
+  "webdav_list_shares",
+  "webdav_thumbnail",
+  "file_history_list",
+  "sync_log_list",
+  "sync_list",
+  "sync_synced_paths",
+  "guest_verify_server",
+  "guest_list_shares",
+  "guest_list_entries",
+  "guest_admin_list_locks",
+  "admin_list_users",
+  "admin_get_user",
+  "admin_list_groups",
+  "mount_default_cache",
+  "get_mount_status",
+  "check_update",
+]);
+
+/// Notified after a buffered command was retried successfully, so the view
+/// that originally failed can reload and leave its error state (L24-F5: the
+/// retry result must reach the original caller, even though the IPC layer
+/// cannot return the value to a component that already unwound its promise).
+type RetrySuccessHandler = (cmd: string) => void;
+const retrySuccessHandlers: RetrySuccessHandler[] = [];
+
+export function onRetrySuccess(handler: RetrySuccessHandler): void {
+  retrySuccessHandlers.push(handler);
+}
+
+function notifyRetrySuccess(cmd: string) {
+  for (const handler of retrySuccessHandlers) handler(cmd);
+}
+
 let lastFailed: FailedCall | null = null;
 const RETRY_WINDOW_MS = 60_000;
 
 function tauri<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>(cmd, args).catch((e: unknown) => {
     // Only network-level failures (`http` in the backend) are worth retrying;
-    // logic errors (404, forbidden, ...) would fail again identically.
+    // logic errors (404, forbidden, ...) would fail again identically. And only
+    // idempotent reads may be re-run — see RETRY_SAFE_COMMANDS (L24-F5).
     if (
+      RETRY_SAFE_COMMANDS.has(cmd) &&
       typeof e === "object" &&
       e !== null &&
       "code" in e &&
@@ -29,14 +75,18 @@ function tauri<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   });
 }
 
-/// Re-invoke the last buffered network command. Returns true on success (and
+/// Re-invoke the last buffered read command. Returns true on success (and
 /// clears the buffer), false when there is nothing buffered or the retry fails.
 export async function retryLast(): Promise<boolean> {
   const failed = lastFailed;
   if (!failed || Date.now() - failed.at > RETRY_WINDOW_MS) return false;
   try {
-    await invoke(failed.cmd, failed.args);
+    const result = await invoke(failed.cmd, failed.args);
     lastFailed = null;
+    notifyRetrySuccess(failed.cmd);
+    // The value is delivered to the waiting views via onRetrySuccess; the
+    // boolean is the button's own success signal.
+    void result;
     return true;
   } catch {
     lastFailed = { ...failed, at: Date.now() };
@@ -147,6 +197,13 @@ export interface AccountFilterInfo {
   tokenMissing: string[];
 }
 
+export interface MountStatus {
+  isMounted: boolean;
+  mountPoint: string | null;
+  serverUrl: string | null;
+  cacheDir: string;
+}
+
 export type SyncState = "idle" | "syncing" | "paused" | "error";
 
 export interface SyncFolderStatus {
@@ -204,6 +261,13 @@ export interface SyncLogEntry {
   path: string;
   result: string;
   detail?: string | null;
+}
+
+// #410 (L24-F2): mirror of the Rust `AppSettings` serialize model
+// (src-tauri/src/settings.rs, camelCase).
+export interface AppSettings {
+  shareNotifyEnabled: boolean;
+  shareSeen: Record<string, number[]>;
 }
 
 export interface UpdateStatus {
@@ -366,8 +430,10 @@ export const api = {
   fileHistoryList: () => tauri<FileHistoryEntry[]>("file_history_list"),
   fileHistoryClear: () => tauri<void>("file_history_clear"),
 
-  // #410: share notification toggle.
+// #410: share notification toggle (+ L24-F2: the backend flag is the single
+  // source of truth, this command persists it; `getSettings` reads it back).
   setShareNotify: (enabled: boolean) => tauri<void>("set_share_notify", { enabled }),
+  getSettings: () => tauri<AppSettings>("get_settings"),
 
   // #421: synced paths for status icons.
   syncSyncedPaths: (accountKey: string) => tauri<string[]>("sync_synced_paths", { accountKey }),
@@ -501,6 +567,15 @@ export const api = {
     tauri<void>("sync_set_paused", { folderId, paused }),
 
   syncTrigger: () => tauri<void>("sync_trigger"),
+
+  mountDefaultCache: () => tauri<string | null>("mount_default_cache"),
+
+  mountDisk: (customCacheDir?: string) =>
+    tauri<MountStatus>("mount_disk", { customCacheDir }),
+
+  unmountDisk: () => tauri<void>("unmount_disk"),
+
+  getMountStatus: () => tauri<MountStatus>("get_mount_status"),
 
   checkUpdate: () => tauri<ReleaseInfo | null>("check_update"),
 

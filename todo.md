@@ -9,6 +9,134 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Review 2026-08-30 (Lauf 29, Fokus „v1.3.2-Vorbereitung: Disk-Mount/VFS-WIP + offene L24-Befunde" — neue Befunde)
+
+Gegenstand: Vorbereitung der v1.3.2 — Review des uncommitteten
+Disk-Mount/VFS-WIP (`mount.rs`, `mount_default_cache`,
+SettingsModal/SyncPanel/`ui.ts`/`ipc.ts`) sowie Re-Verifikation der offenen
+L24-F/N-Befunde gegen HEAD `7ba8ce3` (Tag v1.3.1) + WIP-Arbeitsbaum; dazu
+Prüfung der Release-CI nach dem v1.3.1-Lauf (release-notes-Job).
+
+Verifikation (alles grün): `cargo fmt --check` ✓, `cargo clippy --all-targets
+--manifest-path src-tauri/Cargo.toml -- -D warnings` ✓ (Exit 0), `cargo test`
+→ 112 passed / 0 failed (HEAD `7ba8ce3` hat 113 `#[test]`-Attribute; Differenz
+u.a. durch cfg-Gates, z.B. `updater.rs` linux-only; der Rückgang gegenüber
+Lauf 28 („116") ist nicht vollständig aufgelöst, aber ohne funktionalen
+Befund). `npm run build` ✓ (126 Module).
+
+**Neu gefunden (Fokus „v1.3.2-Vorbereitung / Release-CI"):**
+
+- [x] **R29-F1 (Release-CI, hoch): Der „Heredoc-Delimiter-Fix" aus R28
+  (`release.yml`, release-notes-Job) ist unvollständig — die generierten
+  Release-Notes gehen im v1.3.1-Lauf verloren.** `release-notes.md` endet ohne
+  Trailing-Newline (die letzten 5 Bytes sind `98 97 114 41 46` = `bar).`).
+  Der Job schreibt `cat release-notes.md >> "$GITHUB_OUTPUT"` und danach
+  `echo "$delimiter" >> "$GITHUB_OUTPUT"` — die schließende Delimiter-Zeile
+  klebt damit an der letzten Inhaltszeile, und GitHub Actions bricht mit
+  `Unable to process file command 'output' successfully. Invalid value.
+  Matching delimiter not found 'RELEASE_NOTES_1788092202495008399'` ab
+  (als `##[error]` im v1.3.1-Log bestätigt; generierte Output-Datei 1904
+  Bytes, letztes Byte 46, kein LF/CR). Folge: `steps.read.outputs.body` wird
+  nie gesetzt, `prepare-release` fällt auf den generischen Platzhalter
+  („Download the assets below to install this version.") zurück, und die vom
+  Modell geschriebenen Notizen landen zwar als Commit `6ab41c0` auf `main`
+  (Git-Push des Jobs), aber nicht im GitHub-Release. Fix:
+  `{ cat release-notes.md; printf '\n'; } >> "$GITHUB_OUTPUT"` bzw. vor dem
+  Schreiben ein Trailing-Newline sicherstellen.
+- [x] **R29-F2 (Release-CI, mittel): Der release-notes-Job pusht ohne
+  Ref-Guard direkt auf `main` (`git push origin HEAD:main`) und läuft auch
+  bei `workflow_dispatch`.** Ein manueller Dispatch auf `main` erzeugt so
+  jedes Mal einen weiteren Modell-Commit auf dem Hauptbranch; kombiniert mit
+  `continue-on-error: true` (R28-N1) kann auch ein fehlgeschlagener Job
+  pushen. Fix: Push-Schritt an `startsWith(github.ref, 'refs/tags/v')`
+  koppeln oder die Notes über einen PR-Branch anliefern.
+- [ ] **R29-F3 (Feature-WIP, mittel): Der Disk-Mount-Schalter ist eine reine
+  UI-Hülle ohne Backend-Wirkung.** `ui.ts` (`DISKMOUNT_KEY`,
+  `DISKMOUNT_CACHE_KEY`) persistiert nur in localStorage; ein
+  Mount/Unmount-`#[tauri::command]` existiert nicht — der einzige neue
+  Command `mount_default_cache` (`commands.rs:1905-1909`, registriert
+  `lib.rs:497`) liefert lediglich den Default-Pfad zurück. `unifuse` ist in
+  `Cargo.toml` optional und laut Kommentar „not yet wired in";
+  `mount.rs::default_cache_dir` erzeugt den Ordner nicht (`create_dir_all`
+  fehlt) und vermischt `Ok(None)`-Fehler mit „noch kein Cache-Ordner
+  gewählt" — ein Kippschalter-Umschalten bewirkt sichtbar nichts. Für
+  v1.3.2: Mount/Unmount-Backend + Commands + UI-Verdrahtung nachziehen oder
+  die Sektion hinter ein Feature/Dev-Gate hängen.
+- [x] **R29-N1 (Dependencies, minor): `getos@^3.2.1` ist neu in
+  `package.json`/`package-lock.json`, wird aber nirgends importiert** (kein
+  Treffer in `src/`). Entweder für die Drive-/Mountpunkt-Enumeration
+  verdrahten oder die Abhängigkeit wieder entfernen.
+- [x] **R29-N2 (Frontend, minor): `filesApp` (`SettingsModal.vue:86-92`)
+  nutzt das deprecated `window.navigator.platform` und liefert für
+  nicht erkannte Plattformen das unübersetzte Literal `"unknown"`** — die
+  i18n-Pflicht gilt auch für diesen String. Zudem hängt der
+  `mountDefaultCache()`-Abruf (`SettingsModal.vue:99`) ohne `.catch`
+  (unhandled rejection bei IPC-Fehlern).
+
+**Re-Verifikation der offenen L24-Befunde (Gegenprobe im Quelltext):**
+
+- [x] **L24-F6 (QuickLook-Race) ist BEHOBEN** — Guard `entry.path ===
+  quickLookEntry.value?.path` in `refreshQuickLookImage`
+  (`FileExplorer.vue:502-511`, v1.3.1). Checkbox im L24-Abschnitt auf `[x]`
+  gesetzt.
+- [ ] Weiter offen (mit aktuellen Fundstellen): **F2** (Share-Notify: nur
+  `ui.ts:158-161` localStorage; `setShareNotify` (`ipc.ts:370`) hat keine
+  Aufrufer; kein `get_settings`-Rückweg), **F3b** (Append/Trunkierung:
+  `sync.rs:1234` append je geplantem Op, `append_sync_log` `sync.rs:1330-1342`
+  neueste-zuerst/push ans Ende/drain vorn — der „Feature unerreichbar"-Teil
+  von F3 ist dagegen erledigt: `sync_log_list`/`sync_log_clear`
+  (`commands.rs:856-873`, `lib.rs:502-503`, `ipc.ts:376-377`) sind
+  registriert und das Sync-Log hat i18n-Keys in en/de/fr/es), **F4**
+  (Lost-Update: weiterhin kein `Mutex<AppSettings>`, `set_share_notify`
+  `commands.rs:848-852` vs. Worker-Fenster `sync.rs:1792-1799`; fester
+  Temp-Name `tmp-{pid}` `persist.rs:15`), **F5** (Retry verwirft Ergebnis,
+  `ipc.ts:34-45`; auch nicht-idempotente Commands gepuffert), **F7**
+  (Share-Edit: `ShareDialog.vue:103-104` sendet `publicUpload` immer und
+  macht `""` zu `undefined`; Backend `commands.rs:618-623` schreibt 15/1),
+  **F8** (`move_dest_path` `commands.rs:1379-1389` ohne Trailing-Slash-Trim;
+  `validate_dav_path` `commands.rs:641-668` lässt leere Segmente durch →
+  `/B//name`; Move-in-sich-selbst ungeprüft). **N1** unverändert offen
+  (`sync.rs:1234`).
+- [x] **L24-N2…N7 sind mit v1.3.1 umgesetzt** (die `[x]`-Marker stimmen) —
+  Stichproben: `validate_dav_path` im CLI (`lib.rs:279/316`), QuickLook-
+  Kanten-Absicherung, Impersonation-Bar-Fix.
+
+**Status Disk-Mount/VFS-WIP (uncommitted, v1.3.2-Kandidat):** `mount.rs`
+(neu, `default_cache_dir` → `app_data_dir()/cache/mountcache`),
+`mount_default_cache` + Registrierung (`lib.rs:497`), Wrapper
+`api.mountDefaultCache` (`ipc.ts:505`), `diskMount`/`diskMountCachePath`
+(`ui.ts`), Kippschalter + Cache-Ordner-Picker in `SettingsModal.vue` (Tab
+„Über"), `SyncPanel.vue`-Rework mit `stateUnknown`-Fallback und Empty-State.
+Sämtliche Disk-Mount-i18n-Keys sind in en/de/fr/es angelegt. Bewertung →
+R29-F3 (nicht verdrahtet) und R29-N1/N2.
+
+**KMP (kein KMP-Anwendungscode-Change seit Lauf 28, nur die v1.3.1-Fixes
+F5/F7/F10/F12):** L25-KMP-F1…F4 und F9 sowie L26-KMP-F11 sind unverändert
+offen. Die von Lauf 28 als BEHOBEN gemeldeten Einträge KMP-F6 (doppelte
+Chrome, `HomeScreen.kt` → M3-`NavigationBar`) und KMP-F8 (iosMain-Doku)
+hatten noch fehlende Checkboxen in den L25/L26-Abschnitten — hier
+nachgezogen (`[x]`).
+
+**todo.md-Nachprüfung (Schritt 5):** L24-F6 `[x]`, KMP-F6 `[x]`, KMP-F8 `[x]`
+gesetzt. Keine physischen Verschiebungen nach `archived-todo.md` (Anweisung:
+nur `todo.md` verändern; Markierungen in-place — wie in Lauf 28 gehandhabt).
+
+**GitHub-Issues/Repo-Zustand:** origin/main liegt inzwischen bei `6ab41c0`
+(durch den release-notes-Job direkt gepusht, s. R29-F1/F2); lokaler HEAD ist
+`7ba8ce3` (Tag v1.3.1) mit WIP im Arbeitsbaum — vor dem nächsten Commit
+`git pull --rebase` einplanen. Keine gh-Aufrufe in diesem Lauf; der
+`opencode-todo-issues`-Workflow sollte R29-F1/F2 erfassen.
+> Gegenstand: das uncommittete v1.3.2-WIP im Working Tree (Disk-Mount-Feature:
+> `mount.rs`, `mount_default_cache`, SettingsModal-/ui.ts-/i18n-Änderungen,
+> SyncPanel-Rework, `getos`-Dependency, `unifuse` optional) sowie die
+> Standard-Bereiche (IPC-Registry, WebDAV/OCS, Keyring, Fehler-/State-
+> Management, CI) und die Re-Verifikation der offenen L24-/KMP-Befunde gegen
+> HEAD `7ba8ce3` + Working Tree.
+>
+> **Verifikation in diesem Lauf geplant:** `cargo fmt --check`, `cargo clippy
+> --all-targets -- -D warnings`, `cargo test --manifest-path src-tauri/Cargo.toml`,
+> `npm run build`.
+
 ## Review 2026-08-30 (Lauf 28, Fokus „v1.3.1 / Updater-Fallback, Single-Instance & Release-Konsistenz" — neue Befunde)
 
 Gegenstand: die 20 Commits seit Lauf 27 (`f2a28a6..HEAD`, HEAD `4dcd117`):
@@ -344,7 +472,7 @@ Commits — **kein KMP-Commit**; die L25-KMP-Befunde sind daher unverändert.
       jedes Mal verloren und springt zu List zurück. Der Desktop persistiert
       das (`ui.ts` → `filesView`). Fix: `rememberSaveable` oder Persistenz im
       `SettingsStore`.
-- [ ] **KMP-F11 (UX / gefährliche Default-Aktion, minor–mittel): Gast-Admin-
+- [x] **KMP-F11 (UX / gefährliche Default-Aktion, minor–mittel): Gast-Admin-
       Kategorie-Chips löschen beim Antippen die Kategorie.** `GuestScreen.kt:201-209`
       rendert jede Kategorie als `FlutPill(selected=false, onClick={
       showDeleteCategoryDialog = cat })` — der einzige Tap-Zweck eines Chips
@@ -550,7 +678,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       haben hier kein Gegenstück). Fix: Ellipsis-`DropdownMenu` (wie
       `EntryRow`, Zeile 745+) ins Grid-Item einbauen oder Callbacks/State
       entfernen.
-- [ ] **KMP-F3 (UX-Limit, mittel): Admin-Userliste ist ohne Suchbegriff leer —
+- [x] **KMP-F3 (UX-Limit, mittel): Admin-Userliste ist ohne Suchbegriff leer —
       es gibt keinen „Alle anzeigen"-Pfad.** `AdminViewModel.loadUsers()`
       (`AdminViewModel.kt:48-58`) returned bei leerem `search` früh und leert
       `users`; `AdminScreen.kt:138-142` (`LaunchedEffect(search)`) ruft bei
@@ -558,7 +686,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       (`commands.rs:1638`) erlaubt leere Suche („everything"). Auf Mobile muss
       ein Admin erst mindestens einen Buchstaben tippen, um irgendeinen User zu
       sehen. Fix: leere Suche = erste Seite laden (limit 200), nicht leeren.
-- [ ] **KMP-F4 (Race, minor): `loadUsers` vs. `loadMore` teilen `offset`/
+- [x] **KMP-F4 (Race, minor): `loadUsers` vs. `loadMore` teilen `offset`/
       `users` unsynchronisiert.** `AdminViewModel.kt:78-94` startet
       `loadPage(append=true)` mit dem gemeinsamen `offset`, während ein neuer
       `LaunchedEffect(search)`-Zyklus `loadUsers` → `loadPage(append=false)`
@@ -573,7 +701,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       im `ViewMode`-Enum (`FilesScreen.kt:162-163`) sind hart kodiert; der
       Desktop lokalisiert beides (`viewList`/`viewGrid`, `files`). Fix:
       Ressourcen-Keys statt String-Literale.
-- [ ] **KMP-F6 (UX, minor): Doppelte App-Chrome — Desktop-Header-Reproduktion
+- [x] **KMP-F6 (UX, minor): Doppelte App-Chrome — Desktop-Header-Reproduktion
       auf Mobile.** `HomeScreen.kt:77-156` rendert ein Desktop-Style-Surface
       (Logo-Zeile + Tab-Zeile mit Unterstrich-`Box`), und jeder Screen
       (FilesScreen `TopAppBar`, AdminScreen `TopAppBar`, SettingsScreen
@@ -588,7 +716,7 @@ nur auf macOS/Xcode für iOS möglich; Android-Gradle-Build hier nicht ausgefüh
       im Desktop rendert `App.vue` `navItems` den Admin-Tab als gesperrt
       (Lock-Icon, disabled, `adminLockedTitle`/`adminLockedText`). Fix: gleiche
       „lock"-Darstellung auf Mobile, damit die Tab-Leiste konsistent bleibt.
-- [ ] **KMP-F8 (Doku, minor): README/Archiv beschreiben `iosMain` als
+- [x] **KMP-F8 (Doku, minor): README/Archiv beschreiben `iosMain` als
       „Placeholder-UI", das ist veraltet.** `kmp/README.md:38-39`; tatsächlich
       hostet `kmp/shared/src/iosMain/kotlin/com/flutcloud/flutlink/Main.kt`
       die volle geteilte Compose-UI via `FlutLinkRoot` (feat-commit `2dce6e1`).
@@ -683,7 +811,7 @@ die CI würde aktuell rot laufen.
       Sync-Log-Code (`197df7f`). Ohne Fix scheitert die Rust-CI
       (`clippy`/`fmt`-Job) und jeder Release-Build. Fix: `cargo fmt` ausführen
       + die Closure vereinfachen.
-- [ ] **L24-F2 (Bug, hoch): Der Share-Notification-Schalter ist rein
+- [x] **L24-F2 (Bug, hoch): Der Share-Notification-Schalter ist rein
       dekorativ — er erreicht das Backend nie.** `SettingsModal.vue:409`
       ruft nur `ui.setShareNotify(...)` auf; das schreibt lediglich
       `localStorage["flutlink.shareNotify"]` (`ui.ts:148-149`) und ruft
@@ -712,7 +840,7 @@ die CI würde aktuell rot laufen.
       sind toter, nur-schreibender Bestand. Fix: Speicherung beibehalten
       append-Order (alt→neu), beim UI-Serving erst reversen; und einen
       `sync_log`-Command + Wrapper + SyncPanel-Ansicht ergänzen (#407).
-- [ ] **L24-F4 (Race, mittel): Lost-Update auf `settings.json` zwischen
+- [x] **L24-F4 (Race, mittel): Lost-Update auf `settings.json` zwischen
       Sync-Worker und `set_share_notify`.** `SyncEngine::run_all`
       (`sync.rs:1786-1788`) macht `load` → `check_share_notifications(...)`
       → `save` mit einem `await` (Netzwerk-I/O über alle Konten) dazwischen;
@@ -727,7 +855,7 @@ die CI würde aktuell rot laufen.
       serialisieren (load→modify→save als kritischer Abschnitt) und
       `persist.rs` pro Write eindeutigen Temp-Namen (uuid/counter+pid) nutzen
       (wie `webdav.rs` es beim Download bereits tut).
-- [ ] **L24-F5 (Robustheit, mittel): Der Retry-Mechanismus verwirft das
+- [x] **L24-F5 (Robustheit, mittel): Der Retry-Mechanismus verwirft das
       Ergebnis und ist nicht idempotenz-sicher.** `retryLast()`
       (`ipc.ts:34-45`) spielt `invoke(failed.cmd, failed.args)` nach, verwirft
       aber den Rückgabewert — der ursprüngliche Aufrufer (z.B. `files.refresh()
@@ -740,7 +868,7 @@ die CI würde aktuell rot laufen.
       Retry-Ergebnis an den Original-Caller zurückleiten (bzw. nach Erfolg
       den betroffenen View-Store refreshen) und Retry nur für idempotente
       Lese-Commands anbieten (oder Caller stellt `idempotent`-Flag).
-- [ ] **L24-F6 (Race, mittel): QuickLook zeigt beim schnellen Blättern das
+- [x] **L24-F6 (Race, mittel): QuickLook zeigt beim schnellen Blättern das
       Thumbnail des vorherigen Eintrags.** `refreshQuickLookImage`
       (`FileExplorer.vue:497-507`) captured `entry` beim Aufruf und weist
       das `await files.getThumbnail(entry.path)`-Ergebnis später dem einzigen
@@ -749,7 +877,7 @@ die CI würde aktuell rot laufen.
       `quickLookImage` während B angezeigt wird. Fix: Zuweisung guarden
       (`if (entry.path === quickLookEntry.value?.path) …`) oder Request-
       Generationszähler.
-- [ ] **L24-F7 (Bug, mittel): Share-Bearbeitung setzt bei jedem Edit die
+- [x] **L24-F7 (Bug, mittel): Share-Bearbeitung setzt bei jedem Edit die
       Berechtigungen zurück und kann ein Ablaufdatum nie entfernen.**
       `submitEdit` (`ShareDialog.vue:98-107`) sendet `publicUpload` (Boolean)
       **immer** mit; das Backend (`commands.rs:618`, `public_upload.map(…15/1)`)
@@ -761,7 +889,7 @@ die CI würde aktuell rot laufen.
       erreicht, Sperren lassen sich so nicht entfernen. Fix: `publicUpload`
       nur senden, wenn sich der Wert geändert hat (sonst Verhalten „nicht
       anfassen"); `expireDate: editExpiry.value === "" ? "" : (… )`.
-- [ ] **L24-F8 (Robustheit, mittel): Copy/Move-Pfadkomposition ohne
+- [x] **L24-F8 (Robustheit, mittel): Copy/Move-Pfadkomposition ohne
       Normalisierung.** `move_dest_path` (`commands.rs:1349-1359`) fügt
       `"{dest_folder}/{name}"` wörtlich an: ein `dest_folder` mit nachgestelltem
       `/` (das Dialogfeld ist editierbar) ergibt `"/B//name"`, ein `source`
@@ -771,7 +899,7 @@ die CI würde aktuell rot laufen.
       Fix: `dest_folder` trailendes `/` trimmen, leeren Namen ablehnen,
       `dest == source`/dest-in-source für Ordner verhindern; leere Segmente in
       `validate_dav_path` verbieten.
-- [ ] **L24-N1 (Perf, mittel): Sync-Log wird pro geplantem Op komplett
+- [x] **L24-N1 (Perf, mittel): Sync-Log wird pro geplantem Op komplett
       neu geschrieben (Write-Amplification).** `append_sync_log` wird je
       Plan-Op aufgerufen (`sync.rs:1217-1226`, bis zu `MAX_OPS_PER_PASS=200`
       pro Ordner) und macht bei jedem Aufruf `load` (ganze Datei) +

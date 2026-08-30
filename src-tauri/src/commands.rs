@@ -639,9 +639,22 @@ pub async fn webdav_update_share(
 /// with `isResource`/`isPart` flags — so only modifications are refused via
 /// [`validate_writable_dav_path`] (L17-F2).
 pub(crate) fn validate_dav_path(path: &str) -> AppResult<()> {
+    // The root has no name but is a perfectly valid WebDAV target.
+    if path == "/" {
+        return Ok(());
+    }
     if !path.starts_with('/') {
         return Err(AppError::App(
             "Path must be absolute (start with '/').".into(),
+        ));
+    }
+    // Reject doubled slashes: `/B//name` is a different, ambiguous path
+    // (empty internal segment) that the server may resolve unexpectedly (L24-F8).
+    // The empty segments from the leading slash and an allowed trailing "/"
+    // must not trigger this.
+    if path.contains("//") {
+        return Err(AppError::App(
+            "Path must not contain empty segments (double slashes).".into(),
         ));
     }
     for segment in path.split('/') {
@@ -843,13 +856,47 @@ pub fn file_history_clear(app: AppHandle) -> AppResult<()> {
     history::clear(&app)
 }
 
-/// #410: toggle whether the backend announces newly appeared shares.
+/// #410: toggle whether the backend announces newly appeared shares. Goes
+/// through the settings lock (L24-F4) so a toggle can never be clobbered by an
+/// in-flight worker save (and vice versa).
 #[tauri::command]
-pub fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
-    let mut settings = crate::settings::load(&app);
+pub async fn set_share_notify(app: AppHandle, enabled: bool) -> AppResult<()> {
+    let state = app.state::<AppState>();
+    let mut settings = crate::settings::lock(&app, &state).await;
     settings.share_notify_enabled = enabled;
     crate::settings::save(&app, &settings)
 }
+
+/// #410 (L24-F2): expose the backend settings the worker actually reads, so
+/// the frontend toggle can display the real flag instead of a localStorage
+/// copy that drifts apart.
+#[tauri::command]
+pub async fn get_settings(app: AppHandle) -> AppResult<crate::settings::AppSettings> {
+    let state = app.state::<AppState>();
+    let settings = crate::settings::lock(&app, &state).await;
+    Ok(settings.clone())
+}
+
+// /// #407: get the current autostart state.
+// /// Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
+// #[tauri::command]
+// pub async fn get_autostart(app: AppHandle) -> AppResult<bool> {
+//     let autolaunch = app.autolaunch();
+//     Ok(autolaunch.is_enabled().unwrap_or(false))
+// }
+
+// /// #407: enable or disable autostart (run on login).
+// /// Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
+// #[tauri::command]
+// pub async fn set_autostart(app: AppHandle, enabled: bool) -> AppResult<()> {
+//     let autolaunch = app.autolaunch();
+//     if enabled {
+//         autolaunch.enable().map_err(|e| AppError::App(e.to_string()))?;
+//     } else {
+//         autolaunch.disable().map_err(|e| AppError::App(e.to_string()))?;
+//     }
+//     Ok(())
+// }
 
 /// #407: fetch recent sync log entries (newest first).
 #[tauri::command]
@@ -1374,18 +1421,60 @@ pub async fn webdav_rename(
 }
 
 /// Destination path for a copy/move into `dest_folder` (#411): the source's
-/// file name is appended verbatim, so moving `/A/report.pdf` into `/B` targets
-/// `/B/report.pdf`.
+/// file name is appended after trimming trailing slashes, so moving `/A/report.pdf`
+/// into `/B/` targets `/B/report.pdf` (not `/B//report.pdf` — L24-F8).
 fn move_dest_path(source: &str, dest_folder: &str) -> String {
     let name = source
         .rsplit_once('/')
         .map(|(_, name)| name)
         .unwrap_or(source);
-    if dest_folder == "/" {
+    let base = dest_folder.trim_end_matches('/');
+    if base.is_empty() {
         format!("/{}", name)
     } else {
-        format!("{}/{}", dest_folder, name)
+        format!("{}/{}", base, name)
     }
+}
+
+/// Validate a copy/move request end-to-end and return the composed destination
+/// path. Refuses empty file names and `dest == source`; the
+/// folder-into-its-subtree case is refused by the caller once the source's
+/// directory-ness is known (L24-F8).
+fn validate_copy_move_dest(source: &str, dest_folder: &str) -> AppResult<String> {
+    validate_writable_dav_path(source)?;
+    let dest = move_dest_path(source, dest_folder);
+    validate_writable_dav_path(&dest)?;
+    if dest == source {
+        return Err(AppError::App(
+            "The destination is the source path itself.".into(),
+        ));
+    }
+    Ok(dest)
+}
+
+/// Best-effort probe whether `source` is a directory. Used to refuse moving a
+/// folder into its own subtree without misclassifying same-name files: a file
+/// `/A` copied into a folder named `A` (`/A/A`) must stay legal.
+async fn source_is_dir(
+    client: &reqwest::Client,
+    account: &Account,
+    source: &str,
+    target: Option<&str>,
+) -> bool {
+    let parent = source
+        .rsplit_once('/')
+        .map(|(p, _)| if p.is_empty() { "/" } else { p })
+        .unwrap_or("/");
+    match webdav::list(client, account, parent, target).await {
+        Ok(entries) => entries.iter().any(|e| e.path == source && e.is_dir),
+        Err(_) => false,
+    }
+}
+
+/// True when `dest` lies inside `source`'s subtree (`/A` → `/A/A/…`). Only
+/// meaningful for directory sources (checked by the caller).
+fn dest_inside(source: &str, dest: &str) -> bool {
+    dest.starts_with(&format!("{}/", source.trim_end_matches('/')))
 }
 
 /// Copy a cloud file or folder into `dest_folder` via WebDAV COPY (#411).
@@ -1397,14 +1486,18 @@ pub async fn webdav_copy(
     target_user: Option<String>,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_writable_dav_path(&source)?;
-    validate_writable_dav_path(&dest_folder)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    let dest = move_dest_path(&source, &dest_folder);
-    validate_writable_dav_path(&dest)?;
+    let dest = validate_copy_move_dest(&source, &dest_folder)?;
+    if source_is_dir(&state.http_client, &account, &source, target.as_deref()).await
+        && dest_inside(&source, &dest)
+    {
+        return Err(AppError::App(
+            "A folder cannot be copied into its own subtree.".into(),
+        ));
+    }
     webdav::copy_as(
         &state.http_client,
         &account,
@@ -1424,14 +1517,18 @@ pub async fn webdav_move(
     target_user: Option<String>,
 ) -> AppResult<()> {
     let account = current_account(&state)?;
-    validate_writable_dav_path(&source)?;
-    validate_writable_dav_path(&dest_folder)?;
     let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
     if target.is_some() && !account.meta.is_admin {
         return Err(AppError::Forbidden);
     }
-    let dest = move_dest_path(&source, &dest_folder);
-    validate_writable_dav_path(&dest)?;
+    let dest = validate_copy_move_dest(&source, &dest_folder)?;
+    if source_is_dir(&state.http_client, &account, &source, target.as_deref()).await
+        && dest_inside(&source, &dest)
+    {
+        return Err(AppError::App(
+            "A folder cannot be moved into its own subtree.".into(),
+        ));
+    }
     webdav::rename_as(
         &state.http_client,
         &account,
@@ -1897,6 +1994,13 @@ pub async fn sync_set_paused(
 pub async fn sync_trigger(state: State<'_, AppState>) -> AppResult<()> {
     state.sync.notify_one();
     Ok(())
+}
+
+/// Default local cache folder for the mounted drive (platform app-data dir).
+/// Used by the mount backend when the user did not pick a custom folder.
+#[tauri::command]
+pub fn mount_default_cache(app: AppHandle) -> AppResult<Option<String>> {
+    Ok(crate::disk_mount::default_cache_dir(&app).map(|p| p.to_string_lossy().to_string()))
 }
 
 #[cfg(test)]

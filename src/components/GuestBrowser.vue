@@ -6,7 +6,7 @@ import { useUiStore } from "../stores/ui";
 import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
 import { formatBytes } from "../lib/format";
-import { api, invokeError, type GuestEntry, type GuestShare } from "../lib/ipc";
+import { api, invokeError, onRetrySuccess, type GuestEntry, type GuestShare } from "../lib/ipc";
 import { registerEscapeCloser } from "../lib/escape";
 
 // #372: `embedded` renders the browser as an admin tab while signed in —
@@ -133,6 +133,12 @@ async function navigateTo(target: string) {
     busyPath.value = null;
   }
 }
+
+// L24-F5: after a buffered `guest_list_entries` retry succeeds, re-run the
+// active listing so the view leaves its error state.
+onRetrySuccess((cmd) => {
+  if (cmd === "guest_list_entries" && share.value) void navigateTo(path.value);
+});
 
 function leave() {
   share.value = null;
