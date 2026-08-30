@@ -9,6 +9,156 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Review 2026-08-30 (Lauf 28, Fokus „v1.3.1 / Updater-Fallback, Single-Instance & Release-Konsistenz" — neue Befunde)
+
+Gegenstand: die 20 Commits seit Lauf 27 (`f2a28a6..HEAD`, HEAD `4dcd117`):
+KMP-F13/14/15-Umsetzung (`53136ad`, `4124b1b`, `6b4eafc`, `4e152db`), Updater-
+Plugin-Fallback + `tauri_plugin_single_instance` + `tauri_plugin_updater`
+(`05b2652`), Version-Reverts/-Rebumps (`c78140c`, `7e0cc5d`), CI
+(`530dada`, `855d716` Signing-Key-Rotation, `38c9bb8` Release-Workflow),
+AltStore-Updates (`29cb557`, `e64d644`, `4dcd117`). Plus die Standard-Bereiche
+gegen HEAD re-verifiziert.
+
+**Verifikation frisch ausgeführt (Systemdeps nachinstalliert):** `cargo fmt
+--check` grün; `cargo clippy --all-targets -- -D warnings` **grün** (Exit 0);
+`cargo test --manifest-path src-tauri/Cargo.toml` → **116 passed / 0 failed**;
+`npm run build` (vue-tsc + vite) **grün**; `cd kmp && ./gradlew
+:shared:compileKotlinJvm` **grün** (nur Deprecation-Warnungen, s. R28-N2).
+Erstmals seit Lauf 24 wieder ein vollständiger Toolchain-Lauf.
+
+Neu gefunden:
+
+- [ ] **R28-F1 (Version/Release, hoch): Die Mobile-Clients hängen bei 1.2.0,
+      während Desktop auf 1.3.0 steht und AltStore die v1.3.0-Release-IPA als
+      „1.3.0" ausweist.** `kmp/android-app/build.gradle.kts:18-19` hat
+      `versionCode = 4` / `versionName = "1.2.0"`; `kmp/iosApp/Config.xcconfig`
+      setzt `APP_VERSION = 1.2.0` und `project.pbxproj:227/:259` bindet
+      `MARKETING_VERSION = "$(APP_VERSION)"` — das v1.3.0-Release-IPA meldet
+      also CFBundleShortVersion **1.2.0**, während
+      `altstore/classic.json:22` für eben diese IPA `"version": "1.3.0"`
+      (`buildVersion: 115`) listet. Ursache: `5364aa1` („1.3.1 across all
+      relevant files") hatte KMP nur auf **1.2.0** gestellt (statt 1.3.1), und
+      die Reverts `05b2652`/`c78140c`/`7e0cc5d` haben ausschließlich Desktop
+      (Cargo/Cargo.lock/tauri.conf/package*.json) auf 1.3.0 zurückgesetzt —
+      die KMP-Version blieb bei 1.2.0 hängen. Folge: AltStore zeigt einen
+      Versionslabel, das die installierte App nicht meldet; Client-Meldungen
+      über `app.package_info()` (Desktop) und mobile Update-Checks laufen
+      auseinander. Fix: `android-app` versionName/versionCode und
+      `Config.xcconfig` APP_VERSION mit dem Desktop-Release abgleichen und
+      einen gemeinsamen Release-Versions-Schritt (ein Source-of-Truth) einführen.
+- [ ] **R28-F2 (Updater, mittel): Der Signed-Updater-Fallback startet die App
+      nach erfolgreichem Install nie neu — Divergenz zum Custom-Pfad.**
+      `install_plugin_update` (`src-tauri/src/updater.rs:666-715`) ruft
+      `update.download_and_install(...)` und emittiert danach `installing`;
+      auf macOS/Linux bleibt der Prozess aber auf der alten Version weiter
+      laufen (`tauri-plugin-updater` 2.10.1 ersetzt das .app-Bundle bzw. die
+      AppImage in place, relauncht aber nicht). Der Custom-Pfad
+      (`install_update`, `updater.rs:404-525`) relauncht dagegen aktiv:
+      `open` auf macOS, AppImage-Neu-Spawn auf Linux, `process::exit(0)` auf
+      Windows (damit MSI/NSIS übernimmt). Zusätzlich: Auf Windows beendet
+      `download_and_install` den Prozess selbst (Plugin-`exit(0)`), bevor die
+      `installing`-Emission ausgeführt wird — das finale Status-Event geht
+      verloren (Custom-Pfad emittet vor dem Exit). Fix: nach ok-Install
+      denselben Relaunch-/Exit-Code wie `install_update` ausführen bzw. das
+      `install_update`-Verhalten für den Plugin-Pfad spiegeln.
+- [ ] **R28-F3 (CLI/Single-Instance, mittel): Das neue
+      `tauri_plugin_single_instance` verschluckt die CLI-Argumente aller
+      Folge-Prozesse.** `lib.rs:323-325` registriert
+      `.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+      show_main_window(app); }))` — `_argv` wird ignoriert. Ein zweiter
+      Aufruf (`flutlink --sync`, `--path …`, `--download … --download-to …`,
+      `--list …`, `--url …`, `--tray`) zeigt nur das Fenster und führt weder
+      Sync, noch Headless-Kommando, noch `--tray`-Hide aus — Regressions-Risiko
+      für Skript/Headless-Nutzung (vgl. L24-N3, der weiter offen ist:
+      `--download`/`--list` beenden den Prozess weiterhin nicht und öffnen
+      standardmäßig ein Fenster). Fix: im Callback `_argv` parsen und an
+      `handle_cli`-Äquivalente delegieren (mindestens `--sync`/`--tray`/
+      Headless-Kommandos), oder CLI-Verhalten dokumentieren/explizit droppen.
+- [ ] **R28-F4 (Release-CI, mittel): `release.yml` verlangt seit 38c9bb8
+      zwingend signierte Updater-Assets (`latest.json` + `.sig`), aber das
+      Vorhandensein der rotierten Secrets ist nicht verifizierbar.**
+      `855d716` rotiert den minisign-pubkey (`tauri.conf.json` →
+      `C75E65BB81A87FFB`) und vermerkt selbst: „The new private key must be
+      set as TAURI_SIGNING_PRIVATE_KEY / _PASSWORD repo secrets". Der
+      vollständigkeits-Check (`release.yml:504-512`) hat die Muster
+      `latest\.json$` + `\.sig$` als Pflicht-Fehler (vorher nur
+      Window-Warnungen). Sind die Secrets nicht/anders gesetzt, erzeugt die
+      `tauri-action`-Leg keine Updater-Artefakte und **jedes Tag-Release
+      schlägt im publish-Schritt hart fehl**. Fix: explizite Vorab-Prüfung der
+      Secrets (z. B. Job mit `if: secrets.X != ''`), die früh und mit
+      verständlicher Meldung abrichtet, statt einer kryptischen Asset-Liste.
+- [ ] **R28-N1 (CI-Robustheit, minor): `prepare-release` hängt jetzt an der
+      AI-`release-notes`-Job (`needs: [checks, security-gate, release-notes]`,
+      `release.yml:183`).** Schlägt die OpenCode-Note-Generierung fehl
+      (Model-Fallback leer/Rate-Limit), blockiert das das komplette Release —
+      früher war `prepare-release` davon unabhängig. Empfehlung: Fallback-Body
+      (der `|| 'Download the assets below…'`-Ausdruck greift nur bei leerem
+      Output, nicht bei Job-Failure) bzw. `allow-failure`-Verdrahtung.
+- [ ] **R28-N2 (KMP, minor): Deprecation-Warnungen nach dem M3-Umbau.**
+      `:shared:compileKotlinJvm` meldet: `WebDavApi.kt:468` `readBytes()` →
+      `readRawBytes()`; `AdminScreen.kt:365-397` `Icons.Filled.Sort` →
+      AutoMirrored; `FilesScreen.kt:166` → AutoMirrored List (unten).
+      `FilesScreen.kt:575` / `Components.kt:137` ArrowBack/InsertDriveFile →
+      AutoMirrored. Kein Funktionseffekt, aber API-Veraltung (künftige Compose-
+      Upgrades schärfen das).
+- [ ] **R28-N3 (Doku, minor — gehört zu R28-F1): README-Versionstabelle
+      veraltet.** `README.md:31-35` nennt „Desktop client 1.2.0" / „Mobile
+      client 1.1.1"; real ist Desktop 1.3.0, Mobile (Android+ iOS) 1.2.0.
+
+Keine neuen Befunde in den übrigen geprüften Bereichen: IPC-Registry
+(`lib.rs` ↔ `ipc.ts`; keine neuen Commands für den Updater — `check_update`/
+`download_and_install_update` unverändert), Keyring (`accounts.rs`),
+Fehler-Serialisierung, WebDAV/OCS-Layer, Guest-Backend, Sync-Engine,
+Offline-Cache, Tray — alle unverändert zu Lauf 27 (dort re-verifiziert).
+`build.yml:112` (`--config {"bundle":{"createUpdaterArtifacts":false}}`
+für Push-Artefakt-Builds) ist konsistent mit `530dada`/`855d716`; die
+Windows-`--bundles msi,nsis`-Explizierung (`release.yml:235`) liefert beide
+Suffixe, die der Custom-Updater wählt (`platform_suffixes`); der
+Heredoc-Delimiter-Fix im `release-notes`-Job (`release.yml:115-118`) ist
+sauber.
+
+### todo.md-Nachprüfung (Schritt 5, gegen HEAD `4dcd117`)
+
+Seit Lauf 27 sind KMP-F13/14/15 umgesetzt (`53136ad`/`4124b1b`/`6b4eafc`/
+`4e152db`; todo.md zeigt sie bereits als `[x]`) — re-verifiziert: Material3
+`1.9.0-alpha04` in `libs.versions.toml`, `MaterialExpressiveTheme` + `MotionScheme`
+in `Theme.kt`, `Flut*`-Komponenten aus `Components.kt` entfernt, `NavigationBar`+
+`SingleChoiceSegmentedButtonRow` + echte M3-Buttons/Chips in den Screens. Zwei
+weitere Lauf-27-Items sind erledigt und werden als `[x]` markiert:
+
+- **KMP-F6 (doppelte Chrome / kein M3-NavigationBar): BEHOBEN** — `HomeScreen.kt`
+  entfernt den Desktop-Header (Surface/Logo/Tabstrip) und nutzt eine echte M3-
+  `NavigationBar` als `bottomBar`; jede Screen behält seine einzelne `TopAppBar`
+  (M3-Standard-Pattern). Zusätzlich unten im Lauf-27-Abschnitt markiert.
+- **KMP-F8 (iosMain-Doku veraltet): BEHOBEN** — `c78140c` korrigiert
+  `kmp/README.md` auf „voller geteilter UI". Zusätzlich unten markiert.
+
+Weiter offen (re-quelltext-verifiziert): L24-F2 (Share-Notify, `ui.ts:148`),
+L24-F3b (Sync-Log-Append/Trunkierung), L24-F4…F8, L24-N1…N7, KMP-F1 (Admin-
+`editUser`-Lücke), F2 (Grid ohne Aktionen), F3 (Admin-Suche leer), F4
+(loadUsers/loadMore-Race), F5 („Files"/„List"/„Grid"-Literale,
+`FilesScreen.kt:165-168`), F7 (Admin-Tab unsichtbar, `HomeScreen.kt` `visible`
+-Guard), F9 (Copy/Move/QR/QuickLook), F10 (`viewMode`-`remember`, `FilesScreen.kt:207`),
+F11 (Gast-Category-`AssistChip` löscht beim Tippen, `GuestScreen.kt:199-201`),
+F12 (ViewMode-Labels hart kodiert), Perf-Analyse, „Desktop-JVM: Token-Speicher
+härten", CI-security-gate.
+
+Zu verschieben nach `archived-todo.md`: nichts physisch verschoben (Anweisung
+„nur todo.md verändern"); die Markierungen für KMP-F6/F8 erfolgen in-place.
+Desktop-Anwendungscode-Commits gab es in diesem Lauf nicht (nur Updater/
+lib.rs/App.vue/CI), daher blieben alle L24-Desktop-Befunde unverändert.
+
+### GitHub-Issues (Schritt 6)
+
+Nur lokale Quellen ausgewertet (GitHub-API-/gh-Aufrufe verboten).
+`git log f2a28a6..HEAD` enthält 20 Commits; die Merge-Messages referenzieren
+nur die PRs #455/#460/#461/#462 (`dispatch-*`/`issue456…458`) — kein Commit
+verweist auf eine Issue-Nr. und kein Commit schließt eine der offenen
+L24-/KMP-Issues. Der `opencode-todo-issues`-Workflow sollte beim nächsten Lauf
+die neuen Befunde erfassen, v. a. R28-F1 (Versions-Drift, mobile vs. Desktop
+und AltStore „1.3.0" vs. APP_VERSION 1.2.0) sowie R28-F2 (Updater-Neustart)
+und R28-F3 (Single-Instance-CLI-Verlust).
+
 ## Review 2026-08-28 (Lauf 27, Fokus „Revert Mobile UI auf Platin / Material 3 Expressive" — neue Befunde)
 
 Gegenstand: der Auftrag, die Mobile-UI (`kmp/shared/src/commonMain/.../ui/`)
@@ -99,10 +249,14 @@ Neu gefunden (Fokus „Revert auf Material 3 Expressive"):
 Weiter offen (Lauf 25/26-Status unverändert, gegen HEAD re-verifiziert):
 KMP-F1 (Admin-`editUser`-Lücke), KMP-F2 (Grid ohne Aktionen), KMP-F3
 (Admin-Suche leer), KMP-F4 (loadUsers/loadMore-Race), KMP-F5 (unlokalisierte
-`"Files"`/`"List"`/`"Grid"`), KMP-F6 (doppelte Chrome / kein M3-`NavigationBar`
-— direkt relevant für KMP-F14), KMP-F7 (Admin-Tab für Nicht-Admins
-unsichtbar), KMP-F8 (iosMain-Doku veraltet), KMP-F9 (Copy/Move/QR/QuickLook
-fehlen), KMP-F10 (`viewMode` nicht persistiert, `FilesScreen.kt:203`),
+`"Files"`/`"List"`/`"Grid"`),
+[x] KMP-F6 (doppelte Chrome / kein M3-`NavigationBar` — direkt relevant für
+KMP-F14): **BEHOBEN** — `HomeScreen.kt` nutzt jetzt eine M3-`NavigationBar`
+als `bottomBar` statt Desktop-Header (Verweis Lauf-28-Review, R28-F6).
+KMP-F7 (Admin-Tab für Nicht-Admins unsichtbar),
+[x] KMP-F8 (iosMain-Doku veraltet): **BEHOBEN** — `c78140c` korrigiert
+`kmp/README.md` „Placeholder-UI" → „voller geteilter UI".
+KMP-F9 (Copy/Move/QR/QuickLook fehlen), KMP-F10 (`viewMode` nicht persistiert, `FilesScreen.kt:203`),
 KMP-F11 (Gast-Kategorie-Chip löscht beim Antippen, `GuestScreen.kt:201-207`),
 KMP-F12 (`"Files"`, `"List"`/`"Grid"`-Literale). Ebenso weiter offen aus
 früheren Läufen: L24-F2 (Share-Notify erreicht Backend nie), L24-F3b
