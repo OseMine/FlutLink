@@ -57,7 +57,7 @@ kotlin {
             // KMP-F13: The stable `compose.material3` alias (1.9.0) removed the
             // Material 3 Expressive API. Use the pre-release that still ships it
             // (`Material3ExpressiveTheme`, expressive `MotionScheme`, ...).
-            api("org.jetbrains.compose.material3:material3:1.9.0-alpha04")
+            api("org.jetbrains.compose.material3:material3:1.12.0-alpha03")
             api(compose.materialIconsExtended)
             api(compose.ui)
             implementation(compose.components.resources)
