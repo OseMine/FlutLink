@@ -9,7 +9,7 @@ okhttp = "5.5.0"
 okio = "3.18.1"
 kotlinxSerialization = "1.11.0"
 kotlinxCoroutines = "1.11.0"
-composeMultiplatform = "1.11.1"
+composeMultiplatform = "1.12.0"
 # Material3 is decoupled from the Compose Multiplatform plugin since 1.9.0.
 # The stable `compose.material3` alias resolves without Expressive support
 # (Jetpack M3 1.4.0-stable removed all ExperimentalMaterial3ExpressiveApi /
