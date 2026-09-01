@@ -32,7 +32,7 @@ bytes = "1"
 base64 = "0.23"
 keyring = "4.1.6"
 reqwest = { version = "0.13", features = ["json", "gzip", "stream", "form"] }
-quick-xml = "0.41"
+quick-xml = "0.42"
 urlencoding = "2"
 tokio = { version = "1.53.1", features = ["sync", "fs", "time", "rt", "macros", "io-util", "net"] }
 tokio-util = { version = "0.7", features = ["io"] }
@@ -40,7 +40,7 @@ futures-util = "0.3"
 httpdate = "1"
 dotenvy = "0.15"
 sha2 = "0.11"
-getrandom = "0.2"
+getrandom = "0.4"
 # Disk mount: a local WebDAV server (hyper) served over the platform's
 # WebDAV redirector (WebClient / mount_webdav / gio) — driverless on all OSes.
 dav-server = "0.11"
