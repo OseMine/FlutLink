@@ -15,7 +15,7 @@ composeMultiplatform = "1.12.0"
 # (Jetpack M3 1.4.0-stable removed all ExperimentalMaterial3ExpressiveApi /
 # ExperimentalMaterial3ComponentOverrideApi APIs). Pin an alpha pre-release
 # so the Expressive theme/components are available.
-composeMaterial3 = "1.9.0-alpha04"
+composeMaterial3 = "1.12.0-alpha03"
 multiplatformLifecycle = "2.11.0"
 multiplatformNavigation = "2.9.2"
 ktor = "3.5.2"
