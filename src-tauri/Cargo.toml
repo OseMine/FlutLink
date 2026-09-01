@@ -40,7 +40,7 @@ futures-util = "0.3"
 httpdate = "1"
 dotenvy = "0.15"
 sha2 = "0.11"
-getrandom = "0.2"
+getrandom = "0.4"
 # Disk mount: a local WebDAV server (hyper) served over the platform's
 # WebDAV redirector (WebClient / mount_webdav / gio) — driverless on all OSes.
 dav-server = "0.11"
