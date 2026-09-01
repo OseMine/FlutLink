@@ -255,6 +255,7 @@ jobs:
             --notes-file /tmp/release-notes.txt
 
   build-and-release:
+    name: Build desktop installers
     # Desktop installers only for real tag releases; a stray workflow_dispatch
     # must never let tauri-action create/publish a release page on its own.
     if: startsWith(github.ref, 'refs/tags/v')
