@@ -37,6 +37,7 @@ function normSev(raw, fallback) {
 }
 
 const findings = [];
+const advisoryFindings = [];
 function add(source, category, severity, title, target) {
   const clean = (v) => String(v ?? "").replace(/[\r\n]+/g, " ").slice(0, 200);
   findings.push({
@@ -147,15 +148,32 @@ for (const f of Array.isArray(vt?.findings) ? vt.findings : []) {
 }
 
 // --- AI review (OpenCode) ---
+// Findings that only point at this repository's own CI/workflow automation
+// (path under `.github/`) are soft AppSec advice about how the automation is
+// wired up, not defects in shipped application code. They are reported here
+// and in the summary for awareness but deliberately do NOT count toward the
+// gate rating, so an LLM reviewer's opinion about CI plumbing can never block
+// (or, by being silent, unblock) a release.
 const aiReport = readJson("ai-findings.json");
 for (const f of Array.isArray(aiReport?.findings) ? aiReport.findings : []) {
-  add(
-    "ai-review",
-    String(f.category ?? "code-review"),
-    normSev(f.severity, "medium"),
-    f.title ?? "AI-Finding",
-    f.file ?? "",
-  );
+  const file = String(f.file ?? "");
+  if (file.startsWith(".github/")) {
+    advisoryFindings.push({
+      source: "ai-review",
+      category: String(f.category ?? "code-review"),
+      severity: normSev(f.severity, "medium"),
+      title: f.title ?? "AI-Finding",
+      target: file,
+    });
+  } else {
+    add(
+      "ai-review",
+      String(f.category ?? "code-review"),
+      normSev(f.severity, "medium"),
+      f.title ?? "AI-Finding",
+      file,
+    );
+  }
 }
 if (!Array.isArray(aiReport?.findings)) {
   try {
@@ -238,6 +256,11 @@ function annotate() {
       `::warning title=Security::${ordered.length - shown} weitere Findings nur im Step-Summary gelistet`,
     );
   }
+  if (advisoryFindings.length > 0) {
+    console.log(
+      `::notice title=Security::${advisoryFindings.length} advisory AI-Finding(s) zu CI/Workflows (.github/) - nur zur Kenntnis, nicht bewertungsrelevant`,
+    );
+  }
   if (verdict === "pass") {
     console.log(
       `::notice title=Security-Gate::Bewertung ${rating}/10 - Gate bestanden (Schwellwert ${MIN_RATING}, kritisch: ${counts.critical})`,
@@ -276,6 +299,12 @@ function writeSummary() {
       (f) => `| ${f.severity} | ${f.source} | ${f.title} | ${f.target} |`,
     )
     .join("\n");
+  const advisoryRows = advisoryFindings
+    .slice(0, MAX_DETAIL_ROWS)
+    .map(
+      (f) => `| ${f.severity} | ${f.source} | ${f.title} | ${f.target} |`,
+    )
+    .join("\n");
   const md = `# Security-Gate - Bewertung: **${rating} / 10** [${verdict.toUpperCase()}]
 
 Schwellwert: ${MIN_RATING} | Findings gesamt: ${findings.length} (kritisch ${counts.critical}, hoch ${counts.high}, mittel ${counts.medium}, niedrig ${counts.low})
@@ -291,6 +320,11 @@ ${rows || "| - | - | 0 | 0 | 0 | 0 | 0 |"}
 | Schwere | Quelle | Titel | Ort |
 | --- | --- | --- | --- |
 ${details || "| - | - | keine | - |"}
+${
+  advisoryRows
+    ? `\n## Advisory (wirken nicht auf die Bewertung)\n\nHinweise des AI-Reviews zu dieser Repository-CI/Workflow-Automation (Pfad unter \`.github/\`). Diese werden nur zur Kenntnis gelistet und senken die Bewertung nicht.\n\n| Schwere | Quelle | Titel | Ort |\n| --- | --- | --- | --- |\n${advisoryRows}`
+    : ""
+}
 `;
   const sumPath = process.env.GITHUB_STEP_SUMMARY;
   if (sumPath) fs.appendFileSync(sumPath, md);

@@ -213,11 +213,17 @@ fn search_request_body(user: &str, query: &str) -> String {
     )
 }
 
-/// Escape a string for use as XML element text content.
+/// Escape a string for safe use in XML.
+///
+/// Escapes the full XML-1.0 named set (`& < > " '`) in the required order so the
+/// result is safe both as element text content and inside double- or
+/// single-quoted attributes, regardless of future call sites.
 fn escape_xml(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1612,6 +1618,7 @@ mod tests {
     fn escapes_search_terms() {
         assert_eq!(escape_xml("a&b<c>d"), "a&amp;b&lt;c&gt;d");
         assert_eq!(escape_xml("plain"), "plain");
+        assert_eq!(escape_xml("q\"ue'st"), "q&quot;ue&apos;st");
     }
 
     #[test]
