@@ -1024,7 +1024,7 @@ pub fn parse_multistatus_detailed(body: &str, base_path: &str) -> AppResult<Mult
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => match local(e.name().as_ref()) {
-                b"response" => {
+                "response" => {
                     href = None;
                     is_dir = false;
                     size = None;
@@ -1032,17 +1032,17 @@ pub fn parse_multistatus_detailed(body: &str, base_path: &str) -> AppResult<Mult
                     etag = None;
                     content_type = None;
                 }
-                b"href" => field = Some(Field::Href),
-                b"resourcetype" => in_resourcetype = true,
-                b"collection" if in_resourcetype => is_dir = true,
-                b"getcontentlength" => field = Some(Field::Size),
-                b"getlastmodified" => field = Some(Field::Mtime),
-                b"getetag" => field = Some(Field::Etag),
-                b"getcontenttype" => field = Some(Field::ContentType),
+                "href" => field = Some(Field::Href),
+                "resourcetype" => in_resourcetype = true,
+                "collection" if in_resourcetype => is_dir = true,
+                "getcontentlength" => field = Some(Field::Size),
+                "getlastmodified" => field = Some(Field::Mtime),
+                "getetag" => field = Some(Field::Etag),
+                "getcontenttype" => field = Some(Field::ContentType),
                 _ => {}
             },
             Ok(Event::Empty(e)) => {
-                if in_resourcetype && local(e.name().as_ref()) == b"collection" {
+                if in_resourcetype && local(e.name().as_ref()) == "collection" {
                     is_dir = true;
                 }
             }
@@ -1051,18 +1051,12 @@ pub fn parse_multistatus_detailed(body: &str, base_path: &str) -> AppResult<Mult
             // payload; both carry the raw value and are decoded alike.
             Ok(Event::Text(t)) => {
                 if field.is_some() {
-                    let decoded = t
-                        .decode()
-                        .map_err(|e| AppError::Parse(format!("XML decode error: {}", e)))?;
-                    text.push_str(decoded.as_ref());
+                    text.push_str(t.as_ref());
                 }
             }
             Ok(Event::CData(t)) => {
                 if field.is_some() {
-                    let decoded = t
-                        .decode()
-                        .map_err(|e| AppError::Parse(format!("XML decode error: {}", e)))?;
-                    text.push_str(decoded.as_ref());
+                    text.push_str(t.as_ref());
                 }
             }
             Ok(Event::End(e)) => {
@@ -1079,8 +1073,8 @@ pub fn parse_multistatus_detailed(body: &str, base_path: &str) -> AppResult<Mult
                     text.clear();
                 }
                 match local(e.name().as_ref()) {
-                    b"resourcetype" => in_resourcetype = false,
-                    b"response" => {
+                    "resourcetype" => in_resourcetype = false,
+                    "response" => {
                         if let Some(href_value) = href.take() {
                             // A response counts as foreign when its path
                             // cannot be resolved against the expected base at
@@ -1253,8 +1247,8 @@ fn decode_segment(segment: &str) -> String {
         .unwrap_or_else(|_| segment.to_string())
 }
 
-fn local(name: &[u8]) -> &[u8] {
-    match name.iter().rposition(|&b| b == b':') {
+fn local(name: &str) -> &str {
+    match name.rfind(':') {
         Some(idx) => &name[idx + 1..],
         None => name,
     }

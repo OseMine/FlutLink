@@ -197,7 +197,7 @@ pub async fn download_file(
     }
     // Unpredictable temp file name to prevent symlink attacks (TOCTOU).
     let mut rand_bytes = [0u8; 16];
-    getrandom::getrandom(&mut rand_bytes).expect("failed to generate random bytes");
+    getrandom::fill(&mut rand_bytes).expect("failed to generate random bytes");
     let random_hex = rand_bytes
         .iter()
         .map(|b| format!("{:02x}", b))

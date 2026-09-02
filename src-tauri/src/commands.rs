@@ -1545,7 +1545,7 @@ pub async fn webdav_move(
 /// cannot predict the path before the download starts.
 fn open_cache_dir() -> PathBuf {
     let mut buf = [0u8; 16];
-    getrandom::getrandom(&mut buf).expect("failed to generate random bytes");
+    getrandom::fill(&mut buf).expect("failed to generate random bytes");
     let random_id = buf.iter().map(|b| format!("{:02x}", b)).collect::<String>();
     std::env::temp_dir().join("flutlink-open").join(random_id)
 }
