@@ -15,8 +15,8 @@ android {
         applicationId = "com.flutcloud.flutlink"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.3.1"
+        versionCode = 7
+        versionName = "1.3.3"
 
         // Optional compile-time FlutCloud server URL (never hard-coded in
         // source). The `FLUTCLOUD_URL` environment variable takes precedence
