@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::accounts;
@@ -877,26 +878,37 @@ pub async fn get_settings(app: AppHandle) -> AppResult<crate::settings::AppSetti
     Ok(settings.clone())
 }
 
-// /// #407: get the current autostart state.
-// /// Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
-// #[tauri::command]
-// pub async fn get_autostart(app: AppHandle) -> AppResult<bool> {
-//     let autolaunch = app.autolaunch();
-//     Ok(autolaunch.is_enabled().unwrap_or(false))
-// }
+/// #407: get the current autostart state.
+#[tauri::command]
+pub async fn get_autostart(app: AppHandle) -> AppResult<bool> {
+    let state = app.state::<AppState>();
+    let settings = crate::settings::lock(&app, &state).await;
+    Ok(settings.autostart_enabled)
+}
 
-// /// #407: enable or disable autostart (run on login).
-// /// Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
-// #[tauri::command]
-// pub async fn set_autostart(app: AppHandle, enabled: bool) -> AppResult<()> {
-//     let autolaunch = app.autolaunch();
-//     if enabled {
-//         autolaunch.enable().map_err(|e| AppError::App(e.to_string()))?;
-//     } else {
-//         autolaunch.disable().map_err(|e| AppError::App(e.to_string()))?;
-//     }
-//     Ok(())
-// }
+/// #407: enable or disable autostart (run on login).
+#[tauri::command]
+pub async fn set_autostart(app: AppHandle, enabled: bool) -> AppResult<()> {
+    // Persist to settings.json first.
+    {
+        let state = app.state::<AppState>();
+        let mut settings = crate::settings::lock(&app, &state).await;
+        settings.autostart_enabled = enabled;
+        crate::settings::save(&app, &settings)?;
+    }
+    // Then apply at the OS level via tauri-plugin-autostart.
+    let autolaunch = app.autolaunch();
+    if enabled {
+        autolaunch
+            .enable()
+            .map_err(|e| AppError::App(e.to_string()))?;
+    } else {
+        autolaunch
+            .disable()
+            .map_err(|e| AppError::App(e.to_string()))?;
+    }
+    Ok(())
+}
 
 /// #407: fetch recent sync log entries (newest first).
 #[tauri::command]

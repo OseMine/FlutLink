@@ -112,7 +112,10 @@ watch(
       // switch behind.
       void api
         .getSettings()
-        .then((s) => ui.inheritShareNotify(s.shareNotifyEnabled))
+        .then((s) => {
+          ui.inheritShareNotify(s.shareNotifyEnabled);
+          ui.inheritAutostart(s.autostartEnabled);
+        })
         .catch(() => {});
       void api
         .mountDefaultCache()

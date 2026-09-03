@@ -29,6 +29,9 @@ pub struct AppSettings {
     /// has already been announced, to avoid re-notifying every tick.
     #[serde(default)]
     pub share_seen: BTreeMap<String, Vec<u64>>,
+    /// Whether the app should launch at OS login (autostart).
+    #[serde(default)]
+    pub autostart_enabled: bool,
 }
 
 fn default_true() -> bool {
@@ -40,6 +43,7 @@ impl Default for AppSettings {
         Self {
             share_notify_enabled: true,
             share_seen: BTreeMap::new(),
+            autostart_enabled: false,
         }
     }
 }

@@ -268,6 +268,7 @@ export interface SyncLogEntry {
 export interface AppSettings {
   shareNotifyEnabled: boolean;
   shareSeen: Record<string, number[]>;
+  autostartEnabled: boolean;
 }
 
 export interface UpdateStatus {
@@ -434,6 +435,8 @@ export const api = {
   // source of truth, this command persists it; `getSettings` reads it back).
   setShareNotify: (enabled: boolean) => tauri<void>("set_share_notify", { enabled }),
   getSettings: () => tauri<AppSettings>("get_settings"),
+  getAutostart: () => tauri<boolean>("get_autostart"),
+  setAutostart: (enabled: boolean) => tauri<void>("set_autostart", { enabled }),
 
   // #421: synced paths for status icons.
   syncSyncedPaths: (accountKey: string) => tauri<string[]>("sync_synced_paths", { accountKey }),

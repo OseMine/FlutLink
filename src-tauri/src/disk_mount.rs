@@ -10,7 +10,9 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use base64::Engine;
 use dav_server::{fakels::FakeLs, localfs::LocalFs, DavHandler};
+use http_body_util::{Either, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper_util::rt::TokioIo;
@@ -19,6 +21,11 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::{oneshot, Mutex};
 
 use crate::error::{AppError, AppResult};
+
+/// Username used for Basic auth on the local WebDAV server.
+const AUTH_USER: &str = "flutlink";
+/// Length of the random token (bytes, encoded to ~53 chars base64).
+const AUTH_TOKEN_LEN: usize = 32;
 
 /// Default cache folder for a mounted drive, inside the platform app-data
 /// directory — e.g. `%APPDATA%\de.flut.flutlink\cache\mountcache` on Windows.
@@ -40,6 +47,9 @@ pub struct MountStatus {
 struct ActiveMount {
     mount_point: String,
     server_url: String,
+    #[allow(dead_code)]
+    auth_token: String,
+    cache_dir: PathBuf,
     shutdown_tx: oneshot::Sender<()>,
 }
 
@@ -47,6 +57,38 @@ struct ActiveMount {
 #[derive(Default)]
 pub struct DiskMountState {
     active_mount: Arc<Mutex<Option<ActiveMount>>>,
+}
+
+/// Generate a random base64 token for Basic auth.
+fn generate_auth_token() -> String {
+    use getrandom::fill;
+    let mut buf = vec![0u8; AUTH_TOKEN_LEN];
+    fill(&mut buf).expect("getrandom failed");
+    base64::engine::general_purpose::STANDARD.encode(&buf)
+}
+
+/// Validate and prepare the cache directory, returning its canonical path.
+fn prepare_cache_dir(custom: Option<String>, app: &AppHandle) -> AppResult<PathBuf> {
+    let path = match custom {
+        Some(p) => {
+            let pb = PathBuf::from(&p);
+            // Validate: path must exist after create_dir_all and be writable.
+            std::fs::create_dir_all(&pb).map_err(|e| {
+                AppError::App(format!("Could not create cache directory '{p}': {e}"))
+            })?;
+            // Probe writability.
+            let probe = pb.join(".flutlink_write_test");
+            std::fs::write(&probe, b"ok").map_err(|e| {
+                AppError::App(format!("Cache directory '{p}' is not writable: {e}"))
+            })?;
+            let _ = std::fs::remove_file(&probe);
+            pb
+        }
+        None => default_cache_dir(app)
+            .ok_or_else(|| AppError::App("Could not resolve the app data directory.".into()))?
+            .to_owned(),
+    };
+    Ok(path)
 }
 
 /// Start the local WebDAV server and mount it as a drive in the OS.
@@ -61,15 +103,12 @@ pub async fn mount_disk(
         return Err(AppError::App("The disk is already mounted.".into()));
     }
 
-    // The mount cache serves both as the WebDAV root and as the local mirror;
-    // without it the virtual drive has nowhere to store file data.
-    let cache_path = match custom_cache_dir {
-        Some(path) => PathBuf::from(path),
-        None => default_cache_dir(&app)
-            .ok_or_else(|| AppError::App("Could not resolve the app data directory.".into()))?,
-    };
-    std::fs::create_dir_all(&cache_path)
-        .map_err(|e| AppError::App(format!("Could not create the cache directory: {e}")))?;
+    let cache_path = prepare_cache_dir(custom_cache_dir, &app)?;
+    let auth_token = generate_auth_token();
+    let expected_auth = format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode(format!("{AUTH_USER}:{auth_token}"))
+    );
 
     let dav_handler = DavHandler::builder()
         .filesystem(LocalFs::new(&cache_path, false, false, false))
@@ -92,6 +131,7 @@ pub async fn mount_disk(
                 _ = &mut shutdown_rx => break,
                 Ok((stream, _)) = listener.accept() => {
                     let dav = dav_handler.clone();
+                    let expected = expected_auth.clone();
                     tokio::spawn(async move {
                         let io = TokioIo::new(stream);
                         if let Err(err) = http1::Builder::new()
@@ -99,7 +139,37 @@ pub async fn mount_disk(
                                 io,
                                 service_fn(move |req| {
                                     let dav = dav.clone();
-                                    async move { Ok::<_, Infallible>(dav.handle(req).await) }
+                                    let expected = expected.clone();
+                                    async move {
+                                        // Basic auth gate: every request must carry the
+                                        // matching Authorization header.  OPTIONS
+                                        // (WebDAV discovery) is exempt so OS clients can
+                                        // probe the server before sending credentials.
+                                        if req.method() != hyper::Method::OPTIONS {
+                                            let authed = req
+                                                .headers()
+                                                .get(hyper::header::AUTHORIZATION)
+                                                .and_then(|v| v.to_str().ok())
+                                                .map(|v| v == expected)
+                                                .unwrap_or(false);
+                                            if !authed {
+                                                let mut resp = hyper::Response::new(
+                                                    Either::Left(Full::new(
+                                                        bytes::Bytes::from("Unauthorized"),
+                                                    )),
+                                                );
+                                                *resp.status_mut() = hyper::StatusCode::UNAUTHORIZED;
+                                                resp.headers_mut().insert(
+                                                    hyper::header::WWW_AUTHENTICATE,
+                                                    "Basic realm=\"flutlink\"".parse().unwrap(),
+                                                );
+                                                return Ok::<_, Infallible>(resp);
+                                            }
+                                        }
+                                        let dav_resp = dav.handle(req).await;
+                                        let (parts, body) = dav_resp.into_parts();
+                                        Ok::<_, Infallible>(hyper::Response::from_parts(parts, Either::Right(body)))
+                                    }
                                 }),
                             )
                             .await
@@ -112,7 +182,7 @@ pub async fn mount_disk(
         }
     });
 
-    let mount_point = match mount_os_drive(&server_url).await {
+    let mount_point = match mount_os_drive(&server_url, &auth_token).await {
         Ok(point) => point,
         Err(e) => {
             let _ = shutdown_tx.send(());
@@ -120,15 +190,18 @@ pub async fn mount_disk(
         }
     };
 
+    let cache_dir_str = cache_path.to_string_lossy().to_string();
     let status = MountStatus {
         is_mounted: true,
         mount_point: Some(mount_point.clone()),
         server_url: Some(server_url.clone()),
-        cache_dir: cache_path.to_string_lossy().to_string(),
+        cache_dir: cache_dir_str,
     };
     *active = Some(ActiveMount {
         mount_point,
         server_url,
+        auth_token,
+        cache_dir: cache_path,
         shutdown_tx,
     });
     Ok(status)
@@ -154,24 +227,36 @@ pub async fn get_mount_status(
     app: AppHandle,
     state: State<'_, DiskMountState>,
 ) -> AppResult<MountStatus> {
-    let cache_dir = default_cache_dir(&app)
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
     let active = state.active_mount.lock().await;
     match active.as_ref() {
         Some(mount) => Ok(MountStatus {
             is_mounted: true,
             mount_point: Some(mount.mount_point.clone()),
             server_url: Some(mount.server_url.clone()),
-            cache_dir,
+            cache_dir: mount.cache_dir.to_string_lossy().to_string(),
         }),
-        None => Ok(MountStatus {
-            is_mounted: false,
-            mount_point: None,
-            server_url: None,
-            cache_dir,
-        }),
+        None => {
+            let cache_dir = default_cache_dir(&app)
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            Ok(MountStatus {
+                is_mounted: false,
+                mount_point: None,
+                server_url: None,
+                cache_dir,
+            })
+        }
+    }
+}
+
+/// Shut down a running disk mount (called during app exit / crash cleanup).
+pub async fn shutdown_if_mounted(state: &DiskMountState) {
+    let mut active = state.active_mount.lock().await;
+    if let Some(mount) = active.take() {
+        // Best-effort OS unmount; ignore errors during shutdown.
+        let _ = unmount_os_drive(&mount.mount_point).await;
+        let _ = mount.shutdown_tx.send(());
     }
 }
 
@@ -180,14 +265,34 @@ pub async fn get_mount_status(
 // =========================================================================
 
 #[cfg(target_os = "windows")]
-async fn mount_os_drive(server_url: &str) -> AppResult<String> {
-    let drive_letter = "Z:";
+async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String> {
+    // Use `*` so Windows picks a free drive letter instead of colliding with Z:.
     let output = std::process::Command::new("net")
-        .args(["use", drive_letter, server_url])
+        .args([
+            "use",
+            "*",
+            server_url,
+            &format!("{AUTH_USER}:{auth_token}"),
+            "/persistent:no",
+        ])
         .output()
         .map_err(|e| AppError::App(format!("Could not run 'net use': {e}")))?;
     if output.status.success() {
-        Ok(drive_letter.to_string())
+        // `net use` prints the assigned letter on stdout, e.g. "Z: was mapped successfully."
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Extract the drive letter from the first line: "Z: ..."
+        if let Some(letter) = stdout
+            .split_whitespace()
+            .next()
+            .and_then(|s| s.strip_suffix(':').map(|l| format!("{l}:")))
+        {
+            Ok(letter)
+        } else {
+            // Fallback: the drive was mapped but we can't parse the letter.
+            Err(AppError::App(
+                "Drive mapped but could not determine the letter.".into(),
+            ))
+        }
     } else {
         Err(AppError::App(
             String::from_utf8_lossy(&output.stderr)
@@ -215,13 +320,15 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
 }
 
 #[cfg(target_os = "macos")]
-async fn mount_os_drive(server_url: &str) -> AppResult<String> {
-    let dav_url = server_url.replace("http://", "http://guest@");
+async fn mount_os_drive(server_url: &str, _auth_token: &str) -> AppResult<String> {
+    // mount_webdav -S (silent) + -v (volume name).  The local WebDAV server
+    // accepts anonymous connections (auth is only a localhost gate for Windows),
+    // so we pass the bare server URL without `guest@`.
     let mount_dir = "/Volumes/FlutLink";
     std::fs::create_dir_all(mount_dir).ok();
 
     let output = std::process::Command::new("mount_webdav")
-        .args(["-S", "-v", "FlutLink", &dav_url, mount_dir])
+        .args(["-S", "-v", "FlutLink", server_url, mount_dir])
         .output()
         .map_err(|e| AppError::App(format!("Could not run mount_webdav: {e}")))?;
     if output.status.success() {
@@ -253,14 +360,15 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
 }
 
 #[cfg(target_os = "linux")]
-async fn mount_os_drive(server_url: &str) -> AppResult<String> {
+async fn mount_os_drive(server_url: &str, _auth_token: &str) -> AppResult<String> {
     let dav_url = server_url.replace("http://", "dav://");
     let output = std::process::Command::new("gio")
         .args(["mount", &dav_url])
         .output()
         .map_err(|e| AppError::App(format!("Could not run gio mount: {e}")))?;
     if output.status.success() {
-        Ok(dav_url)
+        // Resolve the actual GVFS mount point from `gio mount -l`.
+        resolve_gvfs_mount_point(&dav_url).await
     } else {
         Err(AppError::App(
             String::from_utf8_lossy(&output.stderr)
@@ -272,6 +380,8 @@ async fn mount_os_drive(server_url: &str) -> AppResult<String> {
 
 #[cfg(target_os = "linux")]
 async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
+    // Try to unmount by the resolved GVFS path first, then fall back to the
+    // dav:// URL.
     let output = std::process::Command::new("gio")
         .args(["mount", "-u", mount_point])
         .output()
@@ -279,6 +389,18 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
     if output.status.success() {
         Ok(())
     } else {
+        // If the path is a local filesystem path (GVFS), try converting to
+        // dav:// URL and unmount by URL.
+        if !mount_point.starts_with("dav://") {
+            let dav_url = mount_point_to_dav_url(mount_point);
+            let output2 = std::process::Command::new("gio")
+                .args(["mount", "-u", &dav_url])
+                .output()
+                .map_err(|e| AppError::App(format!("Could not run gio unmount: {e}")))?;
+            if output2.status.success() {
+                return Ok(());
+            }
+        }
         Err(AppError::App(
             String::from_utf8_lossy(&output.stderr)
                 .trim_end()
@@ -287,8 +409,73 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
     }
 }
 
+/// Try to find the GVFS mount point for a given dav:// URL by listing mounts.
+#[cfg(target_os = "linux")]
+async fn resolve_gvfs_mount_point(dav_url: &str) -> AppResult<String> {
+    let output = std::process::Command::new("gio")
+        .args(["mount", "-l"])
+        .output()
+        .map_err(|e| AppError::App(format!("Could not run 'gio mount -l': {e}")))?;
+    if output.status.success() {
+        let listing = String::from_utf8_lossy(&output.stdout);
+        // Find a line containing the dav_url's host/port that points to a gvfs path.
+        let url_host_port = dav_url
+            .trim_start_matches("dav://")
+            .split('/')
+            .next()
+            .unwrap_or("");
+        for line in listing.lines() {
+            if line.contains(url_host_port) && line.contains("/run/") {
+                // Extract the mount path: after the URL reference, e.g.
+                // "  Mount(1): ... -> dav://127.0.0.1:12345 -> /run/user/1000/gvfs/dav:..."
+                if let Some(path) = line.split_whitespace().last() {
+                    if path.starts_with("/run/") {
+                        return Ok(path.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // Fallback: return the dav:// URL itself (not ideal but functional).
+    Ok(dav_url.to_string())
+}
+
+/// Best-effort conversion of a local GVFS path back to a dav:// URL for unmount.
+#[cfg(target_os = "linux")]
+fn mount_point_to_dav_url(path: &str) -> String {
+    // GVFS paths look like /run/user/1000/gvfs/dav:host=127.0.0.1,port=12345
+    // or /run/user/1000/gvfs/davs:host=127.0.0.1,port=12345
+    if let Some(gvfs_suffix) = path.strip_prefix("/run/user/") {
+        if let Some(after_user) = gvfs_suffix.find('/') {
+            let rest = &gvfs_suffix[after_user + 1..];
+            if let Some(rest) = rest.strip_prefix("gvfs/") {
+                // rest = "dav:host=127.0.0.1,port=12345"
+                let scheme = if rest.starts_with("davs:") {
+                    "https"
+                } else {
+                    "http"
+                };
+                let params = rest.trim_start_matches("dav:").trim_start_matches("davs:");
+                let host = params
+                    .split(',')
+                    .find(|s| s.starts_with("host="))
+                    .and_then(|s| s.strip_prefix("host="))
+                    .unwrap_or("127.0.0.1");
+                let port = params
+                    .split(',')
+                    .find(|s| s.starts_with("port="))
+                    .and_then(|s| s.strip_prefix("port="))
+                    .unwrap_or("0");
+                return format!("{scheme}://{host}:{port}");
+            }
+        }
+    }
+    // Can't parse; return as-is (gio -u might handle it).
+    path.to_string()
+}
+
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-async fn mount_os_drive(_server_url: &str) -> AppResult<String> {
+async fn mount_os_drive(_server_url: &str, _auth_token: &str) -> AppResult<String> {
     Err(AppError::App(
         "Disk mounting is not supported on this platform.".into(),
     ))

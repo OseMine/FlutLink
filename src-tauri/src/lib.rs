@@ -23,6 +23,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WindowEvent, Wry,
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_cli::CliExt;
 
 /// Show the main window (used by the tray menu / tray click).
@@ -59,10 +60,8 @@ fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let toggle_uploads =
         MenuItem::<Wry>::with_id(app, "toggle-uploads", upload_label, true, None::<&str>)?;
     // Autostart toggle — checkable menu item that flips the OS-level autolaunch.
-    // Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
-    // let autolaunch = app.autolaunch();
-    // let autostart_enabled = autolaunch.is_enabled().unwrap_or(false);
-    let autostart_enabled = false;
+    let autolaunch = app.autolaunch();
+    let autostart_enabled = autolaunch.is_enabled().unwrap_or(false);
     let autostart_label = if autostart_enabled {
         "✓  Start at login"
     } else {
@@ -168,6 +167,11 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
             "show" => show_main_window(app),
             "quit" => {
                 quit_flag.store(true, Ordering::SeqCst);
+                // Shutdown the disk mount before exiting so the WebDAV
+                // server task and the OS drive mapping are cleaned up.
+                let disk_state = app.state::<disk_mount::DiskMountState>();
+                let ds = disk_state.inner();
+                tauri::async_runtime::block_on(disk_mount::shutdown_if_mounted(ds));
                 app.exit(0);
             }
             "sync-now" => {
@@ -182,18 +186,22 @@ fn setup_tray(app: &tauri::App, quit_flag: Arc<AtomicBool>) -> tauri::Result<()>
                 let _ = refresh_tray_menu(app);
                 let _ = app.emit("sync-folders-changed", ());
             }
-            // "autostart" => {
-            //     // Disabled: requires tauri-plugin-autostart v2 setup (see commands.rs:888).
-            //     // let autolaunch = app.autolaunch();
-            //     // let new_state = !autolaunch.is_enabled().unwrap_or(false);
-            //     // if new_state {
-            //     //     let _ = autolaunch.enable();
-            //     // } else {
-            //     //     let _ = autolaunch.disable();
-            //     // }
-            //     // Rebuild menu to flip the checkmark.
-            //     // let _ = refresh_tray_menu(app);
-            // }
+            "autostart" => {
+                // Flip the OS-level autolaunch and rebuild the menu so the
+                // checkmark follows the new state.
+                let autolaunch = app.autolaunch();
+                let was_enabled = autolaunch.is_enabled().unwrap_or(false);
+                let result = if was_enabled {
+                    autolaunch.disable()
+                } else {
+                    autolaunch.enable()
+                };
+                if let Err(e) = result {
+                    eprintln!("flutlink: could not toggle autostart: {e}");
+                    let _ = app.emit("autostart-changed", was_enabled);
+                }
+                let _ = refresh_tray_menu(app);
+            }
             id if id.starts_with("switch:") => {
                 // Tray ids carry the composite identity: switch:user@instance
                 let identity = id.trim_start_matches("switch:").to_string();
@@ -439,6 +447,10 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(AppState::new())
         .manage(disk_mount::DiskMountState::default())
         .on_window_event(move |window, event| {
@@ -465,6 +477,21 @@ pub fn run() {
 
             setup_tray(app, quit_flag.clone())?;
             sync::spawn_worker(&handle);
+
+            // Sync autostart state: make sure the OS-level registration
+            // matches what settings.json says.
+            {
+                let settings = crate::settings::load(&handle);
+                let autolaunch = handle.autolaunch();
+                let os_enabled = autolaunch.is_enabled().unwrap_or(false);
+                if settings.autostart_enabled != os_enabled {
+                    if settings.autostart_enabled {
+                        let _ = autolaunch.enable();
+                    } else {
+                        let _ = autolaunch.disable();
+                    }
+                }
+            }
 
             // P15: the stored admin flag is re-evaluated once at startup so a
             // transient network failure at sign-in can never permanently demote
@@ -520,6 +547,8 @@ pub fn run() {
             commands::file_history_clear,
             commands::set_share_notify,
             commands::get_settings,
+            commands::get_autostart,
+            commands::set_autostart,
             commands::mount_default_cache,
             disk_mount::mount_disk,
             disk_mount::unmount_disk,

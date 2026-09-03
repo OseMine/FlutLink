@@ -9,6 +9,46 @@ Am 2026-08-25 sind zusätzlich die kompletten Review-Abschnitte der Läufe
 härten" und die Performance-Analyse. Am 2026-08-26 sind die Abschnitte der
 Läufe 20 und 21 gefolgt (nahezu komplett umgesetzt, Reste unten geführt).
 
+## Review 2026-09-03 (Lauf 31, Fokus „Autostart + Disk-Mount/Cache" — neue Befunde)
+
+Gegenstand: gezieltes Review der Features „FlutLink beim Anmelden starten"
+(Autostart) und „Laufwerk und Cache" (Disk Mount). Geprüft: `ui.ts`,
+`SettingsModal.vue`, `lib.rs`, `commands.rs`, `ipc.ts`, `disk_mount.rs`.
+
+**Neu gefunden:**
+
+### Autostart (3 Befunde)
+
+- [ ] **R31-F1 (IPC/Backend, hoch): `set_autostart`/`get_autostart` sind komplett auskommentiert (`commands.rs:880-899`). Der UI-Toggle (`ui.ts:192-195`) schreibt nur `localStorage`, aktiviert/deaktiviert nie die OS-Ebene.** Das Feature ist eine reine UI-Hülle ohne Backend-Wirkung. Fix: `tauri-plugin-autostart` v2 sauber verdrahten (Plugin-Setup in `lib.rs`, Commands registrieren, Frontend-Wrapper in `ipc.ts` ergänzen) oder den Toggle hinter ein Dev-Gate/Disclaimer verstecken.
+
+- [ ] **R31-F2 (Systemtray, mittel): Autostart-Menü-Item im Tray (`lib.rs:61-72`) hortet `autostart_enabled = false` immer, Klick-Handler (`lib.rs:185-196`) ist auskommentiert.** Das Menü-Item ist visuell vorhanden, reagiert aber nicht auf Klicks und zeigt nie einen Häkchen-Zustand. Fix: Solange Plugin nicht verdrahtet: Menü-Item ausblenden; danach: `autolaunch.is_enabled()` + Klick-Handler aktivieren.
+
+- [ ] **R31-F3 (Persistenz, mittel): `autostart` lebt nur in `localStorage` ohne Backend-Pendant (`ui.ts:37,107`).** Ein Neustart oder Löschen des WebView-Storage löscht die Präferenz. Im Vergleich: `shareNotify` hat zumindest `settings.json` als Backend-Fallback (R30-F1). Fix: Autostart-Persistenz in `settings.json` ergänzen (neues Feld `autostart_enabled`) oder, solange das OS-Level fehlt, den Toggle als reine UI-Preferences markieren (nicht als „Feature an/aus"). (Verwandt: R30-F8.)
+
+### Disk Mount / Cache (9 Befunde)
+
+- [ ] **R31-F4 (Backend/Persistenz, hoch): `diskMount`-State ist Runtime-only — `DiskMountState` in `lib.rs:443` geht bei Neustart verloren, aber `ui.ts:103,182-185` persisted den Toggle in `localStorage`. Nach Neustart zeigt das UI „mountet" an, aber kein Laufwerk ist gemountet.** Fix: `diskMount` + `diskMountCachePath` in `settings.json` persistieren oder, wenn Auto-Mount nicht gewünscht ist, den Toggle bei App-Start explizit auf `false` setzen. (Verwandt: R30-F8.)
+
+- [ ] **R31-F5 (Disk-Mount/Persistenz, mittel): `get_mount_status` (`disk_mount.rs:157-160`) liest immer `default_cache_dir()`, ignoriert den konfigurierten `diskMountCachePath` aus dem Frontend.** Nachdem der User einen Custom-Cache-Pfad gewählt hat, meldet der Status weiterhin den Default-Pfad. Fix: `get_mount_status` soll den tatsächlichen Pfad aus `ActiveMount` (falls gemountet) bzw. den gespeicherten Custom-Pfad aus `settings.json` auslesen.
+
+- [ ] **R31-F6 (Windows, mittel): `mount_os_drive` (`disk_mount.rs:184`) used `Z:` als festen Laufwerksbuchstaben.** Ist `Z:` bereits durch einen anderen Netzlauflaufwerk belegt, schlägt `net use` fehl mit einem unklaren Fehler aus `net use` stdout. Fix: Freien Laufwerksbuchstaben ermitteln (z.B. `net use` parsen) oder `*` als Platzhalter verwenden, der Windows einen freien Buchstaben zuweisen lässt.
+
+- [ ] **R31-F7 (Windows, mittel): `net use Z: http://...` versucht Basic Auth, aber der lokale WebDAV-Server (`disk_mount.rs:74-77`) hat kein Auth-Middleware.** Windows WebClient-Dienst verlangt bei HTTP eine explizite Auth-Konfiguration; ohne `auth`-Block auf dem `DavHandler` schlägt die Verbindung mit einem HTTP 401 fehl, den `net use` als generischen Fehler meldet. Fix: `DavHandler` mit `basic_auth` konfigurieren (lokaler Dummy-User/Passwort) oder HTTPS für den lokalen Server erwägen.
+
+- [ ] **R31-F8 (macOS, mittel): `mount_os_drive` (`disk_mount.rs:219`) fügt `guest@` in die URL ein (`server_url.replace("http://", "http://guest@")`).** Der lokale WebDAV-Server akzeptiert anonymous Zugriff (`LocalFs` ohne Auth), aber `mount_webdav` erwartet ein gültiges `user:pass@`-Format. `guest@` ohne Passwort funktioniert nicht zuverlässig; zusätzlich kollidiert `/Volumes/FlutLink` (`disk_mount.rs:220`) bei existierendem Volume gleichen Namens. Fix: `guest:` oder gar kein User einsetzen, oder `mount_webdav`-Optionen für anonymous nutzen; Volume-Name mit Suffix/UUID deduplizieren.
+
+- [ ] **R31-F9 (Linux, mittel): `gio mount dav://...` gibt die URL statt des tatsächlichen GVFS-Mount-Punkts zurück (`disk_mount.rs:262`).** Der Rückgabewert ist `dav_url` (z.B. `dav://127.0.0.1:12345`), nicht der Pfad im Dateisystem (z.B. `/run/user/1000/gvfs/dav:host=127.0.0.1,port=12345`). Frontend kann den Pfad nicht anzeigen/öffnen. Fix: Nach `gio mount` den GVFS-Mount-Pfad ermitteln (z.B. `gio mount -l` parsen oder `$XDG_RUNTIME_DIR/gvfs/` scannen).
+
+- [ ] **R31-F10 (Linux, mittel): `unmount_os_drive` (`disk_mount.rs:274-279`) ruft `gio mount -u <dav_url>` mit der Original-URL (`http://...`) auf.** `gio mount -u` erwartet den GVFS-Mount-URI (nicht die Quell-URL). Da `mount_os_drive` die falsche URL zurückgibt (R31-F9), wird auch der Unmount-Mechanismus davon beeinflusst. Fix: Unmount über den tatsächlichen GVFS-Pfad oder den URN aus `gio mount -l`.
+
+- [ ] **R31-F11 (Crash-Sicherheit, mittel): Bei Prozess-Absturz wird `shutdown_tx` (`disk_mount.rs:88`) nie gesendet; der lokale WebDAV-Server-Task und der gehörende Port bleiben als Orphan bestehen.** Bei nächstem Start schlägt `TcpListener::bind("127.0.0.1:0")` zwar nicht fehl (OS gibt neuen Port), aber die OS-Mount-Zuordnung (`net use Z:`) zeigt auf den toten Server. Fix: `on_window_event(CloseRequested)` oder `Builder::on_run_exit` als Cleanup-Hook nutzen; alternativ: auf Start prüfen ob alter `DiskMountState`-Port noch erreichbar ist (Health-Check).
+
+- [ ] **R31-F12 (Sicherheit, niedrig): Der lokale WebDAV-Server (`disk_mount.rs:74-77`) hat kein Auth-Middleware — jeder localhost-Prozess kann auf die gemounteten Dateien zugreifen.** Für ein Desktop-Tool akzeptabel, aber bei Shared-Machine-Szenarien (Entwickler-VM, Terminal-Server) ein Risiko. Fix: `basic_auth` mit zufällig generiertem Token, das nur beim Mount zurückgegeben wird.
+
+- [ ] **R31-F13 (UX/Caching, niedrig): `custom_cache_dir` (`disk_mount.rs:57,66-72`) wird nicht validiert — ein ungültiger oder nicht beschreibbarer Pfad crasht `create_dir_all` mit einem generischen Fehler.** Keine Vorschauprüfung (Pfad erreichbar? Schreibrechte? Genug Platz?). Fix: Vorab-Check (`metadata` + `write`-Test) oder`create_dir_all` mit spezifischerer Fehlermeldung.
+
+**Status:** Alle Befunde neu und offen. Verwandte offene Befunde: R30-F8 (Disk-Mount/Autostart als reine `localStorage`-Keys ohne Backend-Persistenz).
+
 ## Review 2026-08-31 (Lauf 30, Fokus „Full Project Review: IPC, WebDAV/OCS, Keyring, State, CI" — neue Befunde)
 
 Gegenstand: vollständiges Review des gesamten Projekts (Desktop Tauri v2 Client + KMP Mobile) gegen HEAD `7ba8ce3` (Tag v1.3.1) + WIP-Arbeitsbaum. Geprüft: IPC-Registry (`lib.rs` ↔ `ipc.ts`), WebDAV/OCS-Anbindung (`webdav.rs`, `ocs.rs`), Schlüsselbund-Verwaltung (`accounts.rs`, `keyring`), Fehler-/State-Management (`error.rs`, `state.rs`, `sync.rs`, `settings.rs`), CI-Workflows (`.github/workflows/*.yml`), Disk-Mount/VFS-WIP (`disk_mount.rs`), Frontend Stores/Components (`src/stores/*.ts`, `src/components/*.vue`). Verifikation: `cargo fmt --check` ✓ (Exit 0), `cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings` schlägt aufgrund fehlender Systemdeps (`glib-2.0`, `gobject-2.0`) fehl — **kein Code-Problem**; `npm run build` ✓ (122 Module, 287 kB gzip).

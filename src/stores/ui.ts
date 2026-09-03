@@ -103,8 +103,8 @@ export const useUiStore = defineStore("ui", () => {
   const diskMount = ref<boolean>(read<boolean>(DISKMOUNT_KEY) ?? false);
   // Local cache folder for the mounted drive (persisted, empty = not set).
   const diskMountCachePath = ref<string>(read<string>(DISKMOUNT_CACHE_KEY) ?? "");
-  // Autostart preference (persisted).
-  const autostart = ref<boolean>(read<boolean>(AUTOSTART_KEY) ?? false);
+  // Autostart preference (backend-backed, persisted in settings.json).
+  const autostart = ref<boolean>(false);
   let nextId = 1;
 
   function setLang(value: Lang) {
@@ -192,6 +192,12 @@ export const useUiStore = defineStore("ui", () => {
   function setAutostart(value: boolean) {
     autostart.value = value;
     localStorage.setItem(AUTOSTART_KEY, JSON.stringify(value));
+    void api.setAutostart(value).catch(() => {});
+  }
+
+  function inheritAutostart(enabled: boolean) {
+    autostart.value = enabled;
+    localStorage.setItem(AUTOSTART_KEY, JSON.stringify(enabled));
   }
 
   return {
@@ -214,6 +220,7 @@ export const useUiStore = defineStore("ui", () => {
     setDiskMount,
     setDiskMountCachePath,
     setAutostart,
+    inheritAutostart,
     toast,
     dismiss,
     isBookmarked,
