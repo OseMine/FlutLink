@@ -9,7 +9,8 @@ name: Security
 #   - VirusTotal artifact reputation (optional, VIRUSTOTAL_API_KEY)
 #   - PHP syntax lint (flutcloud-app)
 #   - Verification tests (cargo test + frontend typecheck/build)
-#   - Optional AI review via OpenCode (OPENCODE_API_KEY)
+#   - Optional AI review via OpenCode (OPENCODE_API_KEY) with a token-gated
+#     Puter fallback (PUTER_AUTH_TOKEN)
 # Findings become run annotations + step summary; the job fails when the
 # rating drops below min-rating or a critical finding exists.
 # Raw scan output (security-results/) is uploaded as artifact for triage.
@@ -30,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free' }}
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free,puter/gpt-5-nano' }}
 
 jobs:
   security-gate:
@@ -53,6 +54,7 @@ jobs:
         with:
           min-rating: ${{ inputs.min-rating }}
           opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
+          puter-auth-token: ${{ secrets.PUTER_AUTH_TOKEN }}
           models: ${{ env.OPENCODE_MODELS }}
           virustotal-api-key: ${{ secrets.VIRUSTOTAL_API_KEY }}
 

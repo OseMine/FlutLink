@@ -12,10 +12,12 @@ concurrency:
   group: opencode-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: false
 
-# Central OpenCode model chain (see .github/opencode-with-fallback.sh):
-# override once via the repo variable OPENCODE_MODELS.
+# Central model chain (see .github/opencode-with-fallback.sh): OpenCode-Zen
+# entries first, then the token-gated Puter fallback (only probed when the
+# PUTER_AUTH_TOKEN secret is set). Override once via the repo variable
+# OPENCODE_MODELS.
 env:
-  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle,puter/gpt-5-nano' }}
 
 jobs:
   # Tauri backend checks, stored as reusable actions (see .github/actions/):
@@ -104,18 +106,19 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
         run: |
-          # The pick script exits 1 when no Zen model is usable; never let that
+          # The pick script exits 1 when no model is usable; never let that
           # poison $GITHUB_OUTPUT. We still write `model=` (possibly empty) so
           # downstream `if:` guards can rely on a well-defined value.
           MODEL=$(bash .github/opencode-with-fallback.sh --pick-only) || true
           echo "model=${MODEL}" >> "$GITHUB_OUTPUT"
 
-      - name: Fail - no OpenCode model available
+      - name: Fail - no model available
         if: ${{ steps.model.outputs.model == '' }}
         shell: bash
         run: |
-          echo "::error::Kein OpenCode-Zen-Model erreichbar - Aufgabe uebersprungen. Keine der Workflow-Stufen laeuft mit leerem 'model'."
+          echo "::error::Kein OpenCode- oder Puter-Model erreichbar - Aufgabe uebersprungen. Keine der Workflow-Stufen laeuft mit leerem 'model'."
           exit 1
 
       - name: Run opencode
@@ -123,6 +126,7 @@ jobs:
         uses: anomalyco/opencode/github@16747470f976aca3d362ad730bcd3fe82ecc2c9a # v1.18.29
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_AUTHOR_NAME: GitHub Actions
           GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com

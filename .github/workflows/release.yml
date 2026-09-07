@@ -5,6 +5,7 @@ name: Release
 #
 # Pipeline stages:
 #   1. release-notes        OpenCode generates German notes from git log
+#                            (fallbacks: Mistral, then Puter, then generic body)
 #   2. checks               Rust lint/format/test gate
 #   3. security-gate        Trivy/VirusTotal scan + OpenCode rating >= 7
 #      abort-insecure-release  deletes tag+release when the gate fails
@@ -32,11 +33,12 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
-# Central OpenCode model chain (see .github/opencode-with-fallback.sh):
-# override once via the repo variable OPENCODE_MODELS; entries are probed
-# in order and the first usable model wins.
+# Central model chain (see .github/opencode-with-fallback.sh): OpenCode-Zen
+# entries first, then the token-gated Puter fallback (only probed when the
+# PUTER_AUTH_TOKEN secret is set). Override once via the repo variable
+# OPENCODE_MODELS.
 env:
-  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle' }}
+  OPENCODE_MODELS: ${{ vars.OPENCODE_MODELS || 'deepseek-v4-flash-free,x-preview-f-free,big-pickle,puter/gpt-5-nano' }}
 
 jobs:
   release-notes:
@@ -90,6 +92,12 @@ jobs:
           # (comma separated, best first); defaults inside the script to the
           # free-tier-friendly chain. `--model` stays an explicit override.
           MISTRAL_MODELS: ${{ vars.MISTRAL_MODELS }}
+          # Puter fallback tier (last resort before the generic body): auth
+          # token from puter.com/dashboard, used against the OpenAI-compatible
+          # endpoint (scripts/generate-release-notes-puter.mjs). Optional -
+          # without it the tier is skipped.
+          PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
+          PUTER_MODELS: ${{ vars.PUTER_MODELS }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_AUTHOR_NAME: GitHub Actions
           GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
@@ -125,24 +133,33 @@ jobs:
           # The prompt is passed as a positional message — `opencode run`
           # (1.18.x) has no --prompt flag. The fallback script exits 1 when no
           # Zen model is reachable. If it does, fall back to Mistral directly
-          # (scripts/generate-release-notes-mistral.mjs). This job is
+          # (scripts/generate-release-notes-mistral.mjs) and then to Puter
+          # (scripts/generate-release-notes-puter.mjs, OpenAI-compatible
+          # endpoint authenticated with PUTER_AUTH_TOKEN). This job is
           # `continue-on-error` by design (R28-N1) so a missing model must not
           # block the release; `prepare-release` falls back to a generic body
-          # only when BOTH generators produced no file.
+          # only when all generators produced no file.
           FALLBACK_USED=0
           if bash .github/opencode-with-fallback.sh "$PROMPT"; then
             echo "::notice::Release-Notes von OpenCode erzeugt"
-          elif [ -z "$MISTRAL_API_KEY" ]; then
-            echo "::warning::Release-Notes-Erzeugung uebersprungen (kein OpenCode-Zen-Model erreichbar, MISTRAL_API_KEY nicht gesetzt) - generischer Body wird am Release verwendet"
-          elif node scripts/generate-release-notes-mistral.mjs \
+          elif [ -z "$MISTRAL_API_KEY" ] && [ -z "$PUTER_AUTH_TOKEN" ]; then
+            echo "::warning::Release-Notes-Erzeugung uebersprungen (kein OpenCode-Zen-Model erreichbar, weder MISTRAL_API_KEY noch PUTER_AUTH_TOKEN gesetzt) - generischer Body wird am Release verwendet"
+          elif [ -n "$MISTRAL_API_KEY" ] && node scripts/generate-release-notes-mistral.mjs \
                  --api-key "$MISTRAL_API_KEY" \
                  --tag "$GITHUB_REF_NAME" \
                  --input git-log.txt \
                  --output release-notes.md; then
             FALLBACK_USED=1
             echo "::notice::Release-Notes via Mistral-Fallback erzeugt"
+          elif [ -n "$PUTER_AUTH_TOKEN" ] && node scripts/generate-release-notes-puter.mjs \
+                 --api-key "$PUTER_AUTH_TOKEN" \
+                 --tag "$GITHUB_REF_NAME" \
+                 --input git-log.txt \
+                 --output release-notes.md; then
+            FALLBACK_USED=1
+            echo "::notice::Release-Notes via Puter-Fallback erzeugt"
           else
-            echo "::warning::Release-Notes-Erzeugung uebersprungen (OpenCode-Zen-Model und Mistral-Fallback fehlgeschlagen) - generischer Body wird am Release verwendet"
+            echo "::warning::Release-Notes-Erzeugung uebersprungen (OpenCode-Zen-Model, Mistral und Puter fehlgeschlagen) - generischer Body wird am Release verwendet"
           fi
 
           if [ -s release-notes.md ]; then
@@ -152,7 +169,7 @@ jobs:
           fi
 
           # The OpenCode path commits+pushes the file itself (see prompt); the
-          # Mistral path writes it without git. Commit+push only for the
+          # fallback scripts write it without git. Commit+push only for the
           # fallback so the notes survive in the repo — the OpenCode path must
           # not be double-committed. `git push origin HEAD:main` works from the
           # detached tag checkout (no local `main` branch) and is refused by
@@ -211,6 +228,7 @@ jobs:
         with:
           min-rating: "7"
           opencode-api-key: ${{ secrets.OPENCODE_API_KEY }}
+          puter-auth-token: ${{ secrets.PUTER_AUTH_TOKEN }}
           models: ${{ env.OPENCODE_MODELS }}
           virustotal-api-key: ${{ secrets.VIRUSTOTAL_API_KEY }}
 

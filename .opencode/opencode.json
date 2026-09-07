@@ -1,6 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",
+  "provider": {
+    "puter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Puter (OpenAI-compatible)",
+      "options": {
+        "baseURL": "https://api.puter.com/puterai/openai/v1",
+        "apiKey": "{env:PUTER_AUTH_TOKEN}"
+      },
+      "models": {
+        "gpt-5-nano": { "name": "GPT-5 nano (Puter)" }
+      }
+    }
+  },
   "permission": {
     "bash": {
       "npm *": "allow",

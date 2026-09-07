@@ -21,10 +21,18 @@ inputs:
     default: ""
   models:
     description: >-
-      OpenCode model chain (comma separated, first usable wins) for the AI
-      review. See .github/opencode-with-fallback.sh.
+      Model chain (comma separated, first usable wins) for the AI review.
+      See .github/opencode-with-fallback.sh. Entries are "opencode/<id>" or
+      "puter/<id>"; the latter are only probed when puter-auth-token is set.
     required: false
-    default: "big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free"
+    default: "big-pickle,mimo-v2.5-free,hy3-free,nemotron-3-ultra-free,laguna-s-2.1-free,puter/gpt-5-nano"
+  puter-auth-token:
+    description: >-
+      Puter auth token (puter.com/dashboard) enabling the token-gated
+      "puter/<id>" fallback entries in `models`. Optional - Puter entries are
+      skipped when empty.
+    required: false
+    default: ""
   virustotal-api-key:
     description: >-
       VirusTotal API key (see virustotal.mjs). The VirusTotal scan is skipped
@@ -160,6 +168,7 @@ runs:
       env:
         OPENCODE_API_KEY: ${{ inputs.opencode-api-key }}
         OPENCODE_MODELS: ${{ inputs.models }}
+        PUTER_AUTH_TOKEN: ${{ inputs.puter-auth-token }}
         OPENCODE_CMD: "npx --yes opencode-ai@1.18.29"
       run: |
         PREV_TAG=$(git describe --abbrev=0 --tags "${GITHUB_SHA}^" 2>/dev/null || true)
