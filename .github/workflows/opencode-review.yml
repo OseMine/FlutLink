@@ -44,9 +44,22 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: echo "model=$(bash .github/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+        run: |
+          # The pick script exits 1 when no Zen model is usable; never let that
+          # poison $GITHUB_OUTPUT. We still write `model=` (possibly empty) so
+          # downstream `if:` guards can rely on a well-defined value.
+          MODEL=$(bash .github/opencode-with-fallback.sh --pick-only) || true
+          echo "model=${MODEL}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail - no OpenCode model available
+        if: ${{ steps.model.outputs.model == '' }}
+        shell: bash
+        run: |
+          echo "::error::Kein OpenCode-Zen-Model erreichbar - Review uebersprungen. Keine der Workflow-Stufen laeuft mit leerem 'model'."
+          exit 1
 
       - name: Run OpenCode review
+        if: ${{ steps.model.outputs.model != '' }}
         uses: anomalyco/opencode/github@16747470f976aca3d362ad730bcd3fe82ecc2c9a # v1.18.29
         id: review
         env:
@@ -177,8 +190,8 @@ jobs:
 
             echo "$REVIEW_PROMPT" > /tmp/review-prompt.txt
 
-            OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
-              bash .github/opencode-with-fallback.sh --auto "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
+            OPENCODE_CMD="npx --yes opencode-ai@1.18.29" \
+              bash .github/opencode-with-fallback.sh "$(cat /tmp/review-prompt.txt)" > /tmp/review-result.txt 2>&1 || true
 
             RESULT=$(grep -E '^(MERGE|APPROVE|REJECT)' /tmp/review-result.txt | head -1 || echo "REJECT")
             RATIONALE=$(tail -n +2 /tmp/review-result.txt 2>/dev/null | tr '\n' ' ' || echo "Review execution failed")
@@ -277,8 +290,8 @@ jobs:
           5. Speichere die Änderungen in todo.md
           6. Committen Sie die Datei"
 
-          OPENCODE_CMD="npx --yes opencode-ai@1.18.21" \
-            bash .github/opencode-with-fallback.sh --auto "$PROMPT" 2>&1 || echo "opencode finished with error"
+          OPENCODE_CMD="npx --yes opencode-ai@1.18.29" \
+            bash .github/opencode-with-fallback.sh "$PROMPT" 2>&1 || echo "opencode finished with error"
 
           if [ -n "$(git status --porcelain todo.md)" ]; then
             git add todo.md

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { api } from "../lib/ipc";
+import { api, invokeError } from "../lib/ipc";
 import { currentLang, LANG_KEY, type Lang } from "../lib/i18n";
 import type { EntrySortKey } from "../lib/sort";
 
@@ -164,11 +164,19 @@ export const useUiStore = defineStore("ui", () => {
   // mirrored without awaiting — the SettingsModal also seeds this ref from
   // `getSettings` on open (`inheritShareNotify`).
   function setShareNotify(value: boolean) {
+    const previous = shareNotify.value;
     shareNotify.value = value;
     localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(value));
-    void api.setShareNotify(value).catch(() => {
-      // The toggle stays optimistic; the backend worker continues with its own
-      // persisted flag until the settings dialog is reopened and re-seeded.
+    void api.setShareNotify(value).catch((e) => {
+      // R30-F1: on an IPC failure the optimistic toggle must not stay set —
+      // the sync worker reads the backend flag, so a drifted localStorage
+      // copy would lie about the real state. Roll the ref (and its persisted
+      // copy) back to the previous value and surface the failure instead of
+      // swallowing it silently. The SettingsModal additionally re-seeds from
+      // `getSettings` on every open (L24-F2).
+      shareNotify.value = previous;
+      localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(previous));
+      toast(invokeError(e).message, "error");
     });
   }
 

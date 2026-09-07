@@ -1598,6 +1598,28 @@ mod tests {
     }
 
     #[test]
+    fn tmp_paths_for_same_destination_are_unique() {
+        // R30-F4: parallel downloads of the same destination (the sync engine
+        // loads conflict copies in parallel) must never collide on a temp file
+        // name, otherwise one worker's rename could overwrite the other's
+        // in-flight file with a half-written one.
+        let dest = std::path::Path::new("/tmp/flutlink-race-test.bin");
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..100 {
+            let p = tmp_path(dest);
+            assert!(
+                seen.insert(p.clone()),
+                "duplicate tmp path: {}",
+                p.display()
+            );
+            assert_eq!(p.parent(), dest.parent());
+            let name = p.file_name().unwrap().to_string_lossy();
+            assert!(name.contains(".flutlink-"), "tmp marker: {name}");
+            assert!(name.ends_with(".tmp"), "tmp suffix: {name}");
+        }
+    }
+
+    #[test]
     fn decodes_encoded_names() {
         let entries = parse_multistatus(
             r#"<d:multistatus xmlns:d="DAV:">

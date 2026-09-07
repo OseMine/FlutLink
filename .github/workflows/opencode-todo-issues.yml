@@ -44,9 +44,22 @@ jobs:
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: echo "model=$(bash .github/opencode-with-fallback.sh --pick-only)" >> "$GITHUB_OUTPUT"
+        run: |
+          # The pick script exits 1 when no Zen model is usable; never let that
+          # poison $GITHUB_OUTPUT. We still write `model=` (possibly empty) so
+          # downstream `if:` guards can rely on a well-defined value.
+          MODEL=$(bash .github/opencode-with-fallback.sh --pick-only) || true
+          echo "model=${MODEL}" >> "$GITHUB_OUTPUT"
+
+      - name: Fail - no OpenCode model available
+        if: ${{ steps.model.outputs.model == '' }}
+        shell: bash
+        run: |
+          echo "::error::Kein OpenCode-Zen-Model erreichbar - Workflow uebersprungen."
+          exit 1
 
       - name: Run opencode to create issues from todo.md
+        if: ${{ steps.model.outputs.model != '' }}
         uses: anomalyco/opencode/github@16747470f976aca3d362ad730bcd3fe82ecc2c9a # v1.18.29
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

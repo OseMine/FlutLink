@@ -37,6 +37,20 @@ fn map_keyring_error(e: keyring::Error, action: &str) -> AppError {
     AppError::Keyring(format!("{}: {}{}", action, e, hint))
 }
 
+/// `keyring::Error::NoEntry` is not a failure of the credential store itself:
+/// it means the entry simply does not exist yet. It must not be surfaced as a
+/// generic `AppError::Keyring` (which suggests a locked/unavailable keychain),
+/// but as a distinct "entry missing" error the caller can distinguish —
+/// `load_accounts` reports it as a skipped account, real keyring failures stay
+/// `AppError::Keyring` (R30-F3).
+fn map_no_entry(e: keyring::Error, action: &str) -> AppError {
+    if matches!(e, keyring::Error::NoEntry) {
+        AppError::App(format!("{}: credential entry missing", action))
+    } else {
+        map_keyring_error(e, action)
+    }
+}
+
 /// Store the app token in the OS credential store (Windows Credential Manager,
 /// macOS Keychain, Linux Secret Service).
 pub fn save_token(meta: &AccountMeta, token: &str) -> AppResult<()> {
@@ -52,7 +66,7 @@ pub fn load_token(meta: &AccountMeta) -> AppResult<String> {
         .map_err(|e| map_keyring_error(e, "could not open the credential store"))?;
     entry
         .get_password()
-        .map_err(|e| map_keyring_error(e, "could not load the token"))
+        .map_err(|e| map_no_entry(e, "could not load the token"))
 }
 
 pub fn delete_token(meta: &AccountMeta) -> AppResult<()> {
@@ -60,7 +74,7 @@ pub fn delete_token(meta: &AccountMeta) -> AppResult<()> {
         .map_err(|e| map_keyring_error(e, "could not open the credential store"))?;
     entry
         .delete_credential()
-        .map_err(|e| map_keyring_error(e, "could not delete the token"))
+        .map_err(|e| map_no_entry(e, "could not delete the token"))
 }
 
 /// Persist account metadata (never the token) to the app data directory.

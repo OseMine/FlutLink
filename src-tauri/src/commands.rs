@@ -1000,11 +1000,13 @@ pub async fn webdav_thumbnail(
     else {
         return Ok(None);
     };
-    // L24-N6: only accept image payloads for the `data:` thumbnail URL. The
-    // content-type is server-controlled, so whitelisting to `image/*` keeps an
-    // attacker-provided `text/html`/`text/javascript` body from ever reaching
-    // the frontend `<img>`/`<iframe>`.
-    if !preview.content_type.starts_with("image/") {
+    // L24-N6: only accept safe raster image payloads for the `data:` thumbnail
+    // URL. The content-type is server-controlled, so a whitelist keeps an
+    // attacker-provided body from ever reaching the frontend `<img>`. Notably
+    // `image/svg+xml` is rejected even though it starts with "image/": an SVG
+    // payload can carry scripts/styles that the embedding can execute.
+    const SAFE_THUMBNAIL_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    if !SAFE_THUMBNAIL_TYPES.contains(&preview.content_type.as_str()) {
         return Ok(None);
     }
     let data = STANDARD.encode(preview.bytes);

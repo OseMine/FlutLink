@@ -7,17 +7,30 @@
 # the next candidate instead of failing the workflow.
 #
 # Usage:
-#   .github/opencode-with-fallback.sh [--pick-only] [opencode-run-args...]
+#   .github/opencode-with-fallback.sh [--pick-only] [--auto] [opencode-run-args...]
 #
 #   --pick-only   print "opencode/<id>" of the first usable model and exit
 #                 (for action inputs that take a static model string)
+#   --auto        explicit run mode (default). Recognised so workflow callers
+#                 can state their intent without passing an unknown flag to
+#                 `opencode run`; it does not change behaviour.
+#
+# Exit codes:
+#   0  a usable model was found (and run, unless --pick-only)
+#   1  no usable model in the whole chain after all rounds (see below). In
+#      --pick-only mode nothing is printed, so callers MUST guard on the
+#      empty/absent model (e.g. `MODEL=$(... ) || true; echo "model=$MODEL"`).
+#
+# The probed model is ALWAYS echoed as a workflow notice whether or not the
+# caller picked it, so CI logs are greppable:
+#   ::notice::OpenCode model selected: opencode/<id>
 #
 # Environment:
 #   OPENCODE_MODELS  model chain (default: big-pickle, mimo-v2.5-free,
 #                    hy3-free, nemotron-3-ultra-free, laguna-s-2.1-free)
 #   OPENCODE_CMD     command prefix executed in run mode, split on
 #                    whitespace, WITHOUT the `run` subcommand
-#                    (default: "opencode"; e.g. "npx --yes opencode-ai@1.18.21")
+#                    (default: "opencode"; e.g. "npx --yes opencode-ai@1.18.29")
 #   ZEN_BASE         Zen API base (default: https://opencode.ai/zen/v1)
 #   OPENCODE_API_KEY used to authenticate the probe requests
 #
@@ -35,10 +48,15 @@ CHAIN_ROUNDS="${OPENCODE_CHAIN_ROUNDS:-2}"
 CHAIN_RETRY_WAIT="${OPENCODE_CHAIN_RETRY_WAIT:-60}"
 
 PICK_ONLY=0
-if [ "${1:-}" = "--pick-only" ]; then
-  PICK_ONLY=1
-  shift
-fi
+# Collect recognised flags; everything else is forwarded to `opencode run`.
+declare -a RUN_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --pick-only) PICK_ONLY=1 ;;
+    --auto) ;; # explicit run-mode alias (default); recognised, but a no-op
+    *) RUN_ARGS+=("$arg") ;;
+  esac
+done
 
 probe() {
   local model="$1" code body escaped_model
@@ -91,8 +109,11 @@ done
 
 if [ -z "$selected" ]; then
   echo "::error::No usable OpenCode model in chain [${CHAIN}] - check https://opencode.ai/zen/v1/models" >&2
+  echo "::error::Pick step produced no model - callers must treat an empty/absent model as a hard skip." >&2
   exit 1
 fi
+
+echo "::notice::OpenCode model selected: opencode/${selected}" >&2
 
 if [ "$PICK_ONLY" = "1" ]; then
   echo "opencode/${selected}"
@@ -101,4 +122,4 @@ fi
 
 read -r -a cmd <<<"${OPENCODE_CMD:-opencode}"
 echo "Running OpenCode with model: opencode/${selected}" >&2
-exec "${cmd[@]}" run --model "opencode/${selected}" "$@"
+exec "${cmd[@]}" run --model "opencode/${selected}" "${RUN_ARGS[@]}"

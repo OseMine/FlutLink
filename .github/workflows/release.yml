@@ -77,13 +77,19 @@ jobs:
 
       - name: Install OpenCode CLI
         # opencode.ai/install.sh returns 404 since the installer was
-        # retired; install the same pinned version the review workflows use.
-        run: npm install -g opencode-ai@1.18.21
+        # retired; install the same pinned version the review workflows use
+        # (npx opencode-ai@1.18.29 in opencode-review.yml).
+        run: npm install -g opencode-ai@1.18.29
 
       - name: Generate release notes
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          # Optional candidate chain for the auto-selected Mistral model
+          # (comma separated, best first); defaults inside the script to the
+          # free-tier-friendly chain. `--model` stays an explicit override.
+          MISTRAL_MODELS: ${{ vars.MISTRAL_MODELS }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GIT_AUTHOR_NAME: GitHub Actions
           GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
@@ -117,12 +123,49 @@ jobs:
           )
 
           # The prompt is passed as a positional message — `opencode run`
-          # (1.18.x) has no --prompt flag.
-          bash .github/opencode-with-fallback.sh "$PROMPT"
+          # (1.18.x) has no --prompt flag. The fallback script exits 1 when no
+          # Zen model is reachable. If it does, fall back to Mistral directly
+          # (scripts/generate-release-notes-mistral.mjs). This job is
+          # `continue-on-error` by design (R28-N1) so a missing model must not
+          # block the release; `prepare-release` falls back to a generic body
+          # only when BOTH generators produced no file.
+          FALLBACK_USED=0
+          if bash .github/opencode-with-fallback.sh "$PROMPT"; then
+            echo "::notice::Release-Notes von OpenCode erzeugt"
+          elif [ -z "$MISTRAL_API_KEY" ]; then
+            echo "::warning::Release-Notes-Erzeugung uebersprungen (kein OpenCode-Zen-Model erreichbar, MISTRAL_API_KEY nicht gesetzt) - generischer Body wird am Release verwendet"
+          elif node scripts/generate-release-notes-mistral.mjs \
+                 --api-key "$MISTRAL_API_KEY" \
+                 --tag "$GITHUB_REF_NAME" \
+                 --input git-log.txt \
+                 --output release-notes.md; then
+            FALLBACK_USED=1
+            echo "::notice::Release-Notes via Mistral-Fallback erzeugt"
+          else
+            echo "::warning::Release-Notes-Erzeugung uebersprungen (OpenCode-Zen-Model und Mistral-Fallback fehlgeschlagen) - generischer Body wird am Release verwendet"
+          fi
 
-          # R29-F1: ensure release-notes.md ends with a trailing newline
-          # (opencode output may omit it, breaking some markdown renderers).
-          echo "" >> release-notes.md
+          if [ -s release-notes.md ]; then
+            # R29-F1: ensure release-notes.md ends with a trailing newline
+            # (opencode output may omit it, breaking some markdown renderers).
+            echo "" >> release-notes.md
+          fi
+
+          # The OpenCode path commits+pushes the file itself (see prompt); the
+          # Mistral path writes it without git. Commit+push only for the
+          # fallback so the notes survive in the repo — the OpenCode path must
+          # not be double-committed. `git push origin HEAD:main` works from the
+          # detached tag checkout (no local `main` branch) and is refused by
+          # git if it is not a fast-forward, so it cannot overwrite main.
+          if [ "$FALLBACK_USED" = "1" ]; then
+            git add release-notes.md
+            if ! git diff --cached --quiet; then
+              git commit -m "docs: add release notes for ${GITHUB_REF_NAME}" >/dev/null
+              git push origin "HEAD:refs/heads/main" 2>/dev/null \
+                && echo "::notice::release-notes.md committet und gepusht" \
+                || echo "::warning::release-notes.md committet, Push nach main fehlgeschlagen"
+            fi
+          fi
 
       - name: Read release notes
         id: read
