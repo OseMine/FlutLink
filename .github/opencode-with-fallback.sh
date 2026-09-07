@@ -23,12 +23,11 @@
 # so a repo without the secret behaves exactly as before (Zen only).
 #
 # A puter/<id> pick only works if the project opencode config declares the
-# "puter" provider. The repo deliberately ignores .opencode/ (local-only
-# opencode config), so a fresh CI checkout has no provider config at all.
-# Whenever a puter model is selected, this script materializes (or merges)
-# the provider into "$PWD/.opencode/opencode.json" so the subsequent
-# `opencode run --model puter/<id>` can resolve it. The file stays under
-# the ignored .opencode/ dir, hence never leaks into git.
+# "puter" provider. That provider lives in the tracked
+# .opencode/opencode.json, so a CI checkout already carries it. As a safety
+# net, whenever a puter model is selected this script ensures the provider is
+# present in "$PWD/.opencode/opencode.json" (no-op when already configured,
+# so the tracked file never gets dirtied in CI).
 #
 # Exit codes:
 #   0  a usable model was found (and run, unless --pick-only)
@@ -119,9 +118,11 @@ provider() {
 
 # ensure_puter_config(): write or merge the "puter" provider into the project
 # opencode config (.opencode/opencode.json). Called only when a puter model is
-# selected, so a fresh CI checkout (gitignored .opencode/ = no project config)
-# gets a working provider for `opencode run --model puter/<id>`. Setup via node
-# when available for a safe merge; node-less fallback only writes a new file.
+# selected. The provider lives in the repo's TRACKED .opencode/opencode.json,
+# so a fresh CI checkout already carries it — in that case this is a no-op to
+# avoid dirtying the working tree. It only (re)writes when the provider is
+# missing (e.g. a gitignored local file that predates the provider), so
+# `opencode run --model puter/<id>` can still resolve the provider.
 ensure_puter_config() {
   local cfg=".opencode/opencode.json"
   local base="${PUTER_BASE:-https://api.puter.com/puterai/openai/v1}"
@@ -132,6 +133,10 @@ const path = require("path");
 const cfg = process.argv[2];
 let json = {};
 try { json = JSON.parse(fs.readFileSync(cfg, "utf8")); } catch { /* fresh file */ }
+const existing = json.provider && json.provider.puter;
+if (existing && existing.options && existing.options.apiKey === "{env:PUTER_AUTH_TOKEN}") {
+  process.exit(0); // already configured (tracked project config) - keep tree clean
+}
 json.provider = json.provider || {};
 json.provider.puter = {
   npm: "@ai-sdk/openai-compatible",
