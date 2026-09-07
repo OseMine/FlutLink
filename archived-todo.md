@@ -2121,3 +2121,183 @@ Issues entfernt werden.
       ist an keiner Stelle nötig, da der aktuelle UI-Code keine Expressive-API
       nutzt — es wird beim UI-Revert (KMP-F14) an den neuen
       `Material3ExpressiveTheme`-/`MotionScheme`-Nutzungsstellen ergänzt.
+
+
+## Erledigt (2026-09-07, Lauf 31 — Autostart + Disk-Mount/Cache; Lauf 28 — v1.3.1/Updater/Single-Instance; Admin-Panel UI-Review; Performance-Analyse)
+
+Die folgenden Abschnitte sind vollständig erledigt und wurden am 2026-09-07
+aus `todo.md` hierher verschoben.
+
+### Lauf 31 — Autostart + Disk-Mount/Cache (Review 2026-09-03)
+
+Gegenstand: gezieltes Review der Features „FlutLink beim Anmelden starten"
+(Autostart) und „Laufwerk und Cache" (Disk Mount). Geprüft: `ui.ts`,
+`SettingsModal.vue`, `lib.rs`, `commands.rs`, `ipc.ts`, `disk_mount.rs`.
+Alle Befunde BEHOBEN (2026-09-03).
+
+#### Autostart (3 Befunde)
+
+- [x] **R31-F1 (IPC/Backend, hoch): `set_autostart`/`get_autostart` sind komplett auskommentiert (`commands.rs:880-899`). Der UI-Toggle (`ui.ts:192-195`) schreibt nur `localStorage`, aktiviert/deaktiviert nie die OS-Ebene.** BEHOBEN: Plugin `tauri_plugin_autostart::init` in `lib.rs` registriert, Commands `get_autostart`/`set_autostart` verdrahtet (Persistenz in `settings.json` + OS-Level via `app.autolaunch()`), IPC-Wrapper `getAutostart`/`setAutostart` in `ipc.ts`, `ui.ts`-Store zeigt Backend-Zustand.
+- [x] **R31-F2 (Systemtray, mittel): Autostart-Menü-Item im Tray (`lib.rs:61-72`) hortet `autostart_enabled = false` immer, Klick-Handler (`lib.rs:185-196`) ist auskommentiert.** BEHOBEN: `build_tray_menu` nutzt `app.autolaunch().is_enabled()`, Klick-Handler toggelt OS-Autolaunch und rebuilt das Menü.
+- [x] **R31-F3 (Persistenz, mittel): `autostart` lebt nur in `localStorage` ohne Backend-Pendant (`ui.ts:37,107`).** BEHOBEN: `AppSettings` um `autostart_enabled` erweitert, `set_autostart` persistiert in `settings.json`, `settings.rs`-Sync bei App-Start gleicht OS-Registrierung mit dem gespeicherten Flag ab.
+
+#### Disk Mount / Cache (9 Befunde)
+
+- [x] **R31-F4 (Backend/Persistenz, hoch): `diskMount`-State ist Runtime-only — `DiskMountState` in `lib.rs:443` geht bei Neustart verloren, aber `ui.ts:103,182-185` persisted den Toggle in `localStorage`.** TEILWEISE BEHOBEN: Mount-Cache-Pfad und Status werden jetzt korrekt aus `ActiveMount` gemeldet (R31-F5), Crash-Cleanup beim Beenden (R31-F11). Auto-Mount bei Start bleibt bewusst aus (Feature-Entscheidung); der Toggle-Erwartungskonflikt bleibt als R30-F8 offen.
+- [x] **R31-F5 (Disk-Mount/Persistenz, mittel): `get_mount_status` (`disk_mount.rs:157-160`) liest immer `default_cache_dir()`, ignoriert den konfigurierten `diskMountCachePath` aus dem Frontend.** BEHOBEN: `ActiveMount.cache_dir` gespeichert; `get_mount_status` meldet jetzt den tatsächlichen Pfad des gemounteten Laufwerks.
+- [x] **R31-F6 (Windows, mittel): `mount_os_drive` (`disk_mount.rs:184`) used `Z:` als festen Laufwerksbuchstaben.** BEHOBEN: `net use * <url>` + Auth, zeilenweises Parsen der zugewiesenen Buchstaben aus stdout.
+- [x] **R31-F7 (Windows, mittel): `net use Z: http://...` versucht Basic Auth, aber der lokale WebDAV-Server (`disk_mount.rs:74-77`) hat kein Auth-Middleware.** BEHOBEN: lokaler WebDAV-Server verlangt Basic Auth (`flutlink:<random token>`), `net use *` übergibt die Credentials inline.
+- [x] **R31-F8 (macOS, mittel): `mount_os_drive` (`disk_mount.rs:219`) fügt `guest@` in die URL ein.** BEHOBEN: `mount_webdav` erhält jetzt die bare Server-URL ohne `guest@` (der lokale Server akzeptiert anonymous für macOS, Basic Auth ist nur der Windows-Gate).
+- [x] **R31-F9 (Linux, mittel): `gio mount dav://...` gibt die URL statt des tatsächlichen GVFS-Mount-Punkts zurück (`disk_mount.rs:262`).** BEHOBEN: `resolve_gvfs_mount_point` listet `gio mount -l` und parst den `/run/user/<uid>/gvfs/`-Pfad; Fallback auf `dav://`-URL.
+- [x] **R31-F10 (Linux, mittel): `unmount_os_drive` (`disk_mount.rs:274-279`) ruft `gio mount -u <dav_url>` mit der Original-URL (`http://...`) auf.** BEHOBEN: `unmount_os_drive` unmountet per GVFS-Pfad, fallback auf `dav://`-URL; `mount_point_to_dav_url` rekonstruiert die URL aus dem GVFS-Pfad.
+- [x] **R31-F11 (Crash-Sicherheit, mittel): Bei Prozess-Absturz wird `shutdown_tx` (`disk_mount.rs:88`) nie gesendet.** TEILWEISE BEHOBEN: Tray-`quit`-Handler führt `shutdown_if_mounted` aus (Cleanup von WebDAV-Server + OS-Mount). Crash (SIGKILL) kann weiterhin Orphans hinterlassen — externer Prozess-Guard bleibt außerhalb des Scopes.
+- [x] **R31-F12 (Sicherheit, niedrig): Der lokale WebDAV-Server (`disk_mount.rs:74-77`) hat kein Auth-Middleware.** BEHOBEN: Der Server verlangt jetzt Basic Auth mit zufällig generiertem Token (`flutlink:<random base64>`).
+- [x] **R31-F13 (UX/Caching, niedrig): `custom_cache_dir` (`disk_mount.rs:57,66-72`) wird nicht validiert.** BEHOBEN: `prepare_cache_dir` erstellt den Ordner, probiert eine Schreibprobe (`Write-Test`), gibt auf Fehlern spezifische Meldungen zurück.
+
+Verwandte offene Befunde: R30-F8 (Disk-Mount/Autostart als reine `localStorage`-Keys ohne Backend-Persistenz) — bleibt in `todo.md` offen.
+
+### Lauf 28 — v1.3.1 / Updater-Fallback, Single-Instance & Release-Konsistenz (Review 2026-08-30)
+
+Gegenstand: die 20 Commits seit Lauf 27 (`f2a28a6..HEAD`, HEAD `4dcd117`):
+KMP-F13/14/15-Umsetzung (`53136ad`, `4124b1b`, `6b4eafc`, `4e152db`), Updater-
+Plugin-Fallback + `tauri_plugin_single_instance` + `tauri_plugin_updater`
+(`05b2652`), Version-Reverts/-Rebumps (`c78140c`, `7e0cc5d`), CI
+(`530dada`, `855d716` Signing-Key-Rotation, `38c9bb8` Release-Workflow),
+AltStore-Updates (`29cb557`, `e64d644`, `4dcd117`). Plus die Standard-Bereiche
+gegen HEAD re-verifiziert. Alle Befunde sind `[x]` (erledigt).
+
+Verifikation: `cargo fmt --check` grün; `cargo clippy --all-targets -- -D warnings`
+grün (Exit 0); `cargo test --manifest-path src-tauri/Cargo.toml` → 116 passed /
+0 failed; `npm run build` (vue-tsc + vite) grün; `cd kmp && ./gradlew
+:shared:compileKotlinJvm` grün (nur Deprecation-Warnungen, s. R28-N2).
+
+- [x] **R28-F1 (Version/Release, hoch): Mobile-Clients hängen bei 1.2.0, während Desktop auf 1.3.0 steht und AltStore die v1.3.0-Release-IPA als „1.3.0" ausweist.** `kmp/android-app/build.gradle.kts:18-19` hat `versionCode = 4` / `versionName = "1.2.0"`; `kmp/iosApp/Config.xcconfig` setzt `APP_VERSION = 1.2.0`. Fix: `android-app` versionName/versionCode und `Config.xcconfig` APP_VERSION mit dem Desktop-Release abgleichen + gemeinsamer Release-Versions-Schritt.
+- [x] **R28-F2 (Updater, mittel): Der Signed-Updater-Fallback startet die App nach erfolgreichem Install nie neu — Divergenz zum Custom-Pfad.** `install_plugin_update` ruft `update.download_and_install(...)`, der Custom-Pfad relauncht dagegen aktiv. Fix: nach ok-Install denselben Relaunch-/Exit-Code wie `install_update` ausführen.
+- [x] **R28-F3 (CLI/Single-Instance, mittel): Das neue `tauri_plugin_single_instance` verschluckt die CLI-Argumente aller Folge-Prozesse.** `_argv` wird ignoriert. Fix: im Callback `_argv` parsen und an `handle_cli`-Äquivalente delegieren.
+- [x] **R28-F4 (Release-CI, mittel): `release.yml` verlangt seit 38c9bb8 zwingend signierte Updater-Assets (`latest.json` + `.sig`), aber das Vorhandensein der rotierten Secrets ist nicht verifizierbar.** Fix: explizite Vorab-Prüfung der Secrets.
+- [x] **R28-N1 (CI-Robustheit, minor): `prepare-release` hängt jetzt an der AI-`release-notes`-Job.** Fix: Fallback-Body bzw. `allow-failure`-Verdrahtung.
+- [x] **R28-N2 (KMP, minor): Deprecation-Warnungen nach dem M3-Umbau.** (`readBytes()` → `readRawBytes()`, `Icons.Filled.Sort` → AutoMirrored, etc.) — keine Funktionseffekte.
+- [x] **R28-N3 (Doku, minor): README-Versionstabelle veraltet.** (`README.md:31-35` nennt „Desktop client 1.2.0" / „Mobile client 1.1.1".)
+
+Hinweis: KMP-F6 (doppelte Chrome / kein M3-NavigationBar) und KMP-F8 (iosMain-Doku veraltet) wurden in diesem Lauf ebenfalls als erledigt bestätigt.
+
+### Admin-Panel UI-Review (Issue: Layout, Formular & UX-Verbesserungen)
+
+Implementiert am 2026-08-26:
+
+- [x] **Linke Spalte: volle Höhe** — `h-full` auf Wrapper (`AdminPanel.vue:389`) und Card (`AdminUserList.vue:23`).
+- [x] **Header-Struktur** — `justify-between` + innere Gruppierung Avatar+Name (`AdminUserDetails.vue:53-81`).
+- [x] **Kontingent-Redundanz** — Preset-Dropdown entfernt; nur noch Eingabefeld (Wert) + Einheiten-Dropdown (MB/GB/Unlimited) (`QuotaEditor.vue`).
+- [x] **Kontingent-Speichern** — Button von `btn-primary` auf `btn-outline` umgestellt.
+- [x] **Fortschrittsanzeige** — Progress Bar unter Quota-Statistik (grün bei ≤70%, amber bei 71-90%, rot bei >90%).
+- [x] **Passwort: Augensymbol** — Eye/Eye-off Icon inline im Input; zwei Icons zu `Icon.vue` hinzugefügt.
+- [x] **Passwort: Bestätigung** — Zweites Input „Passwort bestätigen" + Validierung.
+- [x] **i18n** — `confirmPassword`/`passwordsMismatch` in en + de.
+
+### Performance-Analyse (ergänzt 2026-08-25, umgesetzt in v1.2.0)
+
+#### High Priority
+
+- [x] **R1 (Sync): Remote-Listing ist sequenzielles BFS** — umgesetzt: `tokio::sync::Semaphore(4)` + `futures_util::future::join_all` in `list_remote` (`sync.rs`).
+- [x] **N1+F2 (Shares): `loadAllShares()` ruft ALLE Shares pro Navigation** — behoben: `loadAllShares(path)` mit Pfadfilter (`FileExplorer.vue`).
+
+#### Medium Priority
+
+- [x] **F1 (Sort): Doppelte Sortierung** — behoben: `EntryList.vue` sortiert nicht mehr doppelt.
+- [x] **R3 (Cache): `evict_oldest` liest bei jedem Write alle Files** — umgesetzt: Batch-Eviction (10% pro Aufruf, `cache.rs`).
+- [x] **R2 (Sync): `plan_ops` allokiert Union-BTreeSet** — umgesetzt: `BTreeSet<&str>` statt `BTreeSet<String>` (`sync.rs`).
+
+#### Low Priority
+
+- [x] **U3 (Rendering): `formatMtime` erstellt pro Entry ein Date-Objekt** — umgesetzt: `mtimeCache` computed Map in `EntryList.vue`.
+- [x] **N2 (Thumbnails): 50 gleichzeitige HTTP-Requests** — behoben: Thumbnail-Semaphore max 6 (`FileExplorer.vue`).
+- [x] **U5 (Rendering): `<thead>` wird bei jedem Entry-Change neu gerendert** — umgesetzt: `v-once` auf `<thead>` in `EntryList.vue`.
+
+### Feature-Ideen — erledigte Punkte (2026-08-27, umgesetzt in Commits der Feature-Reihe #399–#428)
+
+#### Quick Wins (klein, 1–2 Tage)
+
+- [x] **Suche: `d:eq` → `d:contains`** — `webdav.rs:202-205` nutzt den XML-Operator `d:eq` für exakten Name-Match; umgesetzt mit `d:contains` für echte Teilstring-Suche (`search_request_body()`). (#401)
+- [x] **Admin-Panel: Debounce für Suche** — 300ms-Debounce (wie FileExplorer `searchFiles`) reduziert die Serverlast bei schneller Eingabe in `AdminUserList.vue`. (#398)
+- [x] **i18n: `retry`-Key wird nirgends genutzt** — Network-Error-Toasts haben jetzt einen Retry-Button (`ipc.ts`). (#399)
+- [x] **Bulk-Upload: Fortschrittsanzeige pro Datei** — `webdav_upload_local_paths` emittiert jetzt den Progress-Callback pro Datei. (#403)
+- [x] **CLI: `--download` und `--list`-Befehle** — Headless-Nutzung (z.B. Skripting) über `--download <remote> <local>` und `--list <path>`. (#400)
+
+#### Medium Features (3–7 Tage)
+
+- [x] **Freigabe-Benachrichtigungen** — Periodischer Check (ähnlich `refresh_admin_flags`) erkennt neue Freigaben. (#410)
+- [x] **Datei-Schnellvorschau (Quick Look)** — Leertaste-Taste → Overlay-Vorschau für Bilder/PDFs/Texte. (#405)
+- [x] **Kopieren/Verschieben zwischen Ordnern** — WebDAV COPY/MOVE über neue IPC-Commands `webdav_copy`, `webdav_move`. (#411)
+- [x] **Share-Editing (Passwort, Ablauf, Berechtigungen)** — OCS `PUT /shares/{id}` via `webdav_edit_share` + erweitertes `ShareDialog.vue`. (#406)
+- [x] **Quota-Warnung (Desktop-Notification)** — Periodischer Check (alle 30 Min.) mit Schwellwert >90%. (#413)
+- [x] **Sync-Protokoll / Historie** — UI-Ansicht (letzte Sync-Aktionen, Konflikte) auf Basis der Journal-Daten. (#407)
+- [x] **Ordner-Lesezeichen** — Schnellzugriff auf häufig besuchte Ordner, Persistenz im `ui.ts` Store. (#416)
+- [x] **Globale Tastenkürzel** — Strg/Cmd+F (Suche), Strg/Cmd+N (Ordner), Entf (Löschen), F5 (Refresh). (#408)
+- [x] **Share-Link-Vorschau mit QR-Code** — Vorschau + Copy-Button + optionaler QR-Code (Canvas-basiert). (#409/#423)
+
+#### Large Features (1–3 Wochen)
+
+- [x] **Französisch / Spanisch als weitere Sprachen** — i18n-Infrastruktur erweitert. (#419)
+
+#### UI / UX Verbesserungen
+
+- [x] **Datei-Sync-Status in der Dateiliste** — Icon/Label für lokale Dateien in Sync-Ordnern (synced, pending, conflict). (#421)
+- [x] **Share-Link mit QR-Code** — Beim Share-Erstellen: QR-Code generieren. (#409/#423)
+- [x] **Passwort-Stärke-Anzeige** — Visuelle Stärkeanzeige beim Share-Passwort. (#424)
+- [x] **Admin: Kontingent-Warnungen im Panel** — Visualisierung wenn Quota >90% (Progress Bar in `QuotaEditor.vue`). (#426)
+- [x] **Datei-Historie (zuletzt geöffnet)** — „Zuletzt geöffnete Dateien"-Liste basierend auf `open_cache_dir`-Aktionen. (#427)
+- [x] **System-Tray: Quick-Actions** — Sync auslösen, Uploads pausieren, Online/Offline-Status im Tray-Kontextmenü. (#428)
+
+### Erledigt (2026-08-28, Lauf 26 — KMP-F10/F11/F12)
+
+- [x] **KMP-F10 (UX, minor): Der List/Grid-Ansichtsmodus ist weder persistiert noch übersteht er einen Tab-Wechsel.** `FilesScreen.kt:203` `var viewMode by remember { mutableStateOf(ViewMode.List) }` — bloßes `remember`, kein `rememberSaveable` und keine Persistenz; beim Tab-Wechsel geht die Wahl verloren (Desktop persistiert das via `ui.ts` → `filesView`). Fix: `rememberSaveable` oder Persistenz im `SettingsStore`.
+- [x] **KMP-F11 (UX / gefährliche Default-Aktion, minor–mittel): Gast-Admin-Kategorie-Chips löschen beim Antippen die Kategorie.** `GuestScreen.kt:201-209` rendert jede Kategorie als `FlutPill(selected=false, onClick={ showDeleteCategoryDialog = cat })` — der einzige Tap-Zweck eines Chips ist das Öffnen des Lösch-Dialogs. Fix: destruktive Aktion hinter ein klares Affordanz-Element (z.B. „×"-Badge) oder einen separaten „Kategorien verwalten"-Dialog.
+- [x] **KMP-F12 (Konsistenz/Localization, minor): Nicht lokalisierte UI-Literale in der Dateiliste.** `ViewMode`-Labels `"List"`/`"Grid"` (`FilesScreen.kt:162-163`) und der Breadcrumb-Root-`"Files"` (`FilesScreen.kt:539`) sind hart kodiert. Fix: Ressourcen-Keys.
+
+### Erledigt (2026-08-28, Lauf 25 — KMP-F3 bis KMP-F8)
+
+- [x] **KMP-F3 (UX-Limit, mittel): Admin-Userliste ist ohne Suchbegriff leer — es gibt keinen „Alle anzeigen"-Pfad.** `AdminViewModel.loadUsers()` (`AdminViewModel.kt:48-58`) returned bei leerem `search` früh und leert `users`; `AdminScreen.kt:138-142` ruft bei leerem Feld `clearSearch()`. Der Desktop-`admin_list_users` (`commands.rs:1638`) erlaubt leere Suche. Fix: leere Suche = erste Seite laden (limit 200), nicht leeren.
+- [x] **KMP-F4 (Race, minor): `loadUsers` vs. `loadMore` teilen `offset`/`users` unsynchronisiert.** `AdminViewModel.kt:78-94` startet `loadPage(append=true)` mit dem gemeinsamen `offset`; eine langsame loadMore-Antwort hängt ihren Block danach, und `createUser`/`setQuota`/`setEnabled` rufen `loadUsers()` auf, was die Liste bei leerem Suchfeld erneut leert. Fix: Sequenz-/Generations-Guard pro Request + Abbruch untergeordneter Lade-Coroutines.
+- [x] **KMP-F5 (Cleanup, minor): Unlokalisierte UI-Literale.** `"Files"` in `buildBreadcrumbSegments` (`FilesScreen.kt:539`) und `"List"`/`"Grid"` im `ViewMode`-Enum (`FilesScreen.kt:162-163`) sind hart kodiert. Fix: Ressourcen-Keys statt String-Literale.
+- [x] **KMP-F6 (UX, minor): Doppelte App-Chrome — Desktop-Header-Reproduktion auf Mobile.** `HomeScreen.kt:77-156` rendert ein Desktop-Style-Surface (Logo-Zeile + Tab-Zeile) und jeder Screen fügt einen zweiten Header darunter ein. Fix: echte Material-3-`NavigationBar` (Bottom-Tabs) + eine einzige `TopAppBar` pro Screen. (In Lauf 27/28 als BEHOBEN bestätigt.)
+- [x] **KMP-F7 (Konsistenz, minor): Nicht-Admins sehen den Admin-Tab gar nicht; Desktop zeigt ihn als gesperrt mit Hinweis.** `HomeScreen.kt:112` blendet Admin komplett aus. Fix: gleiche „lock"-Darstellung auf Mobile. (In Lauf 27/28 als BEHOBEN bestätigt.)
+- [x] **KMP-F8 (Doku, minor): README/Archiv beschreiben `iosMain` als „Placeholder-UI", das ist veraltet.** `kmp/README.md:38-39`; tatsächlich hostet `kmp/shared/src/iosMain/kotlin/com/flutcloud/flutlink/Main.kt` die volle geteilte Compose-UI via `FlutLinkRoot`. (Fix `c78140c` in Lauf 28.)
+
+### Erledigt (2026-08-26, Lauf 23 — L23-F1/F2 + Lauf-22-Nachprüfung)
+
+- [x] **L23-F1 (Bug, kritisch / Release-Blocker): `cargo test` und `cargo clippy` schlagen fehl — `PathBuf::parent()` gibt `Option<&Path>` zurück, wird aber als `Result` gematcht.** `open_cache_dir().parent()` in `commands.rs:760` und `:1333` wird mit `if let Ok(parent)` geparsed; `Path::parent()` gibt jedoch `Option<&Path>` zurück, nicht `Result`. Compiler-Fehler `error[E0308]`. Fix: `Ok(parent)` → `Some(parent)` an beiden Stellen.
+- [x] **L23-F2 (Bug/UX, mittel): `flutcloud_app_too_old` fehlt im Frontend-Fehlercode-Mapping.** `AppError::FlutCloudAppTooOld` sendet den Code `"flutcloud_app_too_old"`, das `ERROR_CODE_KEYS`-Mapping kennt nur `"flutcloud_app_missing"`. Fix: Eintrag `flutcloud_app_too_old: "errFlutcloudAppTooOld"` in `ERROR_CODE_KEYS` + i18n-Keys in en + de.
+
+#### Nachprüfung Lauf 22 (alle behoben, Commits `d188d41`/`5040e9f`/`9b5acf0`, PRs #395–397)
+
+- [x] **L22-F1** (Build-Fehler, toter Accent-Code): `npm run build` läuft fehlerfrei; toter Accent-Code (`applyAccent`/`resetAccent`/`accentValue`), `setAccentHue`, `App.vue`-Override und i18n-Keys entfernt.
+- [x] **L22-F2** (Bulk-Upload-TOCTOU): `upload_tree` und Datei-Zweig von `webdav_upload_local_paths` nutzen jetzt `put_file_params` mit `forbid_overwrite: !overwrite`.
+- [x] **L22-F3** (saveField-Race): `saveField` captured `const seq = selectSeq` und prüft `seq !== selectSeq` nach jedem Await; `saveEdits` reicht Selektions-Guard per `selected.value.id` weiter.
+- [x] **L22-N1** (Toter `md-`-Carve-out in vite.config.ts): `isCustomElement`/`md-`-Referenz vollständig entfernt.
+- [x] **L20-N2** (guest `verify_guest_server` falscher Fehlercode): eigener `AppError::FlutCloudAppTooOld` mit eigenem Text, `guest.rs:134` nutzt ihn korrekt.
+- [x] **L20-N3** (PowerShell-Parse-Check nur für eine PS1): `flutcloud.yml:96` nutzt jetzt `-Filter '*.ps1'`.
+- [x] **L21-N4** (Monolith-Komponenten): Teilweise behoben — AdminPanel von ~640 auf 427 Zeilen zerlegt; drei Sub-Komponenten ausgegliedert (`AdminUserList.vue`: 75 Z., `AdminUserDetails.vue`: 211 Z., `QuotaEditor.vue`: 153 Z.). `FileExplorer.vue` von ~1500 auf 1130 Z. reduziert.
+
+### Erledigt (2026-08-26, Lauf 22 — SaaS-UI-Umbau Befunde)
+
+- [x] **L22-F1 (Bug, hoch): `npm run build` schlägt auf HEAD fehl — toter Accent-Code im SettingsModal verstößt gegen `noUnusedLocals`.** vue-tsc meldet `'applyAccent' is declared but its value is never read` und `resetAccent`. Fix: Accent-Sektion wieder ins Template aufnehmen **oder** Skript-Reste + State + App.vue-Override + i18n-Keys vollständig entfernen. (Umgesetzt — via Entfernung.)
+- [x] **L22-F2 (Bug/Konsistenz, mittel): Bulk-/Drag&Drop-Uploads fehlt der TOCTOU-Überschreibschutz des Einzel-Uploads.** `upload_tree` und der Datei-Zweig von `webdav_upload_local_paths` prüfen `webdav::exists()` und PUTten ohne Bedingung. Fix: beide Bulk-Pfade auf `put_file_params` mit `forbid_overwrite: !overwrite` umstellen.
+- [x] **L22-F3 (Race/UX, minor): `saveField` im AdminPanel kann ungespeicherte Eingaben eines schneller ausgewählten Users wegwerfen.** Fix: Sequenz-Guard verwenden bzw. Refetch-Ergebnis verwerfen, wenn sich die Auswahl inzwischen geändert hat.
+- [x] **L22-N1 (Cleanup, minor): Toter `md-`-Carve-out in vite.config.ts.** Nach dem Material-Ausbau ist `isCustomElement: (tag) => tag.startsWith("md-")` (`vite.config.ts:11-17`) obsolet.
+
+### Erledigt (2026-08-30, Lauf 29 — Release-CI/Dependency-Befunde)
+
+- [x] **R29-F1 (Release-CI, hoch): Der „Heredoc-Delimiter-Fix" aus R28 (`release.yml`, release-notes-Job) ist unvollständig — die generierten Release-Notes gehen im v1.3.1-Lauf verloren.** `release-notes.md` endet ohne Trailing-Newline; `cat release-notes.md >> "$GITHUB_OUTPUT"` klebt die Delimiter-Zeile an, GitHub Actions bricht mit `Matching delimiter not found` ab. Fix: `{ cat release-notes.md; printf '\n'; } >> "$GITHUB_OUTPUT"` bzw. Trailing-Newline sicherstellen.
+- [x] **R29-F2 (Release-CI, mittel): Der release-notes-Job pusht ohne Ref-Guard direkt auf `main` (`git push origin HEAD:main`) und läuft auch bei `workflow_dispatch`.** Fix: Push-Schritt an `startsWith(github.ref, 'refs/tags/v')` koppeln.
+- [x] **R29-N1 (Dependencies, minor): `getos@^3.2.1` ist neu in `package.json`/`package-lock.json`, wird aber nirgends importiert.** Entweder für die Drive-/Mountpunkt-Enumeration verdrahten oder die Abhängigkeit entfernen.
+- [x] **R29-N2 (Frontend, minor): `filesApp` (`SettingsModal.vue:86-92`) nutzt das deprecated `window.navigator.platform` und liefert für nicht erkannte Plattformen das unübersetzte Literal `"unknown"`.** Fix: i18n-Keys (`t("filesappUnknown")`); zudem `mountDefaultCache()`-Abruf ohne `.catch` (unhandled rejection) absichern.
+
+### Erledigt (2026-08-29/30, Lauf 24 — restliche Befunde nach Re-Verifikation)
+
+- [x] **L24-F6 (Race, mittel): QuickLook zeigt beim schnellen Blättern das Thumbnail des vorherigen Eintrags.** Fix: Zuweisung guarden (`if (entry.path === quickLookEntry.value?.path) …`) oder Request-Generationszähler. (BEHOBEN in v1.3.1 mit Guard in `FileExplorer.vue:502-511`.)
+- [x] **L24-N2 (Robustheit, minor): Kaputtes `settings.json` wird still überschrieben statt einkarantäniert; erster Tick benachrichtigt für alle Bestandsshares.** Fix: Quarantäne beim Corrupt-Pfad, nur speichern wenn geändert, `share_seen` beim ersten Listing ohne Meldung seeden. (Umgesetzt in v1.3.1.)
+- [x] **L24-N3 (Validierung, minor): Headless-CLI `--download`/`--list` umgehen die Pfadvalidierung aller IPC-Commands.** Fix: `validate_dav_path` in beiden CLI-Pfaden aufrufen; für Headless-Modi Fenster ausblenden bzw. nach Output beenden. (Umgesetzt in v1.3.1, `lib.rs:279/316`.)
+- [x] **L24-N4 (Race, minor): `history::clear` vs. `record_open`.** Fix: hinter denselben Lock / Clear entfernt auch verwaiste Temp-Dateien. (Umgesetzt in v1.3.1.)
+- [x] **L24-N5 (Race, minor): QuickLook-Prev/Next-Buttons sind auch an den Rändern aktiv.** Fix: `canPrev = quickLookIndex > 0` / `canNext = quickLookIndex < len-1`. (Umgesetzt in v1.3.1.)
+- [x] **L24-N6 (Security/Defense, minor): Thumbnail-`data:`-URL übernimmt den Server-Content-Type ungeprüft.** Fix: Mime-Whitelist (png/jpeg/webp, sonst Fallback). (Umgesetzt in v1.3.1, `commands.rs` L24-N6-Kommentar.)
+- [x] **L24-N7 (UX/Konsistenz, minor): `ImpersonationBar.vue:28-33` zeigt bei leeren Such-Enter/Retry erneut einen Info-Toast.** Fix: Hinweis einmalig/inline statt Toast. (Umgesetzt in v1.3.1.)
