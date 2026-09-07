@@ -21,9 +21,77 @@ HEAD `df388b9`. Geprüft: IPC-Registry (`lib.rs` ↔ `ipc.ts`), WebDAV/OCS
 (Komponenten, Stores, `ipc.ts`). Verifikation: `cargo test --manifest-path
 src-tauri/Cargo.toml`, `npm run build`.
 
-**Neu gefunden:**
+Verifikation (beide grün): `cargo test --manifest-path src-tauri/Cargo.toml` →
+EXIT=0, `npm run build` → OK (Index-Chunk 287,88 kB, 93,69 kB gzip; 92 % der
+Build-Zeit in Plugin-Hooks: vite:vue transform 42 %, tailwind generate:build
+17 %).
 
-- [ ] **(Erste Befunde folgen während des Review-Laufs.)**
+**Neu gefunden (Fokus Performance + Regressionen):**
+
+- [ ] **L32-F1 (Performance, hoch): `file://progress`-Events werden pro
+      gestreamtem Chunk ungedrosselt emittiert.** `ProgressStream`
+      (`webdav.rs:34-59`) ruft `on_progress` für *jedes* Chunk des
+      Byte-Streams auf; `transfer_progress` (`commands.rs:1048-1066`) sendet
+      dafür ein Tauri-Event. Beim einfachen PUT-Upload liest `ReaderStream`
+      (tokio_util, Default ~4–8 KiB), beim Download `res.bytes_stream()` —
+      bei 1 GiB Transfer sind das 10⁵+ Events über die Webview-Grenze; das
+      Frontend setzt `transfer.value` bei jedem Event (`files.ts:329-331`)
+      → Main-Thread-Stau, UI friert während großer Transfers ein. Fix:
+      Throttling (min. Intervall ~50–100 ms oder nur bei Prozent-Schritt)
+      direkt in `transfer_progress`.
+- [ ] **L32-F2 (Performance, mittel): Thumbnails sind N+1-IPC/HTTP pro Bild
+      ohne Navigations-Cache.** `loadThumb` (`FileExplorer.vue:433-448`)
+      holt pro Image-Entry `webdav_thumbnail` (max. 6 parallel via eigene
+      Semaphore `FileExplorer.vue:24-43`); `pruneCaches`
+      (`FileExplorer.vue:422-429`) verwirft Thumbs beim Verlassen des
+      Ordners, beim Zurückkehren werden alle erneut geladen. Base64-Daten
+      akkumulieren als String im `reactive(new Map)` (viele MB bei großen
+      Ordnern). Der Backend-Cache (LRU, `cache.rs:15-21`) deckt nur Listings
+      + Quota ab, keine Previews. Fix: per-Account In-Memory-LRU
+      (instance/user/path) oder Previews im `cache.rs` mitführen.
+- [ ] **L32-F3 (Performance, mittel): Folder-Listings werden unbegrenzt
+      vollständig im Speicher gepuffert und komplett gerendert (keine
+      Virtualisierung).** `list` (`webdav.rs:97`) liest die gesamte
+      multistatus-Body als `String`, `parse_multistatus_detailed`
+      (`webdav.rs:1014-1115`) baut ein `Vec<WebDavEntry>`; `EntryList.vue`
+      rendert `v-for`-Rows ohne Limit (`EntryList.vue:115-229`), zusätzlich
+      full-scan `mtimeCache` mit `toLocaleString()` pro Zeile
+      (`EntryList.vue:55-59`). Bei 10³–10⁴ Dateien → Webview-Einfrieren.
+      Fix: PROPFIND-Limit (z.B. `oc:limit`-Header) + Pagination oder
+      virtuelle Liste (infinite scroll).
+- [ ] **L32-F4 (Performance, niedrig): `sync_synced_paths` liefert alle
+      Journal-Pfade eines Accounts (kompletter Baum) statt nur der sichtbaren
+      Ebene.** `synced_paths_for_account` (`sync.rs:1595-1612`) lädt pro
+      Folder das ganze Journal und gibt jeden relativen Pfad zurück;
+      `FileExplorer.vue:301-321` ruft das bei *jedem* Account-Switch ab. Bei
+      Sync-Ordnern mit 10⁴+ Dateien = MB-großes IPC-Payload für ein paar
+      Häkchen-Symbole. Fix: im Command nach `currentPath`-Präfix filtern
+      oder Frontend-`Set` nur für den sichtbaren Ordner aufbauen lassen.
+- [ ] **L32-B1 (Bug, mittel): Parallele „open" löschen sich gegenseitig den
+      Open-Cache.** `cleanup_open_cache` (`commands.rs:1569-1578`) löscht
+      *alle* `flutlink-open/*`-Unterverzeichnisse; `open_remote_file`
+      (`commands.rs:818-820`) und `guest_open_file` (`commands.rs:1646-1647`)
+      rufen das unmittelbar vor ihrem eigenen Download auf. Ein zweites
+      paralleles Open (z.B. QuickLook „Open" + Doppelklick) löscht das
+      Verzeichnis des ersten mitten im Transfer bzw. während der
+      OS-Anzeige-App die Datei noch offen hält (Windows: Delete schlägt
+      still fehl, sonst Unlink → Viewer verliert Inhalt). Fix: nur
+      Verzeichnisse älter als z.B. 1 h löschen oder pro Operation nur den
+      eigenen vorherigen Tempdir.
+- [ ] **L32-B2 (Bug, niedrig): Bulk-Transfer-Fortschritt bleibt innerhalb
+      von Ordnern stecken.** `total_files` zählt nur die Top-Level-Auswahl
+      (`commands.rs:1188`), `download_tree`/`upload_tree` reichen `ctx.index`
+      unverändert an jede Datei (`commands.rs:1137-1143`) — bei einem
+      Ordner mit 100 Dateien zeigt die UI konstant „1 / N". Fix: gemeinsamer
+      Atomic-Counter für Dateien (Datei-zähler statt Top-Level-Zähler).
+- [ ] **L32-B3 (Bug, niedrig): `set_autostart` persistiert vor dem
+      OS-Aufruf — bei gescheitertem `autolaunch.enable/disable` driftet
+      `settings.json`/`localStorage` vom OS-Zustand.** `commands.rs:891-911`
+      schreibt zuerst settings.json, dann OS; `ui.ts:200-204` persistiert
+      `AUTOSTART_KEY` vorab und schluckt den Fehler. Tray-Label liest den
+      OS-Zustand (`lib.rs:63-71`) — zeigt dann das Gegenteil. Fix: bei
+      OS-Fehler Settings + localStorage zurückrollen (analog R30-F1).
+      Teil-überlappend mit R30-F8.
 
 ## Review 2026-08-31 (Lauf 30, Fokus „Full Project Review: IPC, WebDAV/OCS, Keyring, State, CI" — neue Befunde)
 
