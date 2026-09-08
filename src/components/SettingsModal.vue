@@ -49,6 +49,11 @@ const openMaintainerProfile = () => {
   void openUrl(maintainerUrl).catch(() => {});
 };
 
+const koFiUrl = "https://ko-fi.com/R3F226KDK7";
+const openKoFi = () => {
+  void openUrl(koFiUrl).catch(() => {});
+};
+
 type UpdateState =
   | "idle"
   | "checking"
@@ -448,6 +453,20 @@ async function toggleDiskMount(checked: boolean) {
               <Icon name="open" :size="12" class="ml-auto text-muted" />
             </button>
             <p class="text-xs leading-relaxed text-muted/80">{{ t("aboutOperationflut") }}</p>
+
+            <div class="card flex items-center gap-3 px-3 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium">{{ t("supportWork") }}</p>
+                <p class="mt-0.5 text-xs leading-snug text-muted">{{ t("supportWorkDesc") }}</p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-primary shrink-0"
+                @click="openKoFi"
+              >
+                {{ t("supportKoFi") }}
+              </button>
+            </div>
 
             <div class="space-y-1 text-xs leading-relaxed text-muted/80">
               <p>{{ t("trayHint") }}</p>

@@ -173,6 +173,9 @@
     <string name="flutcloud_only_note">FlutCloud-only: servers without the FlutCloud app are rejected.</string>
     <string name="sign_out">Sign out</string>
     <string name="built_managed_by">Built &amp; managed by</string>
+    <string name="support_work">Support the work</string>
+    <string name="support_work_desc">FlutLink is free and open source. Your donation covers development and server hosting costs.</string>
+    <string name="support_ko_fi">Donate on Ko-fi</string>
     <string name="update_available">Update available</string>
     <string name="update_downloading_name">Downloading FlutLink %1$s…</string>
     <string name="update_available_text">FlutLink %1$s is available. Download and install it now?</string>

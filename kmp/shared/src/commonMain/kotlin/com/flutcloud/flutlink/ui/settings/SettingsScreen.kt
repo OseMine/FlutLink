@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Palette
@@ -85,6 +86,9 @@ import com.flutcloud.flutlink.resources.remove_account_confirm
 import com.flutcloud.flutlink.resources.remove_account_confirm_text
 import com.flutcloud.flutlink.resources.settings
 import com.flutcloud.flutlink.resources.sign_out
+import com.flutcloud.flutlink.resources.support_ko_fi
+import com.flutcloud.flutlink.resources.support_work
+import com.flutcloud.flutlink.resources.support_work_desc
 import com.flutcloud.flutlink.resources.switch_account
 import com.flutcloud.flutlink.resources.theme
 import com.flutcloud.flutlink.resources.theme_daylight
@@ -103,6 +107,9 @@ import com.flutcloud.flutlink.resources.token_missing_accounts
 /** Notarization: the project is built and managed by @marcante_musik. */
 private const val MAINTAINER_HANDLE = "@marcante_musik"
 private const val MAINTAINER_URL = "https://instagram.com/marcante_musik"
+
+/** Ko-fi donation page: funds development and server hosting costs. */
+private const val KO_FI_URL = "https://ko-fi.com/R3F226KDK7"
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -333,6 +340,20 @@ fun SettingsScreen(container: AppContainer, onLoggedOut: () -> Unit) {
                     Text(MAINTAINER_HANDLE)
                 }
             }
+
+            // Support: Ko-fi donation to fund development and server hosting costs.
+            SettingsRow(
+                title = stringResource(Res.string.support_work),
+                subtitle = stringResource(Res.string.support_work_desc),
+                leading = {
+                    Icon(Icons.Default.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                trailing = {
+                    TextButton(onClick = { uriHandler.openUri(KO_FI_URL) }) {
+                        Text(stringResource(Res.string.support_ko_fi))
+                    }
+                }
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
