@@ -1983,8 +1983,8 @@ pub async fn admin_bulk_add_group_members(
     if user_ids.is_empty() {
         return Err(AppError::App("No users selected.".into()));
     }
-    let failures = ocs::bulk_add_group_members(&state.http_client, &account, &group_id, &user_ids)
-        .await?;
+    let failures =
+        ocs::bulk_add_group_members(&state.http_client, &account, &group_id, &user_ids).await?;
     Ok(BulkGroupResult {
         succeeded: user_ids.len() - failures.len(),
         failed: failures

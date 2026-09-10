@@ -582,6 +582,8 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
             commands::mount_default_cache,
+            commands::get_disk_mount_settings,
+            commands::set_disk_mount_settings,
             disk_mount::mount_disk,
             disk_mount::unmount_disk,
             disk_mount::get_mount_status,

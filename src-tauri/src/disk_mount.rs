@@ -47,7 +47,6 @@ pub struct MountStatus {
 struct ActiveMount {
     mount_point: String,
     server_url: String,
-    auth_token: String,
     cache_dir: PathBuf,
     /// Sender half — used to signal the server loop to stop.
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -59,7 +58,7 @@ struct ActiveMount {
 /// Tauri-managed state holding the currently mounted drive (if any).
 #[derive(Default, Clone)]
 pub struct DiskMountState {
-    pub active_mount: Arc<Mutex<Option<ActiveMount>>>,
+    active_mount: Arc<Mutex<Option<ActiveMount>>>,
 }
 
 /// Check whether a mount is currently active. Kept in the module so the
@@ -215,7 +214,6 @@ pub async fn mount_disk_inner(
     *active = Some(ActiveMount {
         mount_point,
         server_url,
-        auth_token,
         cache_dir: cache_path,
         shutdown_tx: Some(shutdown_tx),
         shutdown_rx: Some(shutdown_rx_shared),

@@ -410,9 +410,7 @@ pub async fn bulk_add_group_members(
 ) -> AppResult<Vec<(String, String)>> {
     let mut failed = Vec::new();
     for user_id in user_ids {
-        if let Err(err) =
-            add_group_member(client, account, group_id, user_id).await
-        {
+        if let Err(err) = add_group_member(client, account, group_id, user_id).await {
             failed.push((user_id.clone(), err.message()));
         }
     }
@@ -429,9 +427,7 @@ pub async fn bulk_remove_group_members(
 ) -> AppResult<Vec<(String, String)>> {
     let mut failed = Vec::new();
     for user_id in user_ids {
-        if let Err(err) =
-            remove_group_member(client, account, group_id, user_id).await
-        {
+        if let Err(err) = remove_group_member(client, account, group_id, user_id).await {
             failed.push((user_id.clone(), err.message()));
         }
     }
@@ -775,7 +771,10 @@ pub async fn create_app_password(
     account: &Account,
     name: &str,
 ) -> AppResult<(String, String)> {
-    let url = format!("{}/ocs/v2.php/core/apppassword?format=json", account.base_url());
+    let url = format!(
+        "{}/ocs/v2.php/core/apppassword?format=json",
+        account.base_url()
+    );
     let form = [("name", name), ("scopes", "")];
     let res = request(client, account, Method::POST, &url, Some(&form)).await?;
     let json: Value = res.json().await?;
@@ -794,17 +793,20 @@ pub async fn create_app_password(
         .get("loginname")
         .and_then(|v| v.as_str())
         .map(String::from);
-    Ok((token, login_name.unwrap_or_else(|| account.meta.username.clone())))
+    Ok((
+        token,
+        login_name.unwrap_or_else(|| account.meta.username.clone()),
+    ))
 }
 
 /// Revoke the app password that authenticated `account`
 /// (`DELETE /ocs/v2.php/core/apppassword`). Returns the server's message; a
 /// missing session is not an error (the token is already invalid).
-pub async fn delete_app_password(
-    client: &Client,
-    account: &Account,
-) -> AppResult<String> {
-    let url = format!("{}/ocs/v2.php/core/apppassword?format=json", account.base_url());
+pub async fn delete_app_password(client: &Client, account: &Account) -> AppResult<String> {
+    let url = format!(
+        "{}/ocs/v2.php/core/apppassword?format=json",
+        account.base_url()
+    );
     let res = request(client, account, Method::DELETE, &url, None).await?;
     let json: Value = res.json().await?;
     if let Some(msg) = ocs_meta_error(&json) {

@@ -978,7 +978,9 @@ pub async fn file_id(
             .trim()
             .parse::<u64>()
             .map_err(|_| AppError::Parse("invalid file id in PROPFIND response".into())),
-        _ => Err(AppError::Parse("missing file id in PROPFIND response".into())),
+        _ => Err(AppError::Parse(
+            "missing file id in PROPFIND response".into(),
+        )),
     }
 }
 
