@@ -16,7 +16,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 7
-        versionName = "1.3.4"
+        versionName = "1.3.5"
 
         // Optional compile-time FlutCloud server URL (never hard-coded in
         // source). The `FLUTCLOUD_URL` environment variable takes precedence

@@ -13,14 +13,15 @@ const SyncPanel = defineAsyncComponent(() => import("./components/SyncPanel.vue"
 const LoginModal = defineAsyncComponent(() => import("./components/LoginModal.vue"));
 const SettingsModal = defineAsyncComponent(() => import("./components/SettingsModal.vue"));
 const GuestBrowser = defineAsyncComponent(() => import("./components/GuestBrowser.vue"));
+const UpdateDialog = defineAsyncComponent(() => import("./components/UpdateDialog.vue"));
 import { useAccountsStore } from "./stores/accounts";
 import { useFilesStore } from "./stores/files";
 import { useSyncStore } from "./stores/sync";
 import { useUiStore } from "./stores/ui";
-import { translate, updateStatusText } from "./lib/i18n";
+import { translate } from "./lib/i18n";
 import { installEscapeHandler, registerEscapeCloser } from "./lib/escape";
 import { installShortcutHandler } from "./lib/shortcuts";
-import { api, invokeError, type ReleaseInfo, type UpdateProgress, type UpdateStatus } from "./lib/ipc";
+import { api, invokeError, type ReleaseInfo } from "./lib/ipc";
 
 type Tab = "files" | "sync" | "admin" | "guest";
 
@@ -58,12 +59,10 @@ watch(
   { immediate: true }
 );
 
-// F11: non-blocking update banner (auto-checked at startup). Dismissing just
-// hides the banner; the manual check in Settings stays available.
-const updateBanner = ref<ReleaseInfo | null>(null);
-const updateBannerBusy = ref(false);
-const updateBannerProgress = ref(0);
-const updateBannerStatus = ref("");
+// F11: non-blocking update popup (auto-checked at startup). The dialog
+// shows release notes and lets the user download & install.
+const updateInfo = ref<ReleaseInfo | null>(null);
+const showUpdatePopup = ref(false);
 
 const t = (key: string) => translate(ui.lang, key);
 const langLabel = computed(() => (ui.lang === "de" ? "Deutsch" : "English"));
@@ -149,7 +148,10 @@ onMounted(() => {
   void (async () => {
     try {
       const info = await api.checkUpdate();
-      if (info) updateBanner.value = info;
+      if (info) {
+        updateInfo.value = info;
+        showUpdatePopup.value = true;
+      }
     } catch {
       // silently ignored; manual check remains in Settings
     }
@@ -172,39 +174,6 @@ function browseUserFiles(userId: string) {
 function openLogin(mode: "login" | "register") {
   loginMode.value = mode;
   showLogin.value = true;
-}
-
-async function startUpdateDownload() {
-  if (updateBannerBusy.value) return;
-  updateBannerBusy.value = true;
-  updateBannerProgress.value = 0;
-  updateBannerStatus.value = "";
-  let unlistenProgress: (() => void) | null = null;
-  let unlistenStatus: (() => void) | null = null;
-  try {
-    unlistenProgress = await listen<UpdateProgress>("update://progress", (e) => {
-      updateBannerProgress.value = e.payload.percent;
-    });
-    unlistenStatus = await listen<UpdateStatus>("update://status", (e) => {
-      // L19-F7: localized status texts via the same code→key mapping as the
-      // SettingsModal; unknown codes fall back to the raw backend code.
-      const text = updateStatusText(ui.lang, e.payload.code, e.payload.assetName);
-      updateBannerStatus.value =
-        text ||
-        `${e.payload.code}${e.payload.assetName ? " — " + e.payload.assetName : ""}`;
-    });
-  } catch {
-    // progress/status listeners are best-effort
-  }
-  try {
-    await api.downloadAndInstallUpdate();
-  } catch (e) {
-    ui.toast(invokeError(e).message, "error");
-  } finally {
-    unlistenProgress?.();
-    unlistenStatus?.();
-    updateBannerBusy.value = false;
-  }
 }
 
 watch(
@@ -246,33 +215,6 @@ function startGuestModeOff() {
 
 <template>
   <div class="flex h-full flex-col bg-canvas text-fg">
-    <div
-      v-if="updateBanner"
-      class="flex items-center gap-3 border-b border-line-strong bg-card px-4 py-2 text-sm"
-    >
-      <span class="min-w-0 flex-1 truncate">
-        {{ t("updateNewVersion").replace("{version}", updateBanner.version) }}
-      </span>
-      <template v-if="updateBannerBusy">
-        <div class="progress-track w-40 shrink-0">
-          <div class="progress-fill" :style="{ width: Math.min(updateBannerProgress, 100) + '%' }"></div>
-        </div>
-        <span v-if="updateBannerStatus" class="max-w-xs truncate text-xs text-muted">
-          {{ updateBannerStatus }}
-        </span>
-      </template>
-      <button
-        v-else
-        type="button"
-        class="btn btn-primary shrink-0"
-        @click="startUpdateDownload"
-      >
-        {{ t("updateDownloadAndInstall") }}
-      </button>
-      <button type="button" class="btn btn-ghost shrink-0" @click="updateBanner = null">
-        {{ t("dismiss") }}
-      </button>
-    </div>
     <div class="flex min-h-0 flex-1">
       <template v-if="accounts.active">
         <AccountBar @login="openLogin('login')" />
@@ -450,6 +392,11 @@ function startGuestModeOff() {
       :open="showSettings"
       @close="showSettings = false"
       @login="showSettings = false; openLogin('login')"
+    />
+    <UpdateDialog
+      :open="showUpdatePopup"
+      :info="updateInfo"
+      @close="showUpdatePopup = false"
     />
     <ToastStack />
   </div>
