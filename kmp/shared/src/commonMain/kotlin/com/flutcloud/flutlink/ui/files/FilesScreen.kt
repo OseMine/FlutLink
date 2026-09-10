@@ -31,6 +31,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
@@ -57,6 +59,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -108,11 +111,14 @@ import com.flutcloud.flutlink.resources.bulk_delete_confirm
 import com.flutcloud.flutlink.resources.bulk_selected_count
 import com.flutcloud.flutlink.resources.cancel
 import com.flutcloud.flutlink.resources.close_search
+import com.flutcloud.flutlink.resources.copy
+import com.flutcloud.flutlink.resources.copy_to
 import com.flutcloud.flutlink.resources.create
 import com.flutcloud.flutlink.resources.delete
 import com.flutcloud.flutlink.resources.delete_confirm
 import com.flutcloud.flutlink.resources.delete_file_confirm
 import com.flutcloud.flutlink.resources.delete_folder_confirm
+import com.flutcloud.flutlink.resources.destination_path
 import com.flutcloud.flutlink.resources.download
 import com.flutcloud.flutlink.resources.download_permission_denied
 import com.flutcloud.flutlink.resources.downloaded_to_downloads
@@ -126,6 +132,8 @@ import com.flutcloud.flutlink.resources.folder_name
 import com.flutcloud.flutlink.resources.impersonation_notice
 import com.flutcloud.flutlink.resources.jump_to_writable_part
 import com.flutcloud.flutlink.resources.link_created
+import com.flutcloud.flutlink.resources.move
+import com.flutcloud.flutlink.resources.move_to
 import com.flutcloud.flutlink.resources.new_folder
 import com.flutcloud.flutlink.resources.new_name
 import com.flutcloud.flutlink.resources.new_share
@@ -204,6 +212,8 @@ fun FilesScreen(
     var renameTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var shareTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var deleteTarget by remember { mutableStateOf<WebDavEntry?>(null) }
+    var copyTarget by remember { mutableStateOf<WebDavEntry?>(null) }
+    var moveTarget by remember { mutableStateOf<WebDavEntry?>(null) }
     var pendingDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var pendingZipDownload by remember { mutableStateOf<WebDavEntry?>(null) }
     var bulkDeleteConfirm by remember { mutableStateOf(false) }
@@ -438,7 +448,9 @@ fun FilesScreen(
                                 onRename = { renameTarget = entry },
                                 onShareLink = { shareTarget = entry },
                                 onDelete = { deleteTarget = entry },
-                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
+                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } },
+                                onCopy = { copyTarget = entry },
+                                onMove = { moveTarget = entry }
                             )
                         }
                     }
@@ -456,11 +468,14 @@ fun FilesScreen(
                                 onToggleSelect = { vm.toggleSelected(entry.path) },
                                 onLongClick = { if (!entry.isVirtualLink) vm.toggleSelected(entry.path) },
                                 onDownload = { requestDownload(entry) },
+                                onDownloadZip = { requestFolderZip(entry) },
                                 onShareFile = { vm.downloadAndShare(entry) },
                                 onRename = { renameTarget = entry },
                                 onShareLink = { shareTarget = entry },
                                 onDelete = { deleteTarget = entry },
-                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } }
+                                onJumpToPaired = { entry.linkTarget?.let { vm.listFolder(it) } },
+                                onCopy = { copyTarget = entry },
+                                onMove = { moveTarget = entry }
                             )
                         }
                     }
@@ -513,6 +528,32 @@ fun FilesScreen(
                 deleteTarget = null
                 vm.delete(target)
             }
+        )
+    }
+    copyTarget?.let { target ->
+        CopyMoveDialog(
+            title = stringResource(Res.string.copy_to),
+            entry = target,
+            initialPath = parentOf(target.path) ?: "/",
+            onDismiss = { copyTarget = null },
+            onConfirm = { dest ->
+                copyTarget = null
+                vm.copyEntry(target, dest)
+            },
+            confirmLabel = stringResource(Res.string.copy)
+        )
+    }
+    moveTarget?.let { target ->
+        CopyMoveDialog(
+            title = stringResource(Res.string.move_to),
+            entry = target,
+            initialPath = parentOf(target.path) ?: "/",
+            onDismiss = { moveTarget = null },
+            onConfirm = { dest ->
+                moveTarget = null
+                vm.moveEntry(target, dest)
+            },
+            confirmLabel = stringResource(Res.string.move)
         )
     }
     if (bulkDeleteConfirm) {
@@ -714,6 +755,8 @@ internal fun EntryRow(
     onDelete: () -> Unit,
     onJumpToPaired: () -> Unit,
     onDownloadZip: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null,
     preview: ImageBitmap? = null,
     selectionMode: Boolean = false,
     selected: Boolean = false
@@ -823,6 +866,26 @@ internal fun EntryRow(
                         onShareLink()
                     }
                 )
+                if (onCopy != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.copy)) },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onCopy()
+                        }
+                    )
+                }
+                if (onMove != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.move)) },
+                        leadingIcon = { Icon(Icons.Default.ContentPaste, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onMove()
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(Res.string.delete)) },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
@@ -852,83 +915,187 @@ private fun EntryGridItem(
     preview: ImageBitmap? = null,
     selectionMode: Boolean = false,
     selected: Boolean = false,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    onDownloadZip: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+    onMove: (() -> Unit)? = null
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val (icon, tint) = fileIcon(entry)
 
-    Surface(
-        modifier = Modifier
-            .padding(4.dp)
-            .combinedClickable(
-                onClick = { if (selectionMode) onToggleSelect() else onClick() },
-                onLongClick = onLongClick
-            ),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-        else MaterialTheme.colorScheme.surfaceContainerLowest,
-        border = BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Icon or preview
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .aspectRatio(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                if (preview != null && !entry.isDir) {
-                    Image(
-                        bitmap = preview,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                } else {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Name
-            Text(
-                entry.name,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
+    Box {
+        Surface(
+            modifier = Modifier
+                .padding(4.dp)
+                .combinedClickable(
+                    onClick = { if (selectionMode) onToggleSelect() else onClick() },
+                    onLongClick = onLongClick
+                ),
+            shape = MaterialTheme.shapes.small,
+            color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            else MaterialTheme.colorScheme.surfaceContainerLowest,
+            border = BorderStroke(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.outlineVariant
             )
+        ) {
+            Column(
+                modifier = Modifier.padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Icon or preview
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .aspectRatio(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (preview != null && !entry.isDir) {
+                        Image(
+                            bitmap = preview,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
 
-            // Size
-            if (!entry.isDir) {
-                entry.size?.let { size ->
-                    Text(
-                        formatBytes(size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Spacer(Modifier.height(4.dp))
+
+                // Name
+                Text(
+                    entry.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Size
+                if (!entry.isDir) {
+                    entry.size?.let { size ->
+                        Text(
+                            formatBytes(size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Virtual link badge
+                if (entry.isVirtualLink) {
+                    Spacer(Modifier.height(2.dp))
+                    LinkBadge()
                 }
             }
+        }
 
-            // Virtual link badge
-            if (entry.isVirtualLink) {
-                Spacer(Modifier.height(2.dp))
-                LinkBadge()
+        if (!selectionMode) {
+            Box(Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(Res.string.actions),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (entry.isVirtualLink && entry.linkTarget != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.jump_to_writable_part)) },
+                            leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onJumpToPaired()
+                            }
+                        )
+                    }
+                    if (entry.isDir && onDownloadZip != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.download_zip)) },
+                            leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onDownloadZip()
+                            }
+                        )
+                    }
+                    if (!entry.isDir) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.download)) },
+                            leadingIcon = { Icon(Icons.Default.FileDownload, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onDownload()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.share)) },
+                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onShareFile()
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.rename)) },
+                        leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onRename()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.share_link)) },
+                        leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onShareLink()
+                        }
+                    )
+                    if (onCopy != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.copy)) },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onCopy()
+                            }
+                        )
+                    }
+                    if (onMove != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.move)) },
+                            leadingIcon = { Icon(Icons.Default.ContentPaste, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onMove()
+                            }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.delete)) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        }
+                    )
+                }
             }
         }
     }
@@ -1195,6 +1362,44 @@ private fun DeleteConfirmDialog(entry: WebDavEntry, onDismiss: () -> Unit, onCon
         },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(stringResource(Res.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun CopyMoveDialog(
+    title: String,
+    entry: WebDavEntry,
+    initialPath: String,
+    confirmLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var destination by remember(entry.path) { mutableStateOf(initialPath) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(entry.name, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = destination,
+                    onValueChange = { destination = it },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.destination_path)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (destination.isNotBlank()) onConfirm(destination.trim()) },
+                enabled = destination.isNotBlank()
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }

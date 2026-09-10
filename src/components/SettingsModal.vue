@@ -89,15 +89,18 @@ const themeOptions = computed<{ value: Theme; label: string }[]>(() => [
   { value: "system", label: t("themeSystem") },
 ]);
 
-// R29-N2: `navigator.platform` is deprecated and can report nonsense
-// (e.g. "MacIntel" on Windows under unofficial builds); use the UA/UA-Client
-// hints instead, and keep the unknown fallback translatable.
+// R29-N2/#482: `navigator.userAgentData` (Client Hints) is Secure Context
+// only — on `tauri://` (prod) or `http://` (dev) it is `undefined`. Its
+// fallback `navigator.userAgent` reports "MacIntel" on Windows under
+// WebView2/Edge, so use the deprecated-but-reliable `navigator.platform` as
+// the second fallback before the UA. The unknown fallback stays translatable.
 const filesApp = computed(() => {
-  const ua = window.navigator.userAgent.toLowerCase();
   const clientHints = (window.navigator as Navigator & { userAgentData?: { platform?: string } })
     .userAgentData?.platform
     ?.toLowerCase();
-  const platform = clientHints ?? ua;
+  const legacyPlatform = window.navigator.platform.toLowerCase();
+  const ua = window.navigator.userAgent.toLowerCase();
+  const platform = clientHints ?? legacyPlatform ?? ua;
   if (platform.includes("win")) return t("filesappExplorer");
   if (platform.includes("mac")) return t("filesappFinder");
   if (platform.includes("linux")) return t("filesappFiles");

@@ -235,4 +235,21 @@
     <string name="guest_admin_unlock">Unlock folder</string>
     <string name="guest_locked">Folder locked.</string>
     <string name="guest_unlocked">Folder unlocked.</string>
+
+    <!-- Admin — Edit user -->
+    <string name="edit">Edit</string>
+    <string name="edit_user">Edit user</string>
+    <string name="email_optional">Email (optional)</string>
+    <string name="new_password_optional">New password (optional)</string>
+    <string name="save">Save</string>
+    <string name="user_updated">User %1$s updated</string>
+
+    <!-- Files — Copy/Move -->
+    <string name="copy">Copy</string>
+    <string name="move">Move</string>
+    <string name="copy_to">Copy to…</string>
+    <string name="move_to">Move to…</string>
+    <string name="destination_path">Destination path</string>
+    <string name="copied_to">Copied %1$s</string>
+    <string name="moved_to">Moved %1$s</string>
 </resources>

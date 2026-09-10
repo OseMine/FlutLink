@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flutcloud.flutlink.AppContainer
@@ -91,6 +92,10 @@ import com.flutcloud.flutlink.resources.delete_user
 import com.flutcloud.flutlink.resources.delete_user_confirm
 import com.flutcloud.flutlink.resources.disabled
 import com.flutcloud.flutlink.resources.display_name_optional
+import com.flutcloud.flutlink.resources.edit
+import com.flutcloud.flutlink.resources.edit_user
+import com.flutcloud.flutlink.resources.email_optional
+import com.flutcloud.flutlink.resources.new_password_optional
 import com.flutcloud.flutlink.resources.no_email
 import com.flutcloud.flutlink.resources.no_users_found
 import com.flutcloud.flutlink.resources.no_users_hint
@@ -107,6 +112,7 @@ import com.flutcloud.flutlink.resources.quota_unit_mb
 import com.flutcloud.flutlink.resources.quota_unknown
 import com.flutcloud.flutlink.resources.quota_unlimited
 import com.flutcloud.flutlink.resources.remove
+import com.flutcloud.flutlink.resources.save
 import com.flutcloud.flutlink.resources.search_users
 import com.flutcloud.flutlink.resources.search_users_required
 import com.flutcloud.flutlink.resources.unlimited
@@ -132,6 +138,7 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
     var groupTarget by remember { mutableStateOf<ManagedUser?>(null) }
     var quotaTarget by remember { mutableStateOf<ManagedUser?>(null) }
     var deleteTarget by remember { mutableStateOf<ManagedUser?>(null) }
+    var editTarget by remember { mutableStateOf<ManagedUser?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(search) {
@@ -190,7 +197,8 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
                             onQuota = { quotaBytes -> vm.setQuota(user, quotaBytes) },
                             onQuotaCustom = { quotaTarget = user },
                             onManageGroups = { groupTarget = user },
-                            onViewFiles = { onViewFiles(user) }
+                            onViewFiles = { onViewFiles(user) },
+                            onEdit = { editTarget = user }
                         )
                     }
                     if (hasMore) {
@@ -250,6 +258,18 @@ fun AdminScreen(container: AppContainer, onViewFiles: (ManagedUser) -> Unit) {
             }
         )
     }
+
+    editTarget?.let { target ->
+        val current = users.firstOrNull { it.id == target.id } ?: target
+        EditUserDialog(
+            user = current,
+            onDismiss = { editTarget = null },
+            onSave = { displayName, email, password ->
+                editTarget = null
+                vm.editUser(current, displayName, email, password)
+            }
+        )
+    }
 }
 
 @Composable
@@ -276,7 +296,8 @@ private fun UserRow(
     onQuota: (Long?) -> Unit,
     onQuotaCustom: () -> Unit,
     onManageGroups: () -> Unit,
-    onViewFiles: () -> Unit
+    onViewFiles: () -> Unit,
+    onEdit: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -360,6 +381,14 @@ private fun UserRow(
                     Icon(Icons.Default.MoreVert, contentDescription = stringResource(Res.string.actions))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.edit)) },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onEdit()
+                        }
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(Res.string.quota_unlimited)) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
@@ -554,6 +583,68 @@ private fun DeleteUserDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text(stringResource(Res.string.delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+        }
+    )
+}
+
+@Composable
+private fun EditUserDialog(
+    user: ManagedUser,
+    onDismiss: () -> Unit,
+    onSave: (displayName: String?, email: String?, password: String?) -> Unit
+) {
+    var displayName by remember(user.id) { mutableStateOf(user.displayName.orEmpty()) }
+    var email by remember(user.id) { mutableStateOf(user.email.orEmpty()) }
+    var password by remember(user.id) { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.edit_user)) },
+        text = {
+            Column {
+                Text("@${user.id}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    singleLine = true,
+                    label = { Text(stringResource(Res.string.display_name_optional)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    label = { Text(stringResource(Res.string.email_optional)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    label = { Text(stringResource(Res.string.new_password_optional)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        displayName.trim().ifBlank { null },
+                        email.trim().ifBlank { null },
+                        password.ifBlank { null }
+                    )
+                },
+                enabled = displayName.isNotBlank() || email.isNotBlank() || password.isNotBlank()
+            ) { Text(stringResource(Res.string.save)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }

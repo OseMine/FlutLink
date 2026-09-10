@@ -30,9 +30,11 @@ import okio.buffer
 import okio.use
 import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.resources.bulk_delete_failed_partially
+import com.flutcloud.flutlink.resources.copied_to
 import com.flutcloud.flutlink.resources.downloaded_to_downloads
 import com.flutcloud.flutlink.resources.error_invalid_folder_name
 import com.flutcloud.flutlink.resources.error_not_admin_impersonation
+import com.flutcloud.flutlink.resources.moved_to
 import com.flutcloud.flutlink.resources.share_recipient_required
 
 
@@ -343,6 +345,42 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 val newPath = entry.path.substringBeforeLast('/', "") + "/" + newName
                 container.webDavApi.rename(s, entry.path, newPath, targetUser.value)
+                listFolder(path.value)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            }
+        }
+    }
+
+    fun copyEntry(entry: WebDavEntry, destinationPath: String) {
+        if (destinationPath.isBlank()) return
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                val dest = if (destinationPath.endsWith("/")) destinationPath + entry.name else destinationPath
+                container.webDavApi.copy(s, entry.path, dest, targetUser.value)
+                _toast.value = UiMessage(Res.string.copied_to, entry.name)
+                listFolder(path.value)
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            }
+        }
+    }
+
+    fun moveEntry(entry: WebDavEntry, destinationPath: String) {
+        if (destinationPath.isBlank()) return
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                val dest = if (destinationPath.endsWith("/")) destinationPath + entry.name else destinationPath
+                container.webDavApi.move(s, entry.path, dest, targetUser.value)
+                _toast.value = UiMessage(Res.string.moved_to, entry.name)
                 listFolder(path.value)
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)

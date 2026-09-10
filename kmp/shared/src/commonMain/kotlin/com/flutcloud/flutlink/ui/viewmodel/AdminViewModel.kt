@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import com.flutcloud.flutlink.resources.Res
 import com.flutcloud.flutlink.resources.cannot_delete_self
 import com.flutcloud.flutlink.resources.cannot_disable_self
+import com.flutcloud.flutlink.resources.user_updated
 
 
 class AdminViewModel(private val container: AppContainer) : ViewModel() {
@@ -165,6 +166,29 @@ private suspend fun loadPage(s: AuthSession, append: Boolean) {
             error.value = null
             try {
                 container.ocsApi.updateUser(s, user.id, "enabled", if (enabled) "1" else "0")
+                loadUsers()
+            } catch (e: NetworkException) {
+                error.value = networkUiMessage(e.cause)
+            } catch (e: ApiException) {
+                error.value = e.toUiMessage()
+            }
+        }
+    }
+
+    fun editUser(user: ManagedUser, displayName: String?, email: String?, password: String?) {
+        val s = session ?: return
+        viewModelScope.launch {
+            error.value = null
+            try {
+                if (!displayName.isNullOrBlank()) {
+                    container.ocsApi.updateUser(s, user.id, "displayname", displayName)
+                }
+                if (!email.isNullOrBlank()) {
+                    container.ocsApi.updateUser(s, user.id, "email", email)
+                }
+                if (!password.isNullOrBlank()) {
+                    container.ocsApi.updateUser(s, user.id, "password", password)
+                }
                 loadUsers()
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)

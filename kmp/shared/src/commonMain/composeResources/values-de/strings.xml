@@ -235,4 +235,21 @@
     <string name="guest_admin_unlock">Ordner entsperren</string>
     <string name="guest_locked">Ordner gesperrt.</string>
     <string name="guest_unlocked">Ordner entsperrt.</string>
+
+    <!-- Admin — Benutzer bearbeiten -->
+    <string name="edit">Bearbeiten</string>
+    <string name="edit_user">Benutzer bearbeiten</string>
+    <string name="email_optional">E-Mail (optional)</string>
+    <string name="new_password_optional">Neues Passwort (optional)</string>
+    <string name="save">Speichern</string>
+    <string name="user_updated">Benutzer %1$s aktualisiert</string>
+
+    <!-- Dateien — Kopieren/Verschieben -->
+    <string name="copy">Kopieren</string>
+    <string name="move">Verschieben</string>
+    <string name="copy_to">Kopieren nach…</string>
+    <string name="move_to">Verschieben nach…</string>
+    <string name="destination_path">Zielpfad</string>
+    <string name="copied_to">%1$s kopiert</string>
+    <string name="moved_to">%1$s verschoben</string>
 </resources>

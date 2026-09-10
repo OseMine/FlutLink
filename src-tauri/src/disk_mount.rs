@@ -345,7 +345,9 @@ async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String>
             ))
         }
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim_end().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr)
+            .trim_end()
+            .to_string();
         let err = if stderr.contains("67") || stderr.contains("network name cannot be found") {
             "Windows WebClient service may be disabled. Run 'sc config WebClient start=auto && sc start WebClient' in an admin terminal, then try again.".to_string()
         } else {
@@ -377,8 +379,7 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
 async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String> {
     // macOS `mount_webdav` expects credentials in the URL or from Keychain.
     // Build a URL with the auth token embedded as `user:pass@host`.
-    let cred_url = server_url
-        .replace("http://", &format!("http://{AUTH_USER}:{auth_token}@"));
+    let cred_url = server_url.replace("http://", &format!("http://{AUTH_USER}:{auth_token}@"));
     let mount_dir = "/Volumes/FlutLink";
     std::fs::create_dir_all(mount_dir).ok();
 

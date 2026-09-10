@@ -59,6 +59,16 @@ watch(
 
 const isUnlimited = computed(() => edits.quotaUnit === "unlimited");
 
+// Q8/#99: quota presets (1/5/10 GB + unlimited) applied in one click; the
+// free-form input still works for anything in between.
+const PRESETS_GB = [1, 5, 10];
+
+function applyPreset(gb: number) {
+  edits.quotaUnit = "gb";
+  edits.quotaValue = gb;
+  save();
+}
+
 function save() {
   let quota: string;
   if (edits.quotaUnit === "unlimited") {
@@ -147,6 +157,24 @@ const warningText = computed(() =>
     <label class="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted">
       {{ t("setQuota") }}
     </label>
+    <div class="mb-1.5 flex flex-wrap gap-1.5">
+      <button
+        v-for="gb in PRESETS_GB"
+        :key="gb"
+        type="button"
+        class="btn btn-outline !h-6 !px-2 text-[11px]"
+        @click="applyPreset(gb)"
+      >
+        {{ gb }} GB
+      </button>
+      <button
+        type="button"
+        class="btn btn-outline !h-6 !px-2 text-[11px]"
+        @click="edits.quotaUnit = 'unlimited'; save()"
+      >
+        {{ t("unlimited") }}
+      </button>
+    </div>
     <div class="flex gap-2">
       <input
         type="number"

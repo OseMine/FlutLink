@@ -554,6 +554,86 @@ class WebDavApi(private val client: HttpClient) {
         }
     }
 
+    /**
+     * Copy a resource (COPY with Overwrite: F). Throws a
+     * `target_exists` ApiException when the destination already exists.
+     */
+    suspend fun copy(
+        session: AuthSession,
+        path: String,
+        destinationPath: String,
+        targetUser: String? = null
+    ) {
+        validateWritable(path)
+        validateWritable(destinationPath)
+        try {
+            val response = client.request(davUrl(session, path, targetUser)) {
+                method = HttpMethod("COPY")
+                auth(session)
+                impersonate(session, targetUser)
+                header("Destination", davUrl(session, destinationPath, targetUser))
+                header("Overwrite", "F")
+                ocsMarker(davUrl(session, path, targetUser))
+            }
+            if (response.status.value == 412) {
+                throw ApiException("Destination already exists: $destinationPath", "target_exists", 412)
+            }
+            if (!response.status.isSuccess() && response.status.value != 404) {
+                throw ApiException(
+                    "Copy failed: HTTP ${response.status.value}",
+                    "http_${response.status.value}",
+                    response.status.value
+                )
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw NetworkException(e)
+        }
+    }
+
+    /**
+     * Move a resource (MOVE with Overwrite: F). Throws a
+     * `target_exists` ApiException when the destination already exists.
+     */
+    suspend fun move(
+        session: AuthSession,
+        path: String,
+        destinationPath: String,
+        targetUser: String? = null
+    ) {
+        validateWritable(path)
+        validateWritable(destinationPath)
+        try {
+            val response = client.request(davUrl(session, path, targetUser)) {
+                method = HttpMethod("MOVE")
+                auth(session)
+                impersonate(session, targetUser)
+                header("Destination", davUrl(session, destinationPath, targetUser))
+                header("Overwrite", "F")
+                ocsMarker(davUrl(session, path, targetUser))
+            }
+            if (response.status.value == 412) {
+                throw ApiException("Destination already exists: $destinationPath", "target_exists", 412)
+            }
+            if (!response.status.isSuccess() && response.status.value != 404) {
+                throw ApiException(
+                    "Move failed: HTTP ${response.status.value}",
+                    "http_${response.status.value}",
+                    response.status.value
+                )
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw NetworkException(e)
+        }
+    }
+
     private suspend fun statusCheck(
         url: String,
         session: AuthSession,
