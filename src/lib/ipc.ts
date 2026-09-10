@@ -34,6 +34,8 @@ const RETRY_SAFE_COMMANDS = new Set([
   "admin_list_users",
   "admin_get_user",
   "admin_list_groups",
+  "admin_activity_log",
+  "file_versions_list",
   "mount_default_cache",
   "get_mount_status",
   "check_update",
@@ -188,6 +190,32 @@ export interface UserDetails {
   quota: UserQuota | null;
   groups: string[];
   enabled: boolean;
+}
+
+/** #420: one entry of the server-side Activity feed. */
+export interface ActivityEntry {
+  activityId: number;
+  datetime: string | null;
+  user: string | null;
+  app: string | null;
+  link: string | null;
+  subject: string;
+  message: string;
+}
+
+/** #404: one stored version of a file. */
+export interface FileVersion {
+  versionId: string;
+  size: number | null;
+  mtime: string | null;
+  etag: string | null;
+  displayName: string | null;
+}
+
+/** #425: result of a group bulk operation. */
+export interface BulkGroupResult {
+  succeeded: number;
+  failed: { userId: string; reason: string }[];
 }
 
 export interface AccountFilterInfo {
@@ -371,6 +399,9 @@ export const api = {
     tauri<AccountMeta[]>("account_remove", { username, instanceUrl }),
 
   accountStorage: () => tauri<StorageResult>("account_storage"),
+
+  /** #415: request a fresh app password and revoke the current one. */
+  rotateAccountToken: () => tauri<AccountMeta>("rotate_account_token"),
 
   accountFilterInfo: () =>
     tauri<AccountFilterInfo | null>("account_filter_info"),
@@ -562,6 +593,27 @@ export const api = {
 
   adminRemoveGroupMember: (groupId: string, userId: string) =>
     tauri<string>("admin_remove_group_member", { groupId, userId }),
+
+  /** #425 */
+  adminBulkAddGroupMembers: (groupId: string, userIds: string[]) =>
+    tauri<BulkGroupResult>("admin_bulk_add_group_members", { groupId, userIds }),
+
+  adminBulkRemoveGroupMembers: (groupId: string, userIds: string[]) =>
+    tauri<BulkGroupResult>("admin_bulk_remove_group_members", { groupId, userIds }),
+
+  /** #420 */
+  adminActivityLog: (limit?: number) =>
+    tauri<ActivityEntry[]>("admin_activity_log", { limit }),
+
+  /** #404: file versions, addressed by path (backend resolves the file id). */
+  fileVersionsList: (path: string, targetUser?: string) =>
+    tauri<FileVersion[]>("file_versions_list", { path, targetUser }),
+
+  fileVersionsRestore: (path: string, versionId: string, targetUser?: string) =>
+    tauri<void>("file_versions_restore", { path, versionId, targetUser }),
+
+  fileVersionsDownload: (path: string, versionId: string, localPath: string, targetUser?: string) =>
+    tauri<void>("file_versions_download", { path, versionId, localPath, targetUser }),
 
   syncList: () => tauri<SyncFolderStatus[]>("sync_list"),
 

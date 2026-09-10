@@ -180,6 +180,28 @@ async function remove(username: string, instanceUrl: string) {
   }
 }
 
+// #415: rotate the active account's app password on the server.
+const rotateBusy = ref(false);
+const rotateMsg = ref<string | null>(null);
+const rotateErr = ref<string | null>(null);
+
+async function rotateToken() {
+  if (!accounts.active) return;
+  if (!window.confirm(t("rotateTokenConfirm").replace("{name}", accounts.active.username))) return;
+  rotateBusy.value = true;
+  rotateMsg.value = null;
+  rotateErr.value = null;
+  try {
+    await api.rotateAccountToken();
+    rotateMsg.value = t("rotateTokenDone");
+    ui.toast(t("rotateTokenDone"), "success");
+  } catch (e) {
+    rotateErr.value = invokeError(e).message;
+  } finally {
+    rotateBusy.value = false;
+  }
+}
+
 async function checkForUpdate() {
   updateState.value = "checking";
   updateError.value = null;
@@ -400,6 +422,22 @@ async function toggleDiskMount(checked: boolean) {
               <Icon name="add" :size="15" />
               {{ t("addAccount") }}
             </button>
+            <div class="card p-3">
+              <p class="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+                {{ t("rotateToken") }}
+              </p>
+              <p class="mb-2 text-xs text-muted/80">{{ t("rotateTokenDesc") }}</p>
+              <button
+                type="button"
+                class="btn btn-outline"
+                :disabled="rotateBusy || !accounts.accounts.length"
+                @click="rotateToken"
+              >
+                {{ rotateBusy ? t("working") : t("rotateNow") }}
+              </button>
+              <p v-if="rotateMsg" class="mt-2 text-xs text-success">{{ rotateMsg }}</p>
+              <p v-if="rotateErr" class="mt-2 text-xs text-error">{{ rotateErr }}</p>
+            </div>
           </div>
 
           <!-- Admin -->

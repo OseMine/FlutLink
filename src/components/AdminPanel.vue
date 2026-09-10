@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref, watch } from "vue";
-import { api, invokeError, type UserDetails } from "../lib/ipc";
+import { api, invokeError, type ActivityEntry, type UserDetails } from "../lib/ipc";
 import { useUiStore } from "../stores/ui";
 import { useAccountsStore } from "../stores/accounts";
 import { translate } from "../lib/i18n";
@@ -81,6 +81,99 @@ async function removeFromGroup(group: string) {
   }
 }
 
+// #425: bulk group membership — multi-select + add/remove against one group.
+const bulkSelected = ref<string[]>([]);
+const bulkGroup = ref("");
+const bulkGroups = ref<string[]>([]);
+const bulkBusy = ref(false);
+const showBulkBar = ref(false);
+
+function toggleSelect(userId: string) {
+  const i = bulkSelected.value.indexOf(userId);
+  if (i >= 0) bulkSelected.value.splice(i, 1);
+  else bulkSelected.value.push(userId);
+}
+
+function selectAllInList() {
+  const known = new Set(bulkSelected.value);
+  for (const u of users.value) if (!known.has(u)) bulkSelected.value.push(u);
+}
+
+function clearSelection() {
+  bulkSelected.value = [];
+}
+
+async function loadGroups() {
+  try {
+    bulkGroups.value = await api.adminListGroups("");
+  } catch {
+    bulkGroups.value = [];
+  }
+}
+
+async function toggleBulkBar() {
+  showBulkBar.value = !showBulkBar.value;
+  if (showBulkBar.value) {
+    bulkGroup.value = bulkGroups.value[0] ?? "";
+    if (!bulkGroups.value.length) await loadGroups();
+  }
+}
+
+async function runBulk(add: boolean) {
+  if (!bulkSelected.value.length) {
+    error.value = t("bulkNoSelection");
+    return;
+  }
+  if (!bulkGroup.value.trim()) {
+    error.value = t("bulkNoGroup");
+    return;
+  }
+  error.value = null;
+  editMsg.value = null;
+  bulkBusy.value = true;
+  try {
+    const result = add
+      ? await api.adminBulkAddGroupMembers(bulkGroup.value, [...bulkSelected.value])
+      : await api.adminBulkRemoveGroupMembers(bulkGroup.value, [...bulkSelected.value]);
+    ui.toast(
+      add ? t("bulkAddDone").replace("{n}", String(result.succeeded)) : t("bulkRemoveDone").replace("{n}", String(result.succeeded)),
+      "success"
+    );
+    if (result.failed.length) {
+      error.value = result.failed.map((f) => `${f.userId}: ${f.reason}`).join("\n");
+    }
+    // Keep the selection so a partially-failed operation is easy to retry.
+  } catch (e) {
+    error.value = invokeError(e).message;
+  } finally {
+    bulkBusy.value = false;
+  }
+}
+
+// #420: server-side activity feed (admin dashboard).
+const activity = ref<ActivityEntry[]>([]);
+const activityLoading = ref(false);
+const activityError = ref<string | null>(null);
+
+async function loadActivity() {
+  activityLoading.value = true;
+  activityError.value = null;
+  try {
+    activity.value = await api.adminActivityLog(50);
+  } catch (e) {
+    activityError.value = invokeError(e).message;
+  } finally {
+    activityLoading.value = false;
+  }
+}
+
+function fmtActivityTime(datetime: string | null): string {
+  if (!datetime) return "";
+  const d = new Date(datetime);
+  if (Number.isNaN(d.getTime())) return datetime;
+  return d.toLocaleString();
+}
+
 async function createGroup(group: string) {
   group = group.trim();
   if (!group) {
@@ -120,6 +213,8 @@ function debouncedSearch() {
 
 onMounted(() => {
   void loadPage(false);
+  void loadGroups();
+  void loadActivity();
 });
 
 onUnmounted(() => {
@@ -328,7 +423,7 @@ async function createUser() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-4 overflow-hidden p-6">
+  <div class="flex h-full flex-col gap-4 overflow-y-auto p-6">
     <div class="flex items-center gap-3">
       <div class="min-w-0 flex-1">
         <h2 class="text-lg font-semibold">{{ t("adminPanelTitle") }}</h2>
@@ -383,17 +478,55 @@ async function createUser() {
       </button>
     </div>
 
-    <div class="flex min-h-0 flex-1 gap-4">
+    <div class="flex min-h-0 flex-1 overflow-hidden gap-4">
       <!-- User list (30 %) -->
-      <div class="h-full w-[30%] shrink-0">
+      <div class="flex h-full w-[30%] shrink-0 flex-col">
+        <div v-if="showBulkBar" class="card mb-2 !rounded-md p-2">
+          <p class="mb-1.5 px-1 text-xs font-medium text-muted">
+            {{ bulkSelected.length ? t("bulkHint").replace("{n}", String(bulkSelected.length)) : t("bulkNoSelection") }}
+          </p>
+          <div class="flex items-center gap-1.5">
+            <select
+              v-model="bulkGroup"
+              class="input min-w-0 flex-1 !rounded-md px-2 py-1 text-sm"
+              :disabled="bulkBusy"
+            >
+              <option value="" disabled>{{ t("bulkSelectGroup") }}</option>
+              <option v-for="g in bulkGroups" :key="g" :value="g">{{ g }}</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-outline shrink-0 !px-2 !py-1 text-xs"
+              :disabled="bulkBusy || !bulkSelected.length"
+              @click="runBulk(true)"
+            >
+              {{ t("bulkAdd") }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline shrink-0 !px-2 !py-1 text-xs"
+              :disabled="bulkBusy || !bulkSelected.length"
+              @click="runBulk(false)"
+            >
+              {{ t("bulkRemove") }}
+            </button>
+          </div>
+        </div>
         <AdminUserList
           :users="users"
           :selected-id="selected?.id ?? null"
+          :selected-ids="bulkSelected"
           :loading="loading"
           :has-more="hasMore"
           @select="selectUser"
+          @toggle-select="toggleSelect"
+          @select-all="selectAllInList"
+          @clear-selection="clearSelection"
           @load-more="loadMore"
         />
+        <button type="button" class="btn btn-ghost mt-2 shrink-0 !rounded-md text-xs" @click="toggleBulkBar">
+          {{ showBulkBar ? t("hideBulk") : t("bulkBar") }}
+        </button>
       </div>
 
       <!-- Details (70 %) -->
@@ -422,6 +555,30 @@ async function createUser() {
           <p class="text-sm text-muted">{{ t("selectUser") }}</p>
         </div>
       </div>
+    </div>
+
+    <!-- #420: recent server activity -->
+    <div class="card shrink-0 !rounded-md p-3">
+      <div class="mb-2 flex items-center justify-between">
+        <h3 class="text-sm font-medium">{{ t("activity") }}</h3>
+        <button type="button" class="btn btn-ghost !px-2 !py-1 text-xs" :disabled="activityLoading" @click="loadActivity">
+          <Icon name="sync" :size="14" :class="{ 'animate-spin': activityLoading }" class="inline" />
+          {{ t("refresh") }}
+        </button>
+      </div>
+      <div v-if="activityError" class="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+        {{ activityError }}
+      </div>
+      <div v-else-if="!activity.length" class="py-2 text-center text-xs text-muted">
+        {{ t("activityEmpty") }}
+      </div>
+      <ul v-else class="max-h-40 space-y-1 overflow-y-auto pr-1">
+        <li v-for="a in activity" :key="a.activityId" class="flex gap-2 text-xs">
+          <span class="shrink-0 font-medium text-muted">{{ fmtActivityTime(a.datetime) }}</span>
+          <span class="shrink-0 font-medium">{{ a.user }}</span>
+          <span class="min-w-0 flex-1 truncate">{{ a.subject || a.message }}</span>
+        </li>
+      </ul>
     </div>
   </div>
 </template>

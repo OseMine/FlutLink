@@ -15,6 +15,7 @@ const emit = defineEmits<{
       | "bookmark"
       | "copyTo"
       | "moveTo"
+      | "versions"
       | "delete",
     entry: WebDavEntry,
   ];
@@ -79,6 +80,14 @@ const t = (key: string) => translate(ui.lang, key);
       @click="emit('action', 'moveTo', entry)"
     >
       {{ t("moveTo") }}
+    </button>
+    <button
+      v-if="!entry.isDir"
+      type="button"
+      class="mx-1 block w-[calc(100%-0.5rem)] rounded-sm px-2 py-1.5 text-left text-sm transition hover:bg-card-hover"
+      @click="emit('action', 'versions', entry)"
+    >
+      {{ t("versions") }}
     </button>
     <div class="mx-2 my-1 border-t border-line"></div>
     <button

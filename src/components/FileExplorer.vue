@@ -20,6 +20,7 @@ import RenameDialog from "./RenameDialog.vue";
 import QuickLook from "./QuickLook.vue";
 import MoveTargetDialog from "./MoveTargetDialog.vue";
 import ShareDialog, { type ShareFormValues, type ShareUpdateValues } from "./ShareDialog.vue";
+import VersionDialog from "./VersionDialog.vue";
 
 // Concurrency semaphore for thumbnail requests (max 6 parallel)
 let thumbSemaphore = 6;
@@ -219,7 +220,7 @@ function closeCtx() {
   ctxMenu.value = null;
 }
 
-type CtxAction = "open" | "download" | "rename" | "share" | "bookmark" | "copyTo" | "moveTo" | "delete";
+type CtxAction = "open" | "download" | "rename" | "share" | "bookmark" | "copyTo" | "moveTo" | "versions" | "delete";
 
 /// Dispatch a context-menu action, then close the menu — same ordering as the
 /// former inline handlers (`action(); ctxMenu = null`).
@@ -232,6 +233,7 @@ function onCtxAction(action: CtxAction, entry: WebDavEntry) {
   else if (action === "share") void openShareDialog(entry);
   else if (action === "bookmark") toggleBookmark(entry);
   else if (action === "copyTo" || action === "moveTo") startMove(entry, action === "copyTo" ? "copy" : "move");
+  else if (action === "versions") versionsEntry.value = entry;
   else void removeEntry(entry);
   closeCtx();
 }
@@ -734,6 +736,9 @@ async function doRename() {
 // currently browsed folder, the source file name is preserved.
 const moveTarget = ref<{ entry: WebDavEntry; mode: "copy" | "move" } | null>(null);
 const moveDest = ref("");
+
+// #404: file versions dialog.
+const versionsEntry = ref<WebDavEntry | null>(null);
 
 function startMove(entry: WebDavEntry, mode: "copy" | "move") {
   moveTarget.value = { entry, mode };
@@ -1469,6 +1474,14 @@ watch(
       @next="quickLookStep(1)"
       @open="quickLookOpen"
       @download="quickLookDownload"
+    />
+
+    <VersionDialog
+      v-if="versionsEntry"
+      :key="versionsEntry.path"
+      :path="versionsEntry.path"
+      :target-user="files.targetUser"
+      @close="versionsEntry = null"
     />
   </div>
 </template>
