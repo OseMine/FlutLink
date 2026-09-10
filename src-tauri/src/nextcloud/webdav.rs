@@ -1110,7 +1110,12 @@ fn parse_version_multistatus(body: &str) -> AppResult<Vec<FileVersion>> {
                     is_collection = true;
                 }
             }
-            Ok(Event::Text(t)) | Ok(Event::CData(t)) => {
+            Ok(Event::Text(t)) => {
+                if field.is_some() {
+                    text.push_str(t.as_ref());
+                }
+            }
+            Ok(Event::CData(t)) => {
                 if field.is_some() {
                     text.push_str(t.as_ref());
                 }
