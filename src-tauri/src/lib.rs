@@ -393,13 +393,13 @@ fn run_cli(handle: &AppHandle, args: CliArgs) {
 /// `-s/--sync`, `-p/--path <dir>`, `-u/--url <url>`, `-t/--tray`,
 /// `--download <remote> --download-to <local>` and `--list <path>` (the latter
 /// two are headless: they print JSON to stdout and need not show a window).
-fn handle_cli(app: &tauri::App) {
+fn handle_cli(app: &tauri::AppHandle) {
     let Ok(matches) = app.cli().matches() else {
         return;
     };
     let args = &matches.args;
     run_cli(
-        app.handle(),
+        app,
         CliArgs {
             want_sync: args.get("sync").is_some_and(|a| a.occurrences > 0),
             want_tray: args.get("tray").is_some_and(|a| a.occurrences > 0),
@@ -499,7 +499,7 @@ pub fn run() {
                 let settings = crate::settings::load(&handle);
                 if settings.disk_mount_enabled {
                     let mount_state = (*app.state::<disk_mount::DiskMountState>()).clone();
-                    let handle_clone = app.handle().clone();
+                    let handle_clone = handle.clone();
                     let cache_dir = settings.disk_mount_cache_dir;
                     let state_for_spawn = mount_state.clone();
                     tauri::async_runtime::spawn(async move {
@@ -529,7 +529,7 @@ pub fn run() {
                 commands::refresh_admin_flags(&refresh_handle).await;
             });
 
-            handle_cli(app);
+            handle_cli(&handle);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
