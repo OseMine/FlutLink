@@ -25,6 +25,11 @@ const t = (key: string) => translate(ui.lang, key);
 
 const allChecked = () =>
   props.users.length > 0 && props.users.every((u) => props.selectedIds.includes(u));
+
+function toggleAll() {
+  if (allChecked()) emit("clear-selection");
+  else emit("select-all");
+}
 </script>
 
 <template>
@@ -39,7 +44,7 @@ const allChecked = () =>
           class="h-3.5 w-3.5 accent-primary"
           :checked="allChecked()"
           :disabled="!users.length"
-          @change="emit(allChecked() ? 'clear-selection' : 'select-all', undefined)"
+          @change="toggleAll"
         />
         <span>{{ selectedIds.length ? `${selectedIds.length} ${t("selected")}` : t("selectedNone") }}</span>
       </label>
@@ -47,7 +52,7 @@ const allChecked = () =>
         v-if="selectedIds.length"
         type="button"
         class="text-xs text-muted underline-offset-2 hover:underline"
-        @click="emit('clear-selection', undefined)"
+        @click="emit('clear-selection')"
       >
         {{ t("clearSelection") }}
       </button>

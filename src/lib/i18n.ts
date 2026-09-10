@@ -1348,7 +1348,7 @@ const dict: Record<Lang, Record<string, string>> = {
     rotateTokenDesc: "Créer un nouveau mot de passe d'application pour le compte actif et révoquer l'ancien. Les jetons stockés sur d'autres appareils cesseront de fonctionner.",
     rotateNow: "Faire pivoter le mot de passe d'application",
     rotateTokenConfirm: "Faire pivoter le mot de passe d'application de {name} ? Un nouveau jeton remplacera l'actuel.",
-    rotateTokenDone: "Mot de passe d'application révoqué.",
+    rotateTokenDone: "Rotation du mot de passe d'application effectuée.",
   },
   es: {
     appName: "FlutLink",

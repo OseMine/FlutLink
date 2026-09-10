@@ -42,6 +42,10 @@ const MAX_BOOKMARKS = 20;
 // dialog opens (the backend is the source of truth).
 
 const DEFAULT_FILES_VIEW: FilesViewPrefs = {
+  viewMode: "list",
+  sortKey: "name",
+  sortAsc: true,
+};
 
 function normalizeFilesView(value: FilesViewPrefs | null): FilesViewPrefs {
   if (!value) return { ...DEFAULT_FILES_VIEW };
