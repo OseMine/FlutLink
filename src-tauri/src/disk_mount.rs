@@ -136,10 +136,8 @@ pub async fn mount_disk_inner(
             loop {
                 tokio::select! {
                     _ = async {
-                        let rx_guard = rx.lock().await;
-                        if let Some(receiver) = rx_guard.as_ref() {
-                            let mut receiver = receiver.clone();
-                            drop(rx_guard);
+                        let mut rx_guard = rx.lock().await;
+                        if let Some(ref mut receiver) = *rx_guard {
                             receiver.close();
                         }
                     } => break,
@@ -287,8 +285,7 @@ pub async fn shutdown_if_mounted(state: &DiskMountState) {
         }
         if let Some(rx_arc) = mount.shutdown_rx {
             let mut rx_guard = rx_arc.lock().await;
-            if let Some(receiver) = rx_guard.as_ref() {
-                let mut receiver = receiver.clone();
+            if let Some(ref mut receiver) = *rx_guard {
                 receiver.close();
             }
         }
