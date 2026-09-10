@@ -12,8 +12,9 @@ use crate::error::{AppError, AppResult};
 use crate::history;
 use crate::nextcloud::{ocs, webdav};
 use crate::state::{
-    Account, AccountMeta, AdminUsersResult, AppState, Share, StorageResult, SyncFolder,
-    SyncFolderStatus, TransferProgress, UserDetails, WebDavEntry, WebDavListResult,
+    Account, AccountMeta, ActivityEntry, AdminUsersResult, AppState, FileVersion, Share,
+    StorageResult, SyncFolder, SyncFolderStatus, TransferProgress, UserDetails, WebDavEntry,
+    WebDavListResult,
 };
 
 fn to_meta_list(accounts: &[Account]) -> Vec<AccountMeta> {
@@ -487,6 +488,46 @@ pub async fn account_storage(
         }),
         Err(err) => Err(err),
     }
+}
+
+/// Rotate the active account's app password (#415): ask the server for a fresh
+/// token, store it (keyring + memory + disk), then revoke the old token. The
+/// old token stays valid until revocation succeeds, so a mid-rotation crash
+/// cannot lock the account out permanently.
+#[tauri::command]
+pub async fn rotate_account_token(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<AccountMeta> {
+    let account = current_account(&state)?;
+    let (new_token, _login_name) =
+        ocs::create_app_password(&state.http_client, &account, "FlutLink").await?;
+
+    // Persist the new token first: it is valid immediately, and keeping it only
+    // in memory would lose the rotation on a crash.
+    accounts::save_token(&account.meta, &new_token)?;
+    let updated = Account {
+        token: new_token,
+        meta: account.meta.clone(),
+    };
+    let list = state.upsert(updated);
+    accounts::persist_accounts(&app, &list)?;
+
+    // Revoke the old token best-effort. A failure is logged, not fatal: the
+    // old token would only remain usable (it is rotated out of this client).
+    let old = Account {
+        token: account.token,
+        meta: account.meta.clone(),
+    };
+    if let Err(err) = ocs::delete_app_password(&state.http_client, &old).await {
+        eprintln!(
+            "warn: could not revoke old app password for {}@{}: {}",
+            account.meta.username,
+            account.meta.instance_url,
+            err.message()
+        );
+    }
+    Ok(account.meta)
 }
 
 /// Create a share for the given file/folder and return the created share.
@@ -1911,6 +1952,73 @@ pub async fn admin_remove_group_member(
     ocs::remove_group_member(&state.http_client, &account, &group_id, &user_id).await
 }
 
+/// Result of a group bulk operation (#425): how many users were handled and
+/// which ones failed (with the reason), so the admin UI can report partial
+/// success instead of guessing.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkGroupResult {
+    pub succeeded: usize,
+    pub failed: Vec<BulkGroupFailure>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkGroupFailure {
+    pub user_id: String,
+    pub reason: String,
+}
+
+/// Add multiple users to a group at once (#425).
+#[tauri::command]
+pub async fn admin_bulk_add_group_members(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_ids: Vec<String>,
+) -> AppResult<BulkGroupResult> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    if user_ids.is_empty() {
+        return Err(AppError::App("No users selected.".into()));
+    }
+    let failures = ocs::bulk_add_group_members(&state.http_client, &account, &group_id, &user_ids)
+        .await?;
+    Ok(BulkGroupResult {
+        succeeded: user_ids.len() - failures.len(),
+        failed: failures
+            .into_iter()
+            .map(|(user_id, reason)| BulkGroupFailure { user_id, reason })
+            .collect(),
+    })
+}
+
+/// Remove multiple users from a group at once (#425).
+#[tauri::command]
+pub async fn admin_bulk_remove_group_members(
+    state: State<'_, AppState>,
+    group_id: String,
+    user_ids: Vec<String>,
+) -> AppResult<BulkGroupResult> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    if user_ids.is_empty() {
+        return Err(AppError::App("No users selected.".into()));
+    }
+    let failures =
+        ocs::bulk_remove_group_members(&state.http_client, &account, &group_id, &user_ids).await?;
+    Ok(BulkGroupResult {
+        succeeded: user_ids.len() - failures.len(),
+        failed: failures
+            .into_iter()
+            .map(|(user_id, reason)| BulkGroupFailure { user_id, reason })
+            .collect(),
+    })
+}
+
 /// Allowed attribute keys for `admin_edit_user`. Anything else is refused so
 /// the admin UI cannot accidentally corrupt server-side settings.
 const ADMIN_EDIT_KEYS: &[&str] = &[
@@ -1941,6 +2049,113 @@ pub async fn admin_edit_user(
         )));
     }
     ocs::update_user(&state.http_client, &account, &user_id, &key, &value).await
+}
+
+/// Admin: recent Activity feed of the instance (#420). Sessions on servers
+/// without the activity app fail with a friendly OCS error the UI can show
+/// inline instead of a hard crash.
+#[tauri::command]
+pub async fn admin_activity_log(
+    state: State<'_, AppState>,
+    limit: Option<u64>,
+) -> AppResult<Vec<ActivityEntry>> {
+    let account = current_account(&state)?;
+    if !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    ocs::activity(&state.http_client, &account, limit.unwrap_or(50)).await
+}
+
+// --- File versions (#404) ------------------------------------------------
+
+/// Resolve `resolve_as`-style impersonation target with the standard
+/// admin-only guard shared by the versions commands.
+fn version_target(account: &Account, target_user: Option<String>) -> AppResult<Option<String>> {
+    let target = target_user.filter(|t| !t.trim().is_empty() && t != &account.meta.username);
+    if target.is_some() && !account.meta.is_admin {
+        return Err(AppError::Forbidden);
+    }
+    Ok(target)
+}
+
+/// Refuse version ids that could break out of the versions collection.
+fn validate_version_id(version_id: &str) -> AppResult<()> {
+    if version_id.is_empty()
+        || version_id.contains('/')
+        || version_id.contains('\\')
+        || version_id.contains("..")
+        || version_id.contains('\0')
+    {
+        return Err(AppError::App("Invalid version id.".into()));
+    }
+    Ok(())
+}
+
+/// List the stored versions of a file (resolved by path; the versions API
+/// addresses files by numeric id, so the backend does the lookup) (#404).
+#[tauri::command]
+pub async fn file_versions_list(
+    state: State<'_, AppState>,
+    path: String,
+    target_user: Option<String>,
+) -> AppResult<Vec<FileVersion>> {
+    let account = current_account(&state)?;
+    let target = version_target(&account, target_user)?;
+    validate_dav_path(&path)?;
+    let file_id = webdav::file_id(&state.http_client, &account, &path, target.as_deref()).await?;
+    webdav::list_versions(&state.http_client, &account, file_id, target.as_deref()).await
+}
+
+/// Restore an old version over the current file (#404).
+#[tauri::command]
+pub async fn file_versions_restore(
+    state: State<'_, AppState>,
+    path: String,
+    version_id: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = version_target(&account, target_user)?;
+    validate_dav_path(&path)?;
+    validate_version_id(&version_id)?;
+    let file_id = webdav::file_id(&state.http_client, &account, &path, target.as_deref()).await?;
+    webdav::restore_version(
+        &state.http_client,
+        &account,
+        file_id,
+        &version_id,
+        &path,
+        target.as_deref(),
+    )
+    .await
+}
+
+/// Download a stored version to `local_path` (#404).
+#[tauri::command]
+pub async fn file_versions_download(
+    state: State<'_, AppState>,
+    path: String,
+    version_id: String,
+    local_path: String,
+    target_user: Option<String>,
+) -> AppResult<()> {
+    let account = current_account(&state)?;
+    let target = version_target(&account, target_user)?;
+    validate_dav_path(&path)?;
+    validate_version_id(&version_id)?;
+    if local_path.is_empty() || local_path.contains('\0') {
+        return Err(AppError::App("Invalid local path.".into()));
+    }
+    let file_id = webdav::file_id(&state.http_client, &account, &path, target.as_deref()).await?;
+    webdav::download_version(
+        &state.http_client,
+        &account,
+        file_id,
+        &version_id,
+        std::path::Path::new(&local_path),
+        target.as_deref(),
+    )
+    .await
 }
 
 fn now_nanos() -> u64 {

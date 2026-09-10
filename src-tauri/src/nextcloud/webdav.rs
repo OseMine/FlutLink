@@ -9,7 +9,7 @@ use std::task::{Context, Poll};
 
 use super::*;
 use crate::error::{AppError, AppResult};
-use crate::state::{Account, WebDavEntry};
+use crate::state::{Account, FileVersion, WebDavEntry};
 
 /// Callback invoked with `(transferred_bytes, total_bytes)` as a transfer
 /// progresses. Total is `0` when the remote did not advertise a size.
@@ -920,6 +920,248 @@ pub async fn copy_as(
         return Err(AppError::TargetExists(new_rel.to_string()));
     }
     status_check(res).await
+}
+
+// --- File versions (Nextcloud versions DAV API) --------------------------
+
+fn versions_url(account: &Account, file_id: u64, target_user: Option<&str>) -> String {
+    let effective_user = target_user.unwrap_or(&account.meta.username);
+    format!(
+        "{}/remote.php/dav/versions/{}/versions/{}",
+        account.base_url(),
+        urlencoding::encode(effective_user),
+        file_id
+    )
+}
+
+/// Resolve the numeric file id of a path via `PROPFIND … <oc:fileid/>`
+/// (`Depth: 0`). The versions API addresses files by id, not by path.
+pub async fn file_id(
+    client: &Client,
+    account: &Account,
+    remote_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<u64> {
+    let url = remote_url(account, remote_rel, target_user);
+    let body = r#"<?xml version="1.0"?>
+<d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+  <d:prop><oc:fileid/></d:prop>
+</d:propfind>"#;
+    let method = Method::from_bytes(b"PROPFIND").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Depth", "0")
+            .header("Content-Type", "application/xml; charset=utf-8")
+            .body(body),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    if !(status.is_success() || status.as_u16() == 207) {
+        let body = res.text().await.unwrap_or_default();
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        });
+    }
+    let xml = res.text().await?;
+    let start = xml.find("<oc:fileid>").or_else(|| xml.find("<fileid>"));
+    let end = xml.find("</");
+    match (start, end) {
+        (Some(s), Some(e)) if e > s => xml[s..e]
+            .trim_start_matches("<oc:fileid>")
+            .trim_start_matches("<fileid>")
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| AppError::Parse("invalid file id in PROPFIND response".into())),
+        _ => Err(AppError::Parse("missing file id in PROPFIND response".into())),
+    }
+}
+
+/// List the stored versions of `file_id` via a Depth-1 PROPFIND on the
+/// versions collection. The collection itself is skipped; every child is one
+/// version, keyed by the trailing segment of its href.
+pub async fn list_versions(
+    client: &Client,
+    account: &Account,
+    file_id: u64,
+    target_user: Option<&str>,
+) -> AppResult<Vec<FileVersion>> {
+    let url = versions_url(account, file_id, target_user);
+    let method = Method::from_bytes(b"PROPFIND").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &url)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Depth", "1"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    let status = res.status();
+    if !(status.is_success() || status.as_u16() == 207) {
+        let body = res.text().await.unwrap_or_default();
+        return Err(AppError::Status {
+            status: status.as_u16(),
+            body,
+        });
+    }
+    parse_version_multistatus(&res.text().await?)
+}
+
+/// Restore `version_id` over the current file via a WebDAV COPY with
+/// `Overwrite: T` (restoring a version is an explicit user action that
+/// replaces the live file, unlike the guarded copy in [`copy_as`]).
+pub async fn restore_version(
+    client: &Client,
+    account: &Account,
+    file_id: u64,
+    version_id: &str,
+    target_rel: &str,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let source = format!(
+        "{}/{}",
+        versions_url(account, file_id, target_user),
+        version_id
+    );
+    let dest = remote_url(account, target_rel, target_user);
+    let method = Method::from_bytes(b"COPY").expect("valid HTTP method");
+    let res = impersonation_header(
+        client
+            .request(method, &source)
+            .basic_auth(&account.meta.username, Some(&account.token))
+            .header("Destination", dest)
+            .header("Overwrite", "T"),
+        account,
+        target_user,
+    )
+    .send()
+    .await?;
+    status_check(res).await
+}
+
+/// Download a stored version to `dest` (atomic temp-file + rename).
+pub async fn download_version(
+    client: &Client,
+    account: &Account,
+    file_id: u64,
+    version_id: &str,
+    dest: &std::path::Path,
+    target_user: Option<&str>,
+) -> AppResult<()> {
+    let url = format!(
+        "{}/{}",
+        versions_url(account, file_id, target_user),
+        version_id
+    );
+    stream_to_file(client, account, &url, dest, target_user, None, None).await
+}
+
+/// Parse a version-collection PROPFIND multistatus body. Returns one entry per
+/// child of the collection, decoded from `href` and the version properties.
+fn parse_version_multistatus(body: &str) -> AppResult<Vec<FileVersion>> {
+    let mut reader = Reader::from_str(body);
+    let mut buf = Vec::new();
+    let mut versions: Vec<FileVersion> = Vec::new();
+
+    let mut href: Option<String> = None;
+    let mut in_resourcetype = false;
+    let mut is_collection = false;
+    let mut field: Option<Field> = None;
+    let mut text = String::new();
+    let mut size: Option<u64> = None;
+    let mut mtime: Option<String> = None;
+    let mut etag: Option<String> = None;
+    let mut display_name: Option<String> = None;
+    let mut display_field = false;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) => match local(e.name().as_ref()) {
+                "response" => {
+                    href = None;
+                    is_collection = false;
+                    size = None;
+                    mtime = None;
+                    etag = None;
+                    display_name = None;
+                    display_field = false;
+                }
+                "href" => field = Some(Field::Href),
+                "resourcetype" => in_resourcetype = true,
+                "collection" if in_resourcetype => is_collection = true,
+                "getcontentlength" => field = Some(Field::Size),
+                "getlastmodified" => field = Some(Field::Mtime),
+                "getetag" => field = Some(Field::Etag),
+                "displayname" => {
+                    field = Some(Field::Etag);
+                    display_field = true;
+                }
+                _ => {}
+            },
+            Ok(Event::Empty(e)) => {
+                if in_resourcetype && local(e.name().as_ref()) == "collection" {
+                    is_collection = true;
+                }
+            }
+            Ok(Event::Text(t)) | Ok(Event::CData(t)) => {
+                if field.is_some() {
+                    text.push_str(t.as_ref());
+                }
+            }
+            Ok(Event::End(e)) => {
+                if field.is_some() {
+                    let value = text.trim().to_string();
+                    match field.take() {
+                        Some(Field::Href) => href = Some(value),
+                        Some(Field::Size) => size = value.parse::<u64>().ok(),
+                        Some(Field::Mtime) => mtime = Some(value),
+                        Some(Field::Etag) if display_field => {
+                            display_field = false;
+                            display_name = if value.is_empty() { None } else { Some(value) };
+                        }
+                        Some(Field::Etag) => etag = Some(value),
+                        None => {}
+                    }
+                    text.clear();
+                }
+                match local(e.name().as_ref()) {
+                    "resourcetype" => in_resourcetype = false,
+                    "response" => {
+                        if let Some(href_value) = href.take() {
+                            if !is_collection {
+                                if let Some(version_id) = href_path(&href_value)
+                                    .rsplit('/')
+                                    .next()
+                                    .filter(|s| !s.is_empty())
+                                    .map(std::string::ToString::to_string)
+                                {
+                                    versions.push(FileVersion {
+                                        version_id,
+                                        size,
+                                        mtime,
+                                        etag,
+                                        display_name,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => return Err(AppError::Parse(format!("WebDAV XML parse error: {}", e))),
+            _ => {}
+        }
+    }
+    Ok(versions)
 }
 
 async fn status_check(res: reqwest::Response) -> AppResult<()> {

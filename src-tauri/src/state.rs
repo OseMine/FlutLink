@@ -99,6 +99,35 @@ pub struct AdminUsersResult {
     pub has_more: bool,
 }
 
+/// One entry of the Nextcloud Activity feed (`/ocs/v2.php/apps/activity/api/v2/activity`).
+/// `subject` and `message` are strings in practice but are typed as `Value`
+/// so array-formatted activity messages (literal strings wrapped in arrays)
+/// degrade gracefully instead of failing to parse.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEntry {
+    pub activity_id: u64,
+    pub datetime: Option<String>,
+    pub user: Option<String>,
+    pub app: Option<String>,
+    pub link: Option<String>,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileVersion {
+    /// Version identifier — the trailing segment of the version's DAV href.
+    pub version_id: String,
+    pub size: Option<u64>,
+    pub mtime: Option<String>,
+    pub etag: Option<String>,
+    pub display_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserDetails {

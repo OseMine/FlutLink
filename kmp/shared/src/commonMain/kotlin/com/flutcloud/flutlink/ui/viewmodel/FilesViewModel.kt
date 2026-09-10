@@ -360,7 +360,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             error.value = null
             try {
-                val dest = if (destinationPath.endsWith("/")) destinationPath + entry.name else destinationPath
+                val dest = destinationPath.trimEnd('/') + "/" + entry.name
                 container.webDavApi.copy(s, entry.path, dest, targetUser.value)
                 _toast.value = UiMessage(Res.string.copied_to, entry.name)
                 listFolder(path.value)
@@ -378,7 +378,7 @@ class FilesViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             error.value = null
             try {
-                val dest = if (destinationPath.endsWith("/")) destinationPath + entry.name else destinationPath
+                val dest = destinationPath.trimEnd('/') + "/" + entry.name
                 container.webDavApi.move(s, entry.path, dest, targetUser.value)
                 _toast.value = UiMessage(Res.string.moved_to, entry.name)
                 listFolder(path.value)

@@ -190,6 +190,7 @@ private suspend fun loadPage(s: AuthSession, append: Boolean) {
                     container.ocsApi.updateUser(s, user.id, "password", password)
                 }
                 loadUsers()
+                error.value = UiMessage(Res.string.user_updated, user.id)
             } catch (e: NetworkException) {
                 error.value = networkUiMessage(e.cause)
             } catch (e: ApiException) {

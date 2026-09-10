@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::*;
 use crate::error::{AppError, AppResult};
-use crate::state::{Account, OcsUser, Share, UserDetails, UserQuota};
+use crate::state::{Account, ActivityEntry, OcsUser, Share, UserDetails, UserQuota};
 
 pub async fn get_current_user(client: &Client, account: &Account) -> AppResult<OcsUser> {
     let url = format!("{}/ocs/v2.php/cloud/user?format=json", account.base_url());
@@ -398,6 +398,46 @@ pub async fn remove_group_member(
         .unwrap_or_else(|| "User removed from group".to_string()))
 }
 
+/// Register several users in a group in one operation (#425). Runs the same
+/// OCS call as [`add_group_member`] per user (the provision API has no native
+/// bulk primitive) but keeps going after individual failures. Returns the ids
+/// that could not be added together with the reason.
+pub async fn bulk_add_group_members(
+    client: &Client,
+    account: &Account,
+    group_id: &str,
+    user_ids: &[String],
+) -> AppResult<Vec<(String, String)>> {
+    let mut failed = Vec::new();
+    for user_id in user_ids {
+        if let Err(err) =
+            add_group_member(client, account, group_id, user_id).await
+        {
+            failed.push((user_id.clone(), err.message()));
+        }
+    }
+    Ok(failed)
+}
+
+/// Remove several users from a group in one operation (#425), tolerating
+/// individual failures.
+pub async fn bulk_remove_group_members(
+    client: &Client,
+    account: &Account,
+    group_id: &str,
+    user_ids: &[String],
+) -> AppResult<Vec<(String, String)>> {
+    let mut failed = Vec::new();
+    for user_id in user_ids {
+        if let Err(err) =
+            remove_group_member(client, account, group_id, user_id).await
+        {
+            failed.push((user_id.clone(), err.message()));
+        }
+    }
+    Ok(failed)
+}
+
 /// Update a single user attribute (displayname, email, password, quota, ...)
 /// via the OCS Provisioning API edit-user endpoint.
 pub async fn update_user(
@@ -725,6 +765,113 @@ fn parse_u64(value: Option<&Value>) -> Option<u64> {
     value
         .and_then(|v| v.as_u64())
         .or_else(|| value.and_then(|v| v.as_str()).and_then(|s| s.parse().ok()))
+}
+
+/// Prompt the server for a fresh app password tied to the requesting session
+/// (`POST /ocs/v2.php/core/apppassword`). Used by token rotation (#415): the
+/// new token is stored and the old one revoked afterwards.
+pub async fn create_app_password(
+    client: &Client,
+    account: &Account,
+    name: &str,
+) -> AppResult<(String, String)> {
+    let url = format!("{}/ocs/v2.php/core/apppassword?format=json", account.base_url());
+    let form = [("name", name), ("scopes", "")];
+    let res = request(client, account, Method::POST, &url, Some(&form)).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    let data = json
+        .pointer("/ocs/data")
+        .ok_or_else(|| AppError::Parse("missing ocs.data in apppassword response".into()))?;
+    let token = data
+        .get("apppassword")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .ok_or_else(|| AppError::Parse("missing apppassword in response".into()))?;
+    let login_name = data
+        .get("loginname")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    Ok((token, login_name.unwrap_or_else(|| account.meta.username.clone())))
+}
+
+/// Revoke the app password that authenticated `account`
+/// (`DELETE /ocs/v2.php/core/apppassword`). Returns the server's message; a
+/// missing session is not an error (the token is already invalid).
+pub async fn delete_app_password(
+    client: &Client,
+    account: &Account,
+) -> AppResult<String> {
+    let url = format!("{}/ocs/v2.php/core/apppassword?format=json", account.base_url());
+    let res = request(client, account, Method::DELETE, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/meta/message")
+        .and_then(|m| m.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| "App password deleted".to_string()))
+}
+
+/// Flatten the Activity API's string-or-array message fields to a single
+/// string. Real feeds use a plain string; some servers wrap it in a one-element
+/// array of strings, which would otherwise break strict deserialization.
+fn activity_text(value: Option<&Value>) -> String {
+    match value {
+        Some(v) if v.is_string() => v.as_str().unwrap_or_default().to_string(),
+        Some(v) if v.is_array() => v
+            .as_array()
+            .and_then(|arr| arr.iter().find_map(|e| e.as_str()))
+            .unwrap_or_default()
+            .to_string(),
+        _ => String::new(),
+    }
+}
+
+fn parse_activity(value: &Value) -> Option<ActivityEntry> {
+    let activity_id = value.get("activity_id").and_then(|v| v.as_u64())?;
+    Some(ActivityEntry {
+        activity_id,
+        datetime: value
+            .get("datetime")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        user: value.get("user").and_then(|v| v.as_str()).map(String::from),
+        app: value.get("app").and_then(|v| v.as_str()).map(String::from),
+        link: value.get("link").and_then(|v| v.as_str()).map(String::from),
+        subject: activity_text(value.get("subject")),
+        message: activity_text(value.get("message")),
+    })
+}
+
+/// Fetch the recent Activity feed (OCS v2 Activity API). Best-effort: the
+/// endpoint is only present on servers running the activity app, so errors are
+/// surfaced as ordinary `AppError`s the frontend can render as a hint.
+pub async fn activity(
+    client: &Client,
+    account: &Account,
+    limit: u64,
+) -> AppResult<Vec<ActivityEntry>> {
+    let limit = limit.clamp(1, 100);
+    let url = format!(
+        "{}/ocs/v2.php/apps/activity/api/v2/activity?format=json&limit={}",
+        account.base_url(),
+        limit
+    );
+    let res = request(client, account, Method::GET, &url, None).await?;
+    let json: Value = res.json().await?;
+    if let Some(msg) = ocs_meta_error(&json) {
+        return Err(AppError::Ocs(msg));
+    }
+    Ok(json
+        .pointer("/ocs/data")
+        .and_then(|d| d.as_array())
+        .map(|arr| arr.iter().filter_map(parse_activity).collect())
+        .unwrap_or_default())
 }
 
 #[cfg(test)]
