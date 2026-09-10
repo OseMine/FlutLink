@@ -32,6 +32,12 @@ pub struct AppSettings {
     /// Whether the app should launch at OS login (autostart).
     #[serde(default)]
     pub autostart_enabled: bool,
+    /// Whether the disk mount should be restored at app startup.
+    #[serde(default)]
+    pub disk_mount_enabled: bool,
+    /// Custom cache directory for the disk mount (empty = default).
+    #[serde(default)]
+    pub disk_mount_cache_dir: String,
 }
 
 fn default_true() -> bool {
@@ -44,6 +50,8 @@ impl Default for AppSettings {
             share_notify_enabled: true,
             share_seen: BTreeMap::new(),
             autostart_enabled: false,
+            disk_mount_enabled: false,
+            disk_mount_cache_dir: String::new(),
         }
     }
 }
@@ -203,11 +211,15 @@ mod tests {
 
     #[test]
     fn parse_round_trips() {
-        let json = r#"{"shareNotifyEnabled":false,"shareSeen":{"a@b":[]}}"#;
+        let json = r#"{"shareNotifyEnabled":false,"shareSeen":{"a@b":[]},"autostartEnabled":false,"diskMountEnabled":true,"diskMountCacheDir":"/tmp/cache"}"#;
         let s: AppSettings = serde_json::from_str(json).unwrap();
         assert!(!s.share_notify_enabled);
+        assert!(s.disk_mount_enabled);
+        assert_eq!(s.disk_mount_cache_dir, "/tmp/cache");
         let back = serde_json::to_string(&s).unwrap();
         let again: AppSettings = serde_json::from_str(&back).unwrap();
         assert!(!again.share_notify_enabled);
+        assert!(again.disk_mount_enabled);
+        assert_eq!(again.disk_mount_cache_dir, "/tmp/cache");
     }
 }

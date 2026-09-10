@@ -910,6 +910,31 @@ pub async fn set_autostart(app: AppHandle, enabled: bool) -> AppResult<()> {
     Ok(())
 }
 
+/// #480: get the persisted disk-mount preference (enabled + cache dir).
+#[tauri::command]
+pub async fn get_disk_mount_settings(app: AppHandle) -> AppResult<crate::state::DiskMountSettings> {
+    let state = app.state::<AppState>();
+    let settings = crate::settings::lock(&app, &state).await;
+    Ok(crate::state::DiskMountSettings {
+        enabled: settings.disk_mount_enabled,
+        cache_dir: settings.disk_mount_cache_dir.clone(),
+    })
+}
+
+/// #480: persist the disk-mount preference (enabled + cache dir).
+#[tauri::command]
+pub async fn set_disk_mount_settings(
+    app: AppHandle,
+    enabled: bool,
+    cache_dir: String,
+) -> AppResult<()> {
+    let state = app.state::<AppState>();
+    let mut settings = crate::settings::lock(&app, &state).await;
+    settings.disk_mount_enabled = enabled;
+    settings.disk_mount_cache_dir = cache_dir;
+    crate::settings::save(&app, &settings)
+}
+
 /// #407: fetch recent sync log entries (newest first).
 #[tauri::command]
 pub fn sync_log_list(

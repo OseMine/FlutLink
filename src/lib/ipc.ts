@@ -269,6 +269,13 @@ export interface AppSettings {
   shareNotifyEnabled: boolean;
   shareSeen: Record<string, number[]>;
   autostartEnabled: boolean;
+  diskMountEnabled: boolean;
+  diskMountCacheDir: string;
+}
+
+export interface DiskMountSettings {
+  enabled: boolean;
+  cacheDir: string;
 }
 
 export interface UpdateStatus {
@@ -579,6 +586,10 @@ export const api = {
   unmountDisk: () => tauri<void>("unmount_disk"),
 
   getMountStatus: () => tauri<MountStatus>("get_mount_status"),
+
+  getDiskMountSettings: () => tauri<DiskMountSettings>("get_disk_mount_settings"),
+  setDiskMountSettings: (enabled: boolean, cacheDir: string) =>
+    tauri<void>("set_disk_mount_settings", { enabled, cacheDir }),
 
   checkUpdate: () => tauri<ReleaseInfo | null>("check_update"),
 

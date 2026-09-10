@@ -335,3 +335,12 @@ impl AppState {
         false
     }
 }
+
+/// Settings exchanged between frontend and backend for the disk mount
+/// feature (#480). Persisted in `settings.json`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskMountSettings {
+    pub enabled: bool,
+    pub cache_dir: String,
+}

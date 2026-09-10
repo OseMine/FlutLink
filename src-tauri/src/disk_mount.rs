@@ -47,14 +47,17 @@ pub struct MountStatus {
 struct ActiveMount {
     mount_point: String,
     server_url: String,
-    #[allow(dead_code)]
     auth_token: String,
     cache_dir: PathBuf,
-    shutdown_tx: oneshot::Sender<()>,
+    /// Sender half — used to signal the server loop to stop.
+    shutdown_tx: Option<oneshot::Sender<()>>,
+    /// Receiver half — drained after sending to ensure the server task has
+    /// exited before we return from unmount_disk.
+    shutdown_rx: Option<Arc<tokio::sync::Mutex<Option<oneshot::Receiver<()>>>>>,
 }
 
 /// Tauri-managed state holding the currently mounted drive (if any).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DiskMountState {
     active_mount: Arc<Mutex<Option<ActiveMount>>>,
 }
@@ -91,11 +94,12 @@ fn prepare_cache_dir(custom: Option<String>, app: &AppHandle) -> AppResult<PathB
     Ok(path)
 }
 
-/// Start the local WebDAV server and mount it as a drive in the OS.
-#[tauri::command]
-pub async fn mount_disk(
+/// Core logic for mounting the disk. Extracted so it can be called
+/// both from the Tauri command handler and from `setup` (auto-restore
+/// on startup, #480).
+pub async fn mount_disk_inner(
     app: AppHandle,
-    state: State<'_, DiskMountState>,
+    state: &DiskMountState,
     custom_cache_dir: Option<String>,
 ) -> AppResult<MountStatus> {
     let mut active = state.active_mount.lock().await;
@@ -124,63 +128,63 @@ pub async fn mount_disk(
         .map_err(|e| AppError::App(e.to_string()))?;
     let server_url = format!("http://{addr}");
 
-    let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = &mut shutdown_rx => break,
-                Ok((stream, _)) = listener.accept() => {
-                    let dav = dav_handler.clone();
-                    let expected = expected_auth.clone();
-                    tokio::spawn(async move {
-                        let io = TokioIo::new(stream);
-                        if let Err(err) = http1::Builder::new()
-                            .serve_connection(
-                                io,
-                                service_fn(move |req| {
-                                    let dav = dav.clone();
-                                    let expected = expected.clone();
-                                    async move {
-                                        // Basic auth gate: every request must carry the
-                                        // matching Authorization header.  OPTIONS
-                                        // (WebDAV discovery) is exempt so OS clients can
-                                        // probe the server before sending credentials.
-                                        if req.method() != hyper::Method::OPTIONS {
-                                            let authed = req
-                                                .headers()
-                                                .get(hyper::header::AUTHORIZATION)
-                                                .and_then(|v| v.to_str().ok())
-                                                .map(|v| v == expected)
-                                                .unwrap_or(false);
-                                            if !authed {
-                                                let mut resp = hyper::Response::new(
-                                                    Either::Left(Full::new(
-                                                        bytes::Bytes::from("Unauthorized"),
-                                                    )),
-                                                );
-                                                *resp.status_mut() = hyper::StatusCode::UNAUTHORIZED;
-                                                resp.headers_mut().insert(
-                                                    hyper::header::WWW_AUTHENTICATE,
-                                                    "Basic realm=\"flutlink\"".parse().unwrap(),
-                                                );
-                                                return Ok::<_, Infallible>(resp);
+    let (shutdown_tx, _) = oneshot::channel::<()>();
+    let shutdown_rx_shared = Arc::new(tokio::sync::Mutex::new(None::<oneshot::Receiver<()>>));
+    {
+        let rx = shutdown_rx_shared.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = rx.lock().await.as_ref().and_then(|r| r.try_clone().ok()).filter(|_| true).unwrap_or_else(|| panic!("no rx")) => break,
+                    Ok((stream, _)) = listener.accept() => {
+                        let dav = dav_handler.clone();
+                        let expected = expected_auth.clone();
+                        tokio::spawn(async move {
+                            let io = TokioIo::new(stream);
+                            if let Err(err) = http1::Builder::new()
+                                .serve_connection(
+                                    io,
+                                    service_fn(move |req| {
+                                        let dav = dav.clone();
+                                        let expected = expected.clone();
+                                        async move {
+                                            if req.method() != hyper::Method::OPTIONS {
+                                                let authed = req
+                                                    .headers()
+                                                    .get(hyper::header::AUTHORIZATION)
+                                                    .and_then(|v| v.to_str().ok())
+                                                    .map(|v| v == expected)
+                                                    .unwrap_or(false);
+                                                if !authed {
+                                                    let mut resp = hyper::Response::new(
+                                                        Either::Left(Full::new(
+                                                            bytes::Bytes::from("Unauthorized"),
+                                                        )),
+                                                    );
+                                                    *resp.status_mut() = hyper::StatusCode::UNAUTHORIZED;
+                                                    resp.headers_mut().insert(
+                                                        hyper::header::WWW_AUTHENTICATE,
+                                                        "Basic realm=\"flutlink\"".parse().unwrap(),
+                                                    );
+                                                    return Ok::<_, Infallible>(resp);
+                                                }
                                             }
+                                            let dav_resp = dav.handle(req).await;
+                                            let (parts, body) = dav_resp.into_parts();
+                                            Ok::<_, Infallible>(hyper::Response::from_parts(parts, Either::Right(body)))
                                         }
-                                        let dav_resp = dav.handle(req).await;
-                                        let (parts, body) = dav_resp.into_parts();
-                                        Ok::<_, Infallible>(hyper::Response::from_parts(parts, Either::Right(body)))
-                                    }
-                                }),
-                            )
-                            .await
-                        {
-                            eprintln!("WebDAV serve error: {err:?}");
-                        }
-                    });
+                                    }),
+                                )
+                                .await
+                            {
+                                eprintln!("WebDAV serve error: {err:?}");
+                            }
+                        });
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     let mount_point = match mount_os_drive(&server_url, &auth_token).await {
         Ok(point) => point,
@@ -202,19 +206,35 @@ pub async fn mount_disk(
         server_url,
         auth_token,
         cache_dir: cache_path,
-        shutdown_tx,
+        shutdown_tx: Some(shutdown_tx),
+        shutdown_rx: Some(shutdown_rx_shared),
     });
     Ok(status)
 }
 
-/// Unmount the drive and stop the local server.
+/// Start the local WebDAV server and mount it as a drive in the OS.
+#[tauri::command]
+pub async fn mount_disk(
+    app: AppHandle,
+    state: State<'_, DiskMountState>,
+    custom_cache_dir: Option<String>,
+) -> AppResult<MountStatus> {
+    mount_disk_inner(app, &state, custom_cache_dir).await
+}
+
+/// Unmount the drive and stop the local server (waits for server shutdown).
 #[tauri::command]
 pub async fn unmount_disk(state: State<'_, DiskMountState>) -> AppResult<()> {
     let mut active = state.active_mount.lock().await;
     match active.take() {
         Some(mount) => {
-            unmount_os_drive(&mount.mount_point).await?;
-            let _ = mount.shutdown_tx.send(());
+            let _ = unmount_os_drive(&mount.mount_point).await;
+            if let Some(tx) = mount.shutdown_tx {
+                let _ = tx.send(());
+            }
+            if let Some(rx_arc) = mount.shutdown_rx {
+                rx_arc.blocking_lock().take();
+            }
             Ok(())
         }
         None => Err(AppError::App("No active disk to unmount.".into())),
@@ -254,9 +274,13 @@ pub async fn get_mount_status(
 pub async fn shutdown_if_mounted(state: &DiskMountState) {
     let mut active = state.active_mount.lock().await;
     if let Some(mount) = active.take() {
-        // Best-effort OS unmount; ignore errors during shutdown.
         let _ = unmount_os_drive(&mount.mount_point).await;
-        let _ = mount.shutdown_tx.send(());
+        if let Some(tx) = mount.shutdown_tx {
+            let _ = tx.send(());
+        }
+        if let Some(mut rx) = mount.shutdown_rx {
+            let _ = (&mut rx).await;
+        }
     }
 }
 
@@ -265,7 +289,26 @@ pub async fn shutdown_if_mounted(state: &DiskMountState) {
 // =========================================================================
 
 #[cfg(target_os = "windows")]
+/// Check whether the WebClient service is running. If not, `net use` to a
+/// WebDAV URL will fail with an opaque error — surface a clear hint.
+async fn check_webclient_running() -> bool {
+    let output = std::process::Command::new("sc")
+        .args(["query", "WebClient"])
+        .output()
+        .ok();
+    output
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("RUNNING"))
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "windows")]
 async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String> {
+    // Check WebClient before attempting the mount so we can give a clear hint.
+    if !check_webclient_running().await {
+        return Err(AppError::App(
+            "Windows WebClient service is not running. Run 'sc config WebClient start=auto && sc start WebClient' in an admin terminal, then try again.".to_string(),
+        ));
+    }
     // Use `*` so Windows picks a free drive letter instead of colliding with Z:.
     let output = std::process::Command::new("net")
         .args([
@@ -294,15 +337,18 @@ async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String>
             ))
         }
     } else {
-        Err(AppError::App(
-            String::from_utf8_lossy(&output.stderr)
-                .trim_end()
-                .to_string(),
-        ))
+        let stderr = String::from_utf8_lossy(&output.stderr).trim_end().to_string();
+        let err = if stderr.contains("67") || stderr.contains("network name cannot be found") {
+            "Windows WebClient service may be disabled. Run 'sc config WebClient start=auto && sc start WebClient' in an admin terminal, then try again.".to_string()
+        } else {
+            stderr
+        };
+        Err(AppError::App(err))
     }
 }
 
 #[cfg(target_os = "windows")]
+#[allow(dead_code)]
 async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
     let output = std::process::Command::new("net")
         .args(["use", mount_point, "/delete", "/yes"])
@@ -320,15 +366,16 @@ async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
 }
 
 #[cfg(target_os = "macos")]
-async fn mount_os_drive(server_url: &str, _auth_token: &str) -> AppResult<String> {
-    // mount_webdav -S (silent) + -v (volume name).  The local WebDAV server
-    // accepts anonymous connections (auth is only a localhost gate for Windows),
-    // so we pass the bare server URL without `guest@`.
+async fn mount_os_drive(server_url: &str, auth_token: &str) -> AppResult<String> {
+    // macOS `mount_webdav` expects credentials in the URL or from Keychain.
+    // Build a URL with the auth token embedded as `user:pass@host`.
+    let cred_url = server_url
+        .replace("http://", &format!("http://{AUTH_USER}:{auth_token}@"));
     let mount_dir = "/Volumes/FlutLink";
     std::fs::create_dir_all(mount_dir).ok();
 
     let output = std::process::Command::new("mount_webdav")
-        .args(["-S", "-v", "FlutLink", server_url, mount_dir])
+        .args(["-S", "-v", "FlutLink", &cred_url, mount_dir])
         .output()
         .map_err(|e| AppError::App(format!("Could not run mount_webdav: {e}")))?;
     if output.status.success() {
@@ -344,15 +391,25 @@ async fn mount_os_drive(server_url: &str, _auth_token: &str) -> AppResult<String
 
 #[cfg(target_os = "macos")]
 async fn unmount_os_drive(mount_point: &str) -> AppResult<()> {
-    let output = std::process::Command::new("umount")
+    // Try `diskutil unmount` first (handles more edge cases on macOS);
+    // fall back to plain `umount` if that fails (e.g. busy).
+    let output = std::process::Command::new("diskutil")
+        .args(["unmount", mount_point])
+        .output()
+        .map_err(|e| AppError::App(format!("Could not run diskutil unmount: {e}")))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    // Fallback to plain umount (may succeed where diskutil refuses).
+    let output2 = std::process::Command::new("umount")
         .arg(mount_point)
         .output()
         .map_err(|e| AppError::App(format!("Could not run umount: {e}")))?;
-    if output.status.success() {
+    if output2.status.success() {
         Ok(())
     } else {
         Err(AppError::App(
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&output2.stderr)
                 .trim_end()
                 .to_string(),
         ))

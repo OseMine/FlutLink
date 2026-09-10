@@ -37,11 +37,11 @@ const DISKMOUNT_CACHE_KEY = "flutlink.diskMountCache";
 const AUTOSTART_KEY = "flutlink.autostart";
 const MAX_BOOKMARKS = 20;
 
+// #410/#480: these keys mirror the backend-persisted settings so the
+// UI stays in sync via `inherit*` helpers called when the Settings
+// dialog opens (the backend is the source of truth).
+
 const DEFAULT_FILES_VIEW: FilesViewPrefs = {
-  viewMode: "list",
-  sortKey: "name",
-  sortAsc: true,
-};
 
 function normalizeFilesView(value: FilesViewPrefs | null): FilesViewPrefs {
   if (!value) return { ...DEFAULT_FILES_VIEW };
@@ -187,14 +187,19 @@ export const useUiStore = defineStore("ui", () => {
     localStorage.setItem(SHARE_NOTIFY_KEY, JSON.stringify(enabled));
   }
 
+  // #480: the disk-mount preference is persisted in settings.json
+  // via the backend. Mirror it here so the localStorage key stays in
+  // sync, but the backend is the source of truth.
   function setDiskMount(value: boolean) {
     diskMount.value = value;
     localStorage.setItem(DISKMOUNT_KEY, JSON.stringify(value));
+    void api.setDiskMountSettings(value, diskMountCachePath.value).catch(() => {});
   }
 
   function setDiskMountCachePath(value: string) {
     diskMountCachePath.value = value;
     localStorage.setItem(DISKMOUNT_CACHE_KEY, JSON.stringify(value));
+    void api.setDiskMountSettings(diskMount.value, value).catch(() => {});
   }
 
   function setAutostart(value: boolean) {
@@ -206,6 +211,14 @@ export const useUiStore = defineStore("ui", () => {
   function inheritAutostart(enabled: boolean) {
     autostart.value = enabled;
     localStorage.setItem(AUTOSTART_KEY, JSON.stringify(enabled));
+  }
+
+  // #480: adopt the persisted disk-mount settings from the backend.
+  function inheritDiskMount(enabled: boolean, cacheDir: string) {
+    diskMount.value = enabled;
+    diskMountCachePath.value = cacheDir;
+    localStorage.setItem(DISKMOUNT_KEY, JSON.stringify(enabled));
+    localStorage.setItem(DISKMOUNT_CACHE_KEY, JSON.stringify(cacheDir));
   }
 
   return {
@@ -229,6 +242,7 @@ export const useUiStore = defineStore("ui", () => {
     setDiskMountCachePath,
     setAutostart,
     inheritAutostart,
+    inheritDiskMount,
     toast,
     dismiss,
     isBookmarked,

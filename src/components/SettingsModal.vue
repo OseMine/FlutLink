@@ -120,6 +120,7 @@ watch(
         .then((s) => {
           ui.inheritShareNotify(s.shareNotifyEnabled);
           ui.inheritAutostart(s.autostartEnabled);
+          ui.inheritDiskMount(s.diskMountEnabled, s.diskMountCacheDir);
         })
         .catch(() => {});
       void api
@@ -253,20 +254,21 @@ const mountCacheDisplay = computed(() => {
 });
 
 async function pickMountCache() {
-  if (!ui.diskMount) return;
-  try {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t("diskmountCacheChoose"),
-    });
-    if (typeof selected === "string") {
-      ui.setDiskMountCachePath(selected);
-    }
-  } catch {
-    // dialog dismissed — nothing to change
-  }
-}
+   if (!ui.diskMount) return;
+   try {
+     const selected = await open({
+       directory: true,
+       multiple: false,
+       title: t("diskmountCacheChoose"),
+     });
+     if (typeof selected === "string") {
+       ui.setDiskMountCachePath(selected);
+       void api.setDiskMountSettings(ui.diskMount, selected);
+     }
+   } catch {
+     // dialog dismissed — nothing to change
+   }
+ }
 
 async function loadMountStatus() {
   try {
@@ -279,30 +281,33 @@ async function loadMountStatus() {
 }
 
 async function toggleDiskMount(checked: boolean) {
-  if (diskmountBusy.value) return;
-  diskmountBusy.value = true;
-  try {
-    if (checked) {
-      const status = await api.mountDisk(ui.diskMountCachePath || undefined);
-      ui.setDiskMount(true);
-      mountStatus.value = status;
-      ui.toast(
-        t("diskmountMounted").replace("{mount}", status.mountPoint ?? ""),
-        "success"
-      );
-    } else {
-      await api.unmountDisk();
-      ui.setDiskMount(false);
-      mountStatus.value = null;
-      ui.toast(t("diskmountUnmounted"), "success");
-    }
-  } catch (e) {
-    ui.setDiskMount(!checked);
-    ui.toast(invokeError(e).message, "error");
-  } finally {
-    diskmountBusy.value = false;
-  }
-}
+   if (diskmountBusy.value) return;
+   diskmountBusy.value = true;
+   try {
+     if (checked) {
+       const cacheDir = ui.diskMountCachePath || undefined;
+       const status = await api.mountDisk(cacheDir);
+       ui.setDiskMount(true);
+       mountStatus.value = status;
+       await api.setDiskMountSettings(true, cacheDir || "");
+       ui.toast(
+         t("diskmountMounted").replace("{mount}", status.mountPoint ?? ""),
+         "success"
+       );
+     } else {
+       await api.unmountDisk();
+       ui.setDiskMount(false);
+       await api.setDiskMountSettings(false, ui.diskMountCachePath || "");
+       mountStatus.value = null;
+       ui.toast(t("diskmountUnmounted"), "success");
+     }
+   } catch (e) {
+     ui.setDiskMount(!checked);
+     ui.toast(invokeError(e).message, "error");
+   } finally {
+     diskmountBusy.value = false;
+   }
+ }
 </script>
 
 <template>

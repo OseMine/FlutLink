@@ -493,6 +493,37 @@ pub fn run() {
                 }
             }
 
+            // #480: restore disk mount if it was enabled and persisted.
+            // Run asynchronously so it doesn't block startup.
+            {
+                let settings = crate::settings::load(&handle);
+                if settings.disk_mount_enabled {
+                    let mount_state = app.state::<disk_mount::DiskMountState>().clone();
+                    let handle_clone = handle.clone();
+                    let cache_dir = settings.disk_mount_cache_dir;
+                    tauri::async_runtime::spawn(async move {
+                        // Only attempt if no mount is already active (e.g. from
+                        // a previous app instance).
+                        {
+                            let active = mount_state.active_mount.lock().await;
+                            if active.is_none() {
+                                drop(active);
+                                let _ = disk_mount::mount_disk_inner(
+                                    handle_clone,
+                                    &mount_state,
+                                    if cache_dir.is_empty() {
+                                        None
+                                    } else {
+                                        Some(cache_dir)
+                                    },
+                                )
+                                .await;
+                            }
+                        }
+                    });
+                }
+            }
+
             // P15: the stored admin flag is re-evaluated once at startup so a
             // transient network failure at sign-in can never permanently demote
             // an admin account to a regular one.
