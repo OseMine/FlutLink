@@ -380,9 +380,9 @@ fn run_cli(handle: &AppHandle, args: CliArgs) {
         handle.state::<AppState>().sync.notify_one();
     }
 
-    // `--tray` is the only flag that suppresses the window; a forwarded second
-    // instance still opens the window, so only hide when explicitly requested.
-    if args.want_tray {
+    // When autostart is active, suppress the window from opening at startup.
+    // The tray is already visible; the user opens the window via tray click.
+    if args.want_tray || crate::settings::load(handle).autostart_enabled {
         if let Some(window) = handle.get_webview_window("main") {
             let _ = window.hide();
         }
