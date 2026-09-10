@@ -62,6 +62,12 @@ pub struct DiskMountState {
     pub active_mount: Arc<Mutex<Option<ActiveMount>>>,
 }
 
+/// Check whether a mount is currently active. Kept in the module so the
+/// private `ActiveMount` type never leaks into the setup closure.
+pub async fn is_mount_active(state: &DiskMountState) -> bool {
+    state.active_mount.lock().await.is_some()
+}
+
 /// Generate a random base64 token for Basic auth.
 fn generate_auth_token() -> String {
     use getrandom::fill;

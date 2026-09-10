@@ -1132,6 +1132,7 @@ fn parse_version_multistatus(body: &str) -> AppResult<Vec<FileVersion>> {
                             display_name = if value.is_empty() { None } else { Some(value) };
                         }
                         Some(Field::Etag) => etag = Some(value),
+                        Some(Field::ContentType) => {}
                         None => {}
                     }
                     text.clear();
@@ -1150,9 +1151,9 @@ fn parse_version_multistatus(body: &str) -> AppResult<Vec<FileVersion>> {
                                     versions.push(FileVersion {
                                         version_id,
                                         size,
-                                        mtime,
-                                        etag,
-                                        display_name,
+                                        mtime: mtime.take(),
+                                        etag: etag.take(),
+                                        display_name: display_name.take(),
                                     });
                                 }
                             }

@@ -498,28 +498,24 @@ pub fn run() {
             {
                 let settings = crate::settings::load(&handle);
                 if settings.disk_mount_enabled {
-                    let mount_state = app.state::<disk_mount::DiskMountState>().clone();
+                    let mount_state = (*app.state::<disk_mount::DiskMountState>()).clone();
                     let handle_clone = app.handle().clone();
                     let cache_dir = settings.disk_mount_cache_dir;
                     let state_for_spawn = mount_state.clone();
                     tauri::async_runtime::spawn(async move {
                         // Only attempt if no mount is already active (e.g. from
                         // a previous app instance).
-                        {
-                            let active = state_for_spawn.active_mount.lock().await;
-                            if active.is_none() {
-                                drop(active);
-                                let _ = disk_mount::mount_disk_inner(
-                                    handle_clone,
-                                    &state_for_spawn,
-                                    if cache_dir.is_empty() {
-                                        None
-                                    } else {
-                                        Some(cache_dir)
-                                    },
-                                )
-                                .await;
-                            }
+                        if !disk_mount::is_mount_active(&state_for_spawn).await {
+                            let _ = disk_mount::mount_disk_inner(
+                                handle_clone,
+                                &state_for_spawn,
+                                if cache_dir.is_empty() {
+                                    None
+                                } else {
+                                    Some(cache_dir)
+                                },
+                            )
+                            .await;
                         }
                     });
                 }
