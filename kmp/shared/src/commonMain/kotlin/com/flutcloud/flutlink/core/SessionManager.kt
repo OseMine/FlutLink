@@ -96,9 +96,14 @@ class SessionManager(private val accountStore: AccountStore) {
     }
 
     fun signOut() {
+        val active = _session.value?.username?.let { username ->
+            _accounts.value.firstOrNull { it.username == username }
+        }
         val updated = _accounts.value.map { it.copy(isActive = false) }
         updateAccounts(updated)
         _session.value = null
+        // #484: delete the secure token when signing out.
+        active?.let { accountStore.deleteToken(it) }
     }
 
     fun removeAccount(meta: AccountMeta) {

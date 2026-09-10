@@ -59,7 +59,7 @@ struct ActiveMount {
 /// Tauri-managed state holding the currently mounted drive (if any).
 #[derive(Default, Clone)]
 pub struct DiskMountState {
-    active_mount: Arc<Mutex<Option<ActiveMount>>>,
+    pub active_mount: Arc<Mutex<Option<ActiveMount>>>,
 }
 
 /// Generate a random base64 token for Basic auth.
@@ -128,14 +128,21 @@ pub async fn mount_disk_inner(
         .map_err(|e| AppError::App(e.to_string()))?;
     let server_url = format!("http://{addr}");
 
-    let (shutdown_tx, _) = oneshot::channel::<()>();
-    let shutdown_rx_shared = Arc::new(tokio::sync::Mutex::new(None::<oneshot::Receiver<()>>));
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let shutdown_rx_shared = Arc::new(tokio::sync::Mutex::new(Some(shutdown_rx)));
     {
         let rx = shutdown_rx_shared.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    _ = rx.lock().await.as_ref().and_then(|r| r.try_clone().ok()).filter(|_| true).unwrap_or_else(|| panic!("no rx")) => break,
+                    _ = async {
+                        let rx_guard = rx.lock().await;
+                        if let Some(receiver) = rx_guard.as_ref() {
+                            let mut receiver = receiver.clone();
+                            drop(rx_guard);
+                            receiver.close();
+                        }
+                    } => break,
                     Ok((stream, _)) = listener.accept() => {
                         let dav = dav_handler.clone();
                         let expected = expected_auth.clone();
@@ -278,8 +285,12 @@ pub async fn shutdown_if_mounted(state: &DiskMountState) {
         if let Some(tx) = mount.shutdown_tx {
             let _ = tx.send(());
         }
-        if let Some(mut rx) = mount.shutdown_rx {
-            let _ = (&mut rx).await;
+        if let Some(rx_arc) = mount.shutdown_rx {
+            let mut rx_guard = rx_arc.lock().await;
+            if let Some(receiver) = rx_guard.as_ref() {
+                let mut receiver = receiver.clone();
+                receiver.close();
+            }
         }
     }
 }
