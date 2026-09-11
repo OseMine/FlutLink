@@ -396,7 +396,7 @@ async function toggleDiskMount(checked: boolean) {
             <div
               v-for="account in accounts.accounts"
               :key="account.instanceUrl + '/' + account.username"
-              class="card flex items-center gap-3 p-3"
+              class="card flex flex-wrap items-center gap-3 p-3"
             >
               <div class="min-w-0 flex-1">
                 <p class="flex items-center gap-2 truncate text-sm font-medium">
@@ -411,12 +411,14 @@ async function toggleDiskMount(checked: boolean) {
                 </p>
                 <p class="truncate text-xs text-muted">{{ account.instanceUrl }}</p>
               </div>
-              <button type="button" class="btn btn-outline shrink-0" @click="switchTo(account.username, account.instanceUrl)">
-                {{ t("switchAccount") }}
-              </button>
-              <button type="button" class="btn btn-danger shrink-0" @click="remove(account.username, account.instanceUrl)">
-                {{ t("removeAccount") }}
-              </button>
+              <div class="flex shrink-0 items-center gap-2">
+                <button type="button" class="btn btn-outline" @click="switchTo(account.username, account.instanceUrl)">
+                  {{ t("switchAccount") }}
+                </button>
+                <button type="button" class="btn btn-danger" @click="remove(account.username, account.instanceUrl)">
+                  {{ t("removeAccount") }}
+                </button>
+              </div>
             </div>
             <button type="button" class="btn btn-outline w-full" @click="emit('login')">
               <Icon name="add" :size="15" />
